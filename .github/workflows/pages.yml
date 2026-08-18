@@ -36,6 +36,9 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          enablement: true
 
       - name: Upload download page
         uses: actions/upload-pages-artifact@v4
