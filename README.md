@@ -9,7 +9,9 @@ desktop/                     Desktop 子模块
   deepseek-harness/          Desktop 自带的递归 DSH 子模块
 plugins/dsh-vision-router/   插件源码子模块
 build/                       临时组装与构建脚本
-product.json                 固定提交和默认插件清单
+VERSION                      唯一可编辑的产品版本源
+product.json                 产品身份、固定提交和默认插件清单
+docs/releases/               固定发布说明与模板
 .github/workflows/           Windows、macOS 与 Release 构建
 ```
 
@@ -30,9 +32,15 @@ corepack yarn product:dist:win
 corepack yarn product:dist:mac-unsigned
 ```
 
-`product:dist:mac-unsigned` 是当前 GitHub Actions 使用的 arm64 DMG 构建入口。`product:dist:mac` 保留为签名和公证的正式发布入口，需要仓库 Secrets：`MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`。
+`product:dist:mac-unsigned` 是当前 GitHub Actions 使用的 DMG 构建入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择原生 Runner 架构。`product:dist:mac` 保留为签名和公证的正式发布入口，需要仓库 Secrets：`MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`。
 
-`Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。它会上传带产品版本的 Windows amd64、macOS arm64 安装包、SHA-256 校验文件和 `BUILD-INFO.txt`；当前 CI 产物会明确标记为未签名。
+`Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；当前 CI 产物会明确标记为未签名。
+
+## 版本与发布说明
+
+`VERSION` 是唯一可编辑的产品版本源。运行 `VERSION=x.y.z bash scripts/set-version.sh` 将版本同步到 `package.json` 和 `product.json`；`bash scripts/set-version.sh --check` 校验重复元数据。
+
+每个正式版本必须提供 `docs/releases/vx.y.z.md`。发布前由 `scripts/validate-release-notes.mjs` 检查固定标题和“本次更新、下载说明、安装说明、验证结果、已知限制、完整变更”六个章节，Release 直接使用该文件，不自动生成正文。
 
 ## 插件策略
 
