@@ -52,6 +52,28 @@ function disableUpstreamUpdates(patch) {
     + '- id: desktop-updates\n  disabled: true'
 }
 
+/**
+ * 将上游启动验收从“必须出现检查更新菜单”改为“不得保留上游检查更新菜单”。
+ * 产品停用 desktop-updates 后，原校验会把预期的产品覆盖误判为打包失败。
+ * @param script - staging 副本中 verify-profile-boot.mjs 的完整内容。
+ * @returns 与产品更新策略一致的启动验收脚本。
+ * @throws 上游校验锚点变化时抛出，中断打包待人工复查。
+ */
+function verifyUpstreamUpdatesDisabled(script) {
+  const upstreamCheck = `  if (!trayItems.some(item => item.label() === 'Check for Updates…')) {
+    throw new Error('assembled desktop profile is missing the update tray command')
+  }`
+  if (!script.includes(upstreamCheck)) {
+    throw new Error('prepare-desktop: 未找到上游更新菜单验收锚点，请复查产品更新策略')
+  }
+  return script.replace(
+    upstreamCheck,
+    `  if (trayItems.some(item => item.label() === 'Check for Updates…')) {
+    throw new Error('assembled product profile unexpectedly retains the upstream update tray command')
+  }`,
+  )
+}
+
 /* ====================================================================
  * 主流程
  * 按顺序执行 staging 装配：重建目录、读入副本、各项产品加工、写回。
@@ -72,12 +94,20 @@ cpSync(
 const workspacePath = resolve(stage, 'package.json')
 const desktopPackagePath = resolve(stage, 'dsh-plugin-desktop', 'package.json')
 const desktopPatchPath = resolve(stage, 'dsh-plugin-desktop', 'cordis.patch.yml')
+const profileBootVerifierPath = resolve(
+  stage,
+  'dsh-plugin-desktop',
+  'scripts',
+  'verify-profile-boot.mjs',
+)
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').trimEnd()
+let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 
 /* ------------------------- 停用上游自动更新 ------------------------- */
 desktopPatch = disableUpstreamUpdates(desktopPatch)
+profileBootVerifier = verifyUpstreamUpdatesDisabled(profileBootVerifier)
 
 /* --------------------------- 注入产品插件 --------------------------- */
 for (const plugin of enabledPlugins) {
@@ -103,6 +133,7 @@ for (const plugin of enabledPlugins) {
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
+writeFileSync(profileBootVerifierPath, profileBootVerifier)
 
 /* -------------------------- 安装产品锁文件 -------------------------- */
 if (enabledPlugins.length > 0) {
