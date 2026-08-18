@@ -42,6 +42,8 @@ corepack yarn product:dist:mac-unsigned
 
 每个正式版本必须提供 `docs/releases/vx.y.z.md`。发布前由 `scripts/validate-release-notes.mjs` 检查固定标题和“本次更新、下载说明、安装说明、验证结果、已知限制、完整变更”六个章节，Release 直接使用该文件，不自动生成正文。
 
+仓库 Secret `RELEASE_TOKEN` 必须由指定发布账号创建并具备仓库 Contents 写权限。正式 Release 使用该 Token，而不是 `github.token`，因此发布者显示为指定 GitHub 用户。
+
 ## 插件策略
 
 插件必须先作为 `plugins/` 下的 Git 子模块固定提交，再登记到 `product.json`。`enabledByDefault: true` 的插件会在临时 staging 中作为 Yarn workspace 加入 Desktop，并把插件的 DSH patch 追加到 Desktop 产品层。
