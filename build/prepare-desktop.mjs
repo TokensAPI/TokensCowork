@@ -29,6 +29,10 @@ mkdirSync(stageRoot, { recursive: true })
 assertGeneratedPath(stage)
 if (existsSync(stage)) rmSync(stage, { recursive: true, force: true })
 copySource(desktopSource, stage)
+cpSync(
+  resolve(root, 'build', 'mac-unsigned-after-pack.ts'),
+  resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
+)
 
 const workspacePath = resolve(stage, 'package.json')
 const desktopPackagePath = resolve(stage, 'dsh-plugin-desktop', 'package.json')

@@ -184,7 +184,10 @@ jobs:
           fi
           app_binary="$(find "${dist}" -type f -path '*/TokensHarness.app/Contents/MacOS/TokensHarness' -print -quit)"
           test -n "${app_binary}"
+          app_path="${app_binary%/Contents/MacOS/TokensHarness}"
           lipo -archs "${app_binary}" | tr ' ' '\n' | grep -qx "${{ matrix.binary_arch }}"
+          codesign --display --verbose=4 "${app_path}"
+          codesign --verify --deep --strict --verbose=4 "${app_path}"
           hdiutil verify "${packages[0]}"
           release_name="TokensHarness-${version}-macos-${arch}-installer.dmg"
           mv "${packages[0]}" "${dist}/${release_name}"
@@ -197,7 +200,7 @@ jobs:
             printf 'git_sha=%s\n' "${GITHUB_SHA}"
             printf 'platform=darwin\n'
             printf 'architecture=%s\n' "${arch}"
-            printf 'signing=unsigned\n'
+            printf 'signing=ad-hoc\n'
           } > "${dist}/TokensHarness-${version}-macos-${arch}-BUILD-INFO.txt"
 
       - name: Upload macOS package

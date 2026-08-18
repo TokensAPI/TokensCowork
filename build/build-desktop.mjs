@@ -60,6 +60,7 @@ if (mode === 'check') {
     '--config.forceCodeSigning=false',
     '--config.mac.identity=null',
     '--config.mac.notarize=false',
+    '--config.afterPack=./scripts/mac-unsigned-after-pack.ts',
   ], stage)
 } else if (mode === 'win') {
   if (process.platform !== 'win32' || process.arch !== 'x64') {
