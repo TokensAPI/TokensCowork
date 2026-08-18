@@ -47,7 +47,7 @@ corepack yarn product:dist:mac:auto
 
 ## 下载页
 
-`download/` 是独立的静态下载页。推送到 `master` 分支且该目录有变化时，`.github/workflows/pages.yml` 会自动将其部署到 GitHub Pages。首次使用需在仓库 **Settings → Pages → Source** 中选择 **GitHub Actions**。
+`download/` 是独立的静态下载页。首次使用需由具备仓库管理权限的账号在 **Settings → Pages → Source** 中选择 **GitHub Actions**，之后再从 Actions 手动运行 `Deploy download page`。Pages 未启用时工作流不会自动触发，避免产生无效的失败构建。
 
 仓库 Secret `RELEASE_TOKEN` 必须由指定发布账号创建并具备仓库 Contents 写权限。正式 Release 使用该 Token，而不是 `github.token`，因此发布者显示为指定 GitHub 用户。
 

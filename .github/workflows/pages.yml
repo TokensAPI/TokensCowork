@@ -1,12 +1,6 @@
 name: Deploy download page
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "download/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
