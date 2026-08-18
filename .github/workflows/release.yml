@@ -24,27 +24,32 @@ env:
 
 jobs:
   metadata:
-    name: Resolve product version
+    name: Resolve VERSION
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
-      - name: Check out superproject
+      - name: Check out source and tags
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Validate product version and tag
+      - name: Validate canonical version and release notes
         id: version
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
+          version="$(bash scripts/set-version.sh --print)"
           tag="v${version}"
+          release_notes="docs/releases/v${version}.md"
+          bash scripts/set-version.sh --check
+          node scripts/validate-release-notes.mjs --version "${version}" --file "${release_notes}"
+          node --test scripts/validate-release-notes.test.mjs
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
-            echo "Release tag ${GITHUB_REF_NAME} does not match package version ${version}" >&2
+            echo "Release tag ${GITHUB_REF_NAME} does not match VERSION=${version}" >&2
             exit 1
           fi
           if [[ "${GITHUB_REF_TYPE}" == "tag" || "${{ inputs.publish_release }}" == "true" ]]; then
@@ -56,6 +61,7 @@ jobs:
           fi
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
           printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
+          printf 'release_notes=%s\n' "${release_notes}" >> "${GITHUB_OUTPUT}"
 
   verify:
     name: Verify pinned product layout
@@ -74,7 +80,7 @@ jobs:
         with:
           node-version: 22.23.2
 
-      - name: Verify superproject pins
+      - name: Verify superproject pins and version
         run: corepack yarn product:check
 
   windows-amd64:
@@ -102,22 +108,22 @@ jobs:
         run: |
           $version = "${{ needs.metadata.outputs.version }}"
           $dist = ".build/desktop/dsh-plugin-desktop/dist"
-          $installers = @(Get-ChildItem -LiteralPath $dist -Filter "*.exe" -File)
+          $installers = @(Get-ChildItem -LiteralPath $dist -Filter "TokensHarness-*-x64-Setup.exe" -File)
           if ($installers.Count -ne 1) {
             throw "Expected exactly one Windows installer, found $($installers.Count)"
           }
-          $releaseName = "DSH-Desktop-$version-windows-amd64-installer.exe"
+          $releaseName = "TokensHarness-$version-windows-amd64-installer.exe"
           $releasePath = Join-Path $dist $releaseName
           Move-Item -LiteralPath $installers[0].FullName -Destination $releasePath
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $releasePath).Hash.ToLowerInvariant()
-          "$hash  $releaseName" | Set-Content -Encoding ascii "$dist/DSH-Desktop-$version-windows-amd64-SHA256SUMS.txt"
+          "$hash  $releaseName" | Set-Content -Encoding ascii "$dist/TokensHarness-$version-windows-amd64-SHA256SUMS.txt"
           @(
             "version=$version"
             "git_sha=$env:GITHUB_SHA"
             "platform=windows"
             "architecture=amd64"
             "signing=unsigned"
-          ) | Set-Content -Encoding ascii "$dist/DSH-Desktop-$version-windows-amd64-BUILD-INFO.txt"
+          ) | Set-Content -Encoding ascii "$dist/TokensHarness-$version-windows-amd64-BUILD-INFO.txt"
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
@@ -131,11 +137,23 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  macos-arm64:
-    name: Build macOS arm64 DMG
+  macos:
+    name: Build macOS ${{ matrix.arch }} DMG
     needs: [metadata, verify]
-    runs-on: macos-14
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-14
+            electron_arch: arm64
+            binary_arch: arm64
+          - arch: amd64
+            runner: macos-15-intel
+            electron_arch: x64
+            binary_arch: x86_64
     steps:
       - name: Check out all pinned sources
         uses: actions/checkout@v7
@@ -149,41 +167,47 @@ jobs:
           node-version: 22.23.2
 
       - name: Build unsigned macOS DMG
-        run: corepack yarn product:dist:mac-unsigned
+        shell: bash
+        run: DSH_MAC_ARCH="${{ matrix.electron_arch }}" corepack yarn product:dist:mac-unsigned
 
-      - name: Prepare macOS release files
+      - name: Verify and prepare macOS release files
         shell: bash
         run: |
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
+          arch="${{ matrix.arch }}"
           dist=".build/desktop/dsh-plugin-desktop/dist"
           packages=("${dist}"/*.dmg)
           if [[ ! -e "${packages[0]}" || "${#packages[@]}" -ne 1 ]]; then
             echo "Expected exactly one macOS DMG" >&2
             exit 1
           fi
-          release_name="DSH-Desktop-${version}-macos-arm64-installer.dmg"
+          app_binary="$(find "${dist}" -type f -path '*/TokensHarness.app/Contents/MacOS/TokensHarness' -print -quit)"
+          test -n "${app_binary}"
+          lipo -archs "${app_binary}" | tr ' ' '\n' | grep -qx "${{ matrix.binary_arch }}"
+          hdiutil verify "${packages[0]}"
+          release_name="TokensHarness-${version}-macos-${arch}-installer.dmg"
           mv "${packages[0]}" "${dist}/${release_name}"
           (
             cd "${dist}"
-            shasum -a 256 "${release_name}" > "DSH-Desktop-${version}-macos-arm64-SHA256SUMS.txt"
+            shasum -a 256 "${release_name}" > "TokensHarness-${version}-macos-${arch}-SHA256SUMS.txt"
           )
           {
             printf 'version=%s\n' "${version}"
             printf 'git_sha=%s\n' "${GITHUB_SHA}"
             printf 'platform=darwin\n'
-            printf 'architecture=arm64\n'
+            printf 'architecture=%s\n' "${arch}"
             printf 'signing=unsigned\n'
-          } > "${dist}/DSH-Desktop-${version}-macos-arm64-BUILD-INFO.txt"
+          } > "${dist}/TokensHarness-${version}-macos-${arch}-BUILD-INFO.txt"
 
       - name: Upload macOS package
         uses: actions/upload-artifact@v7
         with:
-          name: desktop-macos-arm64-${{ needs.metadata.outputs.version }}
+          name: desktop-macos-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}
           path: |
-            .build/desktop/dsh-plugin-desktop/dist/*-macos-arm64-installer.dmg
-            .build/desktop/dsh-plugin-desktop/dist/*-macos-arm64-SHA256SUMS.txt
-            .build/desktop/dsh-plugin-desktop/dist/*-macos-arm64-BUILD-INFO.txt
+            .build/desktop/dsh-plugin-desktop/dist/*-macos-${{ matrix.arch }}-installer.dmg
+            .build/desktop/dsh-plugin-desktop/dist/*-macos-${{ matrix.arch }}-SHA256SUMS.txt
+            .build/desktop/dsh-plugin-desktop/dist/*-macos-${{ matrix.arch }}-BUILD-INFO.txt
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -191,7 +215,7 @@ jobs:
   publish-release:
     name: Publish GitHub Release
     if: github.ref_type == 'tag' || inputs.publish_release == true
-    needs: [metadata, windows-amd64, macos-arm64]
+    needs: [metadata, windows-amd64, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -211,7 +235,7 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Validate or create product tag
+      - name: Validate or create VERSION tag
         shell: bash
         run: |
           set -euo pipefail
@@ -232,43 +256,46 @@ jobs:
             exit 1
           fi
 
-      - name: Create GitHub Release
+      - name: Create checksums and GitHub Release
         shell: bash
         run: |
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
           tag="${{ needs.metadata.outputs.tag }}"
+          release_notes="${{ needs.metadata.outputs.release_notes }}"
           packages=(
-            "release-assets/DSH-Desktop-${version}-windows-amd64-installer.exe"
-            "release-assets/DSH-Desktop-${version}-macos-arm64-installer.dmg"
+            "release-assets/TokensHarness-${version}-windows-amd64-installer.exe"
+            "release-assets/TokensHarness-${version}-macos-arm64-installer.dmg"
+            "release-assets/TokensHarness-${version}-macos-amd64-installer.dmg"
           )
           build_info=(
-            "release-assets/DSH-Desktop-${version}-windows-amd64-BUILD-INFO.txt"
-            "release-assets/DSH-Desktop-${version}-macos-arm64-BUILD-INFO.txt"
+            "release-assets/TokensHarness-${version}-windows-amd64-BUILD-INFO.txt"
+            "release-assets/TokensHarness-${version}-macos-arm64-BUILD-INFO.txt"
+            "release-assets/TokensHarness-${version}-macos-amd64-BUILD-INFO.txt"
           )
-          for asset in "${packages[@]}" "${build_info[@]}"; do
+          for asset in "${packages[@]}" "${build_info[@]}" "${release_notes}"; do
             test -f "${asset}"
           done
-          checksums="release-assets/DSH-Desktop-${version}-SHA256SUMS.txt"
+          checksums="release-assets/TokensHarness-${version}-SHA256SUMS.txt"
           (
             cd release-assets
             sha256sum \
               "$(basename "${packages[0]}")" \
               "$(basename "${packages[1]}")" \
+              "$(basename "${packages[2]}")" \
               > "$(basename "${checksums}")"
           )
           gh release create "${tag}" \
             "${packages[@]}" \
-            "${build_info[@]}" \
             "${checksums}" \
             --title "TokensHarness ${tag}" \
             --target "${GITHUB_SHA}" \
-            --generate-notes
+            --notes-file "${release_notes}"
 
   summary:
     name: Publish build summary
     if: always()
-    needs: [metadata, verify, windows-amd64, macos-arm64]
+    needs: [metadata, verify, windows-amd64, macos]
     runs-on: ubuntu-24.04
     steps:
       - name: Write job summary
@@ -281,7 +308,7 @@ jobs:
             echo '| --- | --- | --- |'
             echo '| Product layout | `${{ needs.verify.result }}` | — |'
             echo '| Windows amd64 | `${{ needs.windows-amd64.result }}` | `desktop-windows-amd64-${{ needs.metadata.outputs.version }}` |'
-            echo '| macOS arm64 | `${{ needs.macos-arm64.result }}` | `desktop-macos-arm64-${{ needs.metadata.outputs.version }}` |'
+            echo '| macOS arm64 + amd64 | `${{ needs.macos.result }}` | `desktop-macos-{arm64,amd64}-${{ needs.metadata.outputs.version }}` |'
             echo
-            echo 'Installers in this build are unsigned.'
+            echo 'Installers in this build are unsigned. BUILD-INFO files remain in Actions artifacts only.'
           } >> "${GITHUB_STEP_SUMMARY}"
