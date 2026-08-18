@@ -6,6 +6,7 @@
  * macOS amd64 版本。保存后直接重新部署本目录即可。
  */
 window.DOWNLOAD_PAGE_CONFIG = {
+  defaultLanguage: "zh",
   productName: "TokensHarness",
   eyebrow: "TokensHarness Desktop",
   headline: "把 AI 全能助手\n带到你的桌面",
@@ -14,6 +15,16 @@ window.DOWNLOAD_PAGE_CONFIG = {
   repository: "TokensAPI/tokens_TokensHarness_code",
   fallbackVersion: "0.1.0",
   footerText: "Tokens进,万物出",
+
+  // 英文内容。切换到 EN 后使用这些字段；未填写的字段会沿用中文配置。
+  english: {
+    productName: "TokensHarness",
+    eyebrow: "TokensHarness Desktop",
+    headline: "Bring your all-in-one AI assistant\nto the desktop",
+    description: "Focused, fluid, and ready out of the box. Start building in a familiar desktop environment without complicated setup.",
+    notice: "A project maintained by the TokensHarness team.",
+    footerText: "Tokens in, possibilities out"
+  },
 
   // 如需临时覆盖 GitHub API 返回的地址，可填写完整 URL；留空则自动解析 Release。
   downloadOverrides: {

@@ -2,30 +2,134 @@
   "use strict";
 
   var defaultConfig = window.DOWNLOAD_PAGE_CONFIG || {};
-  var storageKey = "tokensharness-download-page-preview";
-  var editableKeys = ["productName", "eyebrow", "headline", "description", "notice", "repository", "footerText"];
+  var previewStorageKey = "tokensharness-download-page-preview";
+  var languageStorageKey = "tokensharness-download-page-language";
+  var contentKeys = ["productName", "eyebrow", "headline", "description", "notice", "footerText"];
+  var editableKeys = contentKeys.concat(["repository"]);
   var iconMarkup = {
     windows: '<span class="windows-mini"><i></i><i></i><i></i><i></i></span>',
-    mac: '<span class="apple-mini">●</span>',
-    generic: '<span class="generic-mini">↓</span>'
+    mac: '<span class="apple-mini">●</span>'
   };
+  var messages = {
+    zh: {
+      titleSuffix: "桌面端下载",
+      metaDescription: "下载 {product} 桌面客户端。",
+      githubView: "在 GitHub 查看",
+      recommendedDownload: "推荐下载",
+      chooseSystem: "选择你的系统",
+      windowsVersion: "Windows 版",
+      macAppleVersion: "macOS 版 · Apple 芯片",
+      releaseSource: "安装包来自 GitHub Releases",
+      allPackages: "全部安装包",
+      chooseVersion: "选择适合你的版本",
+      connectingRelease: "正在连接 GitHub Releases…",
+      noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
+      latestVersion: "最新版本 v{version} · {date}",
+      totalDownloads: "累计下载 {count} 次",
+      windowsRequirement: "Windows 10 / 11 · 64 位",
+      macAppleRequirement: "Apple 芯片 · M1 及更新",
+      macIntelRequirement: "Intel 芯片 · 64 位",
+      download: "下载",
+      downloadWindows: "下载 Windows 版本",
+      downloadMacApple: "下载 macOS Apple 芯片版本",
+      downloadMacIntel: "下载 macOS Intel 版本",
+      releaseFallback: "前往 GitHub Releases",
+      safeVerifiable: "安全可验证",
+      checksumProvided: "每个版本均提供 SHA-256 校验文件",
+      releaseNotes: "查看发布说明",
+      previewLabel: "TokensHarness 应用界面预览",
+      newSession: "新会话",
+      workspace: "工作区",
+      buildDownloadPage: "构建下载页面",
+      optimizeRelease: "优化发布流程",
+      justNow: "刚刚",
+      yesterday: "昨天",
+      settings: "设置",
+      standardMode: "标准模式⌄",
+      whatToBuild: "今天想构建什么？",
+      describeBuild: "描述你想要构建的内容",
+      send: "发送 ↑",
+      editLanguage: "当前编辑：中文"
+    },
+    en: {
+      titleSuffix: "Desktop Download",
+      metaDescription: "Download the {product} desktop client.",
+      githubView: "View on GitHub",
+      recommendedDownload: "Recommended",
+      chooseSystem: "Choose your platform",
+      windowsVersion: "Windows",
+      macAppleVersion: "macOS · Apple silicon",
+      releaseSource: "Installers are hosted on GitHub Releases",
+      allPackages: "All downloads",
+      chooseVersion: "Choose the right version",
+      connectingRelease: "Connecting to GitHub Releases…",
+      noRelease: "No public Release found. Download buttons will open GitHub.",
+      latestVersion: "Latest v{version} · {date}",
+      totalDownloads: "{count} total downloads",
+      windowsRequirement: "Windows 10 / 11 · 64-bit",
+      macAppleRequirement: "Apple silicon · M1 or newer",
+      macIntelRequirement: "Intel processor · 64-bit",
+      download: "Download",
+      downloadWindows: "Download for Windows",
+      downloadMacApple: "Download for macOS Apple silicon",
+      downloadMacIntel: "Download for macOS Intel",
+      releaseFallback: "Open GitHub Releases",
+      safeVerifiable: "Secure and verifiable",
+      checksumProvided: "Every release includes SHA-256 checksums",
+      releaseNotes: "View release notes",
+      previewLabel: "TokensHarness application preview",
+      newSession: "New session",
+      workspace: "Workspace",
+      buildDownloadPage: "Build download page",
+      optimizeRelease: "Improve release flow",
+      justNow: "now",
+      yesterday: "yesterday",
+      settings: "Settings",
+      standardMode: "Standard mode⌄",
+      whatToBuild: "What will you build today?",
+      describeBuild: "Describe what you want to build",
+      send: "Send ↑",
+      editLanguage: "Editing: English"
+    }
+  };
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value || {}));
+  }
 
   function readPreviewConfig() {
     if (!new URLSearchParams(window.location.search).has("edit")) return {};
     try {
-      return JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+      return JSON.parse(window.localStorage.getItem(previewStorageKey) || "{}");
     } catch (_error) {
       return {};
     }
   }
 
-  var config = Object.assign({}, defaultConfig, readPreviewConfig());
-  config.downloadOverrides = Object.assign({}, defaultConfig.downloadOverrides || {}, config.downloadOverrides || {});
+  var previewConfig = readPreviewConfig();
+  var config = Object.assign(clone(defaultConfig), previewConfig);
+  config.english = Object.assign({}, defaultConfig.english || {}, previewConfig.english || {});
+  config.downloadOverrides = Object.assign({}, defaultConfig.downloadOverrides || {}, previewConfig.downloadOverrides || {});
+
+  var storedLanguage = window.localStorage.getItem(languageStorageKey);
+  var currentLanguage = storedLanguage === "en" || storedLanguage === "zh" ? storedLanguage : (config.defaultLanguage === "en" ? "en" : "zh");
+
+  function activeContent() {
+    return currentLanguage === "en" ? Object.assign({}, config, config.english || {}) : config;
+  }
+
+  function translate(key, replacements) {
+    var value = (messages[currentLanguage] && messages[currentLanguage][key]) || messages.zh[key] || key;
+    Object.keys(replacements || {}).forEach(function (name) {
+      value = value.replace("{" + name + "}", replacements[name]);
+    });
+    return value;
+  }
 
   function repositoryParts() {
     var value = String(config.repository || "").trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
     var parts = value.split("/").filter(Boolean);
-    return { owner: parts[0] || "sobermh", repo: parts[1] || "tokens_TokensHarness_code" };
+    return { owner: parts[0] || "TokensAPI", repo: parts[1] || "tokens_TokensHarness_code" };
   }
 
   function githubUrl(path) {
@@ -38,10 +142,24 @@
     return "https://api.github.com/repos/" + repo.owner + "/" + repo.repo + path;
   }
 
+  function applyLanguageMessages() {
+    document.documentElement.lang = currentLanguage === "en" ? "en" : "zh-CN";
+    document.querySelectorAll("[data-i18n]").forEach(function (element) {
+      element.textContent = translate(element.getAttribute("data-i18n"));
+    });
+    document.querySelectorAll("[data-i18n-aria-label]").forEach(function (element) {
+      element.setAttribute("aria-label", translate(element.getAttribute("data-i18n-aria-label")));
+    });
+    document.querySelectorAll("[data-language]").forEach(function (button) {
+      button.setAttribute("aria-pressed", String(button.getAttribute("data-language") === currentLanguage));
+    });
+  }
+
   function applyConfig() {
+    var content = activeContent();
     document.querySelectorAll("[data-config]").forEach(function (element) {
       var key = element.getAttribute("data-config");
-      var value = config[key] || "";
+      var value = content[key] || "";
       if (key === "headline") {
         element.innerHTML = escapeHtml(value).replace(/\n/g, "<br />");
       } else {
@@ -49,8 +167,9 @@
       }
     });
 
-    document.title = config.productName + " - 桌面端下载";
-    document.querySelector('meta[name="description"]').setAttribute("content", "下载 " + config.productName + " 桌面客户端。");
+    applyLanguageMessages();
+    document.title = content.productName + " - " + translate("titleSuffix");
+    document.querySelector('meta[name="description"]').setAttribute("content", translate("metaDescription", { product: content.productName }));
     ["github-header-link", "github-main-link"].forEach(function (id) {
       document.getElementById(id).href = githubUrl("");
     });
@@ -64,7 +183,11 @@
   }
 
   function formatCount(value) {
-    return new Intl.NumberFormat("zh-CN").format(value || 0);
+    return new Intl.NumberFormat(currentLanguage === "en" ? "en-US" : "zh-CN").format(value || 0);
+  }
+
+  function formatDate(value) {
+    return new Date(value).toLocaleDateString(currentLanguage === "en" ? "en-US" : "zh-CN");
   }
 
   function findAsset(assets, patterns) {
@@ -90,7 +213,7 @@
       link.title = asset.name;
     } else {
       link.removeAttribute("download");
-      link.title = "前往 GitHub Releases";
+      link.title = translate("releaseFallback");
     }
   }
 
@@ -110,11 +233,11 @@
 
     if (platform === "windows") {
       button.href = urls.windows || fallback;
-      label.textContent = "Windows 版";
+      label.textContent = translate("windowsVersion");
       icon.innerHTML = iconMarkup.windows;
     } else {
       button.href = urls.macArm64 || fallback;
-      label.textContent = "macOS 版 · Apple 芯片";
+      label.textContent = translate("macAppleVersion");
       icon.innerHTML = iconMarkup.mac;
     }
   }
@@ -127,12 +250,14 @@
     setDownloadLink("mac-amd64-download", overrides.macAmd64, fallback);
     configureRecommended(overrides);
     document.getElementById("header-version").textContent = "v" + config.fallbackVersion;
-    document.getElementById("release-status").textContent = "暂未读取到公开 Release，下载按钮将前往 GitHub";
+    document.getElementById("release-status").textContent = translate("noRelease");
     document.getElementById("release-notes-link").href = fallback;
+    document.getElementById("download-count").textContent = translate("releaseSource");
   }
 
   async function loadRelease() {
     applyFallback();
+    document.getElementById("release-status").textContent = translate("connectingRelease");
     try {
       var responses = await Promise.all([
         fetch(apiUrl("/releases/latest"), { headers: { Accept: "application/vnd.github+json" } }),
@@ -161,12 +286,25 @@
 
       var version = (release.tag_name || config.fallbackVersion).replace(/^v/, "");
       document.getElementById("header-version").textContent = "v" + version;
-      document.getElementById("release-status").textContent = "最新版本 v" + version + " · " + new Date(release.published_at).toLocaleDateString("zh-CN");
+      document.getElementById("release-status").textContent = translate("latestVersion", { version: version, date: formatDate(release.published_at) });
       document.getElementById("release-notes-link").href = fallback;
-      document.getElementById("download-count").textContent = totalDownloads ? "累计下载 " + formatCount(totalDownloads) + " 次" : "安装包来自 GitHub Releases";
+      document.getElementById("download-count").textContent = totalDownloads ? translate("totalDownloads", { count: formatCount(totalDownloads) }) : translate("releaseSource");
     } catch (_error) {
-      // Fallback links are already active. This also covers API rate limits and private repos.
+      document.getElementById("release-status").textContent = translate("noRelease");
     }
+  }
+
+  function initializeLanguageSwitch() {
+    document.querySelectorAll("[data-language]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var nextLanguage = button.getAttribute("data-language");
+        if (nextLanguage === currentLanguage) return;
+        currentLanguage = nextLanguage;
+        window.localStorage.setItem(languageStorageKey, currentLanguage);
+        applyConfig();
+        loadRelease();
+      });
+    });
   }
 
   function initializeEditor() {
@@ -179,31 +317,45 @@
     trigger.hidden = false;
 
     function populate() {
-      editableKeys.forEach(function (key) { form.elements[key].value = config[key] || ""; });
+      var content = activeContent();
+      contentKeys.forEach(function (key) { form.elements[key].value = content[key] || ""; });
+      form.elements.repository.value = config.repository || "";
+      document.getElementById("editor-language-label").textContent = translate("editLanguage");
     }
 
     trigger.addEventListener("click", function () { populate(); dialog.showModal(); });
     document.getElementById("editor-close").addEventListener("click", function () { dialog.close(); });
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      editableKeys.forEach(function (key) { config[key] = form.elements[key].value.trim(); });
-      window.localStorage.setItem(storageKey, JSON.stringify(config));
+      if (currentLanguage === "en") {
+        config.english = config.english || {};
+        contentKeys.forEach(function (key) { config.english[key] = form.elements[key].value.trim(); });
+      } else {
+        contentKeys.forEach(function (key) { config[key] = form.elements[key].value.trim(); });
+      }
+      config.repository = form.elements.repository.value.trim();
+      window.localStorage.setItem(previewStorageKey, JSON.stringify(config));
       applyConfig();
       loadRelease();
       dialog.close();
     });
 
     document.getElementById("editor-reset").addEventListener("click", function () {
-      window.localStorage.removeItem(storageKey);
-      config = Object.assign({}, defaultConfig);
-      config.downloadOverrides = Object.assign({}, defaultConfig.downloadOverrides || {});
+      window.localStorage.removeItem(previewStorageKey);
+      config = clone(defaultConfig);
       populate();
       applyConfig();
       loadRelease();
     });
 
     document.getElementById("editor-export").addEventListener("click", function () {
-      editableKeys.forEach(function (key) { config[key] = form.elements[key].value.trim(); });
+      if (currentLanguage === "en") {
+        config.english = config.english || {};
+        contentKeys.forEach(function (key) { config.english[key] = form.elements[key].value.trim(); });
+      } else {
+        contentKeys.forEach(function (key) { config[key] = form.elements[key].value.trim(); });
+      }
+      config.repository = form.elements.repository.value.trim();
       var output = "/** Generated by the download page preview editor. */\nwindow.DOWNLOAD_PAGE_CONFIG = " + JSON.stringify(config, null, 2) + ";\n";
       var blob = new Blob([output], { type: "text/javascript;charset=utf-8" });
       var url = URL.createObjectURL(blob);
@@ -215,6 +367,7 @@
     });
   }
 
+  initializeLanguageSwitch();
   applyConfig();
   initializeEditor();
   loadRelease();
