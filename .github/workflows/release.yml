@@ -166,9 +166,28 @@ jobs:
         with:
           node-version: 22.23.2
 
-      - name: Build unsigned macOS DMG
+      - name: Select macOS signing mode
+        id: signing
         shell: bash
-        run: DSH_MAC_ARCH="${{ matrix.electron_arch }}" corepack yarn product:dist:mac-unsigned
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: printf 'mode=%s\n' "$(node build/mac-signing-mode.mjs)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build macOS DMG
+        shell: bash
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: DSH_MAC_ARCH="${{ matrix.electron_arch }}" corepack yarn product:dist:mac:auto
 
       - name: Verify and prepare macOS release files
         shell: bash
@@ -176,6 +195,7 @@ jobs:
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
           arch="${{ matrix.arch }}"
+          signing="${{ steps.signing.outputs.mode }}"
           dist=".build/desktop/dsh-plugin-desktop/dist"
           packages=("${dist}"/*.dmg)
           if [[ ! -e "${packages[0]}" || "${#packages[@]}" -ne 1 ]]; then
@@ -188,6 +208,13 @@ jobs:
           lipo -archs "${app_binary}" | tr ' ' '\n' | grep -qx "${{ matrix.binary_arch }}"
           codesign --display --verbose=4 "${app_path}"
           codesign --verify --deep --strict --verbose=4 "${app_path}"
+          if [[ "${signing}" == "signed" ]]; then
+            spctl --assess --type execute --verbose=4 "${app_path}"
+            xcrun stapler validate "${app_path}"
+            signing="developer-id-notarized"
+          else
+            signing="ad-hoc"
+          fi
           hdiutil verify "${packages[0]}"
           release_name="TokensHarness-${version}-macos-${arch}-installer.dmg"
           mv "${packages[0]}" "${dist}/${release_name}"
@@ -200,7 +227,7 @@ jobs:
             printf 'git_sha=%s\n' "${GITHUB_SHA}"
             printf 'platform=darwin\n'
             printf 'architecture=%s\n' "${arch}"
-            printf 'signing=ad-hoc\n'
+            printf 'signing=%s\n' "${signing}"
           } > "${dist}/TokensHarness-${version}-macos-${arch}-BUILD-INFO.txt"
 
       - name: Upload macOS package
@@ -317,5 +344,5 @@ jobs:
             echo '| Windows amd64 | `${{ needs.windows-amd64.result }}` | `desktop-windows-amd64-${{ needs.metadata.outputs.version }}` |'
             echo '| macOS arm64 + amd64 | `${{ needs.macos.result }}` | `desktop-macos-{arm64,amd64}-${{ needs.metadata.outputs.version }}` |'
             echo
-            echo 'Installers in this build are unsigned. BUILD-INFO files remain in Actions artifacts only.'
+            echo 'macOS uses Developer ID signing and notarization when the complete secret set exists; otherwise it uses ad-hoc signing. BUILD-INFO files record the selected mode.'
           } >> "${GITHUB_STEP_SUMMARY}"

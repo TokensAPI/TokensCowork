@@ -8,6 +8,20 @@ if (!['check', 'win', 'mac', 'mac-unsigned'].includes(mode)) {
   throw new Error('build-desktop: expected check, win, mac, or mac-unsigned')
 }
 
+const MAC_RELEASE_VARIABLES = [
+  'APPLE_API_ISSUER', 'APPLE_API_KEY', 'APPLE_API_KEY_ID',
+  'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_ID', 'APPLE_KEYCHAIN',
+  'APPLE_KEYCHAIN_PROFILE', 'APPLE_TEAM_ID', 'CSC_IDENTITY_AUTO_DISCOVERY',
+  'CSC_KEY_PASSWORD', 'CSC_LINK', 'CSC_NAME', 'MACOS_SIGN_IDENTITY',
+  'MAC_CERT_P12_BASE64',
+]
+
+function withoutMacReleaseSecrets(environment) {
+  const sanitized = { ...environment }
+  for (const name of MAC_RELEASE_VARIABLES) delete sanitized[name]
+  return sanitized
+}
+
 function run(command, args, cwd, env = process.env) {
   const windowsCorepack = process.platform === 'win32' && command === 'corepack'
   const executable = windowsCorepack
@@ -26,17 +40,8 @@ function quoteCmdArgument(value) {
   return `"${value.replaceAll('"', '""')}"`
 }
 
-run(process.execPath, [resolve(root, 'build', 'verify-layout.mjs')], root)
-run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root)
-run('corepack', ['yarn', 'install', '--immutable'], stage)
-run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'verify:licenses'], stage)
-
-if (mode === 'check') {
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage)
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage)
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'verify:closure'], stage)
-} else if (mode === 'mac-unsigned') {
-  if (process.platform !== 'darwin') throw new Error('unsigned macOS packaging requires macOS')
+function assertNativeMacArchitecture() {
+  if (process.platform !== 'darwin') throw new Error('macOS packaging requires macOS')
   const requestedArch = process.env.DSH_MAC_ARCH ?? process.arch
   if (!['arm64', 'x64'].includes(requestedArch)) {
     throw new Error(`unsupported macOS architecture: ${requestedArch}`)
@@ -44,6 +49,27 @@ if (mode === 'check') {
   if (process.arch !== requestedArch) {
     throw new Error(`macOS ${requestedArch} packaging requires a native ${requestedArch} Node runner`)
   }
+  return requestedArch
+}
+
+const buildEnvironment = mode === 'mac' ? withoutMacReleaseSecrets(process.env) : process.env
+
+run(process.execPath, [resolve(root, 'build', 'verify-layout.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root, buildEnvironment)
+run('corepack', ['yarn', 'install', '--immutable'], stage, buildEnvironment)
+run(
+  'corepack',
+  ['yarn', 'workspace', 'dsh-plugin-desktop', 'verify:licenses'],
+  stage,
+  buildEnvironment,
+)
+
+if (mode === 'check') {
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage)
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage)
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'verify:closure'], stage)
+} else if (mode === 'mac-unsigned') {
+  const requestedArch = assertNativeMacArchitecture()
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check'], stage)
   run(process.execPath, [resolve(root, 'build', 'configure-product.mjs')], root)
   run('corepack', [
@@ -92,5 +118,13 @@ if (mode === 'check') {
   ], stage, unsignedEnvironment)
   run(process.execPath, [resolve(root, 'build', 'verify-package.mjs'), 'windows'], root)
 } else {
+  assertNativeMacArchitecture()
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check'], stage, buildEnvironment)
+  run(
+    process.execPath,
+    [resolve(root, 'build', 'configure-product.mjs')],
+    root,
+    buildEnvironment,
+  )
   run('corepack', ['yarn', 'dist:mac'], stage)
 }

@@ -29,12 +29,14 @@ corepack yarn product:check
 ```powershell
 corepack yarn product:check-desktop
 corepack yarn product:dist:win
-corepack yarn product:dist:mac-unsigned
+corepack yarn product:dist:mac:auto
 ```
 
-`product:dist:mac-unsigned` 是当前 GitHub Actions 使用的 DMG 构建入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择原生 Runner 架构。它会在 DMG 生成前对 Electron `.app` 及其嵌套组件执行 ad-hoc 签名和严格校验，避免 Apple Silicon 将完全未签名的应用误报为“已损坏”。`product:dist:mac` 保留为 Developer ID 签名和 Apple 公证的正式发布入口，需要仓库 Secrets：`MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`。
+`product:dist:mac:auto` 是本地和 GitHub Actions 的统一 DMG 入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择原生 Runner 架构。当 `MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`和 `APPLE_TEAM_ID` 全部存在时，它执行 Developer ID 签名、Apple 公证和 staple；全部未配置时自动生成 ad-hoc 签名版本；只配置一部分凭据时立即失败。
 
-`Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；当前 macOS CI 产物会明确标记为 ad-hoc 签名，但仍未经 Apple 公证。
+`product:dist:mac` 和 `product:dist:mac-unsigned` 保留为明确的底层入口。ad-hoc 流程会在 DMG 生成前对 Electron `.app` 及其嵌套组件签名并执行严格校验；正式流程会额外执行 Gatekeeper 评估和 staple 校验。
+
+`Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；macOS `BUILD-INFO.txt` 会记录 `developer-id-notarized` 或 `ad-hoc` 的实际签名模式。
 
 ## 版本与发布说明
 
