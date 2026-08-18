@@ -13,7 +13,7 @@ window.DOWNLOAD_PAGE_CONFIG = {
   description: "专注、流畅、开箱即用。无需繁琐配置，在熟悉的桌面环境中开始构建。",
   notice: "这是一个TokensHarness团队维护的项目。",
   repository: "TokensAPI/tokens_TokensHarness_code",
-  fallbackVersion: "0.1.0",
+  fallbackVersion: "0.1.2",
   footerText: "Tokens进,万物出",
 
   // 英文内容。切换到 EN 后使用这些字段；未填写的字段会沿用中文配置。
