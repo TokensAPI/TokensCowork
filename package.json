@@ -12,6 +12,8 @@
     "product:check": "node build/verify-layout.mjs",
     "product:prepare": "node build/prepare-desktop.mjs",
     "product:refresh-lock": "node build/refresh-lock.mjs",
+    "product:version-check": "bash scripts/set-version.sh --check",
+    "test:release-notes": "node --test scripts/validate-release-notes.test.mjs",
     "product:check-desktop": "node build/build-desktop.mjs check",
     "product:dist:win": "node build/build-desktop.mjs win",
     "product:dist:mac": "node build/build-desktop.mjs mac",

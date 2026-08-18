@@ -70,5 +70,5 @@ if (enabledPlugins.length > 0) {
 }
 
 process.stdout.write(
-  `prepare-desktop: staged ${manifest.desktop.commit.slice(0, 10)} with ${enabledPlugins.length} default plugin(s) at ${stage}\n`,
+  `prepare-desktop: staged ${manifest.product.name} ${manifest.product.version} from ${manifest.desktop.commit.slice(0, 10)} with ${enabledPlugins.length} default plugin(s) at ${stage}\n`,
 )

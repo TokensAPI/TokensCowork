@@ -1,5 +1,10 @@
 {
   "schemaVersion": 1,
+  "product": {
+    "name": "TokensHarness",
+    "appId": "com.tokensapi.tokensharness",
+    "version": "0.1.0"
+  },
   "desktop": {
     "path": "desktop",
     "repository": "https://github.com/anywhere-labs/deepseek-harness-desktop.git",

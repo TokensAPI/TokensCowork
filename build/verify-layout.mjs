@@ -4,6 +4,8 @@ import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+const packageManifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
+const canonicalVersion = readFileSync(resolve(root, 'VERSION'), 'utf8').trim()
 const fail = message => { throw new Error(`verify-layout: ${message}`) }
 const git = (cwd, ...args) => execFileSync('git', args, {
   cwd,
@@ -19,6 +21,16 @@ function assertGitlink(path, commit) {
 }
 
 if (manifest.schemaVersion !== 1) fail('product.json must use schemaVersion 1')
+if (manifest.product?.name !== 'TokensHarness') fail('product name must be TokensHarness')
+if (typeof manifest.product?.appId !== 'string' || manifest.product.appId.length === 0) {
+  fail('product appId must be a non-empty string')
+}
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(canonicalVersion)) {
+  fail('VERSION must contain a valid product version')
+}
+if (manifest.product.version !== canonicalVersion || packageManifest.version !== canonicalVersion) {
+  fail('VERSION, product.json, and package.json versions must match')
+}
 
 const desktopPath = resolve(root, manifest.desktop.path)
 assertGitlink(manifest.desktop.path, manifest.desktop.commit)
@@ -55,8 +67,8 @@ for (const plugin of manifest.plugins) {
   if (git(pluginPath, 'status', '--porcelain') !== '') {
     fail(`${plugin.id} submodule contains local changes`)
   }
-  const packageManifest = JSON.parse(readFileSync(resolve(pluginPath, 'package.json'), 'utf8'))
-  if (packageManifest.name !== plugin.package || packageManifest.version !== plugin.version) {
+  const pluginManifest = JSON.parse(readFileSync(resolve(pluginPath, 'package.json'), 'utf8'))
+  if (pluginManifest.name !== plugin.package || pluginManifest.version !== plugin.version) {
     fail(`${plugin.id} package identity differs from product.json`)
   }
   if (plugin.enabledByDefault === true && !existsSync(resolve(pluginPath, plugin.patch))) {
@@ -70,5 +82,5 @@ if (manifest.plugins.some(plugin => plugin.enabledByDefault === true)
 }
 
 process.stdout.write(
-  `verify-layout: desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)\n`,
+  `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)\n`,
 )
