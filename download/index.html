@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="下载 TokensHarness 桌面客户端。" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#071018" />
+    <title>TokensHarness - 桌面端下载</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 8 16 2l10 6v12L16 30 6 20z' fill='%2371e2c0'/%3E%3Cpath d='m11 11 5-3 5 3v6l-5 3-5-3z' fill='%23071018'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-glow page-glow--one" aria-hidden="true"></div>
+    <div class="page-glow page-glow--two" aria-hidden="true"></div>
+
+    <header class="site-header shell">
+      <a class="brand" href="#top" aria-label="TokensHarness 首页">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none">
+            <path d="M7.2 8.7 16 3.6l8.8 5.1v10.2L16 24l-8.8-5.1V8.7Z" stroke="currentColor" stroke-width="2.3" />
+            <path d="m11 11 5-2.9 5 2.9v5.8l-5 2.9-5-2.9V11Z" fill="currentColor" opacity=".92" />
+          </svg>
+        </span>
+        <span data-config="productName">TokensHarness</span>
+      </a>
+
+      <nav class="header-actions" aria-label="页面导航">
+        <span class="release-chip" id="header-version">正在获取版本…</span>
+        <a class="icon-link" id="github-header-link" href="#" target="_blank" rel="noreferrer" aria-label="在 GitHub 查看">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.22c-3.23.7-3.91-1.37-3.91-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.77 2.72 1.26 3.38.96.1-.75.4-1.26.74-1.55-2.58-.3-5.29-1.29-5.29-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.16 1.18a10.98 10.98 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.72 5.39-5.31 5.68.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.55A11.5 11.5 0 0 0 12 .7Z" />
+          </svg>
+        </a>
+        <button class="edit-trigger" id="edit-trigger" type="button" hidden>编辑页面</button>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero shell">
+        <div class="hero-copy">
+          <div class="eyebrow"><span></span><span data-config="eyebrow">TokensHarness Desktop</span></div>
+          <h1 data-config="headline">把 AI 编程助手<br />带到你的桌面</h1>
+          <p class="hero-description" data-config="description">专注、流畅、开箱即用。无需繁琐配置，在熟悉的桌面环境中开始构建。</p>
+          <p class="community-note">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm0-9v5m0-8v.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
+            <span data-config="notice">这是一个社区维护的开源项目。</span>
+          </p>
+
+          <div class="primary-download" id="primary-download">
+            <a class="download-button download-button--primary" id="recommended-download" href="#downloads">
+              <span class="platform-icon" id="recommended-icon" aria-hidden="true"></span>
+              <span>
+                <small>推荐下载</small>
+                <strong id="recommended-label">选择你的系统</strong>
+              </span>
+              <svg class="arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </a>
+          </div>
+
+          <div class="hero-meta">
+            <a id="github-main-link" href="#" target="_blank" rel="noreferrer">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.22c-3.23.7-3.91-1.37-3.91-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.77 2.72 1.26 3.38.96.1-.75.4-1.26.74-1.55-2.58-.3-5.29-1.29-5.29-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.47.11-3.05 0 0 .97-.31 3.16 1.18a10.98 10.98 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.58.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.72 5.39-5.31 5.68.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.55A11.5 11.5 0 0 0 12 .7Z" /></svg>
+              在 GitHub 查看
+            </a>
+            <span class="meta-divider"></span>
+            <span id="download-count">安装包来自 GitHub Releases</span>
+          </div>
+        </div>
+
+        <div class="product-visual" aria-label="TokensHarness 应用界面预览">
+          <div class="visual-halo" aria-hidden="true"></div>
+          <div class="app-window">
+            <div class="app-sidebar">
+              <div class="window-controls" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="mini-brand"><span class="mini-logo">T</span><b>TokensHarness</b></div>
+              <button class="new-chat" tabindex="-1"><span>＋</span> 新会话</button>
+              <p class="section-label">工作区</p>
+              <div class="workspace-row"><span>▣</span> tokens-project</div>
+              <div class="history-row history-row--active">构建下载页面 <time>刚刚</time></div>
+              <div class="history-row">优化发布流程 <time>昨天</time></div>
+              <div class="sidebar-footer">⚙ <span>设置</span></div>
+            </div>
+            <div class="app-content">
+              <div class="app-toolbar"><span>tokens-project⌄</span><span>标准模式⌄</span></div>
+              <div class="welcome-mark"><span class="spark">✦</span><strong>今天想构建什么？</strong><em>DESKTOP</em></div>
+              <div class="prompt-card">
+                <p>描述你想要构建的内容</p>
+                <div class="prompt-actions"><span>＋</span><span>◇ Full access⌄</span><b>发送 ↑</b></div>
+              </div>
+              <div class="code-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="downloads shell" id="downloads">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow"><span></span>全部安装包</p>
+            <h2>选择适合你的版本</h2>
+          </div>
+          <p id="release-status">正在连接 GitHub Releases…</p>
+        </div>
+
+        <div class="download-grid">
+          <article class="download-card" data-platform="windows">
+            <div class="card-icon windows-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="card-copy"><h3>Windows</h3><p>Windows 10 / 11 · 64 位</p></div>
+            <a class="card-download" id="windows-download" href="#" aria-label="下载 Windows 版本">下载 <span>↓</span></a>
+          </article>
+
+          <article class="download-card" data-platform="mac-arm64">
+            <div class="card-icon apple-icon" aria-hidden="true">●</div>
+            <div class="card-copy"><h3>macOS</h3><p>Apple 芯片 · M1 及更新</p></div>
+            <a class="card-download" id="mac-arm64-download" href="#" aria-label="下载 macOS Apple 芯片版本">下载 <span>↓</span></a>
+          </article>
+
+          <article class="download-card" data-platform="mac-amd64">
+            <div class="card-icon chip-icon" aria-hidden="true">x64</div>
+            <div class="card-copy"><h3>macOS</h3><p>Intel 芯片 · 64 位</p></div>
+            <a class="card-download" id="mac-amd64-download" href="#" aria-label="下载 macOS Intel 版本">下载 <span>↓</span></a>
+          </article>
+        </div>
+
+        <div class="release-note">
+          <div><span>✓</span><p><strong>安全可验证</strong><br />每个版本均提供 SHA-256 校验文件</p></div>
+          <a id="release-notes-link" href="#" target="_blank" rel="noreferrer">查看发布说明 →</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer shell">
+      <span>© <span id="copyright-year"></span> <span data-config="productName">TokensHarness</span></span>
+      <span data-config="footerText">开放源代码，由社区共同维护</span>
+    </footer>
+
+    <dialog class="editor" id="editor-dialog">
+      <form method="dialog" id="editor-form">
+        <div class="editor-header"><div><small>本地预览工具</small><h2>编辑下载页</h2></div><button type="button" id="editor-close" aria-label="关闭">×</button></div>
+        <p class="editor-tip">修改只保存在当前浏览器。确认效果后导出配置并替换 <code>site-config.js</code>。</p>
+        <label>产品名<input name="productName" required /></label>
+        <label>眉标题<input name="eyebrow" /></label>
+        <label>主标题<textarea name="headline" rows="2"></textarea></label>
+        <label>产品描述<textarea name="description" rows="3"></textarea></label>
+        <label>提示说明<input name="notice" /></label>
+        <label>GitHub 仓库<input name="repository" placeholder="owner/repository" required /></label>
+        <label>页脚文案<input name="footerText" /></label>
+        <div class="editor-actions"><button type="button" class="button-muted" id="editor-reset">恢复默认</button><button type="button" class="button-muted" id="editor-export">导出配置</button><button type="submit" value="save" class="button-save">保存预览</button></div>
+      </form>
+    </dialog>
+
+    <script src="./site-config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
