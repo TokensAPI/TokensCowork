@@ -1,13 +1,7 @@
 name: Build Desktop
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish_release:
-        description: Create a GitHub Release after all desktop packages pass
-        required: true
-        default: true
-        type: boolean
+  workflow_dispatch: {}
   push:
     tags:
       - "v*"
@@ -244,7 +238,6 @@ jobs:
 
   publish-release:
     name: Publish GitHub Release
-    if: github.ref_type == 'tag' || inputs.publish_release == true
     needs: [metadata, windows-amd64, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
