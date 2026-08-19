@@ -44,6 +44,13 @@ corepack yarn product:dist:mac:auto
 `corepack yarn product:uninstall:win` 用于反复装卸测试。加 `--purge-data` 时一并清除
 `%APPDATA%\TokensHarness\`，默认保留。
 
+保留用户数据是产品约定，两头都得守住：构建侧不设
+`nsis.deleteAppDataOnUninstall`，因为它是**编译期**开关，写进安装包后运行期
+再也关不掉；`build/verify-product-branding.mjs` 和 `build/verify-package.mjs` 会拦下它变回
+`true`。运行侧则靠不传 `--delete-app-data`。注意卸载器只解析这个参数，
+electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里根本没有解析分支，
+写了也不会生效。
+
 不要直接运行 `Uninstall TokensHarness.exe /S`：NSIS 卸载器会先把自身复制到 `%TEMP%`
 再执行，好让它能删掉自己所在的目录，而副本的 `$INSTDIR` 是空的，于是 `RMDir /r $INSTDIR`
 无事可做、流程照常走完并**返回 0** —— 表现为卸载成功但程序原封不动。

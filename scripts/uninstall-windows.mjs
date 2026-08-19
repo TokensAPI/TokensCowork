@@ -14,6 +14,10 @@
  *
  * 就地运行的代价是卸载器不再自删，所以调用方要自己收尾。又因为退出码在本缺陷
  * 里恰恰是不可信的那一环，卸载完成与否一律以文件系统为准。
+ *
+ * 卸载默认保留用户数据，要清除得显式加 --purge-data。这与打包侧一致：
+ * build/configure-product.mjs 不写 deleteAppDataOnUninstall，两处校验脚本还会
+ * 拦下它变回 true——那是个编译期开关，一旦打进安装包，运行期再也关不掉。
  */
 
 import { spawnSync } from 'node:child_process'
@@ -37,8 +41,13 @@ const UNINSTALL_TIMEOUT_MS = 5 * 60 * 1000
 /**
  * 拼出静默卸载的参数表。
  *
+ * 卸载器只解析 `--delete-app-data`（templates/nsis/uninstaller.nsh）。electron-builder
+ * 自升级时传的 `/KEEP_APP_DATA` 没有任何解析分支，纯属摆设——保留数据靠的是不传
+ * `--delete-app-data`，且构建时不定义 DELETE_APP_DATA_ON_UNINSTALL。本产品两者都满足，
+ * 所以默认什么都不传就是保留。
+ *
  * @param {string} installDirectory 真实安装目录的绝对路径。
- * @param {{ keepAppData?: boolean }} [options] `keepAppData` 透传 NSIS 的 /KEEP_APP_DATA。
+ * @param {{ deleteAppData?: boolean }} [options] `deleteAppData` 让卸载器一并删除用户数据。
  * @returns {string[]} 传给卸载器的参数，`_?=` 保证在末位。
  */
 export function buildUninstallArguments(installDirectory, options = {}) {
@@ -46,7 +55,7 @@ export function buildUninstallArguments(installDirectory, options = {}) {
     throw new Error('uninstall-windows: install directory is required')
   }
   const args = ['/S']
-  if (options.keepAppData === true) args.push('/KEEP_APP_DATA')
+  if (options.deleteAppData === true) args.push('--delete-app-data')
   // NSIS 只认末位的 _?=，且自带路径解析——加引号会被当成路径的一部分。
   args.push(`_?=${resolve(installDirectory)}`)
   return args
@@ -119,8 +128,8 @@ export function uninstall(options = {}) {
     return { status: 'stale-registry', detail: `卸载器不存在：${uninstallString}` }
   }
 
-  // 保留用户数据由 NSIS 自己处理；purgeData 走下面的显式清理。
-  const args = buildUninstallArguments(installLocation, { keepAppData: options.purgeData !== true })
+  // 默认保留用户数据：不传 --delete-app-data，卸载器就不碰 %APPDATA%。
+  const args = buildUninstallArguments(installLocation, { deleteAppData: options.purgeData === true })
   const result = spawnSync(uninstallString, args, {
     encoding: 'utf8',
     timeout: UNINSTALL_TIMEOUT_MS,

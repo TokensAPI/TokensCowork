@@ -7,9 +7,9 @@ import { buildUninstallArguments, isUninstallComplete } from './uninstall-window
 /* --------------------- _?= 的两条硬约束 --------------------- */
 
 test('puts _?= last so NSIS parses it as the in-place directory', () => {
-  const args = buildUninstallArguments('C:\\Apps\\TokensHarness', { keepAppData: true })
+  const args = buildUninstallArguments('C:\\Apps\\TokensHarness', { deleteAppData: true })
   assert.equal(args.at(-1), `_?=${resolve('C:\\Apps\\TokensHarness')}`)
-  assert.deepEqual(args.slice(0, -1), ['/S', '/KEEP_APP_DATA'])
+  assert.deepEqual(args.slice(0, -1), ['/S', '--delete-app-data'])
 })
 
 test('leaves the _?= path unquoted because NSIS takes quotes literally', () => {
@@ -19,14 +19,22 @@ test('leaves the _?= path unquoted because NSIS takes quotes literally', () => {
   assert.equal(flag, `_?=${resolve('C:\\Program Files\\TokensHarness')}`)
 })
 
-test('omits /KEEP_APP_DATA when the caller purges user data', () => {
-  const args = buildUninstallArguments('C:\\Apps\\TokensHarness', { keepAppData: false })
+test('keeps user data by default because deletion is opt-in', () => {
+  const args = buildUninstallArguments('C:\\Apps\\TokensHarness')
   assert.deepEqual(args, ['/S', `_?=${resolve('C:\\Apps\\TokensHarness')}`])
 })
 
-test('defaults to purging because keepAppData is opt-in', () => {
-  const args = buildUninstallArguments('C:\\Apps\\TokensHarness')
-  assert.ok(!args.includes('/KEEP_APP_DATA'))
+test('keeps user data when the caller explicitly declines deletion', () => {
+  const args = buildUninstallArguments('C:\\Apps\\TokensHarness', { deleteAppData: false })
+  assert.ok(!args.includes('--delete-app-data'))
+})
+
+test('never emits /KEEP_APP_DATA, which the uninstaller does not parse', () => {
+  // uninstaller.nsh 只 GetOptions "--delete-app-data"；/KEEP_APP_DATA 没有解析分支。
+  for (const options of [undefined, { deleteAppData: true }, { deleteAppData: false }]) {
+    const args = buildUninstallArguments('C:\\Apps\\TokensHarness', options)
+    assert.ok(!args.includes('/KEEP_APP_DATA'), `unparsed flag leaked: ${args.join(' ')}`)
+  }
 })
 
 test('resolves a relative directory so NSIS never receives an ambiguous path', () => {
