@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.1.6"
+    "version": "0.1.7"
   },
   "desktop": {
     "path": "desktop",
@@ -45,7 +45,7 @@
       "id": "tokens-feishu-connect",
       "path": "plugins/tokens_DshFeishuConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
-      "commit": "1a3e2aa38f92b44274124a5f05abd48d940112cf",
+      "commit": "6723843c91cb01106592f2a868a136da024a9dd9",
       "package": "@tokens/feishu",
       "version": "0.1.1",
       "enabledByDefault": true,
