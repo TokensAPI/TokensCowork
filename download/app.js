@@ -22,9 +22,12 @@
       releaseSource: "安装包来自 GitHub Releases",
       allPackages: "全部安装包",
       chooseVersion: "选择适合你的版本",
+      latestSuffix: "（最新）",
+      selectVersion: "选择下载版本",
       connectingRelease: "正在连接 GitHub Releases…",
       noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
       latestVersion: "最新版本 v{version} · {date}",
+      selectedVersion: "版本 v{version} · {date}",
       totalDownloads: "累计下载 {count} 次",
       windowsRequirement: "Windows 10 / 11 · 64 位",
       macAppleRequirement: "Apple 芯片 · M1 及更新",
@@ -62,9 +65,12 @@
       releaseSource: "Installers are hosted on GitHub Releases",
       allPackages: "All downloads",
       chooseVersion: "Choose the right version",
+      latestSuffix: " (Latest)",
+      selectVersion: "Choose download version",
       connectingRelease: "Connecting to GitHub Releases…",
       noRelease: "No public Release found. Download buttons will open GitHub.",
       latestVersion: "Latest v{version} · {date}",
+      selectedVersion: "Version v{version} · {date}",
       totalDownloads: "{count} total downloads",
       windowsRequirement: "Windows 10 / 11 · 64-bit",
       macAppleRequirement: "Apple silicon · M1 or newer",
@@ -113,6 +119,9 @@
 
   var storedLanguage = window.localStorage.getItem(languageStorageKey);
   var currentLanguage = storedLanguage === "en" || storedLanguage === "zh" ? storedLanguage : (config.defaultLanguage === "en" ? "en" : "zh");
+  var cachedReleases = [];
+  var latestReleaseTag = "";
+  var selectedReleaseTag = "";
 
   function activeContent() {
     return currentLanguage === "en" ? Object.assign({}, config, config.english || {}) : config;
@@ -153,6 +162,7 @@
     document.querySelectorAll("[data-language]").forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-language") === currentLanguage));
     });
+    populateReleaseSelector();
   }
 
   function applyConfig() {
@@ -236,12 +246,12 @@
     return "windows";
   }
 
-  function configureRecommended(urls) {
+  function configureRecommended(urls, fallback) {
     var platform = recommendedPlatform();
     var button = document.getElementById("recommended-download");
     var label = document.getElementById("recommended-label");
     var icon = document.getElementById("recommended-icon");
-    var fallback = githubUrl("/releases/latest");
+    fallback = fallback || githubUrl("/releases/latest");
 
     if (platform === "windows") {
       button.href = urls.windows || fallback;
@@ -260,11 +270,89 @@
     setDownloadLink("windows-download", overrides.windows, fallback);
     setDownloadLink("mac-arm64-download", overrides.macArm64, fallback);
     setDownloadLink("mac-amd64-download", overrides.macAmd64, fallback);
-    configureRecommended(overrides);
-    document.getElementById("header-version").textContent = "v" + config.fallbackVersion;
+    configureRecommended(overrides, fallback);
+    var select = document.getElementById("release-select");
+    if (select) {
+      select.innerHTML = '<option value="v' + config.fallbackVersion + '">v' + config.fallbackVersion + "</option>";
+      select.disabled = true;
+    }
+    var trigger = document.getElementById("release-trigger");
+    var current = document.getElementById("release-current");
+    var menu = document.getElementById("release-menu");
+    if (trigger) trigger.disabled = true;
+    if (current) current.textContent = "v" + config.fallbackVersion;
+    if (menu) menu.innerHTML = "";
+    var legacyVersion = document.getElementById("header-version");
+    if (legacyVersion) legacyVersion.textContent = "v" + config.fallbackVersion;
     document.getElementById("release-status").textContent = translate("noRelease");
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("download-count").textContent = translate("releaseSource");
+  }
+
+  function releaseVersion(release) {
+    return (release.tag_name || config.fallbackVersion).replace(/^v/, "");
+  }
+
+  function populateReleaseSelector() {
+    var select = document.getElementById("release-select");
+    var trigger = document.getElementById("release-trigger");
+    var current = document.getElementById("release-current");
+    var menu = document.getElementById("release-menu");
+    if (!select || !trigger || !current || !menu || !cachedReleases.length) return;
+
+    select.innerHTML = "";
+    menu.innerHTML = "";
+    cachedReleases.forEach(function (release) {
+      var label = release.tag_name + (release.tag_name === latestReleaseTag ? translate("latestSuffix") : "");
+      var option = document.createElement("option");
+      option.value = release.tag_name;
+      option.textContent = label;
+      select.appendChild(option);
+
+      var menuOption = document.createElement("button");
+      menuOption.type = "button";
+      menuOption.className = "release-option";
+      menuOption.setAttribute("role", "option");
+      menuOption.setAttribute("data-release-tag", release.tag_name);
+      menuOption.setAttribute("aria-selected", String(release.tag_name === selectedReleaseTag));
+      menuOption.textContent = label;
+      menu.appendChild(menuOption);
+    });
+    select.value = selectedReleaseTag || latestReleaseTag;
+    select.disabled = cachedReleases.length < 2;
+    trigger.disabled = cachedReleases.length < 2;
+    current.textContent = select.options[select.selectedIndex].textContent;
+  }
+
+  function renderRelease(release) {
+    if (!release) return;
+    var assets = resolveAssets(release);
+    var isLatest = release.tag_name === latestReleaseTag;
+    var overrides = isLatest ? config.downloadOverrides : {};
+    var urls = {
+      windows: overrides.windows || (assets.windows && assets.windows.browser_download_url),
+      macArm64: overrides.macArm64 || (assets.macArm64 && assets.macArm64.browser_download_url),
+      macAmd64: overrides.macAmd64 || (assets.macAmd64 && assets.macAmd64.browser_download_url)
+    };
+    var fallback = release.html_url || githubUrl("/releases/tag/" + release.tag_name);
+    var totalDownloads = totalInstallerDownloads(cachedReleases);
+
+    setDownloadLink("windows-download", urls.windows, fallback, assets.windows);
+    setDownloadLink("mac-arm64-download", urls.macArm64, fallback, assets.macArm64);
+    setDownloadLink("mac-amd64-download", urls.macAmd64, fallback, assets.macAmd64);
+    configureRecommended(urls, fallback);
+
+    var version = releaseVersion(release);
+    var legacyVersion = document.getElementById("header-version");
+    if (legacyVersion) legacyVersion.textContent = "v" + version;
+    document.getElementById("release-status").textContent = translate(isLatest ? "latestVersion" : "selectedVersion", {
+      version: version,
+      date: formatDate(release.published_at)
+    });
+    document.getElementById("release-notes-link").href = fallback;
+    document.getElementById("download-count").textContent = totalDownloads
+      ? translate("totalDownloads", { count: formatCount(totalDownloads) })
+      : translate("releaseSource");
   }
 
   async function loadRelease() {
@@ -280,26 +368,14 @@
 
       var release = await responses[0].json();
       var allReleases = responses[1].ok ? await responses[1].json() : [release];
-      var assets = resolveAssets(release);
-      var overrides = config.downloadOverrides;
-      var urls = {
-        windows: overrides.windows || (assets.windows && assets.windows.browser_download_url),
-        macArm64: overrides.macArm64 || (assets.macArm64 && assets.macArm64.browser_download_url),
-        macAmd64: overrides.macAmd64 || (assets.macAmd64 && assets.macAmd64.browser_download_url)
-      };
-      var fallback = release.html_url || githubUrl("/releases/latest");
-      var totalDownloads = totalInstallerDownloads(allReleases);
-
-      setDownloadLink("windows-download", urls.windows, fallback, assets.windows);
-      setDownloadLink("mac-arm64-download", urls.macArm64, fallback, assets.macArm64);
-      setDownloadLink("mac-amd64-download", urls.macAmd64, fallback, assets.macAmd64);
-      configureRecommended(urls);
-
-      var version = (release.tag_name || config.fallbackVersion).replace(/^v/, "");
-      document.getElementById("header-version").textContent = "v" + version;
-      document.getElementById("release-status").textContent = translate("latestVersion", { version: version, date: formatDate(release.published_at) });
-      document.getElementById("release-notes-link").href = fallback;
-      document.getElementById("download-count").textContent = totalDownloads ? translate("totalDownloads", { count: formatCount(totalDownloads) }) : translate("releaseSource");
+      cachedReleases = allReleases.filter(function (item) { return !item.draft; });
+      if (!cachedReleases.some(function (item) { return item.tag_name === release.tag_name; })) cachedReleases.unshift(release);
+      latestReleaseTag = release.tag_name;
+      if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
+        selectedReleaseTag = latestReleaseTag;
+      }
+      populateReleaseSelector();
+      renderRelease(cachedReleases.find(function (item) { return item.tag_name === selectedReleaseTag; }));
     } catch (_error) {
       document.getElementById("release-status").textContent = translate("noRelease");
     }
@@ -331,6 +407,52 @@
     });
   }
 
+  function initializeReleaseSelector() {
+    var select = document.getElementById("release-select");
+    var picker = document.getElementById("release-picker");
+    var trigger = document.getElementById("release-trigger");
+    var menu = document.getElementById("release-menu");
+    if (!select || !picker || !trigger || !menu) return;
+
+    function closeMenu() {
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+    }
+
+    select.addEventListener("change", function (event) {
+      selectedReleaseTag = event.target.value;
+      populateReleaseSelector();
+      renderRelease(cachedReleases.find(function (release) { return release.tag_name === selectedReleaseTag; }));
+    });
+    trigger.addEventListener("click", function () {
+      var opening = menu.hidden;
+      menu.hidden = !opening;
+      trigger.setAttribute("aria-expanded", String(opening));
+      if (opening) {
+        var selectedOption = menu.querySelector('[aria-selected="true"]');
+        if (selectedOption) selectedOption.focus();
+      }
+    });
+    menu.addEventListener("click", function (event) {
+      var option = event.target.closest("[data-release-tag]");
+      if (!option) return;
+      selectedReleaseTag = option.getAttribute("data-release-tag");
+      populateReleaseSelector();
+      renderRelease(cachedReleases.find(function (release) { return release.tag_name === selectedReleaseTag; }));
+      closeMenu();
+      trigger.focus();
+    });
+    document.addEventListener("click", function (event) {
+      if (!picker.contains(event.target)) closeMenu();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !menu.hidden) {
+        closeMenu();
+        trigger.focus();
+      }
+    });
+  }
+
   function initializeLanguageSwitch() {
     document.querySelectorAll("[data-language]").forEach(function (button) {
       button.addEventListener("click", function () {
@@ -339,7 +461,11 @@
         currentLanguage = nextLanguage;
         window.localStorage.setItem(languageStorageKey, currentLanguage);
         applyConfig();
-        loadRelease();
+        if (cachedReleases.length) {
+          renderRelease(cachedReleases.find(function (release) { return release.tag_name === selectedReleaseTag; }));
+        } else {
+          loadRelease();
+        }
       });
     });
   }
@@ -405,6 +531,7 @@
   }
 
   initializeLanguageSwitch();
+  initializeReleaseSelector();
   initializeDownloadCountRefresh();
   applyConfig();
   initializeEditor();
