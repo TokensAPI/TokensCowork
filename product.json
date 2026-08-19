@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.1.4"
+    "version": "0.1.5"
   },
   "desktop": {
     "path": "desktop",
@@ -16,7 +16,7 @@
       "id": "tokens-version-updates",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
-      "commit": "6baf617ee2e05c8fbceb76338f419da79a3f907a",
+      "commit": "7d112a198858e140a9bd6f88b56e550059fba605",
       "package": "@tokens/dsh-version-updates",
       "version": "0.1.0",
       "enabledByDefault": true,
