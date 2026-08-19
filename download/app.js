@@ -205,6 +205,18 @@
     };
   }
 
+  function isInstallerAsset(asset) {
+    return /installer\.(exe|dmg)$/i.test(asset.name || "");
+  }
+
+  function totalInstallerDownloads(releases) {
+    return releases.reduce(function (sum, item) {
+      return sum + (item.assets || []).filter(isInstallerAsset).reduce(function (assetSum, asset) {
+        return assetSum + (asset.download_count || 0);
+      }, 0);
+    }, 0);
+  }
+
   function setDownloadLink(id, url, fallback, asset) {
     var link = document.getElementById(id);
     link.href = url || fallback;
@@ -259,9 +271,10 @@
     applyFallback();
     document.getElementById("release-status").textContent = translate("connectingRelease");
     try {
+      var requestStamp = Date.now();
       var responses = await Promise.all([
-        fetch(apiUrl("/releases/latest"), { headers: { Accept: "application/vnd.github+json" } }),
-        fetch(apiUrl("/releases?per_page=100"), { headers: { Accept: "application/vnd.github+json" } })
+        fetch(apiUrl("/releases/latest?ts=" + requestStamp), { cache: "no-store", headers: { Accept: "application/vnd.github+json" } }),
+        fetch(apiUrl("/releases?per_page=100&ts=" + requestStamp), { cache: "no-store", headers: { Accept: "application/vnd.github+json" } })
       ]);
       if (!responses[0].ok) throw new Error("No public release");
 
@@ -275,9 +288,7 @@
         macAmd64: overrides.macAmd64 || (assets.macAmd64 && assets.macAmd64.browser_download_url)
       };
       var fallback = release.html_url || githubUrl("/releases/latest");
-      var totalDownloads = allReleases.reduce(function (sum, item) {
-        return sum + (item.assets || []).reduce(function (assetSum, asset) { return assetSum + (asset.download_count || 0); }, 0);
-      }, 0);
+      var totalDownloads = totalInstallerDownloads(allReleases);
 
       setDownloadLink("windows-download", urls.windows, fallback, assets.windows);
       setDownloadLink("mac-arm64-download", urls.macArm64, fallback, assets.macArm64);
@@ -292,6 +303,32 @@
     } catch (_error) {
       document.getElementById("release-status").textContent = translate("noRelease");
     }
+  }
+
+  async function refreshDownloadCount() {
+    try {
+      var response = await fetch(apiUrl("/releases?per_page=100&ts=" + Date.now()), {
+        cache: "no-store",
+        headers: { Accept: "application/vnd.github+json" }
+      });
+      if (!response.ok) return;
+      var releases = await response.json();
+      var totalDownloads = totalInstallerDownloads(releases);
+      document.getElementById("download-count").textContent = totalDownloads
+        ? translate("totalDownloads", { count: formatCount(totalDownloads) })
+        : translate("releaseSource");
+    } catch (_error) {
+      // Keep the last known count when GitHub is temporarily unavailable.
+    }
+  }
+
+  function initializeDownloadCountRefresh() {
+    document.querySelectorAll("#recommended-download, .card-download").forEach(function (link) {
+      link.addEventListener("click", function () {
+        window.setTimeout(refreshDownloadCount, 6000);
+        window.setTimeout(refreshDownloadCount, 30000);
+      });
+    });
   }
 
   function initializeLanguageSwitch() {
@@ -368,6 +405,7 @@
   }
 
   initializeLanguageSwitch();
+  initializeDownloadCountRefresh();
   applyConfig();
   initializeEditor();
   loadRelease();
