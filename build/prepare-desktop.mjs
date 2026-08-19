@@ -53,13 +53,13 @@ function disableUpstreamUpdates(patch) {
 }
 
 /**
- * 将上游启动验收从“必须出现检查更新菜单”改为“不得保留上游检查更新菜单”。
- * 产品停用 desktop-updates 后，原校验会把预期的产品覆盖误判为打包失败。
+ * 将上游启动验收改为产品更新菜单验收：旧菜单必须消失，新菜单必须存在。
+ * 产品停用 desktop-updates 后，原校验会把产品插件提供的菜单误判为上游菜单。
  * @param script - staging 副本中 verify-profile-boot.mjs 的完整内容。
  * @returns 与产品更新策略一致的启动验收脚本。
  * @throws 上游校验锚点变化时抛出，中断打包待人工复查。
  */
-function verifyUpstreamUpdatesDisabled(script) {
+function verifyProductUpdateMenu(script) {
   const upstreamCheck = `  if (!trayItems.some(item => item.label() === 'Check for Updates…')) {
     throw new Error('assembled desktop profile is missing the update tray command')
   }`
@@ -70,6 +70,9 @@ function verifyUpstreamUpdatesDisabled(script) {
     upstreamCheck,
     `  if (trayItems.some(item => item.label() === 'Check for Updates…')) {
     throw new Error('assembled product profile unexpectedly retains the upstream update tray command')
+  }
+  if (!trayItems.some(item => item.label() === 'Check Updates…')) {
+    throw new Error('assembled product profile is missing the product update tray command')
   }`,
   )
 }
@@ -107,7 +110,7 @@ let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 
 /* ------------------------- 停用上游自动更新 ------------------------- */
 desktopPatch = disableUpstreamUpdates(desktopPatch)
-profileBootVerifier = verifyUpstreamUpdatesDisabled(profileBootVerifier)
+profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
 
 /* --------------------------- 注入产品插件 --------------------------- */
 for (const plugin of enabledPlugins) {

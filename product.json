@@ -16,7 +16,7 @@
       "id": "tokens-version-updates",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
-      "commit": "c6a787f4a47f7de3573721f1c214bbfb1cf26f81",
+      "commit": "fb57a6920f83057f8e455d374c532b9410590111",
       "package": "@tokens/dsh-version-updates",
       "version": "0.1.0",
       "enabledByDefault": true,
