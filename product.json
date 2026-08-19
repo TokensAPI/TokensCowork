@@ -27,6 +27,21 @@
         "sharp": "0.35.3"
       },
       "distributionNote": "Not redistributed while the potrace dependency remains GPL-2.0."
+    },
+    {
+      "id": "tokens-version-updates",
+      "path": "plugins/tokens_DshVersionUpdates_code",
+      "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
+      "commit": "0dfff308b727261c345c62d13b0c38e78b150c9c",
+      "package": "@tokens/dsh-version-updates",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml",
+      "runtimeDependencies": {
+        "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
+        "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
+        "@deepseek-ai/schemastery": "^3.18.1"
+      }
     }
   ]
 }

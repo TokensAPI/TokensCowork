@@ -10,6 +10,6 @@
 [submodule "plugins/tokens_DshFeishuConnect_code"]
 	path = plugins/tokens_DshFeishuConnect_code
 	url = https://github.com/sobermh/tokens_DshFeishuConnect_code.git
-[submodule "plugins/tokens_DshVersionUpdates_code"]
+[submodule "tokens-version-updates"]
 	path = plugins/tokens_DshVersionUpdates_code
 	url = https://github.com/sobermh/tokens_DshVersionUpdates_code.git
