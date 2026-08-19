@@ -26,12 +26,13 @@ function assertGeneratedPath(path) {
   }
 }
 
-function copySource(source, destination) {
+function copySource(source, destination, options = {}) {
   cpSync(source, destination, {
     recursive: true,
     filter: candidate => {
       const name = basename(candidate)
-      return name !== '.git' && name !== 'node_modules' && name !== 'dist'
+      return name !== '.git' && name !== 'node_modules'
+        && (options.includeDist === true || name !== 'dist')
         && !(candidate === resolve(desktopSource, 'deepseek-harness'))
     },
   })
@@ -177,7 +178,16 @@ for (const plugin of enabledPlugins) {
   const destination = resolve(stage, 'product-plugins', plugin.id)
   assertGeneratedPath(destination)
   mkdirSync(resolve(destination, '..'), { recursive: true })
-  copySource(source, destination)
+  copySource(source, destination, { includeDist: true })
+
+  // Product plugins ship committed runtime artifacts. Their local build toolchains
+  // are not part of the redistributed application and make cross-platform installs
+  // slower and less deterministic (especially native esbuild helper packages).
+  const pluginPackagePath = resolve(destination, 'package.json')
+  const pluginPackage = JSON.parse(readFileSync(pluginPackagePath, 'utf8'))
+  delete pluginPackage.devDependencies
+  delete pluginPackage.allowScripts
+  writeFileSync(pluginPackagePath, `${JSON.stringify(pluginPackage, undefined, 2)}\n`)
 
   const workspaceEntry = relative(stage, destination).split(sep).join('/')
   if (!workspace.workspaces.includes(workspaceEntry)) workspace.workspaces.push(workspaceEntry)
