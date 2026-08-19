@@ -7,7 +7,7 @@
 ```text
 desktop/                     Desktop 子模块
   deepseek-harness/          Desktop 自带的递归 DSH 子模块
-plugins/dsh-vision-router/   插件源码子模块
+plugins/                     插件源码子模块
 build/                       临时组装与构建脚本
 VERSION                      唯一可编辑的产品版本源
 product.json                 产品身份、固定提交和默认插件清单
@@ -56,5 +56,3 @@ corepack yarn product:dist:mac:auto
 插件必须先作为 `plugins/` 下的 Git 子模块固定提交，再登记到 `product.json`。`enabledByDefault: true` 的插件会在临时 staging 中作为 Yarn workspace 加入 Desktop，并把插件的 DSH patch 追加到 Desktop 产品层。
 
 启用或升级默认插件后运行 `corepack yarn product:refresh-lock`，提交生成的 `build/product.yarn.lock`。普通 CI 和发布构建只接受 immutable lockfile。
-
-`dsh-vision-router` 当前作为固定源码候选存在，但默认不分发，因为它依赖 GPL-2.0 的 `potrace`。接受相应许可证义务或上游移除该依赖后，才能将其改为默认启用并重新验证安装包许可证。

@@ -1,9 +1,6 @@
 [submodule "desktop"]
 	path = desktop
 	url = https://github.com/anywhere-labs/deepseek-harness-desktop.git
-[submodule "dsh-vision-router"]
-	path = plugins/dsh-vision-router
-	url = https://github.com/ysr666/dsh-vision-router.git
 [submodule "plugins/tokens_DshSkillsUI_code"]
 	path = plugins/tokens_DshSkillsUI_code
 	url = https://github.com/sobermh/tokens_DshSkillsUI_code.git

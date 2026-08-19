@@ -13,22 +13,6 @@
   },
   "plugins": [
     {
-      "id": "dsh-vision-router",
-      "path": "plugins/dsh-vision-router",
-      "repository": "https://github.com/ysr666/dsh-vision-router.git",
-      "commit": "37ce41726aa4fcbdd4321623b9abb5b41458f214",
-      "package": "dsh-vision-router",
-      "version": "1.5.0",
-      "enabledByDefault": false,
-      "patch": "cordis.patch.yml",
-      "runtimeDependencies": {
-        "@deepseek-ai/dsh-anonymous-user-id": "0.1.0-rc.6",
-        "@deepseek-ai/dsh-llm-deepseek": "0.1.0-rc.6",
-        "sharp": "0.35.3"
-      },
-      "distributionNote": "Not redistributed while the potrace dependency remains GPL-2.0."
-    },
-    {
       "id": "tokens-version-updates",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
