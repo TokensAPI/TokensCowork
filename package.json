@@ -19,6 +19,8 @@
     "product:dist:mac": "node build/build-desktop.mjs mac",
     "product:dist:mac-unsigned": "node build/build-desktop.mjs mac-unsigned",
     "product:dist:mac:auto": "node build/build-mac-auto.mjs",
-    "test:mac-signing": "node --test build/mac-signing-mode.test.mjs"
+    "test:mac-signing": "node --test build/mac-signing-mode.test.mjs",
+    "test:uninstall": "node --test scripts/uninstall-windows.test.mjs",
+    "product:uninstall:win": "node scripts/uninstall-windows.mjs"
   }
 }

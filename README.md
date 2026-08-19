@@ -39,6 +39,20 @@ corepack yarn product:dist:mac:auto
 
 `Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；macOS `BUILD-INFO.txt` 会记录 `developer-id-notarized` 或 `ad-hoc` 的实际签名模式。
 
+## Windows 静默卸载
+
+`corepack yarn product:uninstall:win` 用于反复装卸测试。加 `--purge-data` 时一并清除
+`%APPDATA%\TokensHarness\`，默认保留。
+
+不要直接运行 `Uninstall TokensHarness.exe /S`：NSIS 卸载器会先把自身复制到 `%TEMP%`
+再执行，好让它能删掉自己所在的目录，而副本的 `$INSTDIR` 是空的，于是 `RMDir /r $INSTDIR`
+无事可做、流程照常走完并**返回 0** —— 表现为卸载成功但程序原封不动。
+
+正解是 NSIS 的 `_?=<dir>`，它让卸载器就地运行并把 `$INSTDIR` 钉到真实安装路径。
+该参数必须排在最后且路径不加引号，否则会静默退化回上述行为。就地运行后卸载器不再
+自删，安装目录需由调用方收尾。因为退出码恰恰是本缺陷中失灵的一环，脚本一律以
+文件系统状态判定成败。
+
 ## 版本与发布说明
 
 `VERSION` 是唯一可编辑的产品版本源。运行 `VERSION=x.y.z bash scripts/set-version.sh` 将版本同步到 `package.json` 和 `product.json`；`bash scripts/set-version.sh --check` 校验重复元数据。
