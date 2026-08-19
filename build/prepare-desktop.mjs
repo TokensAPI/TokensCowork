@@ -77,6 +77,61 @@ function verifyProductUpdateMenu(script) {
   )
 }
 
+/**
+ * 从持久 profile 的 bundle 列表中移除由产品补丁固定装配的插件。
+ * 旧版本可能把这些插件写入用户 profile，升级后会与产品 Loader 条目重复。
+ * @param source - staging 副本中 profile.ts 的完整内容。
+ * @param packages - 当前产品默认启用、由产品补丁托管的插件包名。
+ * @returns 启动时会自动修复旧 profile 的源码。
+ * @throws 上游 profile 规范化锚点变化时抛出，中断打包待人工复查。
+ */
+function removeManagedBundlesFromProfile(source, packages) {
+  const setAnchor = 'const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)'
+  const filterAnchor = '  const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name) && name !== DESKTOP_PACKAGE_NAME)'
+  if (!source.includes(setAnchor) || !source.includes(filterAnchor)) {
+    throw new Error('prepare-desktop: 未找到上游 profile bundle 规范化锚点，请复查产品插件迁移策略')
+  }
+  const managedPackages = JSON.stringify(packages, undefined, 2)
+    .split('\n')
+    .map((line, index) => index === 0 ? line : `  ${line}`)
+    .join('\n')
+  return source
+    .replace(
+      setAnchor,
+      `${setAnchor}\nconst PRODUCT_MANAGED_BUNDLE_SET = new Set(${managedPackages})`,
+    )
+    .replace(
+      filterAnchor,
+      `  const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name)\n    && name !== DESKTOP_PACKAGE_NAME\n    && !PRODUCT_MANAGED_BUNDLE_SET.has(name))`,
+    )
+}
+
+/**
+ * 避免 Windows GUI 启动时已断开的 stderr 管道再次抛出 EPIPE，掩盖原始异常。
+ * @param source - staging 副本中 main.ts 的完整内容。
+ * @returns 所有桌面诊断均通过容错 writer 输出的源码。
+ * @throws 上游 stderr 锚点变化时抛出，中断打包待人工复查。
+ */
+function protectDesktopStderr(source) {
+  const helperAnchor = "const PRODUCT_NAME = 'DSH Desktop'"
+  const failLoudAnchor = '    stderr: process.stderr,'
+  const directWrites = source.match(/process\.stderr\.write\(/g) ?? []
+  if (!source.includes(helperAnchor) || !source.includes(failLoudAnchor) || directWrites.length === 0) {
+    throw new Error('prepare-desktop: 未找到上游桌面 stderr 锚点，请复查 Windows GUI 异常处理')
+  }
+  const rewritten = source
+    .replaceAll('process.stderr.write(', 'writeDesktopStderr(')
+    .replace(failLoudAnchor, '    stderr: { write: writeDesktopStderr },')
+    .replace(
+      helperAnchor,
+      `${helperAnchor}\n\n// A Windows GUI launch may expose an already-closed stderr pipe.\nprocess.stderr.on('error', () => {})\n\n/** Write diagnostics when a live stderr pipe exists. */\nfunction writeDesktopStderr(message: string): void {\n  if (process.stderr.destroyed || !process.stderr.writable) return\n  try {\n    process.stderr.write(message)\n  } catch {\n    // Diagnostics must never replace the original startup outcome.\n  }\n}`,
+    )
+  if ((rewritten.match(/process\.stderr\.write\(/g) ?? []).length !== 1) {
+    throw new Error('prepare-desktop: 桌面 stderr 改写不完整，请复查 Windows GUI 异常处理')
+  }
+  return rewritten
+}
+
 /* ====================================================================
  * 主流程
  * 按顺序执行 staging 装配：重建目录、读入副本、各项产品加工、写回。
@@ -103,10 +158,14 @@ const profileBootVerifierPath = resolve(
   'scripts',
   'verify-profile-boot.mjs',
 )
+const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
+const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').trimEnd()
 let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
+let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
+let desktopMain = readFileSync(desktopMainPath, 'utf8')
 
 /* ------------------------- 停用上游自动更新 ------------------------- */
 desktopPatch = disableUpstreamUpdates(desktopPatch)
@@ -132,11 +191,22 @@ for (const plugin of enabledPlugins) {
   desktopPatch += `\n\n# Product plugin: ${plugin.id}\n${pluginPatch}`
 }
 
+/* ----------------------- 修复旧版持久 profile ---------------------- */
+desktopProfile = removeManagedBundlesFromProfile(
+  desktopProfile,
+  enabledPlugins.map(plugin => plugin.package),
+)
+
+/* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
+desktopMain = protectDesktopStderr(desktopMain)
+
 /* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
 writeFileSync(profileBootVerifierPath, profileBootVerifier)
+writeFileSync(desktopProfilePath, desktopProfile)
+writeFileSync(desktopMainPath, desktopMain)
 
 /* -------------------------- 安装产品锁文件 -------------------------- */
 if (enabledPlugins.length > 0) {
