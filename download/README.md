@@ -36,9 +36,7 @@ npx serve download
 
 ## 部署
 
-仓库已经提供 `.github/workflows/pages.yml`。Pages 启用后，从 GitHub Actions 手动运行 `Deploy download page` 即可部署本目录。
-
-首次启用时，需要由具备仓库管理权限的账号进入 **Settings → Pages**，将 **Source** 设置为 **GitHub Actions**。Pages 未启用前工作流不会自动运行。部署后可以在仓库的 **Actions** 或 **Deployments** 页面查看结果。默认访问地址为：
+GitHub Pages 使用 `master` 分支根目录发布。代码推送后，GitHub 内置的 `pages build and deployment` 会自动更新站点，根目录 `index.html` 会跳转到本下载页。默认访问地址为：
 
 ```text
 https://tokensapi.github.io/tokens_TokensHarness_code/
