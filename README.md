@@ -47,7 +47,7 @@ corepack yarn product:dist:mac:auto
 
 ## 下载页
 
-`download/` 是独立的静态下载页。GitHub Pages 使用 `master` 分支根目录发布，推送后由 GitHub 内置的 `pages build and deployment` 自动更新；根目录 `index.html` 会将站点首页跳转到下载页。
+`download/` 是独立的静态下载页。GitHub Pages 的 Source 使用 **GitHub Actions**，`.github/workflows/pages.yml` 会在 `master` 分支的下载页文件变化后自动发布，也支持手动运行 `Deploy Download Page`。
 
 仓库 Secret `RELEASE_TOKEN` 必须由指定发布账号创建并具备仓库 Contents 写权限。正式 Release 使用该 Token，而不是 `github.token`，因此发布者显示为指定 GitHub 用户。
 
