@@ -23,10 +23,12 @@ function quoteCmdArgument(value) {
   return `"${value.replaceAll('"', '""')}"`
 }
 
-run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root, {
+const refreshEnvironment = {
   ...process.env,
   PRODUCT_REFRESH_LOCK: '1',
-})
+}
+run(process.execPath, [resolve(root, 'build', 'fetch-product-plugin-artifacts.mjs')], root, refreshEnvironment)
+run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root, refreshEnvironment)
 run('corepack', ['yarn', 'install'], stage)
 copyFileSync(resolve(stage, 'yarn.lock'), resolve(root, 'build', 'product.yarn.lock'))
 process.stdout.write('refresh-lock: wrote build/product.yarn.lock\n')

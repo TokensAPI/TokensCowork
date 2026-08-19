@@ -74,6 +74,14 @@ for (const plugin of manifest.plugins) {
   if (plugin.enabledByDefault === true && !existsSync(resolve(pluginPath, plugin.patch))) {
     fail(`${plugin.id} is enabled but its bundle patch is missing`)
   }
+  if (plugin.artifact !== undefined) {
+    if (plugin.artifact.type !== 'npm-tgz'
+      || typeof plugin.artifact.url !== 'string'
+      || !plugin.artifact.url.startsWith('https://')
+      || !/^[0-9a-f]{64}$/u.test(plugin.artifact.sha256 ?? '')) {
+      fail(`${plugin.id} release artifact declaration is invalid`)
+    }
+  }
 }
 
 if (manifest.plugins.some(plugin => plugin.enabledByDefault === true)

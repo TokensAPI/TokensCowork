@@ -10,7 +10,7 @@
   },
   "scripts": {
     "product:check": "node build/verify-layout.mjs",
-    "product:prepare": "node build/prepare-desktop.mjs",
+    "product:prepare": "node build/fetch-product-plugin-artifacts.mjs && node build/prepare-desktop.mjs",
     "product:refresh-lock": "node build/refresh-lock.mjs",
     "product:version-check": "bash scripts/set-version.sh --check",
     "test:release-notes": "node --test scripts/validate-release-notes.test.mjs",

@@ -31,7 +31,7 @@
       "id": "tokens-model-manager",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "c4a39e7a2199678ca4bc1854c17e7b1f2e4adc61",
+      "commit": "c70c01010d4f2eda7ca4870e52f50a9e1c0d37d8",
       "package": "@tokens/dsh-model-manager",
       "version": "0.1.0",
       "enabledByDefault": true,
@@ -53,6 +53,22 @@
       "runtimeDependencies": {
         "@deepseek-ai/schemastery": "^3.18.1"
       }
+    },
+    {
+      "id": "dsh-tokensapi-ui",
+      "path": "plugins/dsh-tokensapi-ui",
+      "repository": "https://github.com/TokensAPI/dsh-tokensapi-ui.git",
+      "commit": "d2e9bf351607105dba65d8348d728768c03ffd35",
+      "package": "dsh-tokensapi-ui",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml",
+      "artifact": {
+        "type": "npm-tgz",
+        "url": "https://github.com/TokensAPI/dsh-tokensapi-ui/releases/download/v0.1.0/dsh-tokensapi-ui-0.1.0.tgz",
+        "sha256": "5b982ed340971f4f8eef860274f598ee16cc9e974c81f30f68c8d1c644ba0f2b"
+      },
+      "runtimeDependencies": {}
     }
   ]
 }

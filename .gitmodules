@@ -13,3 +13,6 @@
 [submodule "tokens-model-manager"]
 	path = plugins/tokens_DshModelManager_code
 	url = https://github.com/TokensAPI/tokens_DshModelManager_code.git
+[submodule "dsh-tokensapi-ui"]
+	path = plugins/dsh-tokensapi-ui
+	url = https://github.com/TokensAPI/dsh-tokensapi-ui.git
