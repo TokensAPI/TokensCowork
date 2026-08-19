@@ -20,9 +20,21 @@ const releaseMacPath = resolve(
   'scripts',
   'release-mac.ts',
 )
+const mainPath = resolve(
+  root,
+  '.build',
+  'desktop',
+  'dsh-plugin-desktop',
+  'src',
+  'main.ts',
+)
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 const verifyMacRelease = readFileSync(verifyMacReleasePath, 'utf8')
 const releaseMac = readFileSync(releaseMacPath, 'utf8')
+const main = readFileSync(mainPath, 'utf8')
+// Electron 的 userData 目录由 app.setName() 推导，而上游把产品名硬编码在这里。
+// 不改写它，产品的宿主状态会继续写进上游品牌的目录。
+const upstreamMainProductName = "const PRODUCT_NAME = 'DSH Desktop'"
 const upstreamProductName = "productName: 'DSH Desktop',"
 const upstreamReleaseCheck = `  // The workspace check includes the package build and repository-layout gate. Signing
   // material is withheld from every build, test, Loader smoke, and layout subprocess.
@@ -34,6 +46,9 @@ if (!verifyMacRelease.includes(upstreamProductName)) {
 }
 if (!releaseMac.includes(upstreamReleaseCheck)) {
   throw new Error('configure-product: cannot locate redundant macOS release check')
+}
+if (!main.includes(upstreamMainProductName)) {
+  throw new Error('configure-product: cannot locate desktop runtime product name')
 }
 
 desktopPackage.version = product.version
@@ -48,6 +63,13 @@ writeFileSync(
   verifyMacRelease.replace(
     upstreamProductName,
     `productName: ${JSON.stringify(product.name)},`,
+  ),
+)
+writeFileSync(
+  mainPath,
+  main.replace(
+    upstreamMainProductName,
+    `const PRODUCT_NAME = ${JSON.stringify(product.name)}`,
   ),
 )
 writeFileSync(
