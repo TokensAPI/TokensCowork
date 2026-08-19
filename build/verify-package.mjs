@@ -34,4 +34,24 @@ const installer = resolve(desktopRoot, 'dist', `${product.name}-${product.versio
 const executable = resolve(desktopRoot, 'dist', 'win-unpacked', `${product.name}.exe`)
 assertPortableExecutable(installer, 'Windows NSIS installer')
 assertPortableExecutable(executable, 'unpacked Windows application')
+const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
+const packagedManifest = JSON.parse(readFileSync(resolve(unpackedResources, 'package.json'), 'utf8'))
+const packagedMain = readFileSync(resolve(unpackedResources, 'lib', 'main.js'), 'utf8')
+const packagedIndex = readFileSync(resolve(unpackedResources, 'lib', 'index.js'), 'utf8')
+if (packagedManifest.build?.appId !== product.appId
+  || packagedManifest.build?.productName !== product.name) {
+  throw new Error('packaged Windows application branding differs from product.json')
+}
+// deleteAppDataOnUninstall 是编译期开关：一旦打进安装包，卸载时运行期传的
+// /KEEP_APP_DATA 也救不回用户数据。产品约定卸载默认保留，故它必须不为真。
+if (packagedManifest.build?.nsis?.deleteAppDataOnUninstall === true) {
+  throw new Error('packaged Windows installer would delete user data on uninstall')
+}
+if (!packagedMain.includes(product.name) || !packagedMain.includes(product.appId)
+  || packagedMain.includes('ai.deepseek.dsh.desktop')) {
+  throw new Error('packaged Windows main runtime retains upstream identity')
+}
+if (!packagedIndex.includes(product.name) || packagedIndex.includes('DeepSeek Harness Desktop')) {
+  throw new Error('packaged Windows desktop shell retains upstream window branding')
+}
 process.stdout.write(`verify-package: Windows ${product.name} ${product.version} installer passed\n`)

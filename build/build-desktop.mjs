@@ -35,6 +35,12 @@ function run(command, args, cwd, env = process.env) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} exited with ${String(result.status)}`)
 }
 
+function configureBuildAndVerifyProduct(environment = process.env) {
+  run(process.execPath, [resolve(root, 'build', 'configure-product.mjs')], root, environment)
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage, environment)
+  run(process.execPath, [resolve(root, 'build', 'verify-product-branding.mjs')], root, environment)
+}
+
 function quoteCmdArgument(value) {
   if (/^[A-Za-z0-9:._@/=-]+$/u.test(value)) return value
   return `"${value.replaceAll('"', '""')}"`
@@ -68,10 +74,11 @@ if (mode === 'check') {
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage)
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage)
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'verify:closure'], stage)
+  configureBuildAndVerifyProduct(buildEnvironment)
 } else if (mode === 'mac-unsigned') {
   const requestedArch = assertNativeMacArchitecture()
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check'], stage)
-  run(process.execPath, [resolve(root, 'build', 'configure-product.mjs')], root)
+  configureBuildAndVerifyProduct(buildEnvironment)
   run('corepack', [
     'yarn',
     'workspace',
@@ -101,7 +108,7 @@ if (mode === 'check') {
     'WIN_CSC_LINK',
   ]) delete unsignedEnvironment[key]
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
-  run(process.execPath, [resolve(root, 'build', 'configure-product.mjs')], root)
+  configureBuildAndVerifyProduct(unsignedEnvironment)
   run('corepack', [
     'yarn',
     'workspace',
@@ -120,11 +127,6 @@ if (mode === 'check') {
 } else {
   assertNativeMacArchitecture()
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check'], stage, buildEnvironment)
-  run(
-    process.execPath,
-    [resolve(root, 'build', 'configure-product.mjs')],
-    root,
-    buildEnvironment,
-  )
+  configureBuildAndVerifyProduct(buildEnvironment)
   run('corepack', ['yarn', 'dist:mac'], stage)
 }
