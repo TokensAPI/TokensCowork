@@ -177,10 +177,12 @@ for (const plugin of enabledPlugins) {
   const source = plugin.artifact === undefined
     ? resolve(root, plugin.path)
     : resolve(stageRoot, 'product-plugin-artifacts', plugin.id, 'package')
-  const destination = resolve(stage, 'product-plugins', plugin.id)
   if (!existsSync(source)) {
     throw new Error(`prepare-desktop: ${plugin.id} release artifact is missing; fetch product plugin artifacts first`)
   }
+  // Keep product workspaces below the desktop package so their source-level
+  // imports resolve the host's single Cordis/DSH dependency graph.
+  const destination = resolve(stage, 'dsh-plugin-desktop', 'product-plugins', plugin.id)
   assertGeneratedPath(destination)
   mkdirSync(resolve(destination, '..'), { recursive: true })
   copySource(source, destination, { includeDist: true })

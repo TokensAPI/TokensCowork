@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.1.7"
+    "version": "0.1.8"
   },
   "desktop": {
     "path": "desktop",
@@ -45,12 +45,14 @@
       "id": "tokens-feishu-connect",
       "path": "plugins/tokens_DshFeishuConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
-      "commit": "6723843c91cb01106592f2a868a136da024a9dd9",
+      "commit": "028fd7636a33e7a679ad48f7edeb79f7ab2cfbff",
       "package": "@tokens/feishu",
-      "version": "0.1.1",
+      "version": "0.1.3",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
+        "@deepseek-ai/dsh-credentials": "0.1.0-rc.6",
+        "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
         "@deepseek-ai/schemastery": "^3.18.1"
       }
     },

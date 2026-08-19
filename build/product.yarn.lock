@@ -5274,9 +5274,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tokens/dsh-model-manager@workspace:*, @tokens/dsh-model-manager@workspace:product-plugins/tokens-model-manager":
+"@tokens/dsh-model-manager@workspace:*, @tokens/dsh-model-manager@workspace:dsh-plugin-desktop/product-plugins/tokens-model-manager":
   version: 0.0.0-use.local
-  resolution: "@tokens/dsh-model-manager@workspace:product-plugins/tokens-model-manager"
+  resolution: "@tokens/dsh-model-manager@workspace:dsh-plugin-desktop/product-plugins/tokens-model-manager"
   dependencies:
     commander: "npm:^13.1.0"
     undici: "npm:^8.10.0"
@@ -5285,9 +5285,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tokens/dsh-version-updates@workspace:*, @tokens/dsh-version-updates@workspace:product-plugins/tokens-version-updates":
+"@tokens/dsh-version-updates@workspace:*, @tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates":
   version: 0.0.0-use.local
-  resolution: "@tokens/dsh-version-updates@workspace:product-plugins/tokens-version-updates"
+  resolution: "@tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates"
   dependencies:
     "@deepseek-ai/dsh-atomic-write": "npm:0.1.0-rc.6"
     "@deepseek-ai/dsh-invariants": "npm:0.1.0-rc.6"
@@ -5297,9 +5297,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tokens/feishu@workspace:*, @tokens/feishu@workspace:product-plugins/tokens-feishu-connect":
+"@tokens/feishu@workspace:*, @tokens/feishu@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect":
   version: 0.0.0-use.local
-  resolution: "@tokens/feishu@workspace:product-plugins/tokens-feishu-connect"
+  resolution: "@tokens/feishu@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect"
+  dependencies:
+    "@deepseek-ai/schemastery": "npm:^3.18.1"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-commands": ^0.1.0-rc.6
+    "@deepseek-ai/dsh-credentials": ^0.1.0-rc.6
+    "@deepseek-ai/dsh-tools": ^0.1.0-rc.6
   languageName: unknown
   linkType: soft
 
@@ -6814,9 +6821,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"dsh-tokensapi-ui@workspace:*, dsh-tokensapi-ui@workspace:product-plugins/dsh-tokensapi-ui":
+"dsh-tokensapi-ui@workspace:*, dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui":
   version: 0.0.0-use.local
-  resolution: "dsh-tokensapi-ui@workspace:product-plugins/dsh-tokensapi-ui"
+  resolution: "dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui"
   languageName: unknown
   linkType: soft
 
