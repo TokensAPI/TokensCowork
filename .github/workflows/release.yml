@@ -46,12 +46,10 @@ jobs:
             echo "Release tag ${GITHUB_REF_NAME} does not match VERSION=${version}" >&2
             exit 1
           fi
-          if [[ "${GITHUB_REF_TYPE}" == "tag" || "${{ inputs.publish_release }}" == "true" ]]; then
-            existing_sha="$(git rev-list -n 1 "${tag}^{commit}" 2>/dev/null || true)"
-            if [[ -n "${existing_sha}" && "${existing_sha}" != "${GITHUB_SHA}" ]]; then
-              echo "Tag ${tag} is already occupied by ${existing_sha}" >&2
-              exit 1
-            fi
+          existing_sha="$(git rev-list -n 1 "${tag}^{commit}" 2>/dev/null || true)"
+          if [[ -n "${existing_sha}" && "${existing_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "Tag ${tag} is already occupied by ${existing_sha}" >&2
+            exit 1
           fi
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
           printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
