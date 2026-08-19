@@ -92,6 +92,19 @@ jobs:
         with:
           node-version: 22.23.2
 
+      - name: Restore build caches
+        uses: actions/cache@v5
+        continue-on-error: true
+        with:
+          path: |
+            ~/.yarn/berry/cache
+            ~/AppData/Local/Yarn/Berry/cache
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
+
       - name: Build unsigned Windows installer
         run: corepack yarn product:dist:win
 
@@ -157,6 +170,19 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
+
+      - name: Restore build caches
+        uses: actions/cache@v5
+        continue-on-error: true
+        with:
+          path: |
+            ~/.yarn/berry/cache
+            ~/AppData/Local/Yarn/Berry/cache
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
 
       - name: Select macOS signing mode
         id: signing
