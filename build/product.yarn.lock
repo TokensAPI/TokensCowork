@@ -5297,6 +5297,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@tokens/feishu@workspace:*, @tokens/feishu@workspace:product-plugins/tokens-feishu-connect":
+  version: 0.0.0-use.local
+  resolution: "@tokens/feishu@workspace:product-plugins/tokens-feishu-connect"
+  languageName: unknown
+  linkType: soft
+
 "@tybys/wasm-util@npm:^0.10.3":
   version: 0.10.3
   resolution: "@tybys/wasm-util@npm:0.10.3"
@@ -6782,6 +6788,7 @@ __metadata:
     "@electron/asar": "npm:3.4.1"
     "@tokens/dsh-model-manager": "workspace:*"
     "@tokens/dsh-version-updates": "workspace:*"
+    "@tokens/feishu": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^22.20.0"
     "@types/react": "npm:^18"

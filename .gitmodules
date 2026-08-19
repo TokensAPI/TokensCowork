@@ -4,7 +4,7 @@
 [submodule "plugins/tokens_DshSkillsUI_code"]
 	path = plugins/tokens_DshSkillsUI_code
 	url = https://github.com/sobermh/tokens_DshSkillsUI_code.git
-[submodule "plugins/tokens_DshFeishuConnect_code"]
+[submodule "tokens-feishu-connect"]
 	path = plugins/tokens_DshFeishuConnect_code
 	url = https://github.com/sobermh/tokens_DshFeishuConnect_code.git
 [submodule "tokens-version-updates"]

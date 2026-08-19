@@ -40,6 +40,19 @@
         "commander": "^13.1.0",
         "undici": "^8.10.0"
       }
+    },
+    {
+      "id": "tokens-feishu-connect",
+      "path": "plugins/tokens_DshFeishuConnect_code",
+      "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
+      "commit": "1a3e2aa38f92b44274124a5f05abd48d940112cf",
+      "package": "@tokens/feishu",
+      "version": "0.1.1",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml",
+      "runtimeDependencies": {
+        "@deepseek-ai/schemastery": "^3.18.1"
+      }
     }
   ]
 }
