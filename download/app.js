@@ -58,6 +58,9 @@
       safeVerifiable: "安全可验证",
       checksumProvided: "每个版本均提供 SHA-256 校验文件",
       releaseNotes: "查看发布说明",
+      releaseChanges: "版本改动",
+      releaseChangesSource: "内容来自 GitHub Release",
+      noReleaseChanges: "该版本暂未提供更新说明",
       previewLabel: "TokensHarness 应用界面预览",
       newSession: "新会话",
       workspace: "工作区",
@@ -119,6 +122,9 @@
       safeVerifiable: "Secure and verifiable",
       checksumProvided: "Every release includes SHA-256 checksums",
       releaseNotes: "View release notes",
+      releaseChanges: "What's changed",
+      releaseChangesSource: "From the GitHub Release",
+      noReleaseChanges: "No release notes are available for this version.",
       previewLabel: "TokensHarness application preview",
       newSession: "New session",
       workspace: "Workspace",
@@ -230,6 +236,208 @@
     return String(value).replace(/[&<>'"]/g, function (character) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character];
     });
+  }
+
+  function excludedReleaseHeading(value) {
+    var heading = String(value || "")
+      .replace(/[`*_~]/g, "")
+      .replace(/^\s*[\d一二三四五六七八九十]+[.、：:]?\s*/, "")
+      .trim()
+      .toLowerCase();
+    return heading === "验证结果" || heading === "已知限制" || heading === "完整变更" ||
+      heading === "verification" || heading === "verification results" ||
+      heading === "known limitation" || heading === "known limitations" ||
+      heading === "full changes" || heading === "full changelog";
+  }
+
+  function visibleReleaseBody(markdown) {
+    var skippedLevel = 0;
+    return String(markdown || "").split(/\r?\n/).filter(function (line) {
+      var heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (heading) {
+        var level = heading[1].length;
+        if (skippedLevel && level <= skippedLevel) skippedLevel = 0;
+        if (excludedReleaseHeading(heading[2])) {
+          skippedLevel = level;
+          return false;
+        }
+      }
+      return !skippedLevel;
+    }).join("\n").trim();
+  }
+
+  function appendInlineMarkdown(container, value) {
+    var source = String(value || "");
+    var tokenPattern = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^\s)]+\))/g;
+    var position = 0;
+    var match;
+
+    function appendText(text) {
+      if (text) container.appendChild(document.createTextNode(text));
+    }
+
+    while ((match = tokenPattern.exec(source))) {
+      appendText(source.slice(position, match.index));
+      var token = match[0];
+      if (token.charAt(0) === "`") {
+        var code = document.createElement("code");
+        code.textContent = token.slice(1, -1);
+        container.appendChild(code);
+      } else if (token.slice(0, 2) === "**") {
+        var strong = document.createElement("strong");
+        strong.textContent = token.slice(2, -2);
+        container.appendChild(strong);
+      } else {
+        var linkParts = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        var href = linkParts && linkParts[2];
+        if (href && /^https?:\/\//i.test(href)) {
+          var link = document.createElement("a");
+          link.textContent = linkParts[1];
+          link.href = href;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          container.appendChild(link);
+        } else {
+          appendText(token);
+        }
+      }
+      position = match.index + token.length;
+    }
+    appendText(source.slice(position));
+  }
+
+  function markdownCells(line) {
+    return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (cell) {
+      return cell.trim();
+    });
+  }
+
+  function renderReleaseMarkdown(container, markdown) {
+    container.innerHTML = "";
+    var lines = String(markdown || "").split(/\r?\n/);
+    var index = 0;
+    while (index < lines.length) {
+      var line = lines[index];
+      if (!line.trim()) {
+        index += 1;
+        continue;
+      }
+
+      if (/^\s*```/.test(line)) {
+        var codeLines = [];
+        index += 1;
+        while (index < lines.length && !/^\s*```/.test(lines[index])) {
+          codeLines.push(lines[index]);
+          index += 1;
+        }
+        if (index < lines.length) index += 1;
+        var pre = document.createElement("pre");
+        var blockCode = document.createElement("code");
+        blockCode.textContent = codeLines.join("\n");
+        pre.appendChild(blockCode);
+        container.appendChild(pre);
+        continue;
+      }
+
+      var heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (heading) {
+        var headingLevel = Math.min(Number(heading[1].length) + 1, 6);
+        var headingElement = document.createElement("h" + headingLevel);
+        appendInlineMarkdown(headingElement, heading[2]);
+        container.appendChild(headingElement);
+        index += 1;
+        continue;
+      }
+
+      if (index + 1 < lines.length && line.includes("|") && /^\s*\|?\s*:?-{3,}/.test(lines[index + 1])) {
+        var table = document.createElement("table");
+        var thead = document.createElement("thead");
+        var headerRow = document.createElement("tr");
+        markdownCells(line).forEach(function (cell) {
+          var th = document.createElement("th");
+          appendInlineMarkdown(th, cell);
+          headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        index += 2;
+        var tbody = document.createElement("tbody");
+        while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+          var row = document.createElement("tr");
+          markdownCells(lines[index]).forEach(function (cell) {
+            var td = document.createElement("td");
+            appendInlineMarkdown(td, cell);
+            row.appendChild(td);
+          });
+          tbody.appendChild(row);
+          index += 1;
+        }
+        table.appendChild(tbody);
+        container.appendChild(table);
+        continue;
+      }
+
+      var listMatch = line.match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
+      if (listMatch) {
+        var ordered = Boolean(listMatch[2]);
+        var list = document.createElement(ordered ? "ol" : "ul");
+        while (index < lines.length) {
+          var itemMatch = lines[index].match(/^\s*(?:([-+*])|(\d+)\.)\s+(.+)$/);
+          if (!itemMatch || Boolean(itemMatch[2]) !== ordered) break;
+          var item = document.createElement("li");
+          appendInlineMarkdown(item, itemMatch[3]);
+          list.appendChild(item);
+          index += 1;
+        }
+        container.appendChild(list);
+        continue;
+      }
+
+      var quote = line.match(/^\s*>\s?(.*)$/);
+      if (quote) {
+        var blockquote = document.createElement("blockquote");
+        appendInlineMarkdown(blockquote, quote[1]);
+        container.appendChild(blockquote);
+        index += 1;
+        continue;
+      }
+
+      var paragraphLines = [line.trim()];
+      index += 1;
+      while (index < lines.length && lines[index].trim() &&
+        !/^\s{0,3}#{1,6}\s+/.test(lines[index]) &&
+        !/^\s*(?:[-+*]|\d+\.)\s+/.test(lines[index]) &&
+        !/^\s*>/.test(lines[index]) &&
+        !/^\s*```/.test(lines[index])) {
+        paragraphLines.push(lines[index].trim());
+        index += 1;
+      }
+      var paragraph = document.createElement("p");
+      appendInlineMarkdown(paragraph, paragraphLines.join(" "));
+      container.appendChild(paragraph);
+    }
+  }
+
+  function renderReleaseChanges(release) {
+    var section = document.getElementById("release-changes");
+    var content = document.getElementById("release-changes-content");
+    if (!section || !content) return;
+    if (!release) {
+      section.hidden = true;
+      content.innerHTML = "";
+      return;
+    }
+    var body = visibleReleaseBody(release.body);
+    section.hidden = false;
+    if (body) {
+      renderReleaseMarkdown(content, body);
+    } else {
+      content.innerHTML = "";
+      var empty = document.createElement("p");
+      empty.className = "release-changes__empty";
+      empty.textContent = translate("noReleaseChanges");
+      content.appendChild(empty);
+    }
   }
 
   function formatCount(value) {
@@ -347,6 +555,7 @@
     document.getElementById("release-status").textContent = translate("connectingRelease");
     document.getElementById("release-notes-link").removeAttribute("href");
     document.getElementById("download-count").textContent = translate("releaseSource");
+    renderReleaseChanges(null);
   }
 
   function applyFallback() {
@@ -372,6 +581,7 @@
     document.getElementById("release-status").textContent = translate("noRelease");
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("download-count").textContent = translate("releaseSource");
+    renderReleaseChanges(null);
   }
 
   function revealPage() {
@@ -436,6 +646,7 @@
     document.querySelectorAll("#release-menu .release-option").forEach(function (option) {
       var visible = !normalized || option.getAttribute("data-release-search").includes(normalized);
       option.hidden = !visible;
+      option.style.display = visible ? "" : "none";
       if (visible) visibleCount += 1;
     });
     [
@@ -530,6 +741,8 @@
       date: formatDate(release.published_at)
     });
     document.getElementById("release-notes-link").href = fallback;
+    document.getElementById("release-changes-link").href = fallback;
+    renderReleaseChanges(release);
     document.getElementById("download-count").textContent = totalDownloads
       ? translate("totalDownloads", { count: formatCount(totalDownloads) })
       : translate("releaseSource");
