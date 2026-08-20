@@ -61,6 +61,9 @@
       releaseChanges: "版本改动",
       releaseChangesSource: "内容来自 GitHub Release",
       noReleaseChanges: "该版本暂未提供更新说明",
+      bundledPlugins: "内置插件",
+      bundledPluginsSource: "随安装包内置，开箱即用",
+      pluginHomepage: "GitHub 主页",
       previewLabel: "TokensHarness 应用界面预览",
       newSession: "新会话",
       workspace: "工作区",
@@ -125,6 +128,9 @@
       releaseChanges: "What's changed",
       releaseChangesSource: "From the GitHub Release",
       noReleaseChanges: "No release notes are available for this version.",
+      bundledPlugins: "Bundled plugins",
+      bundledPluginsSource: "Included in the installer, ready to use",
+      pluginHomepage: "GitHub",
       previewLabel: "TokensHarness application preview",
       newSession: "New session",
       workspace: "Workspace",
@@ -440,6 +446,64 @@
     }
   }
 
+  var pluginManifestCache = {};
+
+  // 内置插件清单来自该 Release 的 TokensHarness-<v>-plugins.json 资产
+  // （发布工作流由 product.json 生成）。缺资产或拉取失败时隐藏整个区块。
+  function renderBundledPlugins(release) {
+    var section = document.getElementById("bundled-plugins");
+    var grid = document.getElementById("bundled-plugins-grid");
+    if (!section || !grid) return;
+    section.hidden = true;
+    grid.innerHTML = "";
+    if (!release) return;
+    var tag = release.tag_name;
+    var asset = (release.assets || []).find(function (item) {
+      return /-plugins\.json$/.test(item.name || "");
+    });
+    if (!asset) return;
+
+    var cached = pluginManifestCache[tag];
+    var manifestPromise = cached || fetch(asset.browser_download_url).then(function (response) {
+      if (!response.ok) throw new Error("plugins manifest " + response.status);
+      return response.json();
+    });
+    pluginManifestCache[tag] = manifestPromise;
+
+    manifestPromise.then(function (manifest) {
+      if (selectedReleaseTag !== tag) return;
+      var plugins = (manifest && manifest.plugins) || [];
+      if (!plugins.length) return;
+      grid.innerHTML = "";
+      plugins.forEach(function (plugin) {
+        var card = document.createElement("article");
+        card.className = "plugin-card";
+        var title = document.createElement("h3");
+        title.textContent = plugin.name || plugin.id;
+        var version = document.createElement("span");
+        version.className = "plugin-card__version";
+        version.textContent = "v" + (plugin.version || "");
+        title.appendChild(version);
+        var description = document.createElement("p");
+        description.textContent = plugin.description || "";
+        card.appendChild(title);
+        card.appendChild(description);
+        if (plugin.homepage) {
+          var link = document.createElement("a");
+          link.href = plugin.homepage;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          link.textContent = translate("pluginHomepage") + " →";
+          card.appendChild(link);
+        }
+        grid.appendChild(card);
+      });
+      section.hidden = false;
+    }).catch(function () {
+      delete pluginManifestCache[tag];
+    });
+  }
+
   function formatCount(value) {
     return new Intl.NumberFormat(currentLanguage === "en" ? "en-US" : "zh-CN").format(value || 0);
   }
@@ -556,6 +620,7 @@
     document.getElementById("release-notes-link").removeAttribute("href");
     document.getElementById("download-count").textContent = translate("releaseSource");
     renderReleaseChanges(null);
+    renderBundledPlugins(null);
   }
 
   function applyFallback() {
@@ -582,6 +647,7 @@
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("download-count").textContent = translate("releaseSource");
     renderReleaseChanges(null);
+    renderBundledPlugins(null);
   }
 
   function revealPage() {
@@ -743,6 +809,7 @@
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("release-changes-link").href = fallback;
     renderReleaseChanges(release);
+    renderBundledPlugins(release);
     document.getElementById("download-count").textContent = totalDownloads
       ? translate("totalDownloads", { count: formatCount(totalDownloads) })
       : translate("releaseSource");

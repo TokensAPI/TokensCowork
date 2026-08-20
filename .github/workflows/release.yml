@@ -307,6 +307,16 @@ jobs:
             exit 1
           fi
 
+      # 插件清单资产：从本 tag 的 product.json 抽取默认启用插件的
+      # 展示名、介绍、版本与仓库主页，供下载页渲染"内置插件"。
+      - name: Generate bundled plugin manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.metadata.outputs.version }}"
+          node scripts/generate-plugin-manifest.mjs > "release-assets/TokensHarness-${version}-plugins.json"
+          cat "release-assets/TokensHarness-${version}-plugins.json"
+
       - name: Create checksums and GitHub Release
         shell: bash
         run: |
@@ -341,6 +351,7 @@ jobs:
           gh release create "${tag}" \
             "${packages[@]}" \
             "${checksums}" \
+            "release-assets/TokensHarness-${version}-plugins.json" \
             --title "TokensHarness ${tag}" \
             --target "${GITHUB_SHA}" \
             --notes-file "${release_notes}"
