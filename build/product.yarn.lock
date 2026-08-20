@@ -5274,6 +5274,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tokens/dsh-feishu-connect@workspace:*, @tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect":
+  version: 0.0.0-use.local
+  resolution: "@tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect"
+  dependencies:
+    "@deepseek-ai/schemastery": "npm:^3.18.1"
+  peerDependencies:
+    "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh-commands": ^0.1.0-rc.6
+    "@deepseek-ai/dsh-credentials": ^0.1.0-rc.6
+    "@deepseek-ai/dsh-tools": ^0.1.0-rc.6
+  languageName: unknown
+  linkType: soft
+
 "@tokens/dsh-version-updates@workspace:*, @tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates":
   version: 0.0.0-use.local
   resolution: "@tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates"
@@ -6762,6 +6775,7 @@ __metadata:
     "@deepseek-ai/dsh-workflow": "npm:0.1.0-rc.6"
     "@deepseek-ai/schemastery": "npm:^3.18.1"
     "@electron/asar": "npm:3.4.1"
+    "@tokens/dsh-feishu-connect": "workspace:*"
     "@tokens/dsh-version-updates": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^22.20.0"
