@@ -13,6 +13,7 @@ const stage = resolve(stageRoot, 'desktop')
 const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
+const hasProductUpdatePlugin = enabledPlugins.some(item => item.id === 'tokens-version-updates')
 
 /* ====================================================================
  * 工具函数
@@ -182,9 +183,13 @@ let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 
-/* ------------------------- 停用上游自动更新 ------------------------- */
-desktopPatch = disableUpstreamUpdates(desktopPatch)
-profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
+/* -------------------------- 配置自动更新 --------------------------- */
+// 只有产品内置替代更新插件时才关闭官方更新服务。纯净产品没有替代插件，
+// 必须保留上游更新入口及其原始启动验收，否则完整 profile 检查会失败。
+if (hasProductUpdatePlugin) {
+  desktopPatch = disableUpstreamUpdates(desktopPatch)
+  profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
+}
 
 /* --------------------------- 注入产品插件 --------------------------- */
 for (const plugin of enabledPlugins) {
