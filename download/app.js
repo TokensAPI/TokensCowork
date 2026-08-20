@@ -22,7 +22,10 @@
       releaseSource: "安装包来自 GitHub Releases",
       allPackages: "全部安装包",
       chooseVersion: "选择适合你的版本",
-      latestSuffix: "（最新）",
+      stableLatestSuffix: "（稳定版 · 最新）",
+      stableSuffix: "（稳定版 · 推荐）",
+      previewLatestSuffix: "（先行版 · 最新）",
+      previewSuffix: "（先行版）",
       selectVersion: "选择下载版本",
       loadingPage: "正在准备最新版本…",
       loadingVersion: "正在获取版本…",
@@ -30,8 +33,9 @@
       releaseUnavailable: "版本暂不可用",
       connectingRelease: "正在连接 GitHub Releases…",
       noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
-      latestVersion: "最新版本 v{version} · {date}",
-      selectedVersion: "版本 v{version} · {date}",
+      stableVersion: "稳定版 v{version} · {date}",
+      previewVersion: "先行版 v{version} · {date}",
+      selectedVersion: "历史正式版 v{version} · {date}",
       totalDownloads: "累计下载 {count} 次",
       windowsRequirement: "Windows 10 / 11 · 64 位",
       macAppleRequirement: "Apple 芯片 · M1 及更新",
@@ -69,7 +73,10 @@
       releaseSource: "Installers are hosted on GitHub Releases",
       allPackages: "All downloads",
       chooseVersion: "Choose the right version",
-      latestSuffix: " (Latest)",
+      stableLatestSuffix: " (Stable · Latest)",
+      stableSuffix: " (Stable · Recommended)",
+      previewLatestSuffix: " (Preview · Latest)",
+      previewSuffix: " (Preview)",
       selectVersion: "Choose download version",
       loadingPage: "Preparing the latest release…",
       loadingVersion: "Loading version…",
@@ -77,8 +84,9 @@
       releaseUnavailable: "Version unavailable",
       connectingRelease: "Connecting to GitHub Releases…",
       noRelease: "No public Release found. Download buttons will open GitHub.",
-      latestVersion: "Latest v{version} · {date}",
-      selectedVersion: "Version v{version} · {date}",
+      stableVersion: "Stable v{version} · {date}",
+      previewVersion: "Preview v{version} · {date}",
+      selectedVersion: "Previous stable v{version} · {date}",
       totalDownloads: "{count} total downloads",
       windowsRequirement: "Windows 10 / 11 · 64-bit",
       macAppleRequirement: "Apple silicon · M1 or newer",
@@ -129,6 +137,7 @@
   var currentLanguage = storedLanguage === "en" || storedLanguage === "zh" ? storedLanguage : (config.defaultLanguage === "en" ? "en" : "zh");
   var cachedReleases = [];
   var latestReleaseTag = "";
+  var stableReleaseTag = "";
   var selectedReleaseTag = "";
 
   function activeContent() {
@@ -353,7 +362,14 @@
     select.innerHTML = "";
     menu.innerHTML = "";
     cachedReleases.forEach(function (release) {
-      var label = release.tag_name + (release.tag_name === latestReleaseTag ? translate("latestSuffix") : "");
+      var isStable = release.tag_name === stableReleaseTag;
+      var isLatest = release.tag_name === latestReleaseTag;
+      var suffix = "";
+      if (isStable && isLatest) suffix = translate("stableLatestSuffix");
+      else if (isStable) suffix = translate("stableSuffix");
+      else if (isLatest) suffix = translate("previewLatestSuffix");
+      else if (release.prerelease) suffix = translate("previewSuffix");
+      var label = release.tag_name + suffix;
       var option = document.createElement("option");
       option.value = release.tag_name;
       option.textContent = label;
@@ -368,7 +384,7 @@
       menuOption.textContent = label;
       menu.appendChild(menuOption);
     });
-    select.value = selectedReleaseTag || latestReleaseTag;
+    select.value = selectedReleaseTag || stableReleaseTag;
     select.disabled = cachedReleases.length < 2;
     trigger.disabled = cachedReleases.length < 2;
     current.textContent = select.options[select.selectedIndex].textContent;
@@ -377,8 +393,8 @@
   function renderRelease(release) {
     if (!release) return;
     var assets = resolveAssets(release);
-    var isLatest = release.tag_name === latestReleaseTag;
-    var overrides = isLatest ? config.downloadOverrides : {};
+    var isStable = release.tag_name === stableReleaseTag;
+    var overrides = isStable ? config.downloadOverrides : {};
     var urls = {
       windows: overrides.windows || (assets.windows && assets.windows.browser_download_url),
       macArm64: overrides.macArm64 || (assets.macArm64 && assets.macArm64.browser_download_url),
@@ -395,7 +411,8 @@
     var version = releaseVersion(release);
     var legacyVersion = document.getElementById("header-version");
     if (legacyVersion) legacyVersion.textContent = "v" + version;
-    document.getElementById("release-status").textContent = translate(isLatest ? "latestVersion" : "selectedVersion", {
+    var statusKey = isStable ? "stableVersion" : (release.prerelease ? "previewVersion" : "selectedVersion");
+    document.getElementById("release-status").textContent = translate(statusKey, {
       version: version,
       date: formatDate(release.published_at)
     });
@@ -405,9 +422,9 @@
       : translate("releaseSource");
   }
 
-  function publicReleases(releases) {
+  function publishedReleases(releases) {
     return (Array.isArray(releases) ? releases : []).filter(function (item) {
-      return item && !item.draft && !item.prerelease;
+      return item && !item.draft;
     }).sort(function (left, right) {
       return new Date(right.published_at || right.created_at) - new Date(left.published_at || left.created_at);
     });
@@ -418,7 +435,7 @@
       try {
         var manifestResponse = await fetch("releases.json", { cache: "no-cache" });
         if (manifestResponse.ok) {
-          var manifestReleases = publicReleases(await manifestResponse.json());
+          var manifestReleases = publishedReleases(await manifestResponse.json());
           if (manifestReleases.length) return manifestReleases;
         }
       } catch (_error) {
@@ -433,7 +450,7 @@
     });
     if (!apiResponse.ok) throw new Error("No public release list");
 
-    var apiReleases = publicReleases(await apiResponse.json());
+    var apiReleases = publishedReleases(await apiResponse.json());
     if (!apiReleases.length) throw new Error("No public release");
     return apiReleases;
   }
@@ -443,8 +460,10 @@
     try {
       cachedReleases = await fetchReleaseList();
       latestReleaseTag = cachedReleases[0].tag_name;
+      var stableRelease = cachedReleases.find(function (release) { return !release.prerelease; }) || cachedReleases[0];
+      stableReleaseTag = stableRelease.tag_name;
       if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
-        selectedReleaseTag = latestReleaseTag;
+        selectedReleaseTag = stableReleaseTag;
       }
       populateReleaseSelector();
       renderRelease(cachedReleases.find(function (item) { return item.tag_name === selectedReleaseTag; }));
