@@ -463,8 +463,12 @@
     });
     if (!asset) return;
 
+    // browser_download_url（github.com）不带 CORS 头，浏览器侧必须改走
+    // API 资产端点：api.github.com 响应 Access-Control-Allow-Origin: *。
     var cached = pluginManifestCache[tag];
-    var manifestPromise = cached || fetch(asset.browser_download_url).then(function (response) {
+    var manifestPromise = cached || fetch(apiUrl("/releases/assets/" + asset.id), {
+      headers: { Accept: "application/octet-stream" }
+    }).then(function (response) {
       if (!response.ok) throw new Error("plugins manifest " + response.status);
       return response.json();
     });
