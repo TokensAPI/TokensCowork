@@ -336,11 +336,14 @@ jobs:
               "$(basename "${packages[2]}")" \
               > "$(basename "${checksums}")"
           )
+          # 新版本一律以先行版发布：releases/latest 与更新插件只认非
+          # prerelease，验证通过后再手动转正（gh release edit --prerelease=false）。
           gh release create "${tag}" \
             "${packages[@]}" \
             "${checksums}" \
             --title "TokensHarness ${tag}" \
             --target "${GITHUB_SHA}" \
+            --prerelease \
             --notes-file "${release_notes}"
 
   summary:
