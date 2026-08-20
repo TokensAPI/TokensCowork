@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.2.4"
+    "version": "0.2.5"
   },
   "desktop": {
     "path": "desktop",
@@ -14,6 +14,8 @@
   "plugins": [
     {
       "id": "tokens-version-updates",
+      "displayName": "TokensHarness 更新",
+      "description": "从 TokensHarness GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
       "commit": "a55243dcf0574a255573c664a96057f1b208c8ad",
@@ -29,6 +31,8 @@
     },
     {
       "id": "tokens-feishu-connect",
+      "displayName": "飞书连接",
+      "description": "连接飞书或 Lark，支持应用创建、个人 OAuth、文档与消息工具。",
       "path": "plugins/tokens_DshFeishuConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
       "commit": "3c6f739d33e6015f667b267b1b52dcf452fe14d1",
@@ -57,9 +61,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "239636e780b2527804b7da6c00ea38838709f8a9",
+      "commit": "738e097e375ed9c0b6e06492d101b775434d0f8d",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     }
