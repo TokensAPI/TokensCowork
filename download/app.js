@@ -22,11 +22,21 @@
       releaseSource: "安装包来自 GitHub Releases",
       allPackages: "全部安装包",
       chooseVersion: "选择适合你的版本",
-      stableLatestSuffix: "（稳定版 · 最新）",
-      stableSuffix: "（稳定版 · 推荐）",
-      previewLatestSuffix: "（先行版 · 最新）",
-      previewSuffix: "（先行版）",
+      stableLatestSuffix: "（稳定版 · 推荐 · 最新）",
+      stableRecommendedSuffix: "（稳定版 · 推荐）",
+      stableSuffix: "（稳定版）",
+      latestSuffix: "（最新）",
       selectVersion: "选择下载版本",
+      versionPanelTitle: "选择版本",
+      searchVersions: "搜索版本",
+      featuredVersions: "快捷选择",
+      stableVersions: "稳定版本",
+      allVersions: "其他版本",
+      noMatchingVersion: "没有找到匹配的版本",
+      versionsCount: "共 {count} 个版本",
+      recommendedBadge: "推荐",
+      stableBadge: "稳定版",
+      latestBadge: "最新",
       loadingPage: "正在准备最新版本…",
       loadingVersion: "正在获取版本…",
       loadingDownload: "正在获取下载地址…",
@@ -34,8 +44,8 @@
       connectingRelease: "正在连接 GitHub Releases…",
       noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
       stableVersion: "稳定版 v{version} · {date}",
-      previewVersion: "先行版 v{version} · {date}",
-      selectedVersion: "历史正式版 v{version} · {date}",
+      latestVersion: "最新版本 v{version} · {date}",
+      selectedVersion: "版本 v{version} · {date}",
       totalDownloads: "累计下载 {count} 次",
       windowsRequirement: "Windows 10 / 11 · 64 位",
       macAppleRequirement: "Apple 芯片 · M1 及更新",
@@ -73,11 +83,21 @@
       releaseSource: "Installers are hosted on GitHub Releases",
       allPackages: "All downloads",
       chooseVersion: "Choose the right version",
-      stableLatestSuffix: " (Stable · Latest)",
-      stableSuffix: " (Stable · Recommended)",
-      previewLatestSuffix: " (Preview · Latest)",
-      previewSuffix: " (Preview)",
+      stableLatestSuffix: " (Stable · Recommended · Latest)",
+      stableRecommendedSuffix: " (Stable · Recommended)",
+      stableSuffix: " (Stable)",
+      latestSuffix: " (Latest)",
       selectVersion: "Choose download version",
+      versionPanelTitle: "Choose a version",
+      searchVersions: "Search versions",
+      featuredVersions: "Quick access",
+      stableVersions: "Stable versions",
+      allVersions: "Other versions",
+      noMatchingVersion: "No matching version found",
+      versionsCount: "{count} versions",
+      recommendedBadge: "Recommended",
+      stableBadge: "Stable",
+      latestBadge: "Latest",
       loadingPage: "Preparing the latest release…",
       loadingVersion: "Loading version…",
       loadingDownload: "Loading download…",
@@ -85,8 +105,8 @@
       connectingRelease: "Connecting to GitHub Releases…",
       noRelease: "No public Release found. Download buttons will open GitHub.",
       stableVersion: "Stable v{version} · {date}",
-      previewVersion: "Preview v{version} · {date}",
-      selectedVersion: "Previous stable v{version} · {date}",
+      latestVersion: "Latest v{version} · {date}",
+      selectedVersion: "Version v{version} · {date}",
       totalDownloads: "{count} total downloads",
       windowsRequirement: "Windows 10 / 11 · 64-bit",
       macAppleRequirement: "Apple silicon · M1 or newer",
@@ -137,7 +157,7 @@
   var currentLanguage = storedLanguage === "en" || storedLanguage === "zh" ? storedLanguage : (config.defaultLanguage === "en" ? "en" : "zh");
   var cachedReleases = [];
   var latestReleaseTag = "";
-  var stableReleaseTag = "";
+  var recommendedReleaseTag = "";
   var selectedReleaseTag = "";
 
   function activeContent() {
@@ -175,6 +195,9 @@
     });
     document.querySelectorAll("[data-i18n-aria-label]").forEach(function (element) {
       element.setAttribute("aria-label", translate(element.getAttribute("data-i18n-aria-label")));
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(function (element) {
+      element.setAttribute("placeholder", translate(element.getAttribute("data-i18n-placeholder")));
     });
     document.querySelectorAll("[data-language]").forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-language") === currentLanguage));
@@ -291,6 +314,19 @@
     link.title = translate("loadingDownload");
   }
 
+  function clearReleasePanel() {
+    ["release-featured", "release-stable-options", "release-options"].forEach(function (id) {
+      var container = document.getElementById(id);
+      if (container) container.innerHTML = "";
+    });
+    var search = document.getElementById("release-search");
+    var count = document.getElementById("release-count");
+    var empty = document.getElementById("release-empty");
+    if (search) search.value = "";
+    if (count) count.textContent = "";
+    if (empty) empty.hidden = true;
+  }
+
   function applyLoadingState() {
     ["recommended-download", "windows-download", "mac-arm64-download", "mac-amd64-download"].forEach(disableDownloadLink);
     document.getElementById("recommended-label").textContent = translate("loadingDownload");
@@ -305,10 +341,9 @@
     }
     var trigger = document.getElementById("release-trigger");
     var current = document.getElementById("release-current");
-    var menu = document.getElementById("release-menu");
     if (trigger) trigger.disabled = true;
     if (current) current.textContent = translate("loadingVersion");
-    if (menu) menu.innerHTML = "";
+    clearReleasePanel();
     document.getElementById("release-status").textContent = translate("connectingRelease");
     document.getElementById("release-notes-link").removeAttribute("href");
     document.getElementById("download-count").textContent = translate("releaseSource");
@@ -331,10 +366,9 @@
     }
     var trigger = document.getElementById("release-trigger");
     var current = document.getElementById("release-current");
-    var menu = document.getElementById("release-menu");
     if (trigger) trigger.disabled = true;
     if (current) current.textContent = translate("releaseUnavailable");
-    if (menu) menu.innerHTML = "";
+    clearReleasePanel();
     document.getElementById("release-status").textContent = translate("noRelease");
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("download-count").textContent = translate("releaseSource");
@@ -352,39 +386,118 @@
     return (release.tag_name || config.fallbackVersion).replace(/^v/, "");
   }
 
+  // 渠道以 GitHub Release 的 prerelease 元数据为唯一事实源：
+  // 与 releases/latest 端点和应用内更新插件的判定口径保持一致。
+  function isStableRelease(release) {
+    return Boolean(release) && release.prerelease === false && release.draft !== true;
+  }
+
+  function appendReleaseBadge(container, text, modifier) {
+    var badge = document.createElement("span");
+    badge.className = "release-badge" + (modifier ? " release-badge--" + modifier : "");
+    badge.textContent = text;
+    container.appendChild(badge);
+  }
+
+  function createReleaseOption(release, featured) {
+    var isRecommended = release.tag_name === recommendedReleaseTag;
+    var isStable = isStableRelease(release);
+    var isLatest = release.tag_name === latestReleaseTag;
+    var option = document.createElement("button");
+    option.type = "button";
+    option.className = "release-option" + (featured ? " release-option--featured" : "");
+    option.setAttribute("role", "option");
+    option.setAttribute("data-release-tag", release.tag_name);
+    option.setAttribute("data-release-search", release.tag_name.toLowerCase());
+    option.setAttribute("aria-selected", String(release.tag_name === selectedReleaseTag));
+
+    var copy = document.createElement("span");
+    copy.className = "release-option__copy";
+    var tag = document.createElement("strong");
+    tag.textContent = release.tag_name;
+    var date = document.createElement("small");
+    date.textContent = formatDate(release.published_at);
+    copy.appendChild(tag);
+    copy.appendChild(date);
+    option.appendChild(copy);
+
+    var badges = document.createElement("span");
+    badges.className = "release-option__badges";
+    if (isStable) appendReleaseBadge(badges, translate("stableBadge"), "stable");
+    if (isRecommended) appendReleaseBadge(badges, translate("recommendedBadge"), "stable");
+    if (isLatest) appendReleaseBadge(badges, translate("latestBadge"), "latest");
+    option.appendChild(badges);
+    return option;
+  }
+
+  function filterReleaseOptions(query) {
+    var normalized = String(query || "").trim().toLowerCase();
+    var visibleCount = 0;
+    document.querySelectorAll("#release-menu .release-option").forEach(function (option) {
+      var visible = !normalized || option.getAttribute("data-release-search").includes(normalized);
+      option.hidden = !visible;
+      if (visible) visibleCount += 1;
+    });
+    [
+      ["release-featured-section", "release-featured"],
+      ["release-stable-section", "release-stable-options"],
+      ["release-history-section", "release-options"]
+    ].forEach(function (ids) {
+      var section = document.getElementById(ids[0]);
+      var container = document.getElementById(ids[1]);
+      if (section && container) section.hidden = !container.querySelector(".release-option:not([hidden])");
+    });
+    document.getElementById("release-empty").hidden = visibleCount > 0;
+  }
+
   function populateReleaseSelector() {
     var select = document.getElementById("release-select");
     var trigger = document.getElementById("release-trigger");
     var current = document.getElementById("release-current");
     var menu = document.getElementById("release-menu");
-    if (!select || !trigger || !current || !menu || !cachedReleases.length) return;
+    var featured = document.getElementById("release-featured");
+    var stableOptions = document.getElementById("release-stable-options");
+    var options = document.getElementById("release-options");
+    if (!select || !trigger || !current || !menu || !featured || !stableOptions || !options || !cachedReleases.length) return;
 
     select.innerHTML = "";
-    menu.innerHTML = "";
     cachedReleases.forEach(function (release) {
-      var isStable = release.tag_name === stableReleaseTag;
+      var isRecommended = release.tag_name === recommendedReleaseTag;
+      var isStable = isStableRelease(release);
       var isLatest = release.tag_name === latestReleaseTag;
       var suffix = "";
-      if (isStable && isLatest) suffix = translate("stableLatestSuffix");
+      if (isRecommended && isLatest) suffix = translate("stableLatestSuffix");
+      else if (isRecommended) suffix = translate("stableRecommendedSuffix");
       else if (isStable) suffix = translate("stableSuffix");
-      else if (isLatest) suffix = translate("previewLatestSuffix");
-      else if (release.prerelease) suffix = translate("previewSuffix");
+      else if (isLatest) suffix = translate("latestSuffix");
       var label = release.tag_name + suffix;
       var option = document.createElement("option");
       option.value = release.tag_name;
       option.textContent = label;
       select.appendChild(option);
-
-      var menuOption = document.createElement("button");
-      menuOption.type = "button";
-      menuOption.className = "release-option";
-      menuOption.setAttribute("role", "option");
-      menuOption.setAttribute("data-release-tag", release.tag_name);
-      menuOption.setAttribute("aria-selected", String(release.tag_name === selectedReleaseTag));
-      menuOption.textContent = label;
-      menu.appendChild(menuOption);
     });
-    select.value = selectedReleaseTag || stableReleaseTag;
+
+    clearReleasePanel();
+    var featuredTags = [recommendedReleaseTag];
+    if (latestReleaseTag !== recommendedReleaseTag) featuredTags.push(latestReleaseTag);
+    featuredTags.forEach(function (tag) {
+      var release = cachedReleases.find(function (item) { return item.tag_name === tag; });
+      if (release) featured.appendChild(createReleaseOption(release, true));
+    });
+    cachedReleases.filter(function (release) {
+      return !featuredTags.includes(release.tag_name) && isStableRelease(release);
+    }).forEach(function (release) {
+      stableOptions.appendChild(createReleaseOption(release, false));
+    });
+    cachedReleases.filter(function (release) {
+      return !featuredTags.includes(release.tag_name) && !isStableRelease(release);
+    }).forEach(function (release) {
+      options.appendChild(createReleaseOption(release, false));
+    });
+
+    document.getElementById("release-count").textContent = translate("versionsCount", { count: cachedReleases.length });
+    filterReleaseOptions("");
+    select.value = selectedReleaseTag || recommendedReleaseTag;
     select.disabled = cachedReleases.length < 2;
     trigger.disabled = cachedReleases.length < 2;
     current.textContent = select.options[select.selectedIndex].textContent;
@@ -393,8 +506,8 @@
   function renderRelease(release) {
     if (!release) return;
     var assets = resolveAssets(release);
-    var isStable = release.tag_name === stableReleaseTag;
-    var overrides = isStable ? config.downloadOverrides : {};
+    var isStable = isStableRelease(release);
+    var overrides = release.tag_name === recommendedReleaseTag ? config.downloadOverrides : {};
     var urls = {
       windows: overrides.windows || (assets.windows && assets.windows.browser_download_url),
       macArm64: overrides.macArm64 || (assets.macArm64 && assets.macArm64.browser_download_url),
@@ -411,7 +524,7 @@
     var version = releaseVersion(release);
     var legacyVersion = document.getElementById("header-version");
     if (legacyVersion) legacyVersion.textContent = "v" + version;
-    var statusKey = isStable ? "stableVersion" : (release.prerelease ? "previewVersion" : "selectedVersion");
+    var statusKey = isStable ? "stableVersion" : (release.tag_name === latestReleaseTag ? "latestVersion" : "selectedVersion");
     document.getElementById("release-status").textContent = translate(statusKey, {
       version: version,
       date: formatDate(release.published_at)
@@ -460,10 +573,10 @@
     try {
       cachedReleases = await fetchReleaseList();
       latestReleaseTag = cachedReleases[0].tag_name;
-      var stableRelease = cachedReleases.find(function (release) { return !release.prerelease; }) || cachedReleases[0];
-      stableReleaseTag = stableRelease.tag_name;
+      var recommendedRelease = cachedReleases.find(isStableRelease) || cachedReleases[0];
+      recommendedReleaseTag = recommendedRelease.tag_name;
       if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
-        selectedReleaseTag = stableReleaseTag;
+        selectedReleaseTag = recommendedReleaseTag;
       }
       populateReleaseSelector();
       renderRelease(cachedReleases.find(function (item) { return item.tag_name === selectedReleaseTag; }));
@@ -500,11 +613,14 @@
     var picker = document.getElementById("release-picker");
     var trigger = document.getElementById("release-trigger");
     var menu = document.getElementById("release-menu");
-    if (!select || !picker || !trigger || !menu) return;
+    var search = document.getElementById("release-search");
+    if (!select || !picker || !trigger || !menu || !search) return;
 
     function closeMenu() {
       menu.hidden = true;
       trigger.setAttribute("aria-expanded", "false");
+      search.value = "";
+      filterReleaseOptions("");
     }
 
     select.addEventListener("change", function (event) {
@@ -517,8 +633,18 @@
       menu.hidden = !opening;
       trigger.setAttribute("aria-expanded", String(opening));
       if (opening) {
-        var selectedOption = menu.querySelector('[aria-selected="true"]');
-        if (selectedOption) selectedOption.focus();
+        search.focus();
+      }
+    });
+    search.addEventListener("input", function () {
+      filterReleaseOptions(search.value);
+    });
+    search.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowDown") return;
+      var firstOption = menu.querySelector(".release-option:not([hidden])");
+      if (firstOption) {
+        event.preventDefault();
+        firstOption.focus();
       }
     });
     menu.addEventListener("click", function (event) {

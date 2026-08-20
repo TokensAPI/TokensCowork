@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#071018" />
     <title>TokensHarness - 桌面端下载</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 8 16 2l10 6v12L16 30 6 20z' fill='%2371e2c0'/%3E%3Cpath d='m11 11 5-3 5 3v6l-5 3-5-3z' fill='%23071018'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="./styles.css?v=20260820-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260820-2" />
   </head>
   <body class="page-loading">
     <div class="page-loader" id="page-loader" role="status" aria-live="polite">
@@ -39,7 +39,33 @@
             <span id="release-current">正在获取版本…</span>
             <svg viewBox="0 0 12 8" aria-hidden="true"><path d="m1 1 5 5 5-5" /></svg>
           </button>
-          <div class="release-menu" id="release-menu" role="listbox" hidden></div>
+          <div class="release-menu" id="release-menu" hidden>
+            <div class="release-menu__header">
+              <div>
+                <strong data-i18n="versionPanelTitle">选择版本</strong>
+                <small id="release-count"></small>
+              </div>
+              <label class="release-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
+                <input id="release-search" type="search" autocomplete="off" placeholder="搜索版本" data-i18n-placeholder="searchVersions" />
+              </label>
+            </div>
+            <section class="release-section" id="release-featured-section">
+              <div class="release-section__title" data-i18n="featuredVersions">快捷选择</div>
+              <div class="release-featured" id="release-featured" role="listbox"></div>
+            </section>
+            <div class="release-channel-grid">
+              <section class="release-section release-section--stable" id="release-stable-section">
+                <div class="release-section__title" data-i18n="stableVersions">稳定版本</div>
+                <div class="release-stable-options" id="release-stable-options" role="listbox"></div>
+              </section>
+              <section class="release-section release-section--history" id="release-history-section">
+                <div class="release-section__title" data-i18n="allVersions">其他版本</div>
+                <div class="release-options" id="release-options" role="listbox"></div>
+              </section>
+            </div>
+            <p class="release-empty" id="release-empty" hidden data-i18n="noMatchingVersion">没有找到匹配的版本</p>
+          </div>
           <select id="release-select" hidden disabled tabindex="-1" aria-hidden="true">
             <option>正在获取版本…</option>
           </select>
@@ -169,6 +195,6 @@
     </dialog>
 
     <script src="./site-config.js"></script>
-    <script src="./app.js?v=20260820-2"></script>
+    <script src="./app.js?v=20260820-3"></script>
   </body>
 </html>

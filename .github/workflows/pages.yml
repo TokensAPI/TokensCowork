@@ -52,7 +52,7 @@ jobs:
         run: |
           mkdir -p .pages
           cp -R download/. .pages/
-          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > .pages/releases.json
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq 'add' > .pages/releases.json
 
       - name: Upload download page
         uses: actions/upload-pages-artifact@v4
