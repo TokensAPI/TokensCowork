@@ -94,6 +94,28 @@ function verifyProductUpdateMenu(script) {
 }
 
 /**
+ * 将上游启动验收改为无更新菜单验收：官方更新已停用，且产品没有内置替代插件。
+ * @param script - staging 副本中 verify-profile-boot.mjs 的完整内容。
+ * @returns 与纯净产品更新策略一致的启动验收脚本。
+ * @throws 上游校验锚点变化时抛出，中断打包待人工复查。
+ */
+function verifyDisabledUpdateMenu(script) {
+  const upstreamCheck = `  if (!trayItems.some(item => item.label() === 'Check for Updates…')) {
+    throw new Error('assembled desktop profile is missing the update tray command')
+  }`
+  if (!script.includes(upstreamCheck)) {
+    throw new Error('prepare-desktop: 未找到上游更新菜单验收锚点，请复查产品更新策略')
+  }
+  return script.replace(
+    upstreamCheck,
+    `  if (trayItems.some(item => item.label() === 'Check for Updates…'
+    || item.label() === 'Check Updates…')) {
+    throw new Error('assembled clean product profile unexpectedly retains an update tray command')
+  }`,
+  )
+}
+
+/**
  * 从持久 profile 的 bundle 列表中移除由产品补丁固定装配的插件。
  * 旧版本可能把这些插件写入用户 profile，升级后会与产品 Loader 条目重复。
  * @param source - staging 副本中 profile.ts 的完整内容。
@@ -184,11 +206,13 @@ let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 
 /* -------------------------- 配置自动更新 --------------------------- */
-// 只有产品内置替代更新插件时才关闭官方更新服务。纯净产品没有替代插件，
-// 必须保留上游更新入口及其原始启动验收，否则完整 profile 检查会失败。
+// TokensHarness 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
+// 验收产品更新入口；纯净产品没有替代插件时，验收所有更新入口均已隐藏。
+desktopPatch = disableUpstreamUpdates(desktopPatch)
 if (hasProductUpdatePlugin) {
-  desktopPatch = disableUpstreamUpdates(desktopPatch)
   profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
+} else {
+  profileBootVerifier = verifyDisabledUpdateMenu(profileBootVerifier)
 }
 
 /* --------------------------- 注入产品插件 --------------------------- */
