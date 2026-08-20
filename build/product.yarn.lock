@@ -6800,7 +6800,6 @@ __metadata:
     "@types/node": "npm:^22.20.0"
     "@types/react": "npm:^18"
     commander: "npm:^13.1.0"
-    dsh-tokensapi-ui: "workspace:*"
     electron: "npm:43.4.0"
     electron-builder: "npm:26.15.3"
     koffi: "npm:3.1.5"
@@ -6818,12 +6817,6 @@ __metadata:
   bin:
     dsh-desktop: lib/bin.js
     dsh-plugin-desktop: lib/bin.js
-  languageName: unknown
-  linkType: soft
-
-"dsh-tokensapi-ui@workspace:*, dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui":
-  version: 0.0.0-use.local
-  resolution: "dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui"
   languageName: unknown
   linkType: soft
 

@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.1.8"
+    "version": "0.1.9"
   },
   "desktop": {
     "path": "desktop",
@@ -63,7 +63,7 @@
       "commit": "d2e9bf351607105dba65d8348d728768c03ffd35",
       "package": "dsh-tokensapi-ui",
       "version": "0.1.0",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "patch": "cordis.patch.yml",
       "artifact": {
         "type": "npm-tgz",
