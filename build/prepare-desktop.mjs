@@ -113,7 +113,7 @@ function removeManagedBundlesFromProfile(source, packages) {
   return source
     .replace(
       setAnchor,
-      `${setAnchor}\nconst PRODUCT_MANAGED_BUNDLE_SET = new Set(${managedPackages})`,
+      `${setAnchor}\nconst PRODUCT_MANAGED_BUNDLE_SET = new Set<string>(${managedPackages})`,
     )
     .replace(
       filterAnchor,
