@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.2.3"
+    "version": "0.2.4"
   },
   "desktop": {
     "path": "desktop",
@@ -50,6 +50,18 @@
         "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
         "@deepseek-ai/schemastery": "^3.18.1"
       }
+    },
+    {
+      "id": "tokens-model-manager",
+      "displayName": "TokensAPI 模型",
+      "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
+      "path": "plugins/tokens_DshModelManager_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
+      "commit": "239636e780b2527804b7da6c00ea38838709f8a9",
+      "package": "@tokens/dsh-model-manager",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml"
     }
   ]
 }
