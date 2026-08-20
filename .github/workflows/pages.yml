@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -45,13 +45,6 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-
-      - name: Mark preview releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/373249169" -F prerelease=true > /dev/null
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/373458905" -F prerelease=true > /dev/null
 
       - name: Prepare download page
         env:
