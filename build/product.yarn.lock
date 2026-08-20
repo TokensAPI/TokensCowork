@@ -5274,42 +5274,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tokens/dsh-feishu-connect@workspace:*, @tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect":
-  version: 0.0.0-use.local
-  resolution: "@tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect"
-  dependencies:
-    "@deepseek-ai/schemastery": "npm:^3.18.1"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.1
-    "@deepseek-ai/dsh-commands": ^0.1.0-rc.6
-    "@deepseek-ai/dsh-credentials": ^0.1.0-rc.6
-    "@deepseek-ai/dsh-tools": ^0.1.0-rc.6
-  languageName: unknown
-  linkType: soft
-
-"@tokens/dsh-model-manager@workspace:*, @tokens/dsh-model-manager@workspace:dsh-plugin-desktop/product-plugins/tokens-model-manager":
-  version: 0.0.0-use.local
-  resolution: "@tokens/dsh-model-manager@workspace:dsh-plugin-desktop/product-plugins/tokens-model-manager"
-  dependencies:
-    commander: "npm:^13.1.0"
-    undici: "npm:^8.10.0"
-  bin:
-    modlens: ./dist/main.js
-  languageName: unknown
-  linkType: soft
-
-"@tokens/dsh-version-updates@workspace:*, @tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates":
-  version: 0.0.0-use.local
-  resolution: "@tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates"
-  dependencies:
-    "@deepseek-ai/dsh-atomic-write": "npm:0.1.0-rc.6"
-    "@deepseek-ai/dsh-invariants": "npm:0.1.0-rc.6"
-    "@deepseek-ai/schemastery": "npm:^3.18.1"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.1
-  languageName: unknown
-  linkType: soft
-
 "@tybys/wasm-util@npm:^0.10.3":
   version: 0.10.3
   resolution: "@tybys/wasm-util@npm:0.10.3"
@@ -6370,13 +6334,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"commander@npm:^13.1.0":
-  version: 13.1.0
-  resolution: "commander@npm:13.1.0"
-  checksum: 10c0/7b8c5544bba704fbe84b7cab2e043df8586d5c114a4c5b607f83ae5060708940ed0b5bd5838cf8ce27539cde265c1cbd59ce3c8c6b017ed3eec8943e3a415164
-  languageName: node
-  linkType: hard
-
 "commander@npm:^15.0.0":
   version: 15.0.0
   resolution: "commander@npm:15.0.0"
@@ -6793,13 +6750,9 @@ __metadata:
     "@deepseek-ai/dsh-workflow": "npm:0.1.0-rc.6"
     "@deepseek-ai/schemastery": "npm:^3.18.1"
     "@electron/asar": "npm:3.4.1"
-    "@tokens/dsh-feishu-connect": "workspace:*"
-    "@tokens/dsh-model-manager": "workspace:*"
-    "@tokens/dsh-version-updates": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^22.20.0"
     "@types/react": "npm:^18"
-    commander: "npm:^13.1.0"
     electron: "npm:43.4.0"
     electron-builder: "npm:26.15.3"
     koffi: "npm:3.1.5"
@@ -6809,7 +6762,6 @@ __metadata:
     sharp: "npm:0.35.3"
     tsdown: "npm:0.22.2"
     typescript: "npm:6.0.3"
-    undici: "npm:^8.10.0"
     vitest: "npm:4.1.8"
     yaml: "npm:^2.9.0"
   peerDependencies:
@@ -10576,7 +10528,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^8.10.0, undici@npm:^8.4.1":
+"undici@npm:^8.4.1":
   version: 8.10.0
   resolution: "undici@npm:8.10.0"
   checksum: 10c0/37ae2b1db8f65c3a003504e2040e96887b99f9db16ba07dcf49c37ed8b7f8c72f4452f2d46f52f7c9e49518fe8325e3b5e7e02ac3a2424886bd67d4b62a0ecab
