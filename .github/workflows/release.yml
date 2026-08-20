@@ -1,7 +1,13 @@
 name: Build Desktop
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Publish as a GitHub Pre-release"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -25,6 +31,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       release_notes: ${{ steps.version.outputs.release_notes }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Check out source and tags
         uses: actions/checkout@v7
@@ -54,6 +61,11 @@ jobs:
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
           printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
           printf 'release_notes=%s\n' "${release_notes}" >> "${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${{ inputs.prerelease }}" == "true" ]]; then
+            printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
+          else
+            printf 'prerelease=false\n' >> "${GITHUB_OUTPUT}"
+          fi
 
   verify:
     name: Verify pinned product layout
@@ -346,12 +358,15 @@ jobs:
               "$(basename "${packages[2]}")" \
               > "$(basename "${checksums}")"
           )
-          # 只有三个目标平台全部构建和校验成功后才进入此任务，因此
-          # 这里直接发布稳定版并让 releases/latest 指向本次版本。
+          release_flags=()
+          if [[ "${{ needs.metadata.outputs.prerelease }}" == "true" ]]; then
+            release_flags+=(--prerelease)
+          fi
           gh release create "${tag}" \
             "${packages[@]}" \
             "${checksums}" \
             "release-assets/TokensHarness-${version}-plugins.json" \
+            "${release_flags[@]}" \
             --title "TokensHarness ${tag}" \
             --target "${GITHUB_SHA}" \
             --notes-file "${release_notes}"
