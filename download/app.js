@@ -463,15 +463,21 @@
     });
     if (!asset) return;
 
-    // browser_download_url（github.com）不带 CORS 头，浏览器侧必须改走
-    // API 资产端点：api.github.com 响应 Access-Control-Allow-Origin: *。
+    // Release 资产域不带 CORS 头，浏览器无法直接跨域读取；部署工作流已把
+    // 各版本清单复制为站点内的 plugins/<tag>.json，优先同源读取，本地
+    // file:// 预览等无站内副本的场景回退 API 资产端点（重定向域仍可能被
+    // 浏览器拦截，届时隐藏区块）。
     var cached = pluginManifestCache[tag];
-    var manifestPromise = cached || fetch(apiUrl("/releases/assets/" + asset.id), {
-      headers: { Accept: "application/octet-stream" }
-    }).then(function (response) {
-      if (!response.ok) throw new Error("plugins manifest " + response.status);
-      return response.json();
-    });
+    var manifestPromise = cached || fetch("plugins/" + tag + ".json", { cache: "no-cache" })
+      .then(function (response) {
+        if (response.ok) return response.json();
+        return fetch(apiUrl("/releases/assets/" + asset.id), {
+          headers: { Accept: "application/octet-stream" }
+        }).then(function (fallback) {
+          if (!fallback.ok) throw new Error("plugins manifest " + fallback.status);
+          return fallback.json();
+        });
+      });
     pluginManifestCache[tag] = manifestPromise;
 
     manifestPromise.then(function (manifest) {

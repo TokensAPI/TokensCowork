@@ -54,6 +54,14 @@ jobs:
           mkdir -p .pages
           cp -R download/. .pages/
           gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq 'add' > .pages/releases.json
+          # Release 资产域不带 CORS 头，浏览器无法跨域读取插件清单；
+          # 部署时将各版本的 plugins.json 复制进站点，页面走同源请求。
+          mkdir -p .pages/plugins
+          jq -r '.[] | .tag_name as $tag | .assets[] | select(.name | endswith("-plugins.json")) | "\($tag) \(.url)"' .pages/releases.json \
+            | while read -r tag asset_url; do
+                gh api "${asset_url#https://api.github.com/}" -H "Accept: application/octet-stream" > ".pages/plugins/${tag}.json" || rm -f ".pages/plugins/${tag}.json"
+              done
+          ls .pages/plugins/
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
