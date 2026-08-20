@@ -77,7 +77,8 @@ async function downloadArtifact(plugin) {
   const packagePath = resolve(temporary, 'package', 'package.json')
   if (!existsSync(packagePath)) fail(`${plugin.id} artifact does not contain package/package.json`)
   const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8'))
-  if (packageManifest.name !== plugin.package || packageManifest.version !== plugin.version) {
+  if (packageManifest.name !== (plugin.sourcePackage ?? plugin.package)
+    || packageManifest.version !== plugin.version) {
     fail(`${plugin.id} artifact package identity differs from product.json`)
   }
   if (!existsSync(resolve(temporary, 'package', plugin.patch))) {

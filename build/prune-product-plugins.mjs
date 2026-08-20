@@ -49,7 +49,8 @@ function removeSourceMaps(directory) {
 }
 
 for (const plugin of product.plugins.filter(
-  item => item.enabledByDefault === true && item.artifact !== undefined,
+  item => item.enabledByDefault === true
+    && (item.artifact !== undefined || item.runtimeBuild !== undefined),
 )) {
   const source = resolve(pluginsRoot, plugin.id)
   const manifestPath = resolve(source, 'package.json')

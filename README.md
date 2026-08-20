@@ -76,4 +76,8 @@ electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里�
 
 插件必须先作为 `plugins/` 下的 Git 子模块固定提交，再登记到 `product.json`。`enabledByDefault: true` 的插件会在临时 staging 中作为 Yarn workspace 加入 Desktop，并把插件的 DSH patch 追加到 Desktop 产品层。
 
+默认插件应提交可直接加载的 JavaScript 运行时产物。只有源码入口的 TypeScript 插件必须声明 `runtimeBuild`，构建流程会在 staging 副本中编译并裁剪为运行时文件，不修改插件子模块。
+
+插件源码包名与产品运行时包名不同时，用 `sourcePackage` 固定上游身份，`package` 声明桌面最终加载的名称；重命名只发生在 staging 副本。
+
 启用或升级默认插件后运行 `corepack yarn product:refresh-lock`，提交生成的 `build/product.yarn.lock`。普通 CI 和发布构建只接受 immutable lockfile。

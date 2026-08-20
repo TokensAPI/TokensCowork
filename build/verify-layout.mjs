@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
@@ -12,6 +12,28 @@ const git = (cwd, ...args) => execFileSync('git', args, {
   encoding: 'utf8',
   stdio: ['ignore', 'pipe', 'pipe'],
 }).trim()
+
+function assertPackagePath(path, label) {
+  if (typeof path !== 'string' || path.length === 0 || isAbsolute(path)) {
+    fail(`${label} must be a non-empty relative path`)
+  }
+  const segments = path.replaceAll('\\', '/').split('/')
+  if (segments.includes('..') || segments.includes('.') || segments.includes('')) {
+    fail(`${label} must stay inside its package`)
+  }
+}
+
+function containsExportTarget(value, target) {
+  if (typeof value === 'string') return value === target
+  if (value === null || typeof value !== 'object') return false
+  return Object.values(value).some(entry => containsExportTarget(entry, target))
+}
+
+function containsTypescriptExport(value) {
+  if (typeof value === 'string') return /\.tsx?$/u.test(value) && !/\.d\.tsx?$/u.test(value)
+  if (value === null || typeof value !== 'object') return false
+  return Object.values(value).some(containsTypescriptExport)
+}
 
 function assertGitlink(path, commit) {
   const [mode, object] = git(root, 'ls-files', '--stage', '--', path).split(/\s+/u)
@@ -68,11 +90,33 @@ for (const plugin of manifest.plugins) {
     fail(`${plugin.id} submodule contains local changes`)
   }
   const pluginManifest = JSON.parse(readFileSync(resolve(pluginPath, 'package.json'), 'utf8'))
-  if (pluginManifest.name !== plugin.package || pluginManifest.version !== plugin.version) {
+  if (pluginManifest.name !== (plugin.sourcePackage ?? plugin.package)
+    || pluginManifest.version !== plugin.version) {
     fail(`${plugin.id} package identity differs from product.json`)
   }
   if (plugin.enabledByDefault === true && !existsSync(resolve(pluginPath, plugin.patch))) {
     fail(`${plugin.id} is enabled but its bundle patch is missing`)
+  }
+  const runtimeBuild = plugin.runtimeBuild
+  if (runtimeBuild !== undefined) {
+    if (runtimeBuild.type !== 'typescript') fail(`${plugin.id} runtimeBuild type is unsupported`)
+    assertPackagePath(runtimeBuild.entry, `${plugin.id} runtimeBuild entry`)
+    assertPackagePath(runtimeBuild.output, `${plugin.id} runtimeBuild output`)
+    if (!runtimeBuild.entry.endsWith('.ts') || !runtimeBuild.output.endsWith('.js')) {
+      fail(`${plugin.id} runtimeBuild must compile a .ts entry to a .js output`)
+    }
+    if (!existsSync(resolve(pluginPath, runtimeBuild.entry))) {
+      fail(`${plugin.id} runtimeBuild entry is missing`)
+    }
+    if (!containsExportTarget(pluginManifest.exports, `./${runtimeBuild.entry}`)) {
+      fail(`${plugin.id} package exports do not reference its runtimeBuild entry`)
+    }
+    if (!Array.isArray(runtimeBuild.files) || runtimeBuild.files.length === 0) {
+      fail(`${plugin.id} runtimeBuild files must be a non-empty list`)
+    }
+    for (const entry of runtimeBuild.files) assertPackagePath(entry, `${plugin.id} runtimeBuild files entry`)
+  } else if (plugin.enabledByDefault === true && containsTypescriptExport(pluginManifest.exports)) {
+    fail(`${plugin.id} exposes a TypeScript runtime entry without runtimeBuild`)
   }
   if (plugin.artifact !== undefined) {
     if (plugin.artifact.type !== 'npm-tgz'

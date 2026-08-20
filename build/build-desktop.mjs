@@ -64,6 +64,7 @@ run(process.execPath, [resolve(root, 'build', 'verify-layout.mjs')], root, build
 run(process.execPath, [resolve(root, 'build', 'fetch-product-plugin-artifacts.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root, buildEnvironment)
 run('corepack', ['yarn', 'install', '--immutable'], stage, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'compile-product-plugins.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'prune-product-plugins.mjs')], root, buildEnvironment)
 run(
   'corepack',

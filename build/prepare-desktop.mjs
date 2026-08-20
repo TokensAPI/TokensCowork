@@ -38,6 +38,20 @@ function copySource(source, destination, options = {}) {
   })
 }
 
+function renamePluginPatchPackage(patch, sourcePackage, packageName, pluginId) {
+  if (sourcePackage === packageName) return patch
+  const candidates = [
+    `name: '${sourcePackage}'`,
+    `name: "${sourcePackage}"`,
+    `name: ${sourcePackage}`,
+  ]
+  const matches = candidates.filter(candidate => patch.includes(candidate))
+  if (matches.length !== 1) {
+    throw new Error(`prepare-desktop: ${pluginId} patch package rename is ambiguous`)
+  }
+  return patch.replace(matches[0], `name: '${packageName}'`)
+}
+
 /**
  * 追加停用上游 desktop-updates 插件的覆盖条目，阻止官方 DSH Desktop 更新推送覆盖本产品。
  * @param patch - staging 副本中 cordis.patch.yml 的完整内容。
@@ -192,6 +206,7 @@ for (const plugin of enabledPlugins) {
   // slower and less deterministic (especially native esbuild helper packages).
   const pluginPackagePath = resolve(destination, 'package.json')
   const pluginPackage = JSON.parse(readFileSync(pluginPackagePath, 'utf8'))
+  pluginPackage.name = plugin.package
   delete pluginPackage.devDependencies
   delete pluginPackage.allowScripts
   writeFileSync(pluginPackagePath, `${JSON.stringify(pluginPackage, undefined, 2)}\n`)
@@ -204,7 +219,13 @@ for (const plugin of enabledPlugins) {
     if (desktopPackage.devDependencies?.[name] !== undefined) delete desktopPackage.devDependencies[name]
   }
 
-  const pluginPatch = readFileSync(resolve(source, plugin.patch), 'utf8').trim()
+  const pluginPatch = renamePluginPatchPackage(
+    readFileSync(resolve(source, plugin.patch), 'utf8').trim(),
+    plugin.sourcePackage ?? plugin.package,
+    plugin.package,
+    plugin.id,
+  )
+  writeFileSync(resolve(destination, plugin.patch), `${pluginPatch}\n`)
   desktopPatch += `\n\n# Product plugin: ${plugin.id}\n${pluginPatch}`
 }
 
