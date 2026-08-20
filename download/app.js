@@ -24,6 +24,10 @@
       chooseVersion: "选择适合你的版本",
       latestSuffix: "（最新）",
       selectVersion: "选择下载版本",
+      loadingPage: "正在准备最新版本…",
+      loadingVersion: "正在获取版本…",
+      loadingDownload: "正在获取下载地址…",
+      releaseUnavailable: "版本暂不可用",
       connectingRelease: "正在连接 GitHub Releases…",
       noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
       latestVersion: "最新版本 v{version} · {date}",
@@ -67,6 +71,10 @@
       chooseVersion: "Choose the right version",
       latestSuffix: " (Latest)",
       selectVersion: "Choose download version",
+      loadingPage: "Preparing the latest release…",
+      loadingVersion: "Loading version…",
+      loadingDownload: "Loading download…",
+      releaseUnavailable: "Version unavailable",
       connectingRelease: "Connecting to GitHub Releases…",
       noRelease: "No public Release found. Download buttons will open GitHub.",
       latestVersion: "Latest v{version} · {date}",
@@ -230,6 +238,7 @@
   function setDownloadLink(id, url, fallback, asset) {
     var link = document.getElementById(id);
     link.href = url || fallback;
+    link.removeAttribute("aria-disabled");
     if (url && asset) {
       link.setAttribute("download", asset.name);
       link.title = asset.name;
@@ -252,6 +261,7 @@
     var label = document.getElementById("recommended-label");
     var icon = document.getElementById("recommended-icon");
     fallback = fallback || githubUrl("/releases/latest");
+    button.removeAttribute("aria-disabled");
 
     if (platform === "windows") {
       button.href = urls.windows || fallback;
@@ -264,6 +274,37 @@
     }
   }
 
+  function disableDownloadLink(id) {
+    var link = document.getElementById(id);
+    link.removeAttribute("href");
+    link.removeAttribute("download");
+    link.setAttribute("aria-disabled", "true");
+    link.title = translate("loadingDownload");
+  }
+
+  function applyLoadingState() {
+    ["recommended-download", "windows-download", "mac-arm64-download", "mac-amd64-download"].forEach(disableDownloadLink);
+    document.getElementById("recommended-label").textContent = translate("loadingDownload");
+
+    var select = document.getElementById("release-select");
+    if (select) {
+      select.innerHTML = "";
+      var option = document.createElement("option");
+      option.textContent = translate("loadingVersion");
+      select.appendChild(option);
+      select.disabled = true;
+    }
+    var trigger = document.getElementById("release-trigger");
+    var current = document.getElementById("release-current");
+    var menu = document.getElementById("release-menu");
+    if (trigger) trigger.disabled = true;
+    if (current) current.textContent = translate("loadingVersion");
+    if (menu) menu.innerHTML = "";
+    document.getElementById("release-status").textContent = translate("connectingRelease");
+    document.getElementById("release-notes-link").removeAttribute("href");
+    document.getElementById("download-count").textContent = translate("releaseSource");
+  }
+
   function applyFallback() {
     var fallback = githubUrl("/releases/latest");
     var overrides = config.downloadOverrides;
@@ -273,20 +314,29 @@
     configureRecommended(overrides, fallback);
     var select = document.getElementById("release-select");
     if (select) {
-      select.innerHTML = '<option value="v' + config.fallbackVersion + '">v' + config.fallbackVersion + "</option>";
+      select.innerHTML = "";
+      var option = document.createElement("option");
+      option.textContent = translate("releaseUnavailable");
+      select.appendChild(option);
       select.disabled = true;
     }
     var trigger = document.getElementById("release-trigger");
     var current = document.getElementById("release-current");
     var menu = document.getElementById("release-menu");
     if (trigger) trigger.disabled = true;
-    if (current) current.textContent = "v" + config.fallbackVersion;
+    if (current) current.textContent = translate("releaseUnavailable");
     if (menu) menu.innerHTML = "";
-    var legacyVersion = document.getElementById("header-version");
-    if (legacyVersion) legacyVersion.textContent = "v" + config.fallbackVersion;
     document.getElementById("release-status").textContent = translate("noRelease");
     document.getElementById("release-notes-link").href = fallback;
     document.getElementById("download-count").textContent = translate("releaseSource");
+  }
+
+  function revealPage() {
+    var loader = document.getElementById("page-loader");
+    document.body.classList.remove("page-loading");
+    if (!loader || loader.hidden) return;
+    loader.classList.add("page-loader--done");
+    window.setTimeout(function () { loader.hidden = true; }, 240);
   }
 
   function releaseVersion(release) {
@@ -355,40 +405,59 @@
       : translate("releaseSource");
   }
 
-  async function loadRelease() {
-    applyFallback();
-    document.getElementById("release-status").textContent = translate("connectingRelease");
-    try {
-      var requestStamp = Date.now();
-      var responses = await Promise.all([
-        fetch(apiUrl("/releases/latest?ts=" + requestStamp), { cache: "no-store", headers: { Accept: "application/vnd.github+json" } }),
-        fetch(apiUrl("/releases?per_page=100&ts=" + requestStamp), { cache: "no-store", headers: { Accept: "application/vnd.github+json" } })
-      ]);
-      if (!responses[0].ok) throw new Error("No public release");
+  function publicReleases(releases) {
+    return (Array.isArray(releases) ? releases : []).filter(function (item) {
+      return item && !item.draft && !item.prerelease;
+    }).sort(function (left, right) {
+      return new Date(right.published_at || right.created_at) - new Date(left.published_at || left.created_at);
+    });
+  }
 
-      var release = await responses[0].json();
-      var allReleases = responses[1].ok ? await responses[1].json() : [release];
-      cachedReleases = allReleases.filter(function (item) { return !item.draft; });
-      if (!cachedReleases.some(function (item) { return item.tag_name === release.tag_name; })) cachedReleases.unshift(release);
-      latestReleaseTag = release.tag_name;
+  async function fetchReleaseList(preferLive) {
+    if (!preferLive) {
+      try {
+        var manifestResponse = await fetch("releases.json", { cache: "no-cache" });
+        if (manifestResponse.ok) {
+          var manifestReleases = publicReleases(await manifestResponse.json());
+          if (manifestReleases.length) return manifestReleases;
+        }
+      } catch (_error) {
+        // Local file previews cannot read the deployed manifest; use GitHub below.
+      }
+    }
+
+    var apiPath = "/releases?per_page=100" + (preferLive ? "&ts=" + Date.now() : "");
+    var apiResponse = await fetch(apiUrl(apiPath), {
+      cache: preferLive ? "no-store" : "default",
+      headers: { Accept: "application/vnd.github+json" }
+    });
+    if (!apiResponse.ok) throw new Error("No public release list");
+
+    var apiReleases = publicReleases(await apiResponse.json());
+    if (!apiReleases.length) throw new Error("No public release");
+    return apiReleases;
+  }
+
+  async function loadRelease() {
+    applyLoadingState();
+    try {
+      cachedReleases = await fetchReleaseList();
+      latestReleaseTag = cachedReleases[0].tag_name;
       if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
         selectedReleaseTag = latestReleaseTag;
       }
       populateReleaseSelector();
       renderRelease(cachedReleases.find(function (item) { return item.tag_name === selectedReleaseTag; }));
     } catch (_error) {
-      document.getElementById("release-status").textContent = translate("noRelease");
+      applyFallback();
+    } finally {
+      revealPage();
     }
   }
 
   async function refreshDownloadCount() {
     try {
-      var response = await fetch(apiUrl("/releases?per_page=100&ts=" + Date.now()), {
-        cache: "no-store",
-        headers: { Accept: "application/vnd.github+json" }
-      });
-      if (!response.ok) return;
-      var releases = await response.json();
+      var releases = await fetchReleaseList(true);
       var totalDownloads = totalInstallerDownloads(releases);
       document.getElementById("download-count").textContent = totalDownloads
         ? translate("totalDownloads", { count: formatCount(totalDownloads) })

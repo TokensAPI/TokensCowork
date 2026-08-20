@@ -7,6 +7,14 @@ on:
     paths:
       - "download/**"
       - ".github/workflows/pages.yml"
+  release:
+    types:
+      - published
+  workflow_run:
+    workflows:
+      - Build Desktop
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -21,6 +29,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy GitHub Pages
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -37,10 +46,18 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare download page
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .pages
+          cp -R download/. .pages/
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > .pages/releases.json
+
       - name: Upload download page
         uses: actions/upload-pages-artifact@v4
         with:
-          path: download
+          path: .pages
 
       - name: Deploy GitHub Pages
         id: deployment

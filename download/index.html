@@ -8,9 +8,13 @@
     <meta name="theme-color" content="#071018" />
     <title>TokensHarness - 桌面端下载</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 8 16 2l10 6v12L16 30 6 20z' fill='%2371e2c0'/%3E%3Cpath d='m11 11 5-3 5 3v6l-5 3-5-3z' fill='%23071018'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="./styles.css?v=20260819-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260820-1" />
   </head>
-  <body>
+  <body class="page-loading">
+    <div class="page-loader" id="page-loader" role="status" aria-live="polite">
+      <span class="page-loader__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p data-i18n="loadingPage">正在准备最新版本…</p>
+    </div>
     <div class="page-glow page-glow--one" aria-hidden="true"></div>
     <div class="page-glow page-glow--two" aria-hidden="true"></div>
 
@@ -61,11 +65,11 @@
           </p>
 
           <div class="primary-download" id="primary-download">
-            <a class="download-button download-button--primary" id="recommended-download" href="#downloads">
+            <a class="download-button download-button--primary" id="recommended-download" aria-disabled="true">
               <span class="platform-icon" id="recommended-icon" aria-hidden="true"></span>
               <span>
                 <small data-i18n="recommendedDownload">推荐下载</small>
-                <strong id="recommended-label">选择你的系统</strong>
+                <strong id="recommended-label">正在获取下载地址…</strong>
               </span>
               <svg class="arrow-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </a>
@@ -120,25 +124,25 @@
           <article class="download-card" data-platform="windows">
             <div class="card-icon windows-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <div class="card-copy"><h3>Windows</h3><p data-i18n="windowsRequirement">Windows 10 / 11 · 64 位</p></div>
-            <a class="card-download" id="windows-download" href="#" aria-label="下载 Windows 版本" data-i18n-aria-label="downloadWindows"><span data-i18n="download">下载</span> <span>↓</span></a>
+            <a class="card-download" id="windows-download" aria-disabled="true" aria-label="下载 Windows 版本" data-i18n-aria-label="downloadWindows"><span data-i18n="download">下载</span> <span>↓</span></a>
           </article>
 
           <article class="download-card" data-platform="mac-arm64">
             <div class="card-icon apple-icon" aria-hidden="true">●</div>
             <div class="card-copy"><h3>macOS</h3><p data-i18n="macAppleRequirement">Apple 芯片 · M1 及更新</p></div>
-            <a class="card-download" id="mac-arm64-download" href="#" aria-label="下载 macOS Apple 芯片版本" data-i18n-aria-label="downloadMacApple"><span data-i18n="download">下载</span> <span>↓</span></a>
+            <a class="card-download" id="mac-arm64-download" aria-disabled="true" aria-label="下载 macOS Apple 芯片版本" data-i18n-aria-label="downloadMacApple"><span data-i18n="download">下载</span> <span>↓</span></a>
           </article>
 
           <article class="download-card" data-platform="mac-amd64">
             <div class="card-icon chip-icon" aria-hidden="true">x64</div>
             <div class="card-copy"><h3>macOS</h3><p data-i18n="macIntelRequirement">Intel 芯片 · 64 位</p></div>
-            <a class="card-download" id="mac-amd64-download" href="#" aria-label="下载 macOS Intel 版本" data-i18n-aria-label="downloadMacIntel"><span data-i18n="download">下载</span> <span>↓</span></a>
+            <a class="card-download" id="mac-amd64-download" aria-disabled="true" aria-label="下载 macOS Intel 版本" data-i18n-aria-label="downloadMacIntel"><span data-i18n="download">下载</span> <span>↓</span></a>
           </article>
         </div>
 
         <div class="release-note">
           <div><span>✓</span><p><strong data-i18n="safeVerifiable">安全可验证</strong><br /><span data-i18n="checksumProvided">每个版本均提供 SHA-256 校验文件</span></p></div>
-          <a id="release-notes-link" href="#" target="_blank" rel="noreferrer"><span data-i18n="releaseNotes">查看发布说明</span> →</a>
+          <a id="release-notes-link" target="_blank" rel="noreferrer"><span data-i18n="releaseNotes">查看发布说明</span> →</a>
         </div>
       </section>
     </main>
@@ -165,6 +169,6 @@
     </dialog>
 
     <script src="./site-config.js"></script>
-    <script src="./app.js?v=20260819-3"></script>
+    <script src="./app.js?v=20260820-1"></script>
   </body>
 </html>

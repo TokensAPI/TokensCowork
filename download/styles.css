@@ -26,6 +26,16 @@ button, input, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 .shell { width: var(--shell); margin-inline: auto; }
 
+.page-loader { position: fixed; z-index: 100; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; color: var(--muted-bright); background: #081119; transition: opacity .22s ease, visibility .22s ease; }
+.page-loader--done { opacity: 0; visibility: hidden; }
+.page-loader p { margin: 0; font-size: 13px; letter-spacing: .04em; }
+.page-loader__mark { display: flex; align-items: end; gap: 5px; height: 34px; }
+.page-loader__mark i { width: 6px; height: 18px; background: var(--accent); border-radius: 999px; animation: loader-pulse .9s ease-in-out infinite alternate; }
+.page-loader__mark i:nth-child(2) { height: 30px; animation-delay: -.3s; }
+.page-loader__mark i:nth-child(3) { height: 23px; animation-delay: -.6s; }
+.page-loading .site-header, .page-loading main, .page-loading .site-footer { opacity: 0; visibility: hidden; }
+@keyframes loader-pulse { to { opacity: .3; transform: scaleY(.65); } }
+
 .page-glow { position: fixed; z-index: -1; pointer-events: none; filter: blur(110px); opacity: .3; border-radius: 50%; }
 .page-glow--one { width: 520px; height: 520px; top: 10%; left: -260px; background: #1e6ba1; }
 .page-glow--two { width: 460px; height: 460px; right: -250px; top: 28%; background: #16886e; opacity: .18; }
@@ -66,6 +76,7 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(48px, 5vw, 76px); line-height
 .primary-download { display: flex; align-items: stretch; gap: 12px; }
 .download-button { display: flex; align-items: center; min-height: 66px; border-radius: 13px; transition: transform .2s ease, box-shadow .2s ease; }
 .download-button:hover { transform: translateY(-2px); }
+.download-button[aria-disabled="true"], .card-download[aria-disabled="true"] { pointer-events: none; cursor: wait; opacity: .55; }
 .download-button--primary { min-width: 284px; gap: 14px; padding: 11px 18px; color: #06110e; background: linear-gradient(135deg, var(--accent-strong), var(--accent)); box-shadow: 0 16px 42px rgba(53, 202, 158, .18); }
 .download-button small { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 650; opacity: .65; }
 .download-button strong { font-size: 16px; }
