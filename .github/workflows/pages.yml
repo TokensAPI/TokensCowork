@@ -1,6 +1,8 @@
 name: Deploy Download Page
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
   push:
     branches:
       - master
@@ -31,9 +33,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    name: Check Release Metadata
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.metadata.outputs.deploy }}
+
+    steps:
+      - name: Compare release metadata
+        id: metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          next_releases="$(mktemp)"
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq 'add' > "${next_releases}"
+
+          deploy=true
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            current_releases="$(mktemp)"
+            current_signature="$(mktemp)"
+            next_signature="$(mktemp)"
+            signature='map({
+              id,
+              tag_name,
+              name,
+              draft,
+              prerelease,
+              created_at,
+              updated_at,
+              published_at,
+              body,
+              assets: ((.assets // []) | map({
+                id,
+                name,
+                label,
+                state,
+                content_type,
+                size,
+                digest,
+                created_at,
+                updated_at,
+                browser_download_url
+              }))
+            })'
+            pages_owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+            pages_repo="${GITHUB_REPOSITORY#*/}"
+            pages_url="https://${pages_owner}.github.io/${pages_repo}/releases.json?run=${GITHUB_RUN_ID}"
+
+            if curl --fail --silent --show-error --location \
+              --header "Cache-Control: no-cache" \
+              "${pages_url}" > "${current_releases}" \
+              && jq -S "${signature}" "${current_releases}" > "${current_signature}" \
+              && jq -S "${signature}" "${next_releases}" > "${next_signature}" \
+              && cmp --silent "${current_signature}" "${next_signature}"; then
+              deploy=false
+            fi
+          fi
+          echo "deploy=${deploy}" >> "${GITHUB_OUTPUT}"
+
   deploy:
     name: Deploy GitHub Pages
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: check
+    if: needs.check.outputs.deploy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -47,9 +110,6 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
       - name: Prepare download page
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +117,9 @@ jobs:
           mkdir -p .pages
           cp -R download/. .pages/
           gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq 'add' > .pages/releases.json
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload download page
         uses: actions/upload-pages-artifact@v4
