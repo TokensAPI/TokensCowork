@@ -11,6 +11,7 @@ on:
     types:
       - published
       - released
+      - prereleased
       - edited
       - deleted
   workflow_run:
