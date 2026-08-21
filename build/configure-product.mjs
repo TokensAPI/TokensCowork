@@ -91,7 +91,7 @@ desktopPackage.build.nsis.artifactName = `${product.name}-\${version}-\${arch}-S
 // the previously verified Unicode plugin resources for ZIP extraction.
 desktopPackage.build.nsis.customNsisResources = {
   url: 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z',
-  checksum: 'Dqd6g+2buwwvoG1Vyf6BHR1b+25QMmPcwZx40atOT57gH27rkjOei1L0JTldxZu4NFoEmW4kJgZ3DlSWVON3+Q==',
+  checksum: '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103',
   version: '3.4.1',
 }
 
