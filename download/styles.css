@@ -88,6 +88,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .release-option__badges { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
 .release-badge { padding: 3px 5px; color: var(--muted-bright); background: rgba(255,255,255,.055); border-radius: 5px; font-size: 8px; font-weight: 750; white-space: nowrap; }
 .release-badge--stable { color: var(--accent); background: rgba(113,226,192,.1); }
+.release-badge--pure { color: #d5b8ff; background: rgba(166,112,224,.14); }
 .release-badge--latest { color: #89caff; background: rgba(82,161,220,.12); }
 .release-option[aria-selected="true"] .release-option__copy strong::after { content: " ✓"; color: var(--accent); }
 .release-empty { margin: 0; padding: 28px 16px 32px; color: var(--muted); font-size: 12px; text-align: center; }

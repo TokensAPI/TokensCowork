@@ -25,6 +25,10 @@
       stableLatestSuffix: "（稳定版 · 推荐 · 最新）",
       stableRecommendedSuffix: "（稳定版 · 推荐）",
       stableSuffix: "（稳定版）",
+      recommendedLatestSuffix: "（推荐 · 最新）",
+      recommendedSuffix: "（推荐）",
+      pureLatestSuffix: "（纯净版 · 最新）",
+      pureSuffix: "（纯净版）",
       latestSuffix: "（最新）",
       selectVersion: "选择下载版本",
       versionPanelTitle: "选择版本",
@@ -36,6 +40,7 @@
       versionsCount: "共 {count} 个版本",
       recommendedBadge: "推荐",
       stableBadge: "稳定版",
+      pureBadge: "纯净版",
       latestBadge: "最新",
       loadingPage: "正在准备最新版本…",
       loadingVersion: "正在获取版本…",
@@ -44,6 +49,7 @@
       connectingRelease: "正在连接 GitHub Releases…",
       noRelease: "暂未读取到公开 Release，下载按钮将前往 GitHub",
       stableVersion: "稳定版 v{version} · {date}",
+      pureVersion: "纯净版 v{version} · {date}",
       latestVersion: "最新版本 v{version} · {date}",
       selectedVersion: "版本 v{version} · {date}",
       totalDownloads: "累计下载 {count} 次",
@@ -92,6 +98,10 @@
       stableLatestSuffix: " (Stable · Recommended · Latest)",
       stableRecommendedSuffix: " (Stable · Recommended)",
       stableSuffix: " (Stable)",
+      recommendedLatestSuffix: " (Recommended · Latest)",
+      recommendedSuffix: " (Recommended)",
+      pureLatestSuffix: " (Clean · Latest)",
+      pureSuffix: " (Clean)",
       latestSuffix: " (Latest)",
       selectVersion: "Choose download version",
       versionPanelTitle: "Choose a version",
@@ -103,6 +113,7 @@
       versionsCount: "{count} versions",
       recommendedBadge: "Recommended",
       stableBadge: "Stable",
+      pureBadge: "Clean",
       latestBadge: "Latest",
       loadingPage: "Preparing the latest release…",
       loadingVersion: "Loading version…",
@@ -111,6 +122,7 @@
       connectingRelease: "Connecting to GitHub Releases…",
       noRelease: "No public Release found. Download buttons will open GitHub.",
       stableVersion: "Stable v{version} · {date}",
+      pureVersion: "Clean v{version} · {date}",
       latestVersion: "Latest v{version} · {date}",
       selectedVersion: "Version v{version} · {date}",
       totalDownloads: "{count} total downloads",
@@ -678,6 +690,12 @@
     return Boolean(release) && release.prerelease === false && release.draft !== true;
   }
 
+  // 纯净正式版使用 x.y.0 标签约定。它仍遵循 GitHub 原生正式版状态，
+  // 但不参与页面推荐版本计算，避免覆盖包含完整产品能力的默认下载。
+  function isPureRelease(release) {
+    return Boolean(release) && /^v?\d+\.\d+\.0$/i.test(String(release.tag_name || ""));
+  }
+
   function appendReleaseBadge(container, text, modifier) {
     var badge = document.createElement("span");
     badge.className = "release-badge" + (modifier ? " release-badge--" + modifier : "");
@@ -688,13 +706,14 @@
   function createReleaseOption(release, featured) {
     var isRecommended = release.tag_name === recommendedReleaseTag;
     var isStable = isStableRelease(release);
+    var isPure = isPureRelease(release);
     var isLatest = release.tag_name === latestReleaseTag;
     var option = document.createElement("button");
     option.type = "button";
     option.className = "release-option" + (featured ? " release-option--featured" : "");
     option.setAttribute("role", "option");
     option.setAttribute("data-release-tag", release.tag_name);
-    option.setAttribute("data-release-search", release.tag_name.toLowerCase());
+    option.setAttribute("data-release-search", (release.tag_name + (isPure ? " 纯净版 clean pure" : "")).toLowerCase());
     option.setAttribute("aria-selected", String(release.tag_name === selectedReleaseTag));
 
     var copy = document.createElement("span");
@@ -709,7 +728,8 @@
 
     var badges = document.createElement("span");
     badges.className = "release-option__badges";
-    if (isStable) appendReleaseBadge(badges, translate("stableBadge"), "stable");
+    if (isPure) appendReleaseBadge(badges, translate("pureBadge"), "pure");
+    else if (isStable) appendReleaseBadge(badges, translate("stableBadge"), "stable");
     if (isRecommended) appendReleaseBadge(badges, translate("recommendedBadge"), "stable");
     if (isLatest) appendReleaseBadge(badges, translate("latestBadge"), "latest");
     option.appendChild(badges);
@@ -751,10 +771,15 @@
     cachedReleases.forEach(function (release) {
       var isRecommended = release.tag_name === recommendedReleaseTag;
       var isStable = isStableRelease(release);
+      var isPure = isPureRelease(release);
       var isLatest = release.tag_name === latestReleaseTag;
       var suffix = "";
-      if (isRecommended && isLatest) suffix = translate("stableLatestSuffix");
-      else if (isRecommended) suffix = translate("stableRecommendedSuffix");
+      if (isPure && isLatest) suffix = translate("pureLatestSuffix");
+      else if (isPure) suffix = translate("pureSuffix");
+      else if (isStable && isRecommended && isLatest) suffix = translate("stableLatestSuffix");
+      else if (isStable && isRecommended) suffix = translate("stableRecommendedSuffix");
+      else if (isRecommended && isLatest) suffix = translate("recommendedLatestSuffix");
+      else if (isRecommended) suffix = translate("recommendedSuffix");
       else if (isStable) suffix = translate("stableSuffix");
       else if (isLatest) suffix = translate("latestSuffix");
       var label = release.tag_name + suffix;
@@ -765,7 +790,7 @@
     });
 
     clearReleasePanel();
-    var featuredTags = [recommendedReleaseTag];
+    var featuredTags = recommendedReleaseTag ? [recommendedReleaseTag] : [];
     if (latestReleaseTag !== recommendedReleaseTag) featuredTags.push(latestReleaseTag);
     featuredTags.forEach(function (tag) {
       var release = cachedReleases.find(function (item) { return item.tag_name === tag; });
@@ -784,7 +809,7 @@
 
     document.getElementById("release-count").textContent = translate("versionsCount", { count: cachedReleases.length });
     filterReleaseOptions("");
-    select.value = selectedReleaseTag || recommendedReleaseTag;
+    select.value = selectedReleaseTag || recommendedReleaseTag || latestReleaseTag;
     select.disabled = cachedReleases.length < 2;
     trigger.disabled = cachedReleases.length < 2;
     current.textContent = select.options[select.selectedIndex].textContent;
@@ -794,6 +819,7 @@
     if (!release) return;
     var assets = resolveAssets(release);
     var isStable = isStableRelease(release);
+    var isPure = isPureRelease(release);
     var overrides = release.tag_name === recommendedReleaseTag ? config.downloadOverrides : {};
     var urls = {
       windows: overrides.windows || (assets.windows && assets.windows.browser_download_url),
@@ -811,7 +837,7 @@
     var version = releaseVersion(release);
     var legacyVersion = document.getElementById("header-version");
     if (legacyVersion) legacyVersion.textContent = "v" + version;
-    var statusKey = isStable ? "stableVersion" : (release.tag_name === latestReleaseTag ? "latestVersion" : "selectedVersion");
+    var statusKey = isPure ? "pureVersion" : (isStable ? "stableVersion" : (release.tag_name === latestReleaseTag ? "latestVersion" : "selectedVersion"));
     document.getElementById("release-status").textContent = translate(statusKey, {
       version: version,
       date: formatDate(release.published_at)
@@ -863,10 +889,10 @@
     try {
       cachedReleases = await fetchReleaseList();
       latestReleaseTag = cachedReleases[0].tag_name;
-      var recommendedRelease = cachedReleases.find(isStableRelease) || cachedReleases[0];
-      recommendedReleaseTag = recommendedRelease.tag_name;
+      var recommendedRelease = cachedReleases.find(function (release) { return !isPureRelease(release); });
+      recommendedReleaseTag = recommendedRelease ? recommendedRelease.tag_name : "";
       if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
-        selectedReleaseTag = recommendedReleaseTag;
+        selectedReleaseTag = recommendedReleaseTag || latestReleaseTag;
       }
       populateReleaseSelector();
       renderRelease(cachedReleases.find(function (item) { return item.tag_name === selectedReleaseTag; }));
