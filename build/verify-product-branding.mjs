@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
@@ -8,6 +8,14 @@ const desktopPackage = JSON.parse(readFileSync(resolve(desktopRoot, 'package.jso
 
 function read(relativePath) {
   return readFileSync(resolve(desktopRoot, relativePath), 'utf8')
+}
+
+function readRuntimeClosure() {
+  const lib = resolve(desktopRoot, 'lib')
+  return readdirSync(lib, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith('.js'))
+    .map(entry => readFileSync(resolve(lib, entry.name), 'utf8'))
+    .join('\n')
 }
 
 function requireText(content, expected, label) {
@@ -40,7 +48,7 @@ if (desktopPackage.build?.nsis?.deleteAppDataOnUninstall === true) {
 const mainSource = read('src/main.ts')
 const indexSource = read('src/index.ts')
 const mainRuntime = read('lib/main.js')
-const indexRuntime = read('lib/index.js')
+const desktopRuntimeClosure = readRuntimeClosure()
 const assistedMessages = read('build/assistedMessages.yml')
 
 for (const [content, label] of [
@@ -54,7 +62,7 @@ for (const [content, label] of [
 
 for (const [content, label] of [
   [indexSource, 'desktop shell source'],
-  [indexRuntime, 'compiled desktop shell runtime'],
+  [desktopRuntimeClosure, 'compiled desktop shell runtime closure'],
 ]) {
   requireText(content, product.name, label)
   rejectText(content, 'DeepSeek Harness Desktop', label)

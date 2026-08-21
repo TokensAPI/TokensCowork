@@ -112,7 +112,7 @@ writeFileSync(
   releaseMacPath,
   releaseMac.replace(
     upstreamReleaseCheck,
-    '  // Product assembly completed the credential-free workspace check before branding.\n',
+    '  // TokensHarness product assembly owns the release quality gates before packaging.\n',
   ),
 )
 process.stdout.write(`configure-product: ${product.name} ${product.version} (${product.appId})\n`)

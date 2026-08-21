@@ -125,8 +125,9 @@ function verifyDisabledUpdateMenu(script) {
  */
 function removeManagedBundlesFromProfile(source, packages) {
   const setAnchor = 'const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)'
-  const filterAnchor = '  const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name) && name !== DESKTOP_PACKAGE_NAME)'
-  if (!source.includes(setAnchor) || !source.includes(filterAnchor)) {
+  const filterAnchor = '&& name !== DESKTOP_PACKAGE_NAME'
+  if (!source.includes(setAnchor)
+    || source.split(filterAnchor).length !== 2) {
     throw new Error('prepare-desktop: 未找到上游 profile bundle 规范化锚点，请复查产品插件迁移策略')
   }
   const managedPackages = JSON.stringify(packages, undefined, 2)
@@ -140,34 +141,45 @@ function removeManagedBundlesFromProfile(source, packages) {
     )
     .replace(
       filterAnchor,
-      `  const thirdParty = current.filter(name => !REQUIRED_BUNDLE_SET.has(name)\n    && name !== DESKTOP_PACKAGE_NAME\n    && !PRODUCT_MANAGED_BUNDLE_SET.has(name))`,
+      `${filterAnchor}\n    && !PRODUCT_MANAGED_BUNDLE_SET.has(name)`,
     )
 }
 
 /**
  * 避免 Windows GUI 启动时已断开的 stderr 管道再次抛出 EPIPE，掩盖原始异常。
- * @param source - staging 副本中 main.ts 的完整内容。
- * @returns 所有桌面诊断均通过容错 writer 输出的源码。
+ * @param mainSource - staging 副本中 main.ts 的完整内容。
+ * @param loggerSource - staging 副本中 desktop-logger.ts 的完整内容。
+ * @returns 启动器与日志器均通过同一容错 writer 输出的源码。
  * @throws 上游 stderr 锚点变化时抛出，中断打包待人工复查。
  */
-function protectDesktopStderr(source) {
-  const helperAnchor = "const PRODUCT_NAME = 'DSH Desktop'"
-  const failLoudAnchor = '    stderr: process.stderr,'
-  const directWrites = source.match(/process\.stderr\.write\(/g) ?? []
-  if (!source.includes(helperAnchor) || !source.includes(failLoudAnchor) || directWrites.length === 0) {
+function protectDesktopStderr(mainSource, loggerSource) {
+  const mainImportAnchor = '  ElectronStderrLogger,\n'
+  const loggerHelperAnchor = "import { maskSecrets } from './mask-secrets.ts'"
+  const mainWrites = mainSource.match(/process\.stderr\.write\(/g) ?? []
+  const loggerWrites = loggerSource.match(/process\.stderr\.write\(/g) ?? []
+  if (!mainSource.includes(mainImportAnchor)
+    || !loggerSource.includes(loggerHelperAnchor)
+    || mainWrites.length === 0
+    || loggerWrites.length !== 1) {
     throw new Error('prepare-desktop: 未找到上游桌面 stderr 锚点，请复查 Windows GUI 异常处理')
   }
-  const rewritten = source
+  const main = mainSource
     .replaceAll('process.stderr.write(', 'writeDesktopStderr(')
-    .replace(failLoudAnchor, '    stderr: { write: writeDesktopStderr },')
     .replace(
-      helperAnchor,
-      `${helperAnchor}\n\n// A Windows GUI launch may expose an already-closed stderr pipe.\nprocess.stderr.on('error', () => {})\n\n/** Write diagnostics when a live stderr pipe exists. */\nfunction writeDesktopStderr(message: string): void {\n  if (process.stderr.destroyed || !process.stderr.writable) return\n  try {\n    process.stderr.write(message)\n  } catch {\n    // Diagnostics must never replace the original startup outcome.\n  }\n}`,
+      mainImportAnchor,
+      `${mainImportAnchor}  writeDesktopStderr,\n`,
     )
-  if ((rewritten.match(/process\.stderr\.write\(/g) ?? []).length !== 1) {
+  const logger = loggerSource
+    .replaceAll('process.stderr.write(', 'writeDesktopStderr(')
+    .replace(
+      loggerHelperAnchor,
+      `${loggerHelperAnchor}\n\n// A Windows GUI launch may expose an already-closed stderr pipe.\nprocess.stderr.on('error', () => {})\n\n/** Write diagnostics when a live stderr pipe exists. */\nexport function writeDesktopStderr(\n  message: string,\n  callback?: (error?: Error | null) => void,\n): boolean {\n  if (process.stderr.destroyed || !process.stderr.writable) {\n    callback?.()\n    return false\n  }\n  try {\n    return process.stderr.write(message, callback)\n  } catch {\n    callback?.()\n    return false\n  }\n}`,
+    )
+  if ((main.match(/process\.stderr\.write\(/g) ?? []).length !== 0
+    || (logger.match(/process\.stderr\.write\(/g) ?? []).length !== 1) {
     throw new Error('prepare-desktop: 桌面 stderr 改写不完整，请复查 Windows GUI 异常处理')
   }
-  return rewritten
+  return { main, logger }
 }
 
 /* ====================================================================
@@ -198,12 +210,14 @@ const profileBootVerifierPath = resolve(
 )
 const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
 const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
+const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').trimEnd()
 let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
+let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
 
 /* -------------------------- 配置自动更新 --------------------------- */
 // TokensHarness 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
@@ -238,7 +252,6 @@ for (const plugin of enabledPlugins) {
   pluginPackage.name = plugin.package
   delete pluginPackage.devDependencies
   delete pluginPackage.allowScripts
-  writeFileSync(pluginPackagePath, `${JSON.stringify(pluginPackage, undefined, 2)}\n`)
 
   const workspaceEntry = relative(stage, destination).split(sep).join('/')
   if (!workspace.workspaces.includes(workspaceEntry)) workspace.workspaces.push(workspaceEntry)
@@ -246,7 +259,10 @@ for (const plugin of enabledPlugins) {
   for (const [name, version] of Object.entries(plugin.runtimeDependencies ?? {})) {
     desktopPackage.dependencies[name] = version
     if (desktopPackage.devDependencies?.[name] !== undefined) delete desktopPackage.devDependencies[name]
+    if (pluginPackage.dependencies?.[name] !== undefined) pluginPackage.dependencies[name] = version
+    if (pluginPackage.peerDependencies?.[name] !== undefined) pluginPackage.peerDependencies[name] = version
   }
+  writeFileSync(pluginPackagePath, `${JSON.stringify(pluginPackage, undefined, 2)}\n`)
 
   const pluginPatch = renamePluginPatchPackage(
     readFileSync(resolve(source, plugin.patch), 'utf8').trim(),
@@ -265,7 +281,7 @@ desktopProfile = removeManagedBundlesFromProfile(
 )
 
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
-desktopMain = protectDesktopStderr(desktopMain)
+;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
 
 /* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
@@ -274,6 +290,7 @@ writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
 writeFileSync(profileBootVerifierPath, profileBootVerifier)
 writeFileSync(desktopProfilePath, desktopProfile)
 writeFileSync(desktopMainPath, desktopMain)
+writeFileSync(desktopLoggerPath, desktopLogger)
 
 /* -------------------------- 安装产品锁文件 -------------------------- */
 if (enabledPlugins.length > 0) {
