@@ -86,6 +86,14 @@ desktopPackage.build.appId = product.appId
 desktopPackage.build.productName = product.name
 desktopPackage.build.nsis.shortcutName = product.name
 desktopPackage.build.nsis.artifactName = `${product.name}-\${version}-\${arch}-Setup.\${ext}`
+// NSIS 3.12 provides long-path support, but its 1.2.1 bundle ships an ANSI
+// nsisunz.dll in the Unicode plugin directory. Keep the new compiler and use
+// the previously verified Unicode plugin resources for ZIP extraction.
+desktopPackage.build.nsis.customNsisResources = {
+  url: 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z',
+  checksum: 'Dqd6g+2buwwvoG1Vyf6BHR1b+25QMmPcwZx40atOT57gH27rkjOei1L0JTldxZu4NFoEmW4kJgZ3DlSWVON3+Q==',
+  version: '3.4.1',
+}
 
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(

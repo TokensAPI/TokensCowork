@@ -150,6 +150,22 @@ jobs:
       - name: Build unsigned Windows installer
         run: corepack yarn product:dist:win
 
+      - name: Smoke test Windows installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensHarness-*-x64-Setup.exe" -File -ErrorAction Stop
+          $installDir = Join-Path $env:RUNNER_TEMP "TokensHarness-install-smoke"
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/currentuser", "/D=$installDir" -WindowStyle Hidden -PassThru
+          try {
+            Wait-Process -Id $process.Id -Timeout 300 -ErrorAction Stop
+          } catch {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Windows installer did not finish within five minutes"
+          }
+          if ($process.ExitCode -ne 0 -or -not (Test-Path "$installDir/TokensHarness.exe")) {
+            throw "Windows installer smoke test failed with exit code $($process.ExitCode)"
+          }
+
       - name: Prepare Windows release files
         shell: pwsh
         run: |
