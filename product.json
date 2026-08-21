@@ -3,13 +3,13 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.2.5"
+    "version": "0.3.0"
   },
   "desktop": {
     "path": "desktop",
     "repository": "https://github.com/anywhere-labs/deepseek-harness-desktop.git",
-    "commit": "8734c2cd21db2b31e670c24d9361acdaf14b7e3c",
-    "deepseekHarnessCommit": "47f943859bef60e4160492346772ded9b24f765a"
+    "commit": "d457d790295e727bbb1fc20e398da602f521fd64",
+    "deepseekHarnessCommit": "141eb6fef83422698aef7a981029e843e8161534"
   },
   "plugins": [
     {
@@ -21,11 +21,11 @@
       "commit": "a55243dcf0574a255573c664a96057f1b208c8ad",
       "package": "@tokens/dsh-version-updates",
       "version": "0.1.0",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
-        "@deepseek-ai/dsh-invariants": "0.1.0-rc.6",
+        "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.8",
+        "@deepseek-ai/dsh-invariants": "0.1.0-rc.8",
         "@deepseek-ai/schemastery": "^3.18.1"
       }
     },
@@ -38,7 +38,7 @@
       "commit": "3c6f739d33e6015f667b267b1b52dcf452fe14d1",
       "package": "@tokens/dsh-feishu-connect",
       "version": "0.1.4",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "patch": "cordis.patch.yml",
       "runtimeBuild": {
         "type": "typescript",
@@ -50,8 +50,9 @@
         ]
       },
       "runtimeDependencies": {
-        "@deepseek-ai/dsh-credentials": "0.1.0-rc.6",
-        "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+        "@deepseek-ai/dsh-commands": "0.1.0-rc.8",
+        "@deepseek-ai/dsh-credentials": "0.1.0-rc.8",
+        "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
         "@deepseek-ai/schemastery": "^3.18.1"
       }
     },
@@ -64,7 +65,7 @@
       "commit": "738e097e375ed9c0b6e06492d101b775434d0f8d",
       "package": "@tokens/dsh-model-manager",
       "version": "0.2.0",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "patch": "cordis.patch.yml"
     }
   ]
