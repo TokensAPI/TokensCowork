@@ -1,4 +1,4 @@
-import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readdirSync, readSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
@@ -37,7 +37,10 @@ assertPortableExecutable(executable, 'unpacked Windows application')
 const buildManifest = JSON.parse(readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'))
 const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
 const packagedMain = readFileSync(resolve(unpackedResources, 'lib', 'main.js'), 'utf8')
-const packagedIndex = readFileSync(resolve(unpackedResources, 'lib', 'index.js'), 'utf8')
+const packagedRuntimeClosure = readdirSync(resolve(unpackedResources, 'lib'), { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith('.js'))
+  .map(entry => readFileSync(resolve(unpackedResources, 'lib', entry.name), 'utf8'))
+  .join('\n')
 if (buildManifest.build?.appId !== product.appId
   || buildManifest.build?.productName !== product.name) {
   throw new Error('Windows build configuration branding differs from product.json')
@@ -51,7 +54,8 @@ if (!packagedMain.includes(product.name) || !packagedMain.includes(product.appId
   || packagedMain.includes('ai.deepseek.dsh.desktop')) {
   throw new Error('packaged Windows main runtime retains upstream identity')
 }
-if (!packagedIndex.includes(product.name) || packagedIndex.includes('DeepSeek Harness Desktop')) {
+if (!packagedRuntimeClosure.includes(product.name)
+  || packagedRuntimeClosure.includes('DeepSeek Harness Desktop')) {
   throw new Error('packaged Windows desktop shell retains upstream window branding')
 }
 process.stdout.write(`verify-package: Windows ${product.name} ${product.version} installer passed\n`)
