@@ -160,11 +160,12 @@ if (mode === 'check') {
     'WIN_CSC_KEY_PASSWORD',
     'WIN_CSC_LINK',
   ]) delete unsignedEnvironment[key]
-  // 独立质量任务负责产品通用门禁；Windows 仅补充平台专用安装包测试。
-  configureProduct(unsignedEnvironment)
+  // 先在未改写的上游工作区执行 Windows 安装包测试；这些测试会验收
+  // DSH Desktop 的原始版本和应用标识。通过后再注入 TokensHarness 品牌并重新编译，
+  // 避免把产品版本误报为上游回归。
   run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'build'], stage, unsignedEnvironment)
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
-  verifyProductBranding(unsignedEnvironment)
+  configureBuildAndVerifyProduct(unsignedEnvironment)
   run('corepack', [
     'yarn',
     'workspace',
