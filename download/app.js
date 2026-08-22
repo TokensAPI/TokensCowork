@@ -889,7 +889,9 @@
     try {
       cachedReleases = await fetchReleaseList();
       latestReleaseTag = cachedReleases[0].tag_name;
-      var recommendedRelease = cachedReleases.find(function (release) { return !isPureRelease(release); });
+      var recommendedRelease = cachedReleases.find(function (release) {
+        return isStableRelease(release) && !isPureRelease(release);
+      });
       recommendedReleaseTag = recommendedRelease ? recommendedRelease.tag_name : "";
       if (!selectedReleaseTag || !cachedReleases.some(function (item) { return item.tag_name === selectedReleaseTag; })) {
         selectedReleaseTag = recommendedReleaseTag || latestReleaseTag;
