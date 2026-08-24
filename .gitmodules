@@ -16,3 +16,6 @@
 [submodule "dsh-tokensapi-ui"]
 	path = plugins/dsh-tokensapi-ui
 	url = https://github.com/TokensAPI/dsh-tokensapi-ui.git
+[submodule "tokens-at-file"]
+	path = plugins/tokens_DshAtFile_code
+	url = https://github.com/TokensAPI/tokens_DshAtFile_code.git

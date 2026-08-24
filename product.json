@@ -67,6 +67,18 @@
       "version": "0.2.1",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
+    },
+    {
+      "id": "tokens-at-file",
+      "displayName": "本地文件引用",
+      "description": "支持选择或拖入本地文件，并将文件路径交给 Harness 使用当前会话工具读取。",
+      "path": "plugins/tokens_DshAtFile_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshAtFile_code.git",
+      "commit": "97ce0a07efed3b9e26ca809919db6bdc339d7684",
+      "package": "@tokens/dsh-at-file",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml"
     }
   ]
 }
