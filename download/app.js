@@ -506,9 +506,13 @@
         version.className = "plugin-card__version";
         version.textContent = "v" + (plugin.version || "");
         title.appendChild(version);
+        var identifier = document.createElement("code");
+        identifier.className = "plugin-card__id";
+        identifier.textContent = plugin.id || "";
         var description = document.createElement("p");
         description.textContent = plugin.description || "";
         card.appendChild(title);
+        if (plugin.id) card.appendChild(identifier);
         card.appendChild(description);
         if (plugin.homepage) {
           var link = document.createElement("a");
