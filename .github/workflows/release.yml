@@ -6,7 +6,7 @@ on:
       prerelease:
         description: "Publish as a GitHub Pre-release"
         required: false
-        default: false
+        default: true
         type: boolean
   push:
     tags:
@@ -61,10 +61,10 @@ jobs:
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
           printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
           printf 'release_notes=%s\n' "${release_notes}" >> "${GITHUB_OUTPUT}"
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${{ inputs.prerelease }}" == "true" ]]; then
-            printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
-          else
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${{ inputs.prerelease }}" == "false" ]]; then
             printf 'prerelease=false\n' >> "${GITHUB_OUTPUT}"
+          else
+            printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
           fi
 
   windows-amd64:
