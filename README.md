@@ -27,6 +27,8 @@ corepack yarn product:check
 
 构建脚本把 `desktop/` 和默认启用的插件复制到 `.build/desktop/` 后组装，因此不会修改任何子模块工作区。
 
+> 需要新增插件、本地打包或手动发布新版本，请查看：[手动构建与发布指南](docs/manual-release.md)。
+
 ```powershell
 corepack yarn product:check-desktop
 corepack yarn product:dist:win
@@ -37,7 +39,7 @@ corepack yarn product:dist:mac:auto
 
 `product:dist:mac` 和 `product:dist:mac-unsigned` 保留为明确的底层入口。ad-hoc 流程会在 DMG 生成前对 Electron `.app` 及其嵌套组件签名并执行严格校验；正式流程会额外执行 Gatekeeper 评估和 staple 校验。
 
-`Desktop Build` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；macOS `BUILD-INFO.txt` 会记录 `developer-id-notarized` 或 `ad-hoc` 的实际签名模式。
+`Build Desktop` 工作流支持手动运行或由 `v*` 标签触发。Actions artifact 包含 Windows amd64、macOS arm64、macOS amd64 安装包及各平台的 SHA-256 和 `BUILD-INFO.txt`。正式 GitHub Release 只包含三个安装包和统一 SHA-256 文件；macOS `BUILD-INFO.txt` 会记录 `developer-id-notarized` 或 `ad-hoc` 的实际签名模式。
 
 ## Windows 静默卸载
 
