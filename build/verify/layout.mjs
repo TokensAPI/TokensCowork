@@ -7,6 +7,11 @@ const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const packageManifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 const canonicalVersion = readFileSync(resolve(root, 'VERSION'), 'utf8').trim()
 const fail = message => { throw new Error(`verify-layout: ${message}`) }
+const arguments_ = process.argv.slice(2)
+if (arguments_.some(argument => argument !== '--require-clean')) {
+  fail('expected optional --require-clean')
+}
+const requireClean = arguments_.includes('--require-clean')
 const git = (cwd, ...args) => execFileSync('git', args, {
   cwd,
   encoding: 'utf8',
@@ -64,14 +69,16 @@ if (!existsSync(desktopPath)) fail('desktop submodule is not initialized')
 if (git(desktopPath, 'rev-parse', 'HEAD') !== manifest.desktop.commit) {
   fail('desktop checkout differs from product.json')
 }
-if (git(desktopPath, 'status', '--porcelain') !== '') fail('desktop submodule contains local changes')
+if (requireClean && git(desktopPath, 'status', '--porcelain') !== '') {
+  fail('desktop submodule contains local changes')
+}
 
 const harnessPath = resolve(desktopPath, 'deepseek-harness')
 if (!existsSync(harnessPath)) fail('nested deepseek-harness submodule is not initialized')
 if (git(harnessPath, 'rev-parse', 'HEAD') !== manifest.desktop.deepseekHarnessCommit) {
   fail('nested deepseek-harness checkout differs from product.json')
 }
-if (git(harnessPath, 'status', '--porcelain') !== '') {
+if (requireClean && git(harnessPath, 'status', '--porcelain') !== '') {
   fail('nested deepseek-harness submodule contains local changes')
 }
 
@@ -86,7 +93,8 @@ for (const plugin of manifest.plugins) {
   if (git(pluginPath, 'rev-parse', 'HEAD') !== plugin.commit) {
     fail(`${plugin.id} checkout differs from product.json`)
   }
-  if (git(pluginPath, 'status', '--porcelain') !== '') {
+  if (requireClean && plugin.enabledByDefault === true && plugin.artifact === undefined
+    && git(pluginPath, 'status', '--porcelain') !== '') {
     fail(`${plugin.id} submodule contains local changes`)
   }
   const pluginManifest = JSON.parse(readFileSync(resolve(pluginPath, 'package.json'), 'utf8'))
@@ -134,5 +142,5 @@ if (manifest.plugins.some(plugin => plugin.enabledByDefault === true)
 }
 
 process.stdout.write(
-  `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)\n`,
+  `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)${requireClean ? ', clean inputs required' : ''}\n`,
 )

@@ -100,7 +100,12 @@ const buildEnvironment = mode === 'mac' ? withoutMacReleaseSecrets(process.env) 
 
 /* ---------------------- 组装跨平台产品工作区 ---------------------- */
 // 先验证所有 Git pin 与产品声明，再把只读来源复制到 staging 工作区。
-run(process.execPath, [resolve(root, 'build', 'verify', 'layout.mjs')], root, buildEnvironment)
+run(
+  process.execPath,
+  [resolve(root, 'build', 'verify', 'layout.mjs'), '--require-clean'],
+  root,
+  buildEnvironment,
+)
 run(process.execPath, [resolve(root, 'build', 'plugins', 'fetch-artifacts.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'assembly', 'prepare.mjs')], root, buildEnvironment)
 
