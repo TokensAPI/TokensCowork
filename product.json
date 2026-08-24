@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.3.5"
+    "version": "0.3.6"
   },
   "desktop": {
     "path": "desktop",
@@ -18,7 +18,7 @@
       "description": "从 TokensHarness GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
-      "commit": "a55243dcf0574a255573c664a96057f1b208c8ad",
+      "commit": "90251f448dbd302e68c464d7528848ada7a77e1a",
       "package": "@tokens/dsh-version-updates",
       "version": "0.1.0",
       "enabledByDefault": true,
