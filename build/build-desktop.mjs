@@ -50,8 +50,13 @@ function run(command, args, cwd, env = process.env) {
 }
 
 /** 将产品品牌和发布配置写入 staging 工作区。 */
-function configureProduct(environment = process.env) {
-  run(process.execPath, [resolve(root, 'build', 'assembly', 'configure.mjs')], root, environment)
+function configureProduct(environment = process.env, packagingTarget = 'default') {
+  run(
+    process.execPath,
+    [resolve(root, 'build', 'assembly', 'configure.mjs'), packagingTarget],
+    root,
+    environment,
+  )
 }
 
 /** 编译 staging 中完整的桌面产品 workspace。 */
@@ -65,8 +70,8 @@ function verifyProductBranding(environment = process.env) {
 }
 
 /** 配置、编译并验收一个可供平台打包器消费的产品工作区。 */
-function configureBuildAndVerifyProduct(environment = process.env) {
-  configureProduct(environment)
+function configureBuildAndVerifyProduct(environment = process.env, packagingTarget = 'default') {
+  configureProduct(environment, packagingTarget)
   buildProduct(environment)
   verifyProductBranding(environment)
 }
@@ -165,7 +170,7 @@ if (mode === 'check') {
   // 避免把产品版本误报为上游回归。
   run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'build'], stage, unsignedEnvironment)
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
-  configureBuildAndVerifyProduct(unsignedEnvironment)
+  configureBuildAndVerifyProduct(unsignedEnvironment, 'windows')
   run('corepack', [
     'yarn',
     'workspace',

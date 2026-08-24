@@ -1,4 +1,12 @@
-import { closeSync, openSync, readFileSync, readdirSync, readSync, statSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  readSync,
+  statSync,
+} from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
@@ -41,6 +49,37 @@ const packagedRuntimeClosure = readdirSync(resolve(unpackedResources, 'lib'), { 
   .filter(entry => entry.isFile() && entry.name.endsWith('.js'))
   .map(entry => readFileSync(resolve(unpackedResources, 'lib', entry.name), 'utf8'))
   .join('\n')
+const packagedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
+  .map(path => path.replaceAll('\\', '/'))
+const packagedNodeModuleFiles = packagedRuntimeFiles
+  .filter(path => path.startsWith('node_modules/'))
+const forbiddenMetadata = packagedNodeModuleFiles.filter(path => path.endsWith('.map')
+  || path.endsWith('.d.ts')
+  || path.endsWith('.d.mts')
+  || path.endsWith('.d.cts'))
+const requiredWindowsX64Runtime = [
+  'node_modules/@img/sharp-win32-x64',
+  'node_modules/@koromix/koffi-win32-x64',
+  'node_modules/@vscode/ripgrep-win32-x64',
+  'node_modules/node-addon-require-builtin-win32-x64-msvc',
+  'node_modules/node-pty/prebuilds/win32-x64',
+]
+const forbiddenForeignRuntime = [
+  'node_modules/@img/sharp-win32-arm64',
+  'node_modules/@img/sharp-win32-ia32',
+  'node_modules/@koromix/koffi-win32-arm64',
+  'node_modules/@koromix/koffi-win32-ia32',
+  'node_modules/@vscode/ripgrep-win32-arm64',
+  'node_modules/@vscode/ripgrep-win32-ia32',
+  'node_modules/node-addon-require-builtin-win32-arm64-msvc',
+  'node_modules/node-addon-require-builtin-win32-ia32-msvc',
+  'node_modules/node-pty/prebuilds/darwin-arm64',
+  'node_modules/node-pty/prebuilds/darwin-x64',
+  'node_modules/node-pty/prebuilds/linux-arm64',
+  'node_modules/node-pty/prebuilds/linux-x64',
+  'node_modules/node-pty/prebuilds/win32-arm64',
+  'node_modules/node-pty/prebuilds/win32-ia32',
+]
 if (buildManifest.build?.appId !== product.appId
   || buildManifest.build?.productName !== product.name) {
   throw new Error('Windows build configuration branding differs from product.json')
@@ -58,4 +97,20 @@ if (!packagedRuntimeClosure.includes(product.name)
   || packagedRuntimeClosure.includes('DeepSeek Harness Desktop')) {
   throw new Error('packaged Windows desktop shell retains upstream window branding')
 }
-process.stdout.write(`verify-package: Windows ${product.name} ${product.version} installer passed\n`)
+if (forbiddenMetadata.length !== 0) {
+  throw new Error(`packaged Windows runtime retains non-runtime metadata: ${forbiddenMetadata[0]}`)
+}
+for (const path of requiredWindowsX64Runtime) {
+  if (!existsSync(resolve(unpackedResources, path))) {
+    throw new Error(`packaged Windows x64 runtime is missing required native files: ${path}`)
+  }
+}
+for (const path of forbiddenForeignRuntime) {
+  if (existsSync(resolve(unpackedResources, path))) {
+    throw new Error(`packaged Windows x64 runtime retains a foreign native architecture: ${path}`)
+  }
+}
+process.stdout.write(
+  `verify-package: Windows ${product.name} ${product.version} installer passed `
+  + `(${packagedRuntimeFiles.length} unpacked entries)\n`,
+)

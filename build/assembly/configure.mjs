@@ -5,6 +5,10 @@ const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const productBrandRoot = resolve(import.meta.dirname, 'assets', 'brand')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
+const packagingTarget = process.argv[2] ?? 'default'
+if (!['default', 'windows'].includes(packagingTarget)) {
+  throw new Error('configure-product: expected default or windows packaging target')
+}
 const desktopPackagePath = resolve(root, '.build', 'desktop', 'dsh-plugin-desktop', 'package.json')
 const verifyMacReleasePath = resolve(
   root,
@@ -52,6 +56,17 @@ const releaseMac = readFileSync(releaseMacPath, 'utf8')
 const main = readFileSync(mainPath, 'utf8')
 const index = readFileSync(indexPath, 'utf8')
 const assistedMessages = readFileSync(assistedMessagesPath, 'utf8')
+// Windows x64 只排除不可能参与该目标运行的原生架构，以及 Node 运行时不会读取的
+// 调试/类型元数据。完整 JavaScript 运行时仍由现有 asarUnpack 和 afterPack 门禁保护。
+const windowsX64RuntimeExclusions = [
+  '!node_modules/@img/sharp-win32-{arm64,ia32}/**',
+  '!node_modules/@koromix/koffi-win32-{arm64,ia32}/**',
+  '!node_modules/@vscode/ripgrep-win32-{arm64,ia32}/**',
+  '!node_modules/node-addon-require-builtin-win32-{arm64,ia32}-msvc/**',
+  '!node_modules/node-pty/prebuilds/{darwin-*,linux-*,win32-arm64,win32-ia32}/**',
+  '!node_modules/**/*.map',
+  '!node_modules/**/*.{d.ts,d.mts,d.cts}',
+]
 // Electron 的 userData 目录由 app.setName() 推导，而上游把产品名硬编码在这里。
 // 不改写它，产品的宿主状态会继续写进上游品牌的目录。
 const upstreamMainProductName = "const PRODUCT_NAME = 'DSH Desktop'"
@@ -152,6 +167,12 @@ desktopPackage.build.appId = product.appId
 desktopPackage.build.productName = product.name
 desktopPackage.build.nsis.shortcutName = product.name
 desktopPackage.build.nsis.artifactName = `${product.name}-\${version}-\${arch}-Setup.\${ext}`
+if (!Array.isArray(desktopPackage.build.files)) {
+  throw new Error('configure-product: unsupported upstream application files configuration')
+}
+if (packagingTarget === 'windows') {
+  desktopPackage.build.files.push(...windowsX64RuntimeExclusions)
+}
 // NSIS 3.12 provides long-path support, but its 1.2.1 bundle ships an ANSI
 // nsisunz.dll in the Unicode plugin directory. Keep the new compiler and use
 // the previously verified Unicode plugin resources for ZIP extraction.

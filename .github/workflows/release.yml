@@ -155,6 +155,7 @@ jobs:
         run: |
           $installer = Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensHarness-*-x64-Setup.exe" -File -ErrorAction Stop
           $installDir = Join-Path $env:RUNNER_TEMP "TokensHarness-install-smoke"
+          $startedAt = Get-Date
           $process = Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/currentuser", "/D=$installDir" -WindowStyle Hidden -PassThru
           try {
             Wait-Process -Id $process.Id -Timeout 300 -ErrorAction Stop
@@ -165,6 +166,9 @@ jobs:
           if ($process.ExitCode -ne 0 -or -not (Test-Path "$installDir/TokensHarness.exe")) {
             throw "Windows installer smoke test failed with exit code $($process.ExitCode)"
           }
+          $elapsed = (Get-Date) - $startedAt
+          $installedFiles = @(Get-ChildItem -LiteralPath $installDir -File -Recurse).Count
+          Write-Host "Windows installer smoke: $installedFiles files in $([math]::Round($elapsed.TotalSeconds, 1)) seconds"
 
       - name: Prepare Windows release files
         shell: pwsh
