@@ -5617,6 +5617,7 @@ __metadata:
     "@deepseek-ai/dsh-typert-protocol": "*"
     "@deepseek-ai/dsh-typert-registry": "*"
     react: ^18.2.0
+    react-dom: ^18.2.0
   peerDependenciesMeta:
     "@deepseek-ai/cordis":
       optional: true
@@ -5649,6 +5650,8 @@ __metadata:
     "@deepseek-ai/dsh-typert-registry":
       optional: true
     react:
+      optional: true
+    react-dom:
       optional: true
   languageName: unknown
   linkType: soft
