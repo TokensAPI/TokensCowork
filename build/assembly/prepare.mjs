@@ -14,7 +14,6 @@ const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
 const hasProductUpdatePlugin = enabledPlugins.some(item => item.id === 'tokens-version-updates')
-const productBrandRoot = resolve(root, 'build', 'assembly', 'assets', 'brand')
 
 /* ====================================================================
  * 工具函数
@@ -183,73 +182,6 @@ function protectDesktopStderr(mainSource, loggerSource) {
   return { main, logger }
 }
 
-/**
- * 用同一张正式 Logo 覆盖 staging 中的图标入口；除必要尺寸和格式外不改图形。
- */
-function applyProductLogo() {
-  const requiredAssets = [
-    resolve(productBrandRoot, 'app-icon.png'),
-    resolve(productBrandRoot, 'logo-mark.png'),
-    resolve(productBrandRoot, 'logo-mark.svg'),
-    resolve(productBrandRoot, 'generate-tray-icons.mjs'),
-    resolve(productBrandRoot, 'client', 'FishLogo.tsx'),
-  ]
-  for (const source of requiredAssets) {
-    if (!existsSync(source)) {
-      throw new Error(`prepare-desktop: product Logo asset is missing: ${source}`)
-    }
-  }
-
-  const desktopBuildRoot = resolve(stage, 'dsh-plugin-desktop', 'build')
-  const trayGeneratorPath = resolve(
-    stage,
-    'dsh-plugin-desktop',
-    'scripts',
-    'generate-tray-icons.mjs',
-  )
-  const webPublicRoot = resolve(stage, 'deepseek-harness', 'apps', 'web', 'public')
-  const fishLogoPath = resolve(
-    stage,
-    'deepseek-harness',
-    'packages',
-    'client',
-    'ui-primitives',
-    'src',
-    'FishLogo.tsx',
-  )
-  const outputs = [
-    resolve(desktopBuildRoot, 'app-icon.png'),
-    resolve(desktopBuildRoot, 'logo-mark.png'),
-    resolve(desktopBuildRoot, 'tray-icon.svg'),
-    trayGeneratorPath,
-    resolve(webPublicRoot, 'favicon.svg'),
-    resolve(webPublicRoot, 'tokensharness-logo.png'),
-    fishLogoPath,
-  ]
-  for (const path of outputs) assertGeneratedPath(path)
-
-  cpSync(resolve(productBrandRoot, 'app-icon.png'), outputs[0])
-  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[1])
-  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[2])
-  cpSync(resolve(productBrandRoot, 'generate-tray-icons.mjs'), outputs[3])
-  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[4])
-  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[5])
-  cpSync(resolve(productBrandRoot, 'client', 'FishLogo.tsx'), outputs[6])
-
-  // 删除上游已生成的鲸鱼派生图，后续 build 会从正式 Logo 重新按尺寸生成。
-  for (const filename of [
-    'app-icon-mac.png',
-    'tray-iconTemplate.png',
-    'tray-iconTemplate@2x.png',
-    'tray-icon-blue.png',
-    'tray-icon-blue@1.25x.png',
-    'tray-icon-blue@1.5x.png',
-    'tray-icon-blue@2x.png',
-  ]) {
-    rmSync(resolve(desktopBuildRoot, filename), { force: true })
-  }
-}
-
 /* ====================================================================
  * 主流程
  * 按顺序执行 staging 装配：重建目录、读入副本、各项产品加工、写回。
@@ -265,7 +197,6 @@ cpSync(
   resolve(root, 'build', 'macos', 'unsigned-after-pack.ts'),
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
-applyProductLogo()
 
 /* ----------------------- 读入待改写的副本文件 ----------------------- */
 const workspacePath = resolve(stage, 'package.json')

@@ -1,7 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { resolve, sep } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
+const stage = resolve(root, '.build', 'desktop')
+const productBrandRoot = resolve(import.meta.dirname, 'assets', 'brand')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
 const desktopPackagePath = resolve(root, '.build', 'desktop', 'dsh-plugin-desktop', 'package.json')
 const verifyMacReleasePath = resolve(
@@ -61,6 +63,70 @@ const upstreamReleaseCheck = `  // The workspace check includes the package buil
   // material is withheld from every build, test, Loader smoke, and layout subprocess.
   options.run('yarn', ['run', 'check'], resolve(options.desktopRoot, '..'), buildEnvironment)
 `
+
+/** 确保产品配置只改写 staging 副本。 */
+function assertGeneratedPath(path) {
+  if (path !== stage && !path.startsWith(`${stage}${sep}`)) {
+    throw new Error(`configure-product: generated path escaped staging: ${path}`)
+  }
+}
+
+/** 用同一张正式 Logo 覆盖产品图标入口；除必要尺寸和格式外不改图形。 */
+function applyProductLogo() {
+  const requiredAssets = [
+    resolve(productBrandRoot, 'app-icon.png'),
+    resolve(productBrandRoot, 'logo-mark.png'),
+    resolve(productBrandRoot, 'logo-mark.svg'),
+    resolve(productBrandRoot, 'generate-tray-icons.mjs'),
+    resolve(productBrandRoot, 'client', 'FishLogo.tsx'),
+  ]
+  for (const source of requiredAssets) {
+    if (!existsSync(source)) {
+      throw new Error(`configure-product: product Logo asset is missing: ${source}`)
+    }
+  }
+
+  const desktopBuildRoot = resolve(stage, 'dsh-plugin-desktop', 'build')
+  const outputs = [
+    resolve(desktopBuildRoot, 'app-icon.png'),
+    resolve(desktopBuildRoot, 'logo-mark.png'),
+    resolve(desktopBuildRoot, 'tray-icon.svg'),
+    resolve(stage, 'dsh-plugin-desktop', 'scripts', 'generate-tray-icons.mjs'),
+    resolve(stage, 'deepseek-harness', 'apps', 'web', 'public', 'favicon.svg'),
+    resolve(stage, 'deepseek-harness', 'apps', 'web', 'public', 'tokensharness-logo.png'),
+    resolve(
+      stage,
+      'deepseek-harness',
+      'packages',
+      'client',
+      'ui-primitives',
+      'src',
+      'FishLogo.tsx',
+    ),
+  ]
+  for (const path of outputs) assertGeneratedPath(path)
+
+  cpSync(resolve(productBrandRoot, 'app-icon.png'), outputs[0])
+  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[1])
+  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[2])
+  cpSync(resolve(productBrandRoot, 'generate-tray-icons.mjs'), outputs[3])
+  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[4])
+  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[5])
+  cpSync(resolve(productBrandRoot, 'client', 'FishLogo.tsx'), outputs[6])
+
+  // 删除上游派生图，后续 build 会从正式 Logo 重新按尺寸生成。
+  for (const filename of [
+    'app-icon-mac.png',
+    'tray-iconTemplate.png',
+    'tray-iconTemplate@2x.png',
+    'tray-icon-blue.png',
+    'tray-icon-blue@1.25x.png',
+    'tray-icon-blue@1.5x.png',
+    'tray-icon-blue@2x.png',
+  ]) {
+    rmSync(resolve(desktopBuildRoot, filename), { force: true })
+  }
+}
 
 if (!verifyMacRelease.includes(upstreamProductName)) {
   throw new Error('configure-product: cannot locate macOS release product name')
@@ -123,4 +189,5 @@ writeFileSync(
     '  // TokensHarness product assembly owns the release quality gates before packaging.\n',
   ),
 )
+applyProductLogo()
 process.stdout.write(`configure-product: ${product.name} ${product.version} (${product.appId})\n`)
