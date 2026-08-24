@@ -16,7 +16,7 @@
  * 里恰恰是不可信的那一环，卸载完成与否一律以文件系统为准。
  *
  * 卸载默认保留用户数据，要清除得显式加 --purge-data。这与打包侧一致：
- * build/configure-product.mjs 不写 deleteAppDataOnUninstall，两处校验脚本还会
+ * build/assembly/configure.mjs 不写 deleteAppDataOnUninstall，两处校验脚本还会
  * 拦下它变回 true——那是个编译期开关，一旦打进安装包，运行期再也关不掉。
  */
 

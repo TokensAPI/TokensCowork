@@ -9,17 +9,17 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "product:check": "node build/verify-layout.mjs",
-    "product:prepare": "node build/fetch-product-plugin-artifacts.mjs && node build/prepare-desktop.mjs",
-    "product:refresh-lock": "node build/refresh-lock.mjs",
+    "product:check": "node build/verify/layout.mjs",
+    "product:prepare": "node build/plugins/fetch-artifacts.mjs && node build/assembly/prepare.mjs",
+    "product:refresh-lock": "node build/assembly/refresh-lock.mjs",
     "product:version-check": "bash scripts/set-version.sh --check",
     "test:release-notes": "node --test scripts/validate-release-notes.test.mjs",
     "product:check-desktop": "node build/build-desktop.mjs check",
     "product:dist:win": "node build/build-desktop.mjs win",
     "product:dist:mac": "node build/build-desktop.mjs mac",
     "product:dist:mac-unsigned": "node build/build-desktop.mjs mac-unsigned",
-    "product:dist:mac:auto": "node build/build-mac-auto.mjs",
-    "test:mac-signing": "node --test build/mac-signing-mode.test.mjs",
+    "product:dist:mac:auto": "node build/macos/auto.mjs",
+    "test:mac-signing": "node --test build/macos/signing-mode.test.mjs",
     "test:uninstall": "node --test scripts/uninstall-windows.test.mjs",
     "product:uninstall:win": "node scripts/uninstall-windows.mjs"
   }

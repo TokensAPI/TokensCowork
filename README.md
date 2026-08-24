@@ -46,7 +46,7 @@ corepack yarn product:dist:mac:auto
 
 保留用户数据是产品约定，两头都得守住：构建侧不设
 `nsis.deleteAppDataOnUninstall`，因为它是**编译期**开关，写进安装包后运行期
-再也关不掉；`build/verify-product-branding.mjs` 和 `build/verify-package.mjs` 会拦下它变回
+再也关不掉；`build/verify/branding.mjs` 和 `build/verify/package.mjs` 会拦下它变回
 `true`。运行侧则靠不传 `--delete-app-data`。注意卸载器只解析这个参数，
 electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里根本没有解析分支，
 写了也不会生效。

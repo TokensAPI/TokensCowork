@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const desktopPackageRoot = resolve(stage, 'dsh-plugin-desktop')
 const pluginsRoot = resolve(desktopPackageRoot, 'product-plugins')

@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
-import { selectMacSigningMode } from './mac-signing-mode.mjs'
+import { selectMacSigningMode } from './signing-mode.mjs'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const signingMode = selectMacSigningMode(process.env)
 const buildMode = signingMode === 'signed' ? 'mac' : 'mac-unsigned'
 

@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { resolve } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const buildRoot = resolve(root, '.build')
 const artifactsRoot = resolve(buildRoot, 'product-plugin-artifacts')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))

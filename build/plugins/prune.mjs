@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const pluginsRoot = resolve(stage, 'dsh-plugin-desktop', 'product-plugins')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))

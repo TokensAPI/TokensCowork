@@ -7,7 +7,7 @@ import { basename, relative, resolve, sep } from 'node:path'
  * 读出的产品清单和默认启用的插件列表。
  * ==================================================================== */
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const stageRoot = resolve(root, '.build')
 const stage = resolve(stageRoot, 'desktop')
 const desktopSource = resolve(root, 'desktop')
@@ -194,7 +194,7 @@ assertGeneratedPath(stage)
 if (existsSync(stage)) rmSync(stage, { recursive: true, force: true })
 copySource(desktopSource, stage)
 cpSync(
-  resolve(root, 'build', 'mac-unsigned-after-pack.ts'),
+  resolve(root, 'build', 'macos', 'unsigned-after-pack.ts'),
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
 

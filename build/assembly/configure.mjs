@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
 const desktopPackagePath = resolve(root, '.build', 'desktop', 'dsh-plugin-desktop', 'package.json')
 const verifyMacReleasePath = resolve(

@@ -48,7 +48,7 @@ pnpm dsh web --patch ./scratch-plugin/cordis.yml
 
 补丁是分层应用的：bundle 层 → profile 层 → 用户层，后者可以按 `id` 覆盖前者的
 `config` 或加 `disabled: true` 停用。本产品停用上游 desktop-updates 插件用的就是这机制
-（见 `build/prepare-desktop.mjs`）。
+（见 `build/assembly/prepare.mjs`）。
 
 ## 第 3 课：三个必学的 ctx 惯用法
 
@@ -133,7 +133,7 @@ export function apply(ctx) {
 
 - 第三方插件**只能**依赖 `desktopProfiles` 和 `desktopPnpm` 两个公开桌面服务
 - `desktopRuntime`（本产品 version-updates 插件在用）属于**内部接口**，官方不保证兼容。
-  产品自有插件可以用，但要配锚点校验防上游变动（参考 `build/prepare-desktop.mjs` 的做法）
+  产品自有插件可以用，但要配锚点校验防上游变动（参考 `build/assembly/prepare.mjs` 的做法）
 - 想同时兼容 web 和 desktop：别把桌面服务放顶层 `inject`，
   用 `ctx.get('desktopProfiles')` 动态探测，探测不到走普通 DSH 路径
 
