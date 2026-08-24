@@ -67,59 +67,9 @@ jobs:
             printf 'prerelease=false\n' >> "${GITHUB_OUTPUT}"
           fi
 
-  verify:
-    name: Verify pinned product layout
-    needs: metadata
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Check out all pinned sources
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          submodules: recursive
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.23.2
-
-      - name: Verify superproject pins and version
-        run: corepack yarn product:check
-
-  quality:
-    name: Verify complete desktop product
-    needs: [metadata, verify]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - name: Check out all pinned sources
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          submodules: recursive
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.23.2
-
-      - name: Restore build caches
-        uses: actions/cache@v5
-        continue-on-error: true
-        with:
-          path: |
-            ~/.yarn/berry/cache
-            ~/.cache/electron
-            ~/.cache/electron-builder
-          key: desktop-quality-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
-
-      - name: Run complete product quality gate
-        run: corepack yarn product:check-desktop
-
   windows-amd64:
-    name: Build Windows amd64 installer
-    needs: [metadata, verify]
+    name: Verify product and build Windows amd64 installer
+    needs: metadata
     runs-on: windows-2022
     timeout-minutes: 90
     steps:
@@ -147,7 +97,7 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
 
-      - name: Build unsigned Windows installer
+      - name: Run complete product gates and build unsigned Windows installer
         run: corepack yarn product:dist:win
 
       - name: Smoke test Windows installer
@@ -206,7 +156,7 @@ jobs:
 
   macos:
     name: Build macOS ${{ matrix.arch }} DMG
-    needs: [metadata, verify]
+    needs: metadata
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -324,7 +274,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub Release
-    needs: [metadata, quality, windows-amd64, macos]
+    needs: [metadata, windows-amd64, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -424,7 +374,7 @@ jobs:
   summary:
     name: Publish build summary
     if: always()
-    needs: [metadata, verify, quality, windows-amd64, macos]
+    needs: [metadata, windows-amd64, macos]
     runs-on: ubuntu-24.04
     steps:
       - name: Write job summary
@@ -435,9 +385,7 @@ jobs:
             echo
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'
-            echo '| Product layout | `${{ needs.verify.result }}` | — |'
-            echo '| Complete product quality | `${{ needs.quality.result }}` | — |'
-            echo '| Windows amd64 | `${{ needs.windows-amd64.result }}` | `desktop-windows-amd64-${{ needs.metadata.outputs.version }}` |'
+            echo '| Product quality + Windows amd64 | `${{ needs.windows-amd64.result }}` | `desktop-windows-amd64-${{ needs.metadata.outputs.version }}` |'
             echo '| macOS arm64 + amd64 | `${{ needs.macos.result }}` | `desktop-macos-{arm64,amd64}-${{ needs.metadata.outputs.version }}` |'
             echo
             echo 'macOS uses Developer ID signing and notarization when the complete secret set exists; otherwise it uses ad-hoc signing. BUILD-INFO files record the selected mode.'

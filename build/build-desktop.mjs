@@ -165,12 +165,28 @@ if (mode === 'check') {
     'WIN_CSC_KEY_PASSWORD',
     'WIN_CSC_LINK',
   ]) delete unsignedEnvironment[key]
-  // 先在未改写的上游工作区执行 Windows 安装包测试；这些测试会验收
-  // DSH Desktop 的原始版本和应用标识。通过后再注入 TokensHarness 品牌并重新编译，
-  // 避免把产品版本误报为上游回归。
-  run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'build'], stage, unsignedEnvironment)
+  // Windows 发布任务复用同一份 staging 承担完整产品门禁，避免 CI 先在 Linux
+  // 从零装配一次、随后又在 Windows 重复安装和构建。Fabric 与 Market 完整检查
+  // 不依赖产品品牌，因此先与上游 Windows 安装包测试一起执行。
+  run('corepack', ['yarn', 'workspace', 'dsh-community-fabric', 'check'], stage, unsignedEnvironment)
+  run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'check'], stage, unsignedEnvironment)
+
+  // Windows 专项测试会验收 DSH Desktop 的原始版本和应用标识。通过后再注入
+  // TokensHarness 品牌并重新编译，避免把正常的产品改写误报为上游回归。
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
-  configureBuildAndVerifyProduct(unsignedEnvironment, 'windows')
+  configureProduct(unsignedEnvironment, 'windows')
+  // Market 已由上面的完整检查生成，产品配置也不会修改 Market 源码；这里只重编
+  // 被品牌与 Logo 改写的 Desktop，避免在同一 staging 中重复构建 Market。
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage, unsignedEnvironment)
+  verifyProductBranding(unsignedEnvironment)
+
+  // 产品品牌会改写 TypeScript 与客户端 Logo 源码，因此在最终产品编译后保留
+  // 类型、CLI、Loader 和 Profile 门禁。依赖闭包已由 check:win-package 验收，
+  // 最终物理运行时还会由 Electron Builder afterPack 与 verify-package 再次检查。
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage, unsignedEnvironment)
+  for (const script of ['verify:cli', 'verify:loader', 'verify:profile']) {
+    run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', script], stage, unsignedEnvironment)
+  }
   run('corepack', [
     'yarn',
     'workspace',

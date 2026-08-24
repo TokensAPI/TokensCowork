@@ -48,10 +48,11 @@ verify/layout
 
 - `check`：检查 Fabric 和 Market，配置产品，编译 Desktop，运行类型、闭包、CLI、
   Loader、Profile 和品牌门禁；不生成安装包。
-- `win`：先按上游身份运行 Windows 专项包测试，再注入 TokensHarness 品牌并
-  重新编译，最后生成和检查 unsigned NSIS 安装包。x64 产物只排除其他 CPU 的
-  原生二进制，以及 `node_modules` 中不参与运行的 source map 和 TypeScript 声明；
-  JavaScript 运行时、CLI、Worker、插件与 Profile 物理文件树保持完整。
+- `win`：在同一份 staging 中运行 Fabric、Market 和 Desktop 完整产品门禁，
+  再按上游身份运行 Windows 专项包测试，注入 TokensHarness 品牌并重新编译，
+  最后生成和检查 unsigned NSIS 安装包。x64 产物只排除其他 CPU 的原生二进制，
+  以及 `node_modules` 中不参与运行的 source map 和 TypeScript 声明；JavaScript
+  运行时、CLI、Worker、插件与 Profile 物理文件树保持完整。
 - `mac-unsigned`：在目标架构原生 macOS runner 上生成 ad-hoc 签名 DMG。
 - `mac`：使用完整 Developer ID 和 Apple 凭据执行签名及公证发布。
 
@@ -69,7 +70,7 @@ product:check             只检查版本、Git pin 和产品声明
 product:prepare           只重建 staging，不安装依赖
 product:refresh-lock      依赖图变化时更新产品锁文件
 product:check-desktop     干净装配并运行完整产品检查，不生成安装包
-product:dist:win          生成本地 Windows 安装包
+product:dist:win          完整验收产品并生成 Windows 安装包
 product:dist:mac:auto     生成本地 macOS 安装包
 ```
 
@@ -77,6 +78,11 @@ product:dist:mac:auto     生成本地 macOS 安装包
 本机通常只运行 `product:check`；发布前需要完整验证时运行一次
 `product:check-desktop`。不要在完整命令前手动重复执行 `product:prepare`，因为
 `build-desktop.mjs` 会重新进行干净装配。
+
+GitHub 的 Windows 发布任务在生成安装包的同一份 staging 中承担产品布局和完整
+质量门禁，不再先创建独立的 Linux 校验或 Desktop staging。两个 macOS 架构仍
+必须在对应原生 runner 上分别构建，但它们与 Windows 同属一次 `Build Desktop`
+工作流。
 
 ## 修改规则
 
