@@ -19,7 +19,7 @@
 [submodule "tokens-at-file"]
 	path = plugins/tokens_DshAtFile_code
 	url = https://github.com/TokensAPI/tokens_DshAtFile_code.git
-[submodule "plugins/tokens_DshWebSearch_code"]
+[submodule "tokens-dsh-web-search"]
 	path = plugins/tokens_DshWebSearch_code
 	url = https://github.com/sobermh/tokens_DshWebSearch_code.git
 [submodule "tokens-browser-use"]
