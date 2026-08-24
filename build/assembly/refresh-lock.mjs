@@ -2,7 +2,7 @@ import { copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 
 function run(command, args, cwd, env = process.env) {
@@ -27,8 +27,8 @@ const refreshEnvironment = {
   ...process.env,
   PRODUCT_REFRESH_LOCK: '1',
 }
-run(process.execPath, [resolve(root, 'build', 'fetch-product-plugin-artifacts.mjs')], root, refreshEnvironment)
-run(process.execPath, [resolve(root, 'build', 'prepare-desktop.mjs')], root, refreshEnvironment)
+run(process.execPath, [resolve(root, 'build', 'plugins', 'fetch-artifacts.mjs')], root, refreshEnvironment)
+run(process.execPath, [resolve(root, 'build', 'assembly', 'prepare.mjs')], root, refreshEnvironment)
 run('corepack', ['yarn', 'install'], stage)
 copyFileSync(resolve(stage, 'yarn.lock'), resolve(root, 'build', 'product.yarn.lock'))
 process.stdout.write('refresh-lock: wrote build/product.yarn.lock\n')

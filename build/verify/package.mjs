@@ -1,7 +1,7 @@
 import { closeSync, openSync, readFileSync, readdirSync, readSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const desktopRoot = resolve(stage, 'dsh-plugin-desktop')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product

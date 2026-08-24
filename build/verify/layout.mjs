@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 
-const root = resolve(import.meta.dirname, '..')
+const root = resolve(import.meta.dirname, '..', '..')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const packageManifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 const canonicalVersion = readFileSync(resolve(root, 'VERSION'), 'utf8').trim()
