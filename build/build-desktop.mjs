@@ -156,7 +156,13 @@ if (mode === 'check') {
   if (process.platform !== 'win32' || process.arch !== 'x64') {
     throw new Error('Windows installer packaging requires native Windows x64 Node')
   }
-  const unsignedEnvironment = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+  const unsignedEnvironment = {
+    ...process.env,
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+    // Market 与 Desktop 测试会并发创建大量 Windows 文件；限制 worker 可避免
+    // NTFS/Defender 负载下偶发的子进程启动超时，调用方仍可显式覆盖。
+    VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS ?? '2',
+  }
   // 当前 Windows 产品只生成未签名安装包；清除所有可能触发自动签名的变量。
   for (const key of [
     'CSC_KEY_PASSWORD',
@@ -204,7 +210,8 @@ if (mode === 'check') {
   run(process.execPath, [resolve(root, 'build', 'verify', 'package.mjs'), 'windows'], root)
 } else {
   /* ----------------------- 正式 macOS 安装包 ----------------------- */
-  // 通用质量门禁由独立任务负责；产品配置会移除上游发布脚本中的重复 check。
+  // 通用质量门禁由同一次工作流的 Windows 任务负责；产品配置会移除上游
+  // macOS 发布脚本中的重复 check，发布任务会等待全部平台构建通过。
   assertNativeMacArchitecture()
   configureBuildAndVerifyProduct(buildEnvironment)
   run(
