@@ -62,9 +62,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "f3d9cfc74fa3bf0c1aa1755e6ae4d917bade49ca",
+      "commit": "d86d2f83fdbd66ace8cb713ffcf4d7a137a1d3c2",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
