@@ -9,7 +9,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
 const stageRoot = resolve(root, '.build')
-const stage = resolve(stageRoot, 'desktop')
+const stage = resolve(stageRoot, process.env.PRODUCT_REFRESH_LOCK === '1' ? 'refresh-lock' : 'desktop')
 const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
