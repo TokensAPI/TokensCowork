@@ -62,7 +62,7 @@
       "commit": "74d8e8f8778b6deefb4c001a7a617f22d24e5b4b",
       "package": "@tokens/dsh-connect-ui",
       "version": "0.1.0",
-      "enabledByDefault": true,
+      "enabledByDefault": false,
       "patch": "cordis.patch.yml",
       "runtimeBuild": {
         "script": "build",
@@ -102,7 +102,7 @@
       "description": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "path": "plugins/tokens_DshWebSearch_code",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
-      "commit": "78fd73980537221ece8bba269518f7cd1e515175",
+      "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
       "package": "tokens-dsh-web-search",
       "version": "0.1.0",
       "enabledByDefault": true,

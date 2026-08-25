@@ -100,6 +100,13 @@ if (!packagedRuntimeClosure.includes(product.name)
 if (forbiddenMetadata.length !== 0) {
   throw new Error(`packaged Windows runtime retains non-runtime metadata: ${forbiddenMetadata[0]}`)
 }
+// NSIS 的 nsisunz.dll 不支持 UTF-8 zip 条目：产物中任何非 ASCII 文件名
+// 都会在用户安装时按 OEM 代码页乱解，报 Failed to decompress files
+//（v0.3.7 事故：web-search 插件携带中文名 .cmd）。在此失败关闭。
+const nonAsciiRuntimeFiles = packagedRuntimeFiles.filter(path => [...path].some(ch => ch.charCodeAt(0) > 127))
+if (nonAsciiRuntimeFiles.length !== 0) {
+  throw new Error(`packaged Windows runtime contains non-ASCII file names the installer cannot extract: ${nonAsciiRuntimeFiles[0]}`)
+}
 for (const path of requiredWindowsX64Runtime) {
   if (!existsSync(resolve(unpackedResources, path))) {
     throw new Error(`packaged Windows x64 runtime is missing required native files: ${path}`)
