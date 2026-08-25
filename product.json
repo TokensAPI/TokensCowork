@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.3.9"
+    "version": "0.3.10"
   },
   "desktop": {
     "path": "desktop",
