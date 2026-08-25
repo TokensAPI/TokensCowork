@@ -1,6 +1,6 @@
 {
   "name": "tokens-tokensharness-code",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "description": "Pinned superproject for assembling and releasing a DSH Desktop product",
   "license": "MIT",
