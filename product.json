@@ -54,6 +54,24 @@
       }
     },
     {
+      "id": "dsh-tokensapi-ui",
+      "displayName": "Tokens Cowork UI",
+      "description": "为 Tokens Cowork 提供品牌视觉、主题皮肤、技能入口和侧栏界面扩展。",
+      "path": "plugins/dsh-tokensapi-ui",
+      "repository": "https://github.com/TokensAPI/dsh-tokensapi-ui.git",
+      "commit": "312889c4f44e6bcb7a78aca9031b3ef5d0ab6a60",
+      "package": "dsh-tokensapi-ui",
+      "version": "0.2.8",
+      "enabledByDefault": false,
+      "patch": "cordis.patch.yml",
+      "artifact": {
+        "type": "npm-tgz",
+        "url": "https://github.com/TokensAPI/dsh-tokensapi-ui/releases/download/v0.2.8/dsh-tokensapi-ui-0.2.8.tgz",
+        "sha256": "8cc81940b565fee38ed837fc704b46f1d088715d065886e70363c5fca66d47a5"
+      },
+      "runtimeDependencies": {}
+    },
+    {
       "id": "tokens-model-manager",
       "displayName": "TokensAPI 模型",
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
