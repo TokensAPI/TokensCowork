@@ -4477,13 +4477,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fontsource-variable/albert-sans@npm:5.2.8":
-  version: 5.2.8
-  resolution: "@fontsource-variable/albert-sans@npm:5.2.8"
-  checksum: 10c0/600c502ffd613153670f9d20b6b6d4745d661830da44d5ab8c63b41fe4f21d428c5032ac6252d9d1c76f2520642c1ba7e8e587f9211b34c0eef84fecb353be7c
-  languageName: node
-  linkType: hard
-
 "@google/genai@npm:1.52.0":
   version: 1.52.0
   resolution: "@google/genai@npm:1.52.0"
@@ -7675,8 +7668,6 @@ __metadata:
 "dsh-tokensapi-ui@workspace:*, dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui":
   version: 0.0.0-use.local
   resolution: "dsh-tokensapi-ui@workspace:dsh-plugin-desktop/product-plugins/dsh-tokensapi-ui"
-  dependencies:
-    "@fontsource-variable/albert-sans": "npm:5.2.8"
   peerDependencies:
     "@deepseek-ai/cordis": ^4.0.1
     "@deepseek-ai/dsh-agent": 0.1.1-rc.2
