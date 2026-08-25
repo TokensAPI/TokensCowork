@@ -22,12 +22,15 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** 产品在 HKCU 卸载表中的键名，由 electron-builder 按 appId 生成。 */
-export const UNINSTALL_REGISTRY_KEY
-  = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\com.tokensapi.tokensharness'
+/** electron-builder 将 appId 映射为 GUID 键，因此按产品记录发现而不是猜测键名。 */
+export const UNINSTALL_REGISTRY_ROOT
+  = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
+
+const PRODUCT_NAME = 'TokensHarness'
+const UNINSTALLER_NAME = `Uninstall ${PRODUCT_NAME}.exe`
 
 /** 允许卸载器占用的时长上限，超时按失败处理而不是无限等待。 */
 const UNINSTALL_TIMEOUT_MS = 5 * 60 * 1000
@@ -76,6 +79,46 @@ export function isUninstallComplete(remainingEntries, directoryExists) {
   return remainingEntries.every(entry => /^Uninstall.*\.exe$/iu.test(entry))
 }
 
+/**
+ * 从注册表 UninstallString 中取出真正的卸载器路径，忽略 `/currentuser` 等参数。
+ *
+ * @param {string} uninstallString Windows 卸载命令行。
+ * @returns {string} 卸载器绝对路径。
+ */
+export function parseUninstallExecutable(uninstallString) {
+  if (typeof uninstallString !== 'string' || uninstallString.trim() === '') {
+    throw new Error('uninstall-windows: uninstall command is required')
+  }
+  const command = uninstallString.trim()
+  if (command.startsWith('"')) {
+    const closingQuote = command.indexOf('"', 1)
+    if (closingQuote === -1) {
+      throw new Error('uninstall-windows: uninstall command has an unmatched quote')
+    }
+    return command.slice(1, closingQuote)
+  }
+  const executableEnd = command.toLocaleLowerCase('en-US').indexOf('.exe')
+  if (executableEnd === -1) {
+    throw new Error('uninstall-windows: uninstall command has no executable')
+  }
+  return command.slice(0, executableEnd + 4)
+}
+
+/**
+ * 规范化注册表记录；InstallLocation 缺失时从卸载器所在目录推导。
+ *
+ * @param {{ InstallLocation?: unknown, UninstallString?: unknown }} record 注册表记录。
+ * @returns {{ installLocation: string, uninstallString: string }} 可执行卸载信息。
+ */
+export function normalizeInstallInfo(record) {
+  const uninstallString = parseUninstallExecutable(record?.UninstallString)
+  const configuredLocation = typeof record?.InstallLocation === 'string'
+    ? record.InstallLocation.trim()
+    : ''
+  const installLocation = configuredLocation === '' ? dirname(uninstallString) : configuredLocation
+  return { installLocation: resolve(installLocation), uninstallString }
+}
+
 /* ====================================================================
  * 注册表查询
  * ==================================================================== */
@@ -90,9 +133,24 @@ export function isUninstallComplete(remainingEntries, directoryExists) {
 function readInstallInfo() {
   const script = `
     $ErrorActionPreference = 'Stop'
-    if (-not (Test-Path '${UNINSTALL_REGISTRY_KEY}')) { exit 3 }
-    $k = Get-ItemProperty '${UNINSTALL_REGISTRY_KEY}'
-    [Console]::Out.Write(($k.InstallLocation, $k.UninstallString) -join "\`n")
+    $records = @(
+      Get-ChildItem '${UNINSTALL_REGISTRY_ROOT}' | ForEach-Object {
+        $entry = Get-ItemProperty $_.PSPath
+        if ($entry.DisplayName -like '${PRODUCT_NAME}*' -and $entry.UninstallString -like '*${UNINSTALLER_NAME}*') {
+          [PSCustomObject]@{
+            InstallLocation = [string]$entry.InstallLocation
+            UninstallString = [string]$entry.UninstallString
+            RegistryKey = $_.PSChildName
+          }
+        }
+      }
+    )
+    if ($records.Count -eq 0) { exit 3 }
+    if ($records.Count -ne 1) {
+      [Console]::Error.Write("发现 $($records.Count) 条 ${PRODUCT_NAME} 卸载记录")
+      exit 4
+    }
+    [Console]::Out.Write(($records[0] | ConvertTo-Json -Compress))
   `
   const result = spawnSync(
     'powershell.exe',
@@ -103,10 +161,7 @@ function readInstallInfo() {
   if (result.status !== 0) {
     throw new Error(`uninstall-windows: registry query failed: ${result.stderr.trim()}`)
   }
-  const [installLocation, uninstallString] = result.stdout.split('\n').map(line => line.trim())
-  if (!installLocation || !uninstallString) return null
-  // UninstallString 带引号，execFile 要的是裸路径。
-  return { installLocation, uninstallString: uninstallString.replace(/^"|"$/gu, '') }
+  return normalizeInstallInfo(JSON.parse(result.stdout))
 }
 
 /* ====================================================================

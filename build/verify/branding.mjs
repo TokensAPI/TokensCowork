@@ -39,6 +39,9 @@ if (desktopPackage.build?.productName !== product.name) {
 if (desktopPackage.build?.nsis?.shortcutName !== product.name) {
   throw new Error('verify-product-branding: NSIS product configuration is incomplete')
 }
+if (desktopPackage.build?.nsis?.include !== 'build/tokensharness-upgrade-guard.nsh') {
+  throw new Error('verify-product-branding: NSIS upgrade guard is not configured')
+}
 // 卸载默认保留用户数据，而 deleteAppDataOnUninstall 是编译期开关，
 // 写进安装包后运行期无法撤销，因此这里不允许它为真。
 if (desktopPackage.build?.nsis?.deleteAppDataOnUninstall === true) {
@@ -50,6 +53,7 @@ const indexSource = read('src/index.ts')
 const mainRuntime = read('lib/main.js')
 const desktopRuntimeClosure = readRuntimeClosure()
 const assistedMessages = read('build/assistedMessages.yml')
+const windowsUpgradeGuard = read('build/tokensharness-upgrade-guard.nsh')
 
 for (const [content, label] of [
   [mainSource, 'main source'],
@@ -70,6 +74,9 @@ for (const [content, label] of [
 
 requireText(assistedMessages, product.name, 'assisted installer messages')
 rejectText(assistedMessages, 'DSH Desktop', 'assisted installer messages')
+requireText(windowsUpgradeGuard, 'customUnInstallCheck', 'Windows installer upgrade guard')
+requireText(windowsUpgradeGuard, 'customRemoveFiles', 'Windows uninstaller upgrade guard')
+requireText(windowsUpgradeGuard, 'SetErrorLevel 2', 'Windows installer failure handling')
 
 process.stdout.write(
   `verify-product-branding: ${product.name} (${product.appId}) runtime and installer branding passed\n`,

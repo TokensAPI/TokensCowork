@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { buildUninstallArguments, isUninstallComplete } from './uninstall-windows.mjs'
+import {
+  buildUninstallArguments,
+  isUninstallComplete,
+  normalizeInstallInfo,
+  parseUninstallExecutable,
+} from './uninstall-windows.mjs'
 
 /* --------------------- _?= 的两条硬约束 --------------------- */
 
@@ -48,6 +54,45 @@ test('rejects an empty or non-string install directory', () => {
   }
 })
 
+/* ------------------ 注册表记录与卸载命令解析 ------------------ */
+
+test('extracts the quoted uninstaller path and ignores registry arguments', () => {
+  assert.equal(
+    parseUninstallExecutable('"C:\\Users\\tester\\AppData\\Local\\Programs\\TokensHarness\\Uninstall TokensHarness.exe" /currentuser'),
+    'C:\\Users\\tester\\AppData\\Local\\Programs\\TokensHarness\\Uninstall TokensHarness.exe',
+  )
+})
+
+test('extracts an unquoted executable without retaining arguments', () => {
+  assert.equal(
+    parseUninstallExecutable('C:\\Tools\\uninstall.exe /S'),
+    'C:\\Tools\\uninstall.exe',
+  )
+})
+
+test('derives the install directory when electron-builder omits InstallLocation', () => {
+  assert.deepEqual(
+    normalizeInstallInfo({
+      InstallLocation: '',
+      UninstallString: '"C:\\Users\\tester\\AppData\\Local\\Programs\\TokensHarness\\Uninstall TokensHarness.exe" /currentuser',
+    }),
+    {
+      installLocation: resolve('C:\\Users\\tester\\AppData\\Local\\Programs\\TokensHarness'),
+      uninstallString: 'C:\\Users\\tester\\AppData\\Local\\Programs\\TokensHarness\\Uninstall TokensHarness.exe',
+    },
+  )
+})
+
+test('prefers a populated InstallLocation from the registry', () => {
+  assert.equal(
+    normalizeInstallInfo({
+      InstallLocation: 'C:\\Apps\\TokensHarness',
+      UninstallString: '"C:\\Elsewhere\\Uninstall TokensHarness.exe" /currentuser',
+    }).installLocation,
+    resolve('C:\\Apps\\TokensHarness'),
+  )
+})
+
 /* ------------- 成功判定：只信文件系统，不信退出码 ------------- */
 
 test('treats a removed directory as a completed uninstall', () => {
@@ -68,4 +113,23 @@ test('rejects a directory where the application files survived', () => {
 test('rejects a directory holding a lookalike that is not the uninstaller', () => {
   assert.equal(isUninstallComplete(['Uninstall TokensHarness.exe.bak'], true), false)
   assert.equal(isUninstallComplete(['NotUninstall.exe'], true), false)
+})
+
+/* ---------------------- NSIS 覆盖升级保护 ---------------------- */
+
+const upgradeGuard = readFileSync(
+  resolve(import.meta.dirname, '..', 'build', 'assembly', 'assets', 'windows', 'upgrade-guard.nsh'),
+  'utf8',
+)
+
+test('makes a failed updated uninstall return a non-zero exit code', () => {
+  assert.match(upgradeGuard, /!macro customRemoveFiles/u)
+  assert.match(upgradeGuard, /SetErrorLevel 2/u)
+  assert.match(upgradeGuard, /Call un\.restoreFiles/u)
+})
+
+test('blocks installation when the previous directory survived uninstall', () => {
+  assert.match(upgradeGuard, /!macro customUnInstallCheck/u)
+  assert.match(upgradeGuard, /\$installationDir\\\*\.\*/u)
+  assert.match(upgradeGuard, /Quit/u)
 })

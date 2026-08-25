@@ -40,7 +40,8 @@ build/
 ```
 
 - Windows 在同一份 staging 中完成 Fabric、Market、Desktop、CLI、Loader、
-  Profile、最终运行时和安装 smoke 验收，然后生成 unsigned NSIS x64 安装包。
+  Profile 和最终运行时验收，然后生成 unsigned NSIS x64 安装包。安装 smoke
+  使用上一稳定版模拟占用文件，确认失败升级不污染旧版、解除占用后可自动升级。
 - macOS 两个架构在各自原生 runner 上构建，验证架构、签名、公证状态和 DMG。
 - 发布任务只汇总安装包、SHA256、插件清单和 BUILD-INFO，不重新构建产品。
 

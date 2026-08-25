@@ -4,6 +4,7 @@ import { resolve, sep } from 'node:path'
 const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const productBrandRoot = resolve(import.meta.dirname, 'assets', 'brand')
+const windowsInstallerRoot = resolve(import.meta.dirname, 'assets', 'windows')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
 const packagingTarget = process.argv[2] ?? 'default'
 if (!['default', 'windows'].includes(packagingTarget)) {
@@ -49,6 +50,14 @@ const assistedMessagesPath = resolve(
   'dsh-plugin-desktop',
   'build',
   'assistedMessages.yml',
+)
+const windowsInstallerIncludePath = resolve(
+  root,
+  '.build',
+  'desktop',
+  'dsh-plugin-desktop',
+  'build',
+  'tokensharness-upgrade-guard.nsh',
 )
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 const verifyMacRelease = readFileSync(verifyMacReleasePath, 'utf8')
@@ -143,6 +152,17 @@ function applyProductLogo() {
   }
 }
 
+/** 将覆盖升级保护写进 staging，由 electron-builder 同时编译进安装器和卸载器。 */
+function applyWindowsInstallerGuard() {
+  const source = resolve(windowsInstallerRoot, 'upgrade-guard.nsh')
+  if (!existsSync(source)) {
+    throw new Error(`configure-product: Windows installer guard is missing: ${source}`)
+  }
+  assertGeneratedPath(windowsInstallerIncludePath)
+  cpSync(source, windowsInstallerIncludePath)
+  desktopPackage.build.nsis.include = 'build/tokensharness-upgrade-guard.nsh'
+}
+
 if (!verifyMacRelease.includes(upstreamProductName)) {
   throw new Error('configure-product: cannot locate macOS release product name')
 }
@@ -181,6 +201,7 @@ desktopPackage.build.nsis.customNsisResources = {
   checksum: '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103',
   version: '3.4.1',
 }
+applyWindowsInstallerGuard()
 
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(

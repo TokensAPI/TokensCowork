@@ -62,6 +62,11 @@ electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里�
 自删，安装目录需由调用方收尾。因为退出码恰恰是本缺陷中失灵的一环，脚本一律以
 文件系统状态判定成败。
 
+覆盖升级还要多守一层：新版安装器在旧卸载器返回后检查实际安装目录，残留文件存在时
+立即停止，不继续解压；新版卸载器在更新删除失败时返回非零状态。Windows Action 会从
+上一稳定版开始，模拟文件占用、安全失败和解除占用后的自动升级。卸载辅助脚本按真实
+GUID 注册记录发现产品，并在 `InstallLocation` 缺失时从 `UninstallString` 推导目录。
+
 ## 版本与发布说明
 
 `VERSION` 是唯一可编辑的产品版本源。运行 `VERSION=x.y.z bash scripts/set-version.sh` 将版本同步到 `package.json` 和 `product.json`；`bash scripts/set-version.sh --check` 校验重复元数据。

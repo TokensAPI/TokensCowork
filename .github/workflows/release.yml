@@ -98,27 +98,98 @@ jobs:
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
 
       - name: Run complete product gates and build unsigned Windows installer
-        run: corepack yarn product:dist:win
-
-      - name: Smoke test Windows installer
-        shell: pwsh
         run: |
-          $installer = Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensHarness-*-x64-Setup.exe" -File -ErrorAction Stop
+          corepack yarn test:uninstall
+          corepack yarn product:dist:win
+
+      - name: Smoke test Windows locked-file upgrade recovery
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Invoke-Installer {
+            param(
+              [Parameter(Mandatory = $true)][string]$Path,
+              [Parameter(Mandatory = $true)][string[]]$InstallerArguments
+            )
+            $process = Start-Process -FilePath $Path -ArgumentList $InstallerArguments -WindowStyle Hidden -PassThru
+            try {
+              Wait-Process -Id $process.Id -Timeout 300 -ErrorAction Stop
+            } catch {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              throw "Windows installer did not finish within five minutes: $Path"
+            }
+            return $process.ExitCode
+          }
+
+          function Assert-InstalledVersion {
+            param(
+              [Parameter(Mandatory = $true)][string]$InstallDirectory,
+              [Parameter(Mandatory = $true)][string]$ExpectedVersion
+            )
+            $executable = Join-Path $InstallDirectory "TokensHarness.exe"
+            if (-not (Test-Path -LiteralPath $executable)) {
+              throw "Installed executable is missing: $executable"
+            }
+            $actualVersion = (Get-Item -LiteralPath $executable).VersionInfo.FileVersion
+            if ($actualVersion -ne $ExpectedVersion) {
+              throw "Installed version is $actualVersion, expected $ExpectedVersion"
+            }
+          }
+
+          $currentVersion = "${{ needs.metadata.outputs.version }}"
+          $currentInstallers = @(Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensHarness-*-x64-Setup.exe" -File -ErrorAction Stop)
+          if ($currentInstallers.Count -ne 1) {
+            throw "Expected exactly one current Windows installer, found $($currentInstallers.Count)"
+          }
+
+          $previousTag = (gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq ".tag_name").Trim()
+          if ($previousTag -notmatch '^v(.+)$') {
+            throw "Latest stable release has an invalid tag: $previousTag"
+          }
+          $previousVersion = $Matches[1]
+          $previousName = "TokensHarness-$previousVersion-windows-amd64-installer.exe"
+          $previousDirectory = Join-Path $env:RUNNER_TEMP "TokensHarness-previous-stable"
+          New-Item -ItemType Directory -Path $previousDirectory -Force | Out-Null
+          gh release download $previousTag --repo $env:GITHUB_REPOSITORY --pattern $previousName --dir $previousDirectory
+          $previousInstaller = Join-Path $previousDirectory $previousName
+
           $installDir = Join-Path $env:RUNNER_TEMP "TokensHarness-install-smoke"
+          $installArguments = @("/S", "/currentuser", "/D=$installDir")
           $startedAt = Get-Date
-          $process = Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/currentuser", "/D=$installDir" -WindowStyle Hidden -PassThru
+          $previousExitCode = Invoke-Installer -Path $previousInstaller -InstallerArguments $installArguments
+          if ($previousExitCode -ne 0) {
+            throw "Previous stable installer failed with exit code $previousExitCode"
+          }
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion
+
+          # Reproduce the real failure mode: the old uninstaller cannot move one busy output file.
+          # The current installer must stop without corrupting the old installation.
+          $lockedFile = Join-Path $installDir "chrome_100_percent.pak"
+          $lock = [System.IO.File]::Open($lockedFile, "Open", "Read", "None")
           try {
-            Wait-Process -Id $process.Id -Timeout 300 -ErrorAction Stop
-          } catch {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw "Windows installer did not finish within five minutes"
+            $blockedExitCode = Invoke-Installer -Path $currentInstallers[0].FullName -InstallerArguments $installArguments
+          } finally {
+            $lock.Dispose()
           }
-          if ($process.ExitCode -ne 0 -or -not (Test-Path "$installDir/TokensHarness.exe")) {
-            throw "Windows installer smoke test failed with exit code $($process.ExitCode)"
+          if ($blockedExitCode -eq 0) {
+            throw "Locked-file upgrade incorrectly reported success"
           }
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion
+
+          # Once the file is released, the installer must automatically uninstall the old version
+          # and complete the upgrade without requiring a manual directory cleanup.
+          $upgradeExitCode = Invoke-Installer -Path $currentInstallers[0].FullName -InstallerArguments $installArguments
+          if ($upgradeExitCode -ne 0) {
+            throw "Windows upgrade smoke failed with exit code $upgradeExitCode"
+          }
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $currentVersion
+
           $elapsed = (Get-Date) - $startedAt
           $installedFiles = @(Get-ChildItem -LiteralPath $installDir -File -Recurse).Count
-          Write-Host "Windows installer smoke: $installedFiles files in $([math]::Round($elapsed.TotalSeconds, 1)) seconds"
+          Write-Host "Windows upgrade smoke: $previousVersion -> $currentVersion, $installedFiles files in $([math]::Round($elapsed.TotalSeconds, 1)) seconds"
 
       - name: Prepare Windows release files
         shell: pwsh
