@@ -287,6 +287,7 @@ writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
 // TokensHarness 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
 // 验收产品更新入口；纯净产品没有替代插件时，验收所有更新入口均已隐藏。
 desktopPatch = disableUpstreamUpdates(desktopPatch)
+desktopPatch += '\n\n- id: ui-brand-official\n  disabled: true'
 if (hasProductUpdatePlugin) {
   profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
 } else {
