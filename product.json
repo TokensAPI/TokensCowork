@@ -59,15 +59,15 @@
       "description": "为 Tokens Cowork 提供品牌视觉、主题皮肤、技能入口和侧栏界面扩展。",
       "path": "plugins/dsh-tokensapi-ui",
       "repository": "https://github.com/TokensAPI/dsh-tokensapi-ui.git",
-      "commit": "7dbbfa275a9cbe616c625bf24dd3752f9397deca",
+      "commit": "286d6063129b100a9fa24d166984d93b3f720abc",
       "package": "dsh-tokensapi-ui",
-      "version": "0.2.6",
+      "version": "0.2.5",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "artifact": {
         "type": "npm-tgz",
-        "url": "https://github.com/TokensAPI/dsh-tokensapi-ui/releases/download/v0.2.6/dsh-tokensapi-ui-0.2.6.tgz",
-        "sha256": "249e96f54d03774169fb400e2f67819e49ec421d45339c337c0a52ba2769a58d"
+        "url": "https://github.com/TokensAPI/dsh-tokensapi-ui/releases/download/v0.2.5/dsh-tokensapi-ui-0.2.5.tgz",
+        "sha256": "dca95f0194be30f4106673aa847a045c2b487cd4c9e88f29504050decccee754"
       },
       "runtimeDependencies": {}
     },
