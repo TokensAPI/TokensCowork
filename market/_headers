@@ -1,0 +1,4 @@
+/v1/plugins
+  Content-Type: application/json; charset=utf-8
+/source.json
+  Content-Type: application/json; charset=utf-8

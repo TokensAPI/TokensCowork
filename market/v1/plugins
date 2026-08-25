@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "1.0.0",
+  "items": [
+    {
+      "id": "tokens-version-updates",
+      "name": "@tokens/dsh-version-updates",
+      "displayName": "TokensHarness 更新",
+      "summary": "从 TokensHarness GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
+      "homepage": "https://github.com/sobermh/tokens_DshVersionUpdates_code",
+      "latestVersion": "0.1.0",
+      "repository": {
+        "url": "https://github.com/sobermh/tokens_DshVersionUpdates_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    },
+    {
+      "id": "tokens-feishu-connect",
+      "name": "@tokens/dsh-feishu-connect",
+      "displayName": "飞书连接",
+      "summary": "连接飞书或 Lark，支持应用创建、个人 OAuth、文档与消息工具。",
+      "homepage": "https://github.com/sobermh/tokens_DshFeishuConnect_code",
+      "latestVersion": "0.2.1",
+      "repository": {
+        "url": "https://github.com/sobermh/tokens_DshFeishuConnect_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    },
+    {
+      "id": "tokens-model-manager",
+      "name": "@tokens/dsh-model-manager",
+      "displayName": "TokensAPI 模型",
+      "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
+      "homepage": "https://github.com/TokensAPI/tokens_DshModelManager_code",
+      "latestVersion": "0.2.2",
+      "repository": {
+        "url": "https://github.com/TokensAPI/tokens_DshModelManager_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    },
+    {
+      "id": "tokens-at-file",
+      "name": "@tokens/dsh-at-file",
+      "displayName": "本地文件引用",
+      "summary": "支持选择或拖入本地文件，并将文件路径交给 Harness 使用当前会话工具读取。",
+      "homepage": "https://github.com/TokensAPI/tokens_DshAtFile_code",
+      "latestVersion": "0.1.1",
+      "repository": {
+        "url": "https://github.com/TokensAPI/tokens_DshAtFile_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    },
+    {
+      "id": "tokens-dsh-web-search",
+      "name": "tokens-dsh-web-search",
+      "displayName": "联网搜索",
+      "summary": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
+      "homepage": "https://github.com/sobermh/tokens_DshWebSearch_code",
+      "latestVersion": "0.1.0",
+      "repository": {
+        "url": "https://github.com/sobermh/tokens_DshWebSearch_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    }
+  ],
+  "page": {}
+}

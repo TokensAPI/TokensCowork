@@ -1,0 +1,22 @@
+{
+  "manifestVersion": "1.0.0",
+  "providerId": "com.tokensapi.plugins",
+  "name": "TokensAPI 插件源",
+  "description": "TokensHarness 产品自有插件的官方目录源，数据来自 product.json 插件登记。",
+  "homepage": "https://github.com/TokensAPI/tokens_TokensHarness_code",
+  "attribution": {
+    "name": "TokensAPI",
+    "url": "https://github.com/TokensAPI"
+  },
+  "transport": {
+    "kind": "https-json",
+    "endpoint": "https://tokensharness-market.pages.dev/v1/plugins",
+    "method": "GET"
+  },
+  "query": {
+    "supported": [],
+    "defaultLimit": 50,
+    "maxLimit": 50,
+    "sorts": []
+  }
+}
