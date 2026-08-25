@@ -5838,25 +5838,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@tokens/dsh-connect-ui@workspace:*, @tokens/dsh-connect-ui@workspace:dsh-plugin-desktop/product-plugins/tokens-connect-ui":
-  version: 0.0.0-use.local
-  resolution: "@tokens/dsh-connect-ui@workspace:dsh-plugin-desktop/product-plugins/tokens-connect-ui"
-  dependencies:
-    "@deepseek-ai/cordis": "npm:^4.0.1"
-    "@deepseek-ai/dsh-api-remotes": "npm:0.1.0-rc.8"
-    "@deepseek-ai/dsh-client-runtime": "npm:0.1.0-rc.8"
-    "@deepseek-ai/dsh-client-ui-settings": "npm:0.1.0-rc.8"
-    "@types/node": "npm:^22.19.7"
-    "@types/react": "npm:~18.3.1"
-    esbuild: "npm:0.28.2"
-    react: "npm:^18.3.1"
-    tsx: "npm:^4.20.6"
-    typescript: "npm:6.0.3"
-  peerDependencies:
-    "@deepseek-ai/cordis": ^4.0.1
-  languageName: unknown
-  linkType: soft
-
 "@tokens/dsh-feishu-connect@workspace:*, @tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect":
   version: 0.0.0-use.local
   resolution: "@tokens/dsh-feishu-connect@workspace:dsh-plugin-desktop/product-plugins/tokens-feishu-connect"
@@ -6091,7 +6072,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:^18, @types/react@npm:~18.3.1":
+"@types/react@npm:^18":
   version: 18.3.31
   resolution: "@types/react@npm:18.3.31"
   dependencies:
@@ -7655,7 +7636,6 @@ __metadata:
     "@deepseek-ai/schemastery": "npm:^3.18.1"
     "@electron/asar": "npm:3.4.1"
     "@tokens/dsh-at-file": "workspace:*"
-    "@tokens/dsh-connect-ui": "workspace:*"
     "@tokens/dsh-feishu-connect": "workspace:*"
     "@tokens/dsh-model-manager": "workspace:*"
     "@tokens/dsh-version-updates": "workspace:*"
@@ -7902,7 +7882,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:0.28.2, esbuild@npm:~0.28.0":
+"esbuild@npm:~0.28.0":
   version: 0.28.2
   resolution: "esbuild@npm:0.28.2"
   dependencies:
@@ -10716,7 +10696,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:18.3.1, react@npm:^18.2.0, react@npm:^18.3.1":
+"react@npm:18.3.1, react@npm:^18.2.0":
   version: 18.3.1
   resolution: "react@npm:18.3.1"
   dependencies:
