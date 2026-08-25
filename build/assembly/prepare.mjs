@@ -69,6 +69,60 @@ function disableUpstreamUpdates(patch) {
 }
 
 /**
+ * 为插件市场的受限 HTTP 客户端加入产品插件源主机名的 fake-IP 豁免。
+ * 上游只给自家合作源豁免了 fake-IP 代理网段（198.18.0.0/15），国内用户
+ * 常开的 fake-IP 代理会把产品源域名也解析进该保留网段，导致添加源被
+ * blocked-address 拒绝。同时上游豁免只认 IPv4：代理同时返回 IPv6 假地址
+ * （fc00::/7）时仍会失败，故豁免主机名改为仅保留能通过校验的地址。
+ * @param source - staging 副本中 restricted-http.ts 的完整内容。
+ * @param hostname - 产品插件源主机名（来自 market/source.config.json）。
+ * @returns 加入豁免后的模块内容。
+ * @throws 主机名非法或上游锚点变化时抛出，中断打包待人工复查。
+ */
+function allowMarketSourceSyntheticProxy(source, hostname) {
+  if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u.test(hostname)) {
+    throw new Error(`prepare-desktop: 市场插件源主机名不合法: ${hostname}`)
+  }
+  const clientAnchor = 'export const restrictedHttpClient: CatalogHttpClient = createRestrictedHttpClient()'
+  const lookupAnchor = `  const allowSyntheticProxyAddress = syntheticProxyHostnames.has(hostname.toLowerCase())
+  for (const entry of addresses) {
+    if (entry.family !== assertSafeAddress(entry.address, allowSyntheticProxyAddress)) {
+      throw new CatalogNetworkError('blocked-address')
+    }
+  }
+  const first = addresses[0]!
+  return { address: first.address, family: assertSafeAddress(first.address, allowSyntheticProxyAddress) }`
+  if (!source.includes(clientAnchor) || !source.includes(lookupAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场受限 HTTP 客户端锚点，请复查 fake-IP 豁免覆盖')
+  }
+  const patchedClient = 'export const restrictedHttpClient: CatalogHttpClient = createRestrictedHttpClient({\n'
+    + '  // 产品覆盖：产品插件源在 fake-IP 代理下解析进保留网段，加入豁免。\n'
+    + `  syntheticProxyHostnames: ['${hostname}'],\n`
+    + '})'
+  const patchedLookup = `  const allowSyntheticProxyAddress = syntheticProxyHostnames.has(hostname.toLowerCase())
+  // 产品覆盖：fake-IP 代理可能同时返回 IPv4 与 IPv6 假地址，而豁免网段只有
+  // IPv4（198.18.0.0/15）。豁免主机名仅保留能通过校验的地址；非豁免主机名
+  // 保持任一地址越界即拒绝的上游原语义。
+  const usable = []
+  for (const entry of addresses) {
+    if (!allowSyntheticProxyAddress) {
+      if (entry.family !== assertSafeAddress(entry.address, false)) {
+        throw new CatalogNetworkError('blocked-address')
+      }
+      usable.push(entry)
+      continue
+    }
+    try {
+      if (entry.family === assertSafeAddress(entry.address, true)) usable.push(entry)
+    } catch {}
+  }
+  const first = usable[0]
+  if (first === undefined) throw new CatalogNetworkError('blocked-address')
+  return { address: first.address, family: first.family }`
+  return source.replace(clientAnchor, patchedClient).replace(lookupAnchor, patchedLookup)
+}
+
+/**
  * 将上游启动验收改为产品更新菜单验收：旧菜单必须消失，新菜单必须存在。
  * 产品停用 desktop-updates 后，原校验会把产品插件提供的菜单误判为上游菜单。
  * @param script - staging 副本中 verify-profile-boot.mjs 的完整内容。
@@ -218,6 +272,16 @@ let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
+
+/* -------------------------- 配置插件市场 --------------------------- */
+// 产品插件源部署在 market/source.config.json 声明的 origin；为其加入
+// 市场受限 HTTP 客户端的 fake-IP 代理豁免，保证国内代理环境可添加。
+const marketSourceConfig = JSON.parse(readFileSync(resolve(root, 'market', 'source.config.json'), 'utf8'))
+const marketHttpPath = resolve(stage, 'dsh-community-market', 'src', 'network', 'restricted-http.ts')
+writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
+  readFileSync(marketHttpPath, 'utf8'),
+  new URL(marketSourceConfig.origin).hostname,
+))
 
 /* -------------------------- 配置自动更新 --------------------------- */
 // TokensHarness 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
