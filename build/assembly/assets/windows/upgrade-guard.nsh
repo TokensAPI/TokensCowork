@@ -11,9 +11,34 @@
     Quit
   ${endif}
 
-  ${if} $installationDir != ""
-    ${if} ${FileExists} "$installationDir\*.*"
-      MessageBox MB_OK|MB_ICONEXCLAMATION "$(appCannotBeClosed)$\r$\n$installationDir" /SD IDOK
+  # customUnInstallCheck is expanded before electron-builder declares its
+  # installationDir variable. Resolve the old directory again from the same
+  # registry root instead of relying on that later declaration.
+  StrCpy $R1 ""
+  !insertmacro readReg $R1 "$rootKey_uninstallResult" "${INSTALL_REGISTRY_KEY}" InstallLocation
+
+  ${if} $R1 == ""
+    StrCpy $R2 ""
+    !insertmacro readReg $R2 "$rootKey_uninstallResult" "${UNINSTALL_REGISTRY_KEY}" UninstallString
+    ${if} $R2 == ""
+      !ifdef UNINSTALL_REGISTRY_KEY_2
+        !insertmacro readReg $R2 "$rootKey_uninstallResult" "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+      !endif
+    ${endif}
+
+    ${if} $R2 != ""
+      !insertmacro GetInQuotes $R3 "$R2"
+      ${if} $R3 != ""
+        Push $R3
+        Call GetFileParent
+        Pop $R1
+      ${endif}
+    ${endif}
+  ${endif}
+
+  ${if} $R1 != ""
+    ${if} ${FileExists} "$R1\*.*"
+      MessageBox MB_OK|MB_ICONEXCLAMATION "$(appCannotBeClosed)$\r$\n$R1" /SD IDOK
       SetErrorLevel 2
       Quit
     ${endif}

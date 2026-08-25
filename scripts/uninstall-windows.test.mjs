@@ -130,6 +130,9 @@ test('makes a failed updated uninstall return a non-zero exit code', () => {
 
 test('blocks installation when the previous directory survived uninstall', () => {
   assert.match(upgradeGuard, /!macro customUnInstallCheck/u)
-  assert.match(upgradeGuard, /\$installationDir\\\*\.\*/u)
+  assert.match(upgradeGuard, /InstallLocation/u)
+  assert.match(upgradeGuard, /UninstallString/u)
+  assert.match(upgradeGuard, /\$R1\\\*\.\*/u)
+  assert.doesNotMatch(upgradeGuard, /\$installationDir/u)
   assert.match(upgradeGuard, /Quit/u)
 })
