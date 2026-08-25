@@ -244,14 +244,16 @@ for (const plugin of enabledPlugins) {
   mkdirSync(resolve(destination, '..'), { recursive: true })
   copySource(source, destination, { includeDist: true })
 
-  // Product plugins ship committed runtime artifacts. Their local build toolchains
-  // are not part of the redistributed application and make cross-platform installs
-  // slower and less deterministic (especially native esbuild helper packages).
+  // A script-built plugin keeps its declared toolchain only in staging. Pruning
+  // removes it after the plugin has produced its runtime files; prebuilt and
+  // legacy compiler inputs still avoid installing an unused local toolchain.
   const pluginPackagePath = resolve(destination, 'package.json')
   const pluginPackage = JSON.parse(readFileSync(pluginPackagePath, 'utf8'))
   pluginPackage.name = plugin.package
-  delete pluginPackage.devDependencies
-  delete pluginPackage.allowScripts
+  if (plugin.runtimeBuild?.script === undefined) {
+    delete pluginPackage.devDependencies
+    delete pluginPackage.allowScripts
+  }
 
   const workspaceEntry = relative(stage, destination).split(sep).join('/')
   if (!workspace.workspaces.includes(workspaceEntry)) workspace.workspaces.push(workspaceEntry)

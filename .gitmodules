@@ -25,3 +25,6 @@
 [submodule "tokens-browser-use"]
 	path = plugins/tokens_DshBrowserUse_code
 	url = https://github.com/TokensAPI/tokens_DshBrowserUse_code.git
+[submodule "tokens-connect-ui"]
+	path = plugins/tokens_DshConnectUi_code
+	url = https://github.com/sobermh/tokens_DshConnectUi_code.git

@@ -35,18 +35,15 @@
       "description": "连接飞书或 Lark，支持应用创建、个人 OAuth、文档与消息工具。",
       "path": "plugins/tokens_DshFeishuConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
-      "commit": "3c6f739d33e6015f667b267b1b52dcf452fe14d1",
+      "commit": "d764386f768b65cac5efa9a2b2a8b6b69599d202",
       "package": "@tokens/dsh-feishu-connect",
-      "version": "0.1.4",
+      "version": "0.2.1",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeBuild": {
-        "type": "typescript",
-        "entry": "src/index.ts",
-        "output": "dist/index.js",
-        "files": [
-          "dist",
-          "cordis.patch.yml"
+        "script": "build",
+        "outputs": [
+          "dist/index.js"
         ]
       },
       "runtimeDependencies": {
@@ -54,6 +51,25 @@
         "@deepseek-ai/dsh-credentials": "0.1.0-rc.8",
         "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
         "@deepseek-ai/schemastery": "^3.18.1"
+      }
+    },
+    {
+      "id": "tokens-connect-ui",
+      "displayName": "连接中心",
+      "description": "统一管理飞书等外部服务连接，并为后续通道扩展提供独立设置界面。",
+      "path": "plugins/tokens_DshConnectUi_code",
+      "repository": "https://github.com/sobermh/tokens_DshConnectUi_code.git",
+      "commit": "74d8e8f8778b6deefb4c001a7a617f22d24e5b4b",
+      "package": "@tokens/dsh-connect-ui",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml",
+      "runtimeBuild": {
+        "script": "build",
+        "outputs": [
+          "dist/index.js",
+          "dist/client.js"
+        ]
       }
     },
     {

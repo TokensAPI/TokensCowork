@@ -56,11 +56,32 @@ function rewriteExportTarget(value, source, output) {
   return { value: rewritten, count }
 }
 
-for (const plugin of product.plugins.filter(
-  item => item.enabledByDefault === true && item.runtimeBuild !== undefined,
-)) {
-  const build = plugin.runtimeBuild
-  if (build.type !== 'typescript') fail(`${plugin.id} runtimeBuild type is unsupported`)
+function assertOutputFiles(plugin, outputs, pluginRoot) {
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    fail(`${plugin.id} runtimeBuild outputs must be a non-empty list`)
+  }
+  for (const entry of outputs) {
+    const output = packagePath(entry, `${plugin.id} runtimeBuild output`)
+    if (!existsSync(resolve(pluginRoot, output))) {
+      fail(`${plugin.id} build did not produce ${output}`)
+    }
+  }
+}
+
+function runPackageBuild(plugin, build, pluginRoot) {
+  if (typeof build.script !== 'string' || !/^[A-Za-z0-9:_-]+$/u.test(build.script)) {
+    fail(`${plugin.id} runtimeBuild script must be a package script name`)
+  }
+  const manifest = JSON.parse(readFileSync(resolve(pluginRoot, 'package.json'), 'utf8'))
+  if (typeof manifest.scripts?.[build.script] !== 'string') {
+    fail(`${plugin.id} package does not define the ${build.script} script`)
+  }
+  run('corepack', ['yarn', 'workspace', plugin.package, 'run', build.script], stage)
+  assertOutputFiles(plugin, build.outputs, pluginRoot)
+  process.stdout.write(`compile-product-plugins: ${plugin.id} ran ${build.script}\n`)
+}
+
+function runLegacyTypescriptBuild(plugin, build, pluginRoot) {
   if (!Array.isArray(build.files) || build.files.length === 0) {
     fail(`${plugin.id} runtimeBuild files must be a non-empty list`)
   }
@@ -68,7 +89,6 @@ for (const plugin of product.plugins.filter(
   const entry = packagePath(build.entry, `${plugin.id} entry`)
   const output = packagePath(build.output, `${plugin.id} output`)
   const files = build.files.map(item => packagePath(item, `${plugin.id} files entry`))
-  const pluginRoot = resolve(pluginsRoot, plugin.id)
   const entryPath = resolve(pluginRoot, entry)
   const outputPath = resolve(pluginRoot, output)
   if (!existsSync(entryPath)) fail(`${plugin.id} entry is missing: ${entry}`)
@@ -103,5 +123,15 @@ for (const plugin of product.plugins.filter(
   manifest.files = files
   writeFileSync(manifestPath, `${JSON.stringify(manifest, undefined, 2)}\n`)
 
-  process.stdout.write(`compile-product-plugins: ${plugin.id} ${entry} -> ${output}\n`)
+  process.stdout.write(`compile-product-plugins: ${plugin.id} ${entry} -> ${output} (legacy)\n`)
+}
+
+for (const plugin of product.plugins.filter(
+  item => item.enabledByDefault === true && item.runtimeBuild !== undefined,
+)) {
+  const build = plugin.runtimeBuild
+  const pluginRoot = resolve(pluginsRoot, plugin.id)
+  if (build.script !== undefined) runPackageBuild(plugin, build, pluginRoot)
+  else if (build.type === 'typescript') runLegacyTypescriptBuild(plugin, build, pluginRoot)
+  else fail(`${plugin.id} runtimeBuild declaration is unsupported`)
 }

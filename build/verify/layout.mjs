@@ -107,22 +107,48 @@ for (const plugin of manifest.plugins) {
   }
   const runtimeBuild = plugin.runtimeBuild
   if (runtimeBuild !== undefined) {
-    if (runtimeBuild.type !== 'typescript') fail(`${plugin.id} runtimeBuild type is unsupported`)
-    assertPackagePath(runtimeBuild.entry, `${plugin.id} runtimeBuild entry`)
-    assertPackagePath(runtimeBuild.output, `${plugin.id} runtimeBuild output`)
-    if (!runtimeBuild.entry.endsWith('.ts') || !runtimeBuild.output.endsWith('.js')) {
-      fail(`${plugin.id} runtimeBuild must compile a .ts entry to a .js output`)
+    if (runtimeBuild.script !== undefined) {
+      if (typeof runtimeBuild.script !== 'string' || !/^[A-Za-z0-9:_-]+$/u.test(runtimeBuild.script)) {
+        fail(`${plugin.id} runtimeBuild script must be a package script name`)
+      }
+      if (typeof pluginManifest.scripts?.[runtimeBuild.script] !== 'string') {
+        fail(`${plugin.id} package does not define the ${runtimeBuild.script} script`)
+      }
+      if (!Array.isArray(runtimeBuild.outputs) || runtimeBuild.outputs.length === 0) {
+        fail(`${plugin.id} runtimeBuild outputs must be a non-empty list`)
+      }
+      for (const output of runtimeBuild.outputs) {
+        assertPackagePath(output, `${plugin.id} runtimeBuild output`)
+        if (!containsExportTarget(pluginManifest.exports, `./${output}`)) {
+          fail(`${plugin.id} package exports do not reference runtimeBuild output ${output}`)
+        }
+      }
+      if (!Array.isArray(pluginManifest.files) || pluginManifest.files.length === 0) {
+        fail(`${plugin.id} script-built package must declare files`)
+      }
+      for (const entry of pluginManifest.files) assertPackagePath(entry, `${plugin.id} package files entry`)
+      if (containsTypescriptExport(pluginManifest.exports)) {
+        fail(`${plugin.id} script-built package must export built runtime files`)
+      }
+    } else if (runtimeBuild.type === 'typescript') {
+      assertPackagePath(runtimeBuild.entry, `${plugin.id} runtimeBuild entry`)
+      assertPackagePath(runtimeBuild.output, `${plugin.id} runtimeBuild output`)
+      if (!runtimeBuild.entry.endsWith('.ts') || !runtimeBuild.output.endsWith('.js')) {
+        fail(`${plugin.id} runtimeBuild must compile a .ts entry to a .js output`)
+      }
+      if (!existsSync(resolve(pluginPath, runtimeBuild.entry))) {
+        fail(`${plugin.id} runtimeBuild entry is missing`)
+      }
+      if (!containsExportTarget(pluginManifest.exports, `./${runtimeBuild.entry}`)) {
+        fail(`${plugin.id} package exports do not reference its runtimeBuild entry`)
+      }
+      if (!Array.isArray(runtimeBuild.files) || runtimeBuild.files.length === 0) {
+        fail(`${plugin.id} runtimeBuild files must be a non-empty list`)
+      }
+      for (const entry of runtimeBuild.files) assertPackagePath(entry, `${plugin.id} runtimeBuild files entry`)
+    } else {
+      fail(`${plugin.id} runtimeBuild declaration is unsupported`)
     }
-    if (!existsSync(resolve(pluginPath, runtimeBuild.entry))) {
-      fail(`${plugin.id} runtimeBuild entry is missing`)
-    }
-    if (!containsExportTarget(pluginManifest.exports, `./${runtimeBuild.entry}`)) {
-      fail(`${plugin.id} package exports do not reference its runtimeBuild entry`)
-    }
-    if (!Array.isArray(runtimeBuild.files) || runtimeBuild.files.length === 0) {
-      fail(`${plugin.id} runtimeBuild files must be a non-empty list`)
-    }
-    for (const entry of runtimeBuild.files) assertPackagePath(entry, `${plugin.id} runtimeBuild files entry`)
   } else if (plugin.enabledByDefault === true && containsTypescriptExport(pluginManifest.exports)) {
     fail(`${plugin.id} exposes a TypeScript runtime entry without runtimeBuild`)
   }

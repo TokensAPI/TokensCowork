@@ -61,7 +61,7 @@ git -C plugins/tokens_NewPlugin_code rev-parse HEAD
 
 - `enabledByDefault: true` 表示插件会进入安装包。
 - `enabledByDefault: false` 表示只记录插件来源，不会打进当前产品。
-- 插件应提交可直接加载的 JavaScript 运行时产物。只有 TypeScript 源码时，需要参考现有插件声明 `runtimeBuild`。
+- 插件应提交可直接加载的 JavaScript 运行时产物，或在自身 `package.json` 中提供可复现的构建脚本。源码插件在产品清单中声明 `runtimeBuild.script` 与 `runtimeBuild.outputs`，产品只负责执行脚本并验证产物，不耦合 TypeScript、esbuild 等具体工具。
 - 启用插件前，必须确认完整生产依赖许可证能通过 Desktop license gate。
 
 ## 4. 刷新产品锁文件
