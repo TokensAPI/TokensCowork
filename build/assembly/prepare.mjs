@@ -236,6 +236,116 @@ function protectDesktopStderr(mainSource, loggerSource) {
   return { main, logger }
 }
 
+/**
+ * Make the Electron Node-mode trampoline establish a real host console before
+ * the upstream WRITE_RESTRICTED runner creates console-subsystem children.
+ * @param source - staging copy of windows-acl-runner.ts.
+ * @returns runner source with the product console bootstrap installed.
+ * @throws when the pinned upstream anchors change.
+ */
+function addWindowsAclHostConsole(source) {
+  const importAnchor = "import { fileURLToPath, pathToFileURL } from 'node:url'"
+  const validationAnchor = `  if (requestedRunner !== expectedRunner) {
+    throw new Error('desktop trampoline received an unexpected ACL runner')
+  }
+`
+  if (source.split(importAnchor).length !== 2
+    || source.split(validationAnchor).length !== 2) {
+    throw new Error('prepare-desktop: 未找到 Windows ACL trampoline 锚点，请复查宿主控制台覆盖')
+  }
+  return source
+    .replace(
+      importAnchor,
+      `${importAnchor}\nimport { ensureWindowsAclHostConsole } from './windows-acl-host-console.ts'`,
+    )
+    .replace(
+      validationAnchor,
+      `${validationAnchor}  ensureWindowsAclHostConsole()\n`,
+    )
+}
+
+/**
+ * Classify the empty-output 0xC0000142 startup shape as sandbox infrastructure
+ * failure and trip a per-session fuse so repeated calls do not spawn again.
+ * @param source - staging copy of windows-pwsh-sandbox.ts.
+ * @returns executor source with the product infrastructure fuse installed.
+ * @throws when the pinned upstream anchors change.
+ */
+function addWindowsAclInfrastructureFuse(source) {
+  const importAnchor = "import { SandboxPwshExecutor } from '@deepseek-ai/dsh-pwsh-sandbox'"
+  const classAnchor = 'export class DesktopWindowsPwshSandbox extends SandboxPwshExecutor {\n'
+  const methodsAnchor = `  protected override async runArgv(spec: ShellExecSpec, argv: readonly string[]): Promise<ShellRunResult> {
+    const adapted = this.adapt(spec, argv)
+    return super.runArgv(adapted.spec, adapted.argv)
+  }
+
+  protected override startArgv(spec: ShellExecSpec, argv: readonly string[]): ShellProcess {
+    const adapted = this.adapt(spec, argv)
+    return super.startArgv(adapted.spec, adapted.argv)
+  }`
+  if (source.split(importAnchor).length !== 2
+    || source.split(classAnchor).length !== 2
+    || source.split(methodsAnchor).length !== 2) {
+    throw new Error('prepare-desktop: 未找到 Windows ACL executor 锚点，请复查基础设施熔断覆盖')
+  }
+  const imports = `${importAnchor}
+import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
+import {
+  WindowsAclInfrastructureFuse,
+  isWindowsAclInfrastructureFailure,
+  isWindowsAclProcessInfrastructureFailure,
+  windowsAclFuseContext,
+  type WindowsAclFuseContext,
+} from './windows-acl-infrastructure-fuse.ts'`
+  const methods = `  private throwAclInfrastructureFailure(context: WindowsAclFuseContext): never {
+    throw new SandboxUnavailableError(
+      context.mode,
+      'the Windows Desktop ACL console child failed during DLL initialization (0xC0000142). '
+      + 'The current session fuse is open; do not retry this confined shell mode.',
+    )
+  }
+
+  private requireAclInfrastructure(context: WindowsAclFuseContext | undefined): void {
+    if (context !== undefined && this.aclInfrastructureFuse.isBlocked(context)) {
+      this.throwAclInfrastructureFailure(context)
+    }
+  }
+
+  protected override async runArgv(spec: ShellExecSpec, argv: readonly string[]): Promise<ShellRunResult> {
+    const adapted = this.adapt(spec, argv)
+    const context = adapted.argv === argv ? undefined : windowsAclFuseContext(spec.sandboxPolicy)
+    this.requireAclInfrastructure(context)
+    const result = await super.runArgv(adapted.spec, adapted.argv)
+    if (context !== undefined && isWindowsAclInfrastructureFailure(result)) {
+      this.aclInfrastructureFuse.trip(context)
+      this.throwAclInfrastructureFailure(context)
+    }
+    return result
+  }
+
+  protected override startArgv(spec: ShellExecSpec, argv: readonly string[]): ShellProcess {
+    const adapted = this.adapt(spec, argv)
+    const context = adapted.argv === argv ? undefined : windowsAclFuseContext(spec.sandboxPolicy)
+    this.requireAclInfrastructure(context)
+    const proc = super.startArgv(adapted.spec, adapted.argv)
+    if (context !== undefined) {
+      void proc.done.then(() => {
+        if (!isWindowsAclProcessInfrastructureFailure(proc.exitCode, proc.signal)) return
+        this.aclInfrastructureFuse.trip(context)
+        proc.sandbox = {
+          ...(proc.sandbox ?? { mode: context.mode, denied: false }),
+          runnerFailed: true,
+        }
+      })
+    }
+    return proc
+  }`
+  return source
+    .replace(importAnchor, imports)
+    .replace(classAnchor, `${classAnchor}  private readonly aclInfrastructureFuse = new WindowsAclInfrastructureFuse()\n\n`)
+    .replace(methodsAnchor, methods)
+}
+
 /* ====================================================================
  * 主流程
  * 按顺序执行 staging 装配：重建目录、读入副本、各项产品加工、写回。
@@ -251,6 +361,16 @@ cpSync(
   resolve(root, 'build', 'macos', 'unsigned-after-pack.ts'),
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
+for (const [sourceName, destinationParts] of [
+  ['windows-acl-host-console.ts', ['src', 'windows-acl-host-console.ts']],
+  ['windows-acl-infrastructure-fuse.ts', ['src', 'windows-acl-infrastructure-fuse.ts']],
+  ['windows-acl-product.spec.ts', ['tests', 'windows-acl-product.spec.ts']],
+]) {
+  cpSync(
+    resolve(root, 'build', 'assembly', 'assets', 'windows', sourceName),
+    resolve(stage, 'dsh-plugin-desktop', ...destinationParts),
+  )
+}
 
 /* ----------------------- 读入待改写的副本文件 ----------------------- */
 const workspacePath = resolve(stage, 'package.json')
@@ -265,6 +385,8 @@ const profileBootVerifierPath = resolve(
 const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
 const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
 const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
+const windowsAclRunnerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-acl-runner.ts')
+const windowsPwshSandboxPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-pwsh-sandbox.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').trimEnd()
@@ -272,6 +394,8 @@ let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
+let windowsAclRunner = readFileSync(windowsAclRunnerPath, 'utf8')
+let windowsPwshSandbox = readFileSync(windowsPwshSandboxPath, 'utf8')
 
 /* -------------------------- 配置插件市场 --------------------------- */
 // 产品插件源部署在 market/source.config.json 声明的 origin；为其加入
@@ -350,6 +474,10 @@ desktopProfile = removeManagedBundlesFromProfile(
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
 ;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
 
+/* -------------------- 修复 Windows ACL 启动链 -------------------- */
+windowsAclRunner = addWindowsAclHostConsole(windowsAclRunner)
+windowsPwshSandbox = addWindowsAclInfrastructureFuse(windowsPwshSandbox)
+
 /* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
@@ -358,6 +486,8 @@ writeFileSync(profileBootVerifierPath, profileBootVerifier)
 writeFileSync(desktopProfilePath, desktopProfile)
 writeFileSync(desktopMainPath, desktopMain)
 writeFileSync(desktopLoggerPath, desktopLogger)
+writeFileSync(windowsAclRunnerPath, windowsAclRunner)
+writeFileSync(windowsPwshSandboxPath, windowsPwshSandbox)
 
 /* -------------------------- 安装产品锁文件 -------------------------- */
 if (enabledPlugins.length > 0) {
