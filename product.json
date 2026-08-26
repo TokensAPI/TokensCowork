@@ -3,7 +3,7 @@
   "product": {
     "name": "TokensHarness",
     "appId": "com.tokensapi.tokensharness",
-    "version": "0.3.10"
+    "version": "0.3.11"
   },
   "desktop": {
     "path": "desktop",
@@ -30,27 +30,26 @@
       }
     },
     {
-      "id": "tokens-feishu-connect",
-      "displayName": "飞书连接",
-      "description": "连接飞书或 Lark，支持应用创建、个人 OAuth、文档与消息工具。",
-      "path": "plugins/tokens_DshFeishuConnect_code",
-      "repository": "https://github.com/sobermh/tokens_DshFeishuConnect_code.git",
-      "commit": "d764386f768b65cac5efa9a2b2a8b6b69599d202",
-      "package": "@tokens/dsh-feishu-connect",
-      "version": "0.2.1",
+      "id": "tokens-connect",
+      "displayName": "连接中心",
+      "description": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensHarness。",
+      "path": "plugins/tokens_DshConnect_code",
+      "repository": "https://github.com/sobermh/tokens_DshConnect_code.git",
+      "commit": "a18d23ccddd1ddb53b8b5c095d72db1dc6491fb6",
+      "package": "@tokens/dsh-connect",
+      "version": "2.4.4",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeBuild": {
         "script": "build",
         "outputs": [
-          "dist/index.js"
+          "lib/index.js",
+          "lib/client.js"
         ]
       },
       "runtimeDependencies": {
-        "@deepseek-ai/dsh-commands": "0.1.0-rc.8",
         "@deepseek-ai/dsh-credentials": "0.1.0-rc.8",
-        "@deepseek-ai/dsh-tools": "0.1.0-rc.8",
-        "@deepseek-ai/schemastery": "^3.18.1"
+        "@deepseek-ai/dsh-tools": "0.1.0-rc.8"
       }
     },
     {
