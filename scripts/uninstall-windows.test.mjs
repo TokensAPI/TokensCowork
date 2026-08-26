@@ -132,7 +132,22 @@ test('blocks installation when the previous directory survived uninstall', () =>
   assert.match(upgradeGuard, /!macro customUnInstallCheck/u)
   assert.match(upgradeGuard, /InstallLocation/u)
   assert.match(upgradeGuard, /UninstallString/u)
-  assert.match(upgradeGuard, /\$R1\\\*\.\*/u)
   assert.doesNotMatch(upgradeGuard, /\$installationDir/u)
   assert.match(upgradeGuard, /Quit/u)
+})
+
+test('treats an empty leftover directory as a completed uninstall', () => {
+  // 空壳目录（根目录被外部句柄占住删不掉）不算卸载失败：安装器和
+  // 卸载器都必须用真实文件扫描代替 IfFileExists "目录\*.*" 判定。
+  assert.match(upgradeGuard, /Function \$\{UN\}hasSurvivingFiles/u)
+  assert.match(upgradeGuard, /Call hasSurvivingFiles/u)
+  assert.match(upgradeGuard, /Call un\.hasSurvivingFiles/u)
+})
+
+test('restores moved files before a failed updated uninstall quits', () => {
+  // 残留真实文件导致失败时必须先恢复应用，否则搬进临时目录的文件
+  // 会随卸载器进程退出被清理，用户的安装被整个删掉。
+  const removeFiles = upgradeGuard.slice(upgradeGuard.indexOf('!macro customRemoveFiles'))
+  const failureBranch = removeFiles.slice(removeFiles.indexOf('Call un.hasSurvivingFiles'))
+  assert.match(failureBranch, /Call un\.restoreFiles[\s\S]*?SetErrorLevel 2[\s\S]*?Quit/u)
 })
