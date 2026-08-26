@@ -17,14 +17,14 @@
       }
     },
     {
-      "id": "tokens-feishu-connect",
-      "name": "@tokens/dsh-feishu-connect",
-      "displayName": "飞书连接",
-      "summary": "连接飞书或 Lark，支持应用创建、个人 OAuth、文档与消息工具。",
-      "homepage": "https://github.com/sobermh/tokens_DshFeishuConnect_code",
-      "latestVersion": "0.2.1",
+      "id": "tokens-connect",
+      "name": "@tokens/dsh-connect",
+      "displayName": "连接中心",
+      "summary": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensHarness。",
+      "homepage": "https://github.com/sobermh/tokens_DshConnect_code",
+      "latestVersion": "2.4.4",
       "repository": {
-        "url": "https://github.com/sobermh/tokens_DshFeishuConnect_code"
+        "url": "https://github.com/sobermh/tokens_DshConnect_code"
       },
       "publisher": {
         "name": "TokensAPI",
