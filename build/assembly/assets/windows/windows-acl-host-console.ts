@@ -1,10 +1,15 @@
+import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { resolve } from 'node:path'
 
 const ATTACH_PARENT_PROCESS = 0xffff_ffff
 const STD_INPUT_HANDLE = 0xffff_fff6
 const STD_OUTPUT_HANDLE = 0xffff_fff5
 const STD_ERROR_HANDLE = 0xffff_fff4
 const SW_HIDE = 0
+// PowerShell 5.1 冷启动在 Defender 实扫下可达 1-2s；预算取 3s。
+const OWNER_ATTACH_ATTEMPTS = 120
+const OWNER_ATTACH_INTERVAL_MS = 25
 
 type NativeHandle = unknown
 
@@ -20,7 +25,13 @@ export interface WindowsConsoleBindings {
   getLastError(): number
 }
 
-export type WindowsConsolePreparation = 'non-windows' | 'existing' | 'attached' | 'allocated'
+/** A helper process whose windowless console this runner attaches to. */
+export interface WindowsConsoleOwner {
+  readonly pid: number
+  kill(): void
+}
+
+export type WindowsConsolePreparation = 'non-windows' | 'existing' | 'attached' | 'owner' | 'allocated'
 
 let cachedBindings: WindowsConsoleBindings | undefined
 
@@ -51,18 +62,67 @@ function loadWindowsConsoleBindings(): WindowsConsoleBindings {
   return cachedBindings
 }
 
+/**
+ * Start a windowless console owner with CREATE_NO_WINDOW (child_process
+ * `windowsHide`): its console exists but never has a window.
+ *
+ * The owner is PowerShell waiting on THIS runner's pid. Self-terminating by
+ * construction: when the runner exits — normally, crashed, or killed —
+ * Wait-Process returns and the helper exits with it, so no orphan survives
+ * even without Job Objects. PowerShell is also the very binary the sandbox
+ * is about to run restricted, so this adds no new AppLocker/AV surface and
+ * emits no network traffic.
+ */
+function spawnHiddenConsoleOwner(): WindowsConsoleOwner | undefined {
+  try {
+    const powershell = resolve(
+      process.env.SystemRoot ?? 'C:\\Windows',
+      'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe',
+    )
+    const child = spawn(powershell, [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+      `Wait-Process -Id ${process.pid} -ErrorAction SilentlyContinue`,
+    ], {
+      windowsHide: true,
+      stdio: 'ignore',
+      detached: false,
+    })
+    if (child.pid === undefined) return undefined
+    // spawn 的启动失败经常经由异步 error 事件报告(AppLocker/WDAC/杀软拦截)。
+    // 必须消费,否则未处理异常带崩 runner;attach 重试循环随后自然超时进兜底。
+    child.once('error', () => {})
+    child.unref()
+    const pid = child.pid
+    return { pid, kill: () => { try { child.kill() } catch {} } }
+  } catch {
+    return undefined
+  }
+}
+
+/** Synchronous sleep for the attach retry loop; the runner has no work to overlap. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
 function isNullHandle(handle: NativeHandle | null): boolean {
   return handle === null || handle === 0 || handle === 0n
 }
 
 /**
  * Give the Electron Node-mode ACL runner a host console for restricted console
- * children to inherit. AllocConsole is applied to the unrestricted runner,
- * never to the WRITE_RESTRICTED child that fails console initialization.
+ * children to inherit. The console is established on the unrestricted runner,
+ * never on the WRITE_RESTRICTED child that fails console initialization.
+ *
+ * Window-free by construction: a bare AllocConsole creates a visible window
+ * and hides it afterwards, which flashes on screen once per command. Instead
+ * the runner attaches to a helper process whose console was created with
+ * CREATE_NO_WINDOW, so no window ever exists. AllocConsole+hide remains only
+ * as the last-resort fallback when the helper cannot be started.
  */
 export function ensureWindowsAclHostConsole(
   platform: NodeJS.Platform = process.platform,
   bindings?: WindowsConsoleBindings,
+  spawnOwner: () => WindowsConsoleOwner | undefined = spawnHiddenConsoleOwner,
 ): WindowsConsolePreparation {
   if (platform !== 'win32') return 'non-windows'
   const api = bindings ?? loadWindowsConsoleBindings()
@@ -97,9 +157,24 @@ export function ensureWindowsAclHostConsole(
   }
   const attachError = api.getLastError()
 
-  // Explorer-launched Electron has no attachable parent console. Allocate one
-  // on the unrestricted runner, hide only that newly owned window, then keep
-  // the console association alive until the runner exits.
+  // Explorer-launched Electron has no attachable parent console. Attach to a
+  // helper whose console was created windowless; nothing ever appears on
+  // screen. The helper stays alive as the console owner until the runner ends.
+  const owner = spawnOwner()
+  if (owner !== undefined) {
+    for (let attempt = 0; attempt < OWNER_ATTACH_ATTEMPTS; attempt++) {
+      if (api.attachConsole(owner.pid) !== 0) {
+        process.once('exit', () => owner.kill())
+        restoreStdHandles()
+        return 'owner'
+      }
+      sleepSync(OWNER_ATTACH_INTERVAL_MS)
+    }
+    owner.kill()
+  }
+
+  // Last resort: own console, hidden immediately after creation. This can
+  // flash a window for one frame; it only runs when the helper spawn failed.
   if (api.allocConsole() === 0) {
     const allocError = api.getLastError()
     throw new Error(

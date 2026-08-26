@@ -47,9 +47,26 @@ describe('product Windows ACL host console', () => {
     expect(api.showWindow).not.toHaveBeenCalled()
   })
 
-  it('allocates and hides an owned console while restoring Desktop pipes', () => {
+  it('attaches to a windowless helper console so no window ever exists', () => {
+    // 桌面启动的常规路径:挂到 CREATE_NO_WINDOW 辅助进程的控制台上,
+    // 全程不 AllocConsole、不 ShowWindow——不存在可闪现的窗口。
+    const attach = vi.fn()
+      .mockReturnValueOnce(0) // parent attach fails (Explorer launch)
+      .mockReturnValue(1) // owner attach succeeds
+    const kill = vi.fn()
+    const api = bindings({ attachConsole: attach })
+    const result = ensureWindowsAclHostConsole('win32', api, () => ({ pid: 4242, kill }))
+    expect(result).toBe('owner')
+    expect(attach).toHaveBeenCalledWith(4242)
+    expect(api.allocConsole).not.toHaveBeenCalled()
+    expect(api.showWindow).not.toHaveBeenCalled()
+    expect(api.setStdHandle).toHaveBeenCalledTimes(3)
+  })
+
+  it('falls back to alloc-and-hide only when the helper cannot start', () => {
     const api = bindings()
-    expect(ensureWindowsAclHostConsole('win32', api)).toBe('allocated')
+    const result = ensureWindowsAclHostConsole('win32', api, () => undefined)
+    expect(result).toBe('allocated')
     expect(api.allocConsole).toHaveBeenCalledOnce()
     expect(api.showWindow).toHaveBeenCalledWith(123n, 0)
     expect(api.setStdHandle).toHaveBeenCalledTimes(3)
@@ -61,7 +78,7 @@ describe('product Windows ACL host console', () => {
       allocConsole: vi.fn(() => 0),
       getLastError: vi.fn(() => errors.shift() ?? 0),
     })
-    expect(() => ensureWindowsAclHostConsole('win32', api))
+    expect(() => ensureWindowsAclHostConsole('win32', api, () => undefined))
       .toThrow('AttachConsole Win32 6; AllocConsole Win32 5')
   })
 })
