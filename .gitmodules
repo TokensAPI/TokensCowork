@@ -22,3 +22,6 @@
 [submodule "tokens-browser-use"]
 	path = plugins/tokens_DshBrowserUse_code
 	url = https://github.com/TokensAPI/tokens_DshBrowserUse_code.git
+[submodule "tokens-dsh-media-gen"]
+	path = plugins/tokens_DshMediaGen_code
+	url = https://github.com/TokensAPI/tokens_DshMediaGen_code.git
