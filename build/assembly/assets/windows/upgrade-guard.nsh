@@ -43,8 +43,14 @@ Function ${UN}hasSurvivingFiles
 FunctionEnd
 !macroend
 
-!insertmacro defineHasSurvivingFiles ""
-!insertmacro defineHasSurvivingFiles "un."
+# electron-builder 用同一份脚本编译两遍：安装器遍与卸载器遍（BUILD_UNINSTALLER）。
+# Function 是立即产生代码的实体，必须按遍次定义——安装器遍出现 un. 函数会触发
+# NSIS 警告 6020（视为错误），反向则触发未引用函数警告。
+!ifdef BUILD_UNINSTALLER
+  !insertmacro defineHasSurvivingFiles "un."
+!else
+  !insertmacro defineHasSurvivingFiles ""
+!endif
 
 !macro verifyPreviousInstallRemoved
   ${if} ${Errors}
