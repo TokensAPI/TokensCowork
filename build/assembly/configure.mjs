@@ -1,70 +1,66 @@
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+/* ====================================================================
+ * 产品配置（打包前）
+ * 在依赖安装完成的 staging 上注入品牌、安装器保护与打包参数。
+ * 产品覆盖的具体加工逻辑按主题存放在 overlays/ 目录；本文件只保留
+ * 路径解析、读入副本、按序调用与写回。
+ * ==================================================================== */
+import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 
+import {
+  applyProductLogo,
+  assertBrandingAnchors,
+  brandDesktopMain,
+  upstreamProductName,
+  upstreamRuntimeProductName,
+  upstreamWindowTitle,
+} from './overlays/branding.mjs'
+import { configureProductUpdates } from './overlays/updates.mjs'
+import { applyWindowsInstallerGuard, pinNsisResources } from './overlays/windows-installer.mjs'
+
+/* ----------------------- 路径与产品清单 ----------------------- */
 const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
 const productBrandRoot = resolve(import.meta.dirname, 'assets', 'brand')
 const windowsInstallerRoot = resolve(import.meta.dirname, 'assets', 'windows')
-const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
+const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+const product = manifest.product
+const hasProductUpdatePlugin = manifest.plugins.some(
+  plugin => plugin.id === 'tokens-version-updates' && plugin.enabledByDefault === true,
+)
+const repositoryMatch = /^(?<owner>[^/]+)\/(?<repo>[^/]+)$/u.exec(product.repository ?? '')
+if (repositoryMatch?.groups === undefined) {
+  throw new Error('configure-product: product repository must use owner/repository format')
+}
+const legacyProductNames = product.legacyNames ?? []
+if (!Array.isArray(legacyProductNames)
+  || legacyProductNames.some(name => typeof name !== 'string' || name.trim() === '')) {
+  throw new Error('configure-product: product legacyNames must be a list of non-empty strings')
+}
 const packagingTarget = process.argv[2] ?? 'default'
 if (!['default', 'windows'].includes(packagingTarget)) {
   throw new Error('configure-product: expected default or windows packaging target')
 }
-const desktopPackagePath = resolve(root, '.build', 'desktop', 'dsh-plugin-desktop', 'package.json')
-const verifyMacReleasePath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'scripts',
-  'verify-mac-release.ts',
-)
-const releaseMacPath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'scripts',
-  'release-mac.ts',
-)
-const mainPath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'src',
-  'main.ts',
-)
-const indexPath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'src',
-  'index.ts',
-)
-const assistedMessagesPath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'build',
-  'assistedMessages.yml',
-)
-const windowsInstallerIncludePath = resolve(
-  root,
-  '.build',
-  'desktop',
-  'dsh-plugin-desktop',
-  'build',
-  'tokensharness-upgrade-guard.nsh',
-)
+
+const desktopRoot = resolve(stage, 'dsh-plugin-desktop')
+const desktopPackagePath = resolve(desktopRoot, 'package.json')
+const verifyMacReleasePath = resolve(desktopRoot, 'scripts', 'verify-mac-release.ts')
+const releaseMacPath = resolve(desktopRoot, 'scripts', 'release-mac.ts')
+const mainPath = resolve(desktopRoot, 'src', 'main.ts')
+const indexPath = resolve(desktopRoot, 'src', 'index.ts')
+const assistedMessagesPath = resolve(desktopRoot, 'build', 'assistedMessages.yml')
+const windowsInstallerIncludePath = resolve(desktopRoot, 'build', 'tokenscowork-upgrade-guard.nsh')
+const desktopPatchPath = resolve(desktopRoot, 'cordis.patch.yml')
+
+/* ----------------------- 读入待改写的副本 ----------------------- */
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 const verifyMacRelease = readFileSync(verifyMacReleasePath, 'utf8')
 const releaseMac = readFileSync(releaseMacPath, 'utf8')
 const main = readFileSync(mainPath, 'utf8')
 const index = readFileSync(indexPath, 'utf8')
 const assistedMessages = readFileSync(assistedMessagesPath, 'utf8')
+
+/* ----------------------- 打包参数（非覆盖） ----------------------- */
 // Windows x64 只排除不可能参与该目标运行的原生架构，以及 Node 运行时不会读取的
 // 调试/类型元数据。完整 JavaScript 运行时仍由现有 asarUnpack 和 afterPack 门禁保护。
 const windowsX64RuntimeExclusions = [
@@ -76,13 +72,6 @@ const windowsX64RuntimeExclusions = [
   '!node_modules/**/*.map',
   '!node_modules/**/*.{d.ts,d.mts,d.cts}',
 ]
-// Electron 的 userData 目录由 app.setName() 推导，而上游把产品名硬编码在这里。
-// 不改写它，产品的宿主状态会继续写进上游品牌的目录。
-const upstreamMainProductName = "const PRODUCT_NAME = 'DSH Desktop'"
-const upstreamAppUserModelId = "app.setAppUserModelId('ai.deepseek.dsh.desktop')"
-const upstreamRuntimeProductName = "productName: 'DSH Desktop',"
-const upstreamWindowTitle = "windowTitle: 'DeepSeek Harness Desktop',"
-const upstreamProductName = "productName: 'DSH Desktop',"
 const upstreamReleaseCheck = `  // The workspace check includes the package build and repository-layout gate. Signing
   // material is withheld from every build, test, Loader smoke, and layout subprocess.
   options.run('yarn', ['run', 'check'], resolve(options.desktopRoot, '..'), buildEnvironment)
@@ -95,93 +84,13 @@ function assertGeneratedPath(path) {
   }
 }
 
-/** 用同一张正式 Logo 覆盖产品图标入口；除必要尺寸和格式外不改图形。 */
-function applyProductLogo() {
-  const requiredAssets = [
-    resolve(productBrandRoot, 'app-icon.png'),
-    resolve(productBrandRoot, 'logo-mark.png'),
-    resolve(productBrandRoot, 'logo-mark.svg'),
-    resolve(productBrandRoot, 'generate-tray-icons.mjs'),
-    resolve(productBrandRoot, 'client', 'FishLogo.tsx'),
-  ]
-  for (const source of requiredAssets) {
-    if (!existsSync(source)) {
-      throw new Error(`configure-product: product Logo asset is missing: ${source}`)
-    }
-  }
-
-  const desktopBuildRoot = resolve(stage, 'dsh-plugin-desktop', 'build')
-  const outputs = [
-    resolve(desktopBuildRoot, 'app-icon.png'),
-    resolve(desktopBuildRoot, 'logo-mark.png'),
-    resolve(desktopBuildRoot, 'tray-icon.svg'),
-    resolve(stage, 'dsh-plugin-desktop', 'scripts', 'generate-tray-icons.mjs'),
-    resolve(stage, 'deepseek-harness', 'apps', 'web', 'public', 'favicon.svg'),
-    resolve(stage, 'deepseek-harness', 'apps', 'web', 'public', 'tokensharness-logo.png'),
-    resolve(
-      stage,
-      'deepseek-harness',
-      'packages',
-      'client',
-      'ui-primitives',
-      'src',
-      'FishLogo.tsx',
-    ),
-  ]
-  for (const path of outputs) assertGeneratedPath(path)
-
-  cpSync(resolve(productBrandRoot, 'app-icon.png'), outputs[0])
-  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[1])
-  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[2])
-  cpSync(resolve(productBrandRoot, 'generate-tray-icons.mjs'), outputs[3])
-  cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[4])
-  cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[5])
-  cpSync(resolve(productBrandRoot, 'client', 'FishLogo.tsx'), outputs[6])
-
-  // 删除上游派生图，后续 build 会从正式 Logo 重新按尺寸生成。
-  for (const filename of [
-    'app-icon-mac.png',
-    'tray-iconTemplate.png',
-    'tray-iconTemplate@2x.png',
-    'tray-icon-blue.png',
-    'tray-icon-blue@1.25x.png',
-    'tray-icon-blue@1.5x.png',
-    'tray-icon-blue@2x.png',
-  ]) {
-    rmSync(resolve(desktopBuildRoot, filename), { force: true })
-  }
-}
-
-/** 将覆盖升级保护写进 staging，由 electron-builder 同时编译进安装器和卸载器。 */
-function applyWindowsInstallerGuard() {
-  const source = resolve(windowsInstallerRoot, 'upgrade-guard.nsh')
-  if (!existsSync(source)) {
-    throw new Error(`configure-product: Windows installer guard is missing: ${source}`)
-  }
-  assertGeneratedPath(windowsInstallerIncludePath)
-  cpSync(source, windowsInstallerIncludePath)
-  desktopPackage.build.nsis.include = 'build/tokensharness-upgrade-guard.nsh'
-}
-
-if (!verifyMacRelease.includes(upstreamProductName)) {
-  throw new Error('configure-product: cannot locate macOS release product name')
-}
+/* --------------------------- 锚点校验 --------------------------- */
+assertBrandingAnchors({ verifyMacRelease, main, index, assistedMessages })
 if (!releaseMac.includes(upstreamReleaseCheck)) {
   throw new Error('configure-product: cannot locate redundant macOS release check')
 }
-if (!main.includes(upstreamMainProductName)) {
-  throw new Error('configure-product: cannot locate desktop runtime product name')
-}
-if (!main.includes(upstreamAppUserModelId)) {
-  throw new Error('configure-product: cannot locate Windows App User Model ID')
-}
-if (!index.includes(upstreamRuntimeProductName) || !index.includes(upstreamWindowTitle)) {
-  throw new Error('configure-product: cannot locate desktop shell branding')
-}
-if (!assistedMessages.includes('DSH Desktop')) {
-  throw new Error('configure-product: cannot locate assisted installer branding')
-}
 
+/* ----------------------- electron-builder ----------------------- */
 desktopPackage.version = product.version
 desktopPackage.build.appId = product.appId
 desktopPackage.build.productName = product.name
@@ -193,16 +102,15 @@ if (!Array.isArray(desktopPackage.build.files)) {
 if (packagingTarget === 'windows') {
   desktopPackage.build.files.push(...windowsX64RuntimeExclusions)
 }
-// NSIS 3.12 provides long-path support, but its 1.2.1 bundle ships an ANSI
-// nsisunz.dll in the Unicode plugin directory. Keep the new compiler and use
-// the previously verified Unicode plugin resources for ZIP extraction.
-desktopPackage.build.nsis.customNsisResources = {
-  url: 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z',
-  checksum: '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103',
-  version: '3.4.1',
-}
-applyWindowsInstallerGuard()
+pinNsisResources(desktopPackage)
+applyWindowsInstallerGuard({
+  windowsInstallerRoot,
+  windowsInstallerIncludePath,
+  desktopPackage,
+  assertGeneratedPath,
+})
 
+/* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(
   verifyMacReleasePath,
@@ -211,12 +119,7 @@ writeFileSync(
     `productName: ${JSON.stringify(product.name)},`,
   ),
 )
-writeFileSync(
-  mainPath,
-  main
-    .replace(upstreamMainProductName, `const PRODUCT_NAME = ${JSON.stringify(product.name)}`)
-    .replace(upstreamAppUserModelId, `app.setAppUserModelId(${JSON.stringify(product.appId)})`),
-)
+writeFileSync(mainPath, brandDesktopMain(main, product, legacyProductNames))
 writeFileSync(
   indexPath,
   index
@@ -228,8 +131,16 @@ writeFileSync(
   releaseMacPath,
   releaseMac.replace(
     upstreamReleaseCheck,
-    '  // TokensHarness product assembly owns the release quality gates before packaging.\n',
+    '  // TokensCowork product assembly owns the release quality gates before packaging.\n',
   ),
 )
-applyProductLogo()
+if (hasProductUpdatePlugin) {
+  writeFileSync(desktopPatchPath, configureProductUpdates(
+    readFileSync(desktopPatchPath, 'utf8'),
+    product,
+    repositoryMatch.groups.owner,
+    repositoryMatch.groups.repo,
+  ))
+}
+applyProductLogo({ productBrandRoot, stage, assertGeneratedPath })
 process.stdout.write(`configure-product: ${product.name} ${product.version} (${product.appId})\n`)
