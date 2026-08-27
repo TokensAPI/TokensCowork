@@ -101,7 +101,9 @@ const windowsAclRunnerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'window
 const windowsPwshSandboxPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-pwsh-sandbox.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
-let desktopPatch = readFileSync(desktopPatchPath, 'utf8').trimEnd()
+// 归一化 CRLF：Windows CI 的 git autocrlf 会把检出内容转成 CRLF，
+// 不归一化时后续覆盖的 LF 锚点全部失配。
+let desktopPatch = readFileSync(desktopPatchPath, 'utf8').replaceAll('\r\n', '\n').trimEnd()
 let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
@@ -188,7 +190,7 @@ for (const plugin of enabledPlugins) {
   writeFileSync(pluginPackagePath, `${JSON.stringify(pluginPackage, undefined, 2)}\n`)
 
   const pluginPatch = renamePluginPatchPackage(
-    readFileSync(resolve(source, plugin.patch), 'utf8').trim(),
+    readFileSync(resolve(source, plugin.patch), 'utf8').replaceAll('\r\n', '\n').trim(),
     plugin.sourcePackage ?? plugin.package,
     plugin.package,
     plugin.id,

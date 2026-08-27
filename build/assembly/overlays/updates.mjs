@@ -80,6 +80,9 @@ export function verifyDisabledUpdateMenu(script) {
  * @throws 更新插件注册条目缺失时抛出，中断打包待人工复查。
  */
 export function configureProductUpdates(desktopPatch, product, owner, repo) {
+  // 防御 CRLF：Windows CI 的 git autocrlf 可能把 staging 补丁写成 CRLF，
+  // 统一归一化后再做锚点匹配，写回也保持 LF。
+  desktopPatch = desktopPatch.replaceAll('\r\n', '\n')
   const productUpdateEntry = `    - id: tokens-version-updates
       name: '@tokens/dsh-version-updates'`
   if (!desktopPatch.includes(productUpdateEntry)) {
