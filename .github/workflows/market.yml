@@ -28,12 +28,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # 直接 npx 调用 wrangler:仓库根 package.json 声明 yarn@4 的
+      # packageManager,wrangler-action 的 yarn 安装路径会被 corepack
+      # 拦下,npx 则不受包管理器声明影响。
       - name: Deploy market directory
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy market --project-name tokenscowork-market --branch master
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy market --project-name tokenscowork-market --branch master
 
       - name: Verify deployment
         run: |
