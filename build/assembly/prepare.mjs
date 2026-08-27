@@ -146,6 +146,15 @@ writeFileSync(marketOverlayTestsPath, skipUpstreamAddSourceOverlayTests(readFile
 // 验收产品更新入口；纯净产品没有替代插件时，验收所有更新入口均已隐藏。
 desktopPatch = disableUpstreamUpdates(desktopPatch)
 desktopPatch += '\n\n- id: ui-brand-official\n  disabled: true'
+
+/* ------------------------ 系统提示词品牌 ------------------------ */
+// 只换品牌不加规则：关闭上游 "powered by DeepSeek Harness" 身份行，
+// persona 换成产品身份一句话；工具说明与运行时上下文保持上游原样。
+desktopPatch += '\n\n# 产品覆盖：系统提示词身份行使用产品品牌。\n'
+  + '- id: system-prompt\n'
+  + '  config:\n'
+  + '    includeHarnessIdentity: false\n'
+  + `    persona: You are the AI agent inside ${manifest.product.name}.`
 if (hasProductUpdatePlugin) {
   profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
 } else {
