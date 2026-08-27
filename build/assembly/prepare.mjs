@@ -3,7 +3,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
 import { removeManagedBundlesFromProfile, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
-import { allowMarketSourceSyntheticProxy, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
 
@@ -125,17 +125,23 @@ writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
 // 预置产品目录源为唯一入口：默认选中、隐藏上游合作源与添加/删除入口，
 // 同时精简固定来源页面的说明信息。
 const marketSourceManifest = JSON.parse(readFileSync(resolve(root, 'market', 'source.json'), 'utf8'))
+const marketIndexPath = resolve(stage, 'dsh-community-market', 'src', 'index.ts')
 const marketRoutesPath = resolve(stage, 'dsh-community-market', 'src', 'host', 'routes.ts')
+const marketSourceStorePath = resolve(stage, 'dsh-community-market', 'src', 'catalog', 'source-store.ts')
 const marketServicePath = resolve(stage, 'dsh-community-market', 'src', 'catalog', 'service.ts')
 const marketSettingsTabPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'MarketSettingsTab.tsx')
 const marketLocalesPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'locales.ts')
 const pinnedMarket = pinProductMarketSource({
+  index: readFileSync(marketIndexPath, 'utf8'),
   routes: readFileSync(marketRoutesPath, 'utf8'),
+  sourceStore: readFileSync(marketSourceStorePath, 'utf8'),
   service: readFileSync(marketServicePath, 'utf8'),
   settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
   locales: readFileSync(marketLocalesPath, 'utf8'),
 }, marketSourceConfig.origin, marketSourceManifest)
+writeFileSync(marketIndexPath, pinnedMarket.index)
 writeFileSync(marketRoutesPath, pinnedMarket.routes)
+writeFileSync(marketSourceStorePath, pinnedMarket.sourceStore)
 writeFileSync(marketServicePath, pinnedMarket.service)
 writeFileSync(marketSettingsTabPath, pinnedMarket.settingsTab)
 writeFileSync(marketLocalesPath, pinnedMarket.locales)
@@ -149,6 +155,16 @@ const marketSettingsTabTestsPath = resolve(stage, 'dsh-community-market', 'tests
 writeFileSync(
   marketSettingsTabTestsPath,
   skipUpstreamSourceDescriptionTests(readFileSync(marketSettingsTabTestsPath, 'utf8')),
+)
+const marketSourceStoreTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'source-store.spec.ts')
+writeFileSync(
+  marketSourceStoreTestsPath,
+  addRequiredSourceRepairTest(readFileSync(marketSourceStoreTestsPath, 'utf8')),
+)
+const marketLifecycleTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-host-lifecycle.spec.ts')
+writeFileSync(
+  marketLifecycleTestsPath,
+  awaitProductSourceMigrationInLifecycleTest(readFileSync(marketLifecycleTestsPath, 'utf8')),
 )
 
 /* -------------------------- 配置自动更新 --------------------------- */
