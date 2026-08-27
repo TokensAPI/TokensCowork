@@ -90,6 +90,25 @@
         "name": "TokensAPI",
         "url": "https://github.com/TokensAPI"
       }
+    },
+    {
+      "id": "tokens-browser-use",
+      "name": "@tokensapi/dsh-browser-use",
+      "displayName": "浏览器操作",
+      "summary": "桥接 Playwright MCP，让模型驱动可见浏览器完成网页操作，带可视光标与坐标模式。",
+      "homepage": "https://github.com/TokensAPI/tokens_DshBrowserUse_code",
+      "latestVersion": "0.1.0",
+      "repository": {
+        "url": "https://github.com/TokensAPI/tokens_DshBrowserUse_code"
+      },
+      "package": {
+        "registry": "npm",
+        "name": "@tokensapi/dsh-browser-use"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
     }
   ],
   "page": {}

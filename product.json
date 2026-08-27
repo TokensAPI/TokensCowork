@@ -108,6 +108,19 @@
       "runtimeDependencies": {
         "@deepseek-ai/schemastery": "^3.18.1"
       }
+    },
+    {
+      "id": "tokens-browser-use",
+      "displayName": "浏览器操作",
+      "description": "桥接 Playwright MCP，让模型驱动可见浏览器完成网页操作，带可视光标与坐标模式。",
+      "path": "plugins/tokens_DshBrowserUse_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshBrowserUse_code.git",
+      "commit": "d9d089b84dc276c19e76b1d1cf9d107e9391a687",
+      "package": "@tokensapi/dsh-browser-use",
+      "version": "0.1.0",
+      "enabledByDefault": false,
+      "npmInstall": true,
+      "patch": "cordis.patch.yml"
     }
   ]
 }

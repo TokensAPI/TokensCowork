@@ -61,6 +61,12 @@ export function buildCatalogPage(product) {
       homepage: repository,
       latestVersion: assertPlainText(plugin.version, 64, `${plugin.id}.version`),
       repository: { url: repository },
+      // npmInstall 标记的插件已发布到 npm 官方 registry：目录条目带上
+      // package 字段后，市场 Host 会将其识别为可托管安装的候选，并在
+      // 预览与执行时对 npm 实时核验身份、仓库与完整性。
+      ...(plugin.npmInstall === true
+        ? { package: { registry: 'npm', name: plugin.package } }
+        : {}),
       publisher: { name: 'TokensAPI', url: 'https://github.com/TokensAPI' },
     }
   })
