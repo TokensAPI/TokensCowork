@@ -7,7 +7,7 @@
  * 每个导出函数自带锚点守护：上游代码变动导致锚点失配时装配立即
  * 失败，等待人工复查，绝不静默漏掉覆盖。
  * ============================================================ */
-import { cpSync, existsSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /* ------------------------- 上游品牌锚点 ------------------------- */
@@ -175,4 +175,61 @@ export function brandDesktopPatch(desktopPatch, productName) {
     + '  config:\n'
     + '    includeHarnessIdentity: false\n'
     + `    persona: You are the AI agent inside ${productName}.`
+}
+
+/**
+ * 品牌化依赖安装后的运行时文本：系统提示词的动态注入段与 agent 预设
+ * persona 分布在已安装的 node_modules（编译产物与预设 YAML）里，装配
+ * 源码覆盖够不着，须在 yarn install 之后改写。逐处带出现次数校验：
+ * 上游变动导致锚点失配时立即失败，等待人工复查。
+ * @param options.stage - staging 根目录。
+ * @param options.productName - 产品名（来自 product.json）。
+ */
+export function brandInstalledRuntimePrompts({ stage, productName }) {
+  const desktopModules = resolve(stage, 'dsh-plugin-desktop', 'node_modules')
+
+  const replaceOnce = (path, replacements) => {
+    let content = readFileSync(path, 'utf8')
+    for (const [from, to, expected] of replacements) {
+      const count = content.split(from).length - 1
+      if (count !== expected) {
+        throw new Error(
+          `configure-product: 品牌锚点 "${from.slice(0, 48)}..." 在 ${path} 出现 ${count} 次,预期 ${expected} 次`,
+        )
+      }
+      content = content.replaceAll(from, to)
+    }
+    writeFileSync(path, content)
+  }
+
+  // 1) app-boot:源码检出说明行("The DeepSeek Harness implementation checkout is at...")。
+  replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js'), [
+    ['The DeepSeek Harness implementation checkout is at', `The ${productName} implementation checkout is at`, 1],
+  ])
+
+  // 2) web-app:GUI 说明行与 webUrl 变量描述("DeepSeek Harness Web GUI",两处)。
+  replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-web-app', 'lib', 'index.js'), [
+    ['DeepSeek Harness Web GUI', `${productName} Web GUI`, 2],
+  ])
+
+  // 3) agent 预设 persona:"coding agent" 改为通用助手身份,产品名入句。
+  //    standard/code 共享一种文案,cordis 预设另带上游品牌短语。
+  const presetsRoot = resolve(desktopModules, '@deepseek-ai', 'dsh', 'config', 'agent-presets')
+  const generalPersona = `You are a versatile AI assistant inside ${productName}, powered by the {{model}} model. You handle coding, research, writing, and everyday tasks alike. Your working directory is {{cwd}}.`
+  for (const preset of ['standard', 'code']) {
+    replaceOnce(resolve(presetsRoot, preset, 'agent.cordis.yml'), [
+      [
+        'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.',
+        generalPersona,
+        1,
+      ],
+    ])
+  }
+  replaceOnce(resolve(presetsRoot, 'cordis', 'agent.cordis.yml'), [
+    [
+      'You are a coding agent powered by the {{model}} model, running on the DeepSeek Harness. Your working directory is {{cwd}}.',
+      generalPersona,
+      1,
+    ],
+  ])
 }

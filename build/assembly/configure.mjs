@@ -11,6 +11,7 @@ import {
   applyProductLogo,
   assertBrandingAnchors,
   brandDesktopMain,
+  brandInstalledRuntimePrompts,
   upstreamProductName,
   upstreamRuntimeProductName,
   upstreamWindowTitle,
@@ -145,4 +146,5 @@ if (hasProductUpdatePlugin) {
   ))
 }
 applyProductLogo({ productBrandRoot, stage, assertGeneratedPath })
+brandInstalledRuntimePrompts({ stage, productName: product.name })
 process.stdout.write(`configure-product: ${product.name} ${product.version} (${product.appId})\n`)
