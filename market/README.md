@@ -1,6 +1,6 @@
 # TokensAPI 插件市场目录源
 
-本目录是 DSH Community Market「标准目录源」的静态实现，只收录 TokensCowork 产品自有插件（数据来自 `product.json`）。用户在客户端 **设置 → 插件 → 插件市场 → 源** 中登记 manifest URL 后，即可浏览 TokensAPI 生态的插件。
+本目录是 DSH Community Market「标准目录源」的静态实现，只收录 TokensCowork 产品自有插件（数据来自 `product.json`）。产品装配会预置并默认选中该官方源，无需用户手动登记。
 
 ## 文件
 
@@ -26,10 +26,6 @@ _headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 
 
 ## 用户使用方式
 
-在 TokensCowork 中打开 **设置 → 插件 → 插件市场 → Sources → 添加源**，填入：
+TokensCowork 首次启动后即可在插件市场浏览该源，无需添加或选择。产品界面隐藏来源的添加和删除操作，Host 也拒绝删除官方源，避免误操作后市场失去唯一来源。
 
-```text
-https://<origin>/source.json
-```
-
-添加并选中后，Discover 页即显示本产品全部插件卡片（含 GitHub 仓库链接）。当前插件未发布到 npm，卡片为 browse-only：用户可查看介绍并跳转仓库主页；如需通过市场一键安装，插件需先以精确稳定版本发布到 npm 并在生成脚本中补充 `package` 与 `latestVersion` 字段。
+目录中带有经过验证的 npm 包信息时可直接安装；其他条目仍可查看介绍并跳转源码仓库。

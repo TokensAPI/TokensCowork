@@ -2,7 +2,8 @@
  * 产品覆盖：插件市场
  * ============================================================
  * 将市场收敛为产品自营目录源：fake-IP 代理豁免、预置 TokensAPI
- * 源并默认选中、清空上游合作源、隐藏手动添加入口。
+ * 源并默认选中、清空上游合作源、隐藏手动添加与删除入口、精简
+ * 固定来源页面的说明信息，并统一 Market 品牌文案。
  * 每个导出函数自带锚点守护：上游代码变动导致锚点失配时装配立即
  * 失败，等待人工复查，绝不静默漏掉覆盖。
  * ============================================================ */
@@ -65,8 +66,9 @@ export function allowMarketSourceSyntheticProxy(source, hostname) {
 
 /**
  * 将插件市场收敛为产品自营源：预置 TokensAPI 目录源并默认选中、清空上游
- * 合作源目录、隐藏"添加标准来源"入口。用户打开市场即浏览产品源，无需
- * 手动登记；上游标准源机制本身保持不变（校验、缓存、快照均走原逻辑）。
+ * 合作源目录、隐藏来源的添加/删除入口和冗余说明。用户打开市场即浏览
+ * 产品源，无需手动登记；Host 同时拒绝删除产品源，避免绕过界面误删。
+ * 上游标准源机制本身保持不变（校验、缓存、快照均走原逻辑）。
  * @param sources - staging 副本中市场各文件的内容。
  * @param origin - 产品目录源 origin（来自 market/source.config.json）。
  * @param manifest - 产品目录源 manifest 的完整 JSON 对象（market/source.json）。
@@ -74,7 +76,7 @@ export function allowMarketSourceSyntheticProxy(source, hostname) {
  * @throws 上游锚点变化时抛出，中断打包待人工复查。
  */
 export function pinProductMarketSource(sources, origin, manifest) {
-  const { routes, service, settingsTab } = sources
+  const { routes, service, settingsTab, locales } = sources
   // 1) Host:设置 schema 的 sources 默认值从 [] 换成预置的产品源记录。
   //    记录形状须过 validateLocalSourceRecords:user-added + manifestUrl +
   //    注册时 manifest 快照 + UUID。UUID 在装配时固定生成,同一版本安装包
@@ -93,10 +95,28 @@ export function pinProductMarketSource(sources, origin, manifest) {
     enabled: true,
     order: 0,
   }
-  const patchedRoutes = routes.replace(
+  let patchedRoutes = routes.replace(
     defaultsAnchor,
     '  // 产品覆盖：预置 TokensAPI 官方目录源并默认选中。\n'
     + `  sources: z.array(SOURCE_SCHEMA).default(${JSON.stringify([seededRecord])} as never),`,
+  )
+  // 预置源虽然复用标准 user-added 记录形状，但它是产品运行所需的固定入口。
+  // Renderer 隐藏删除按钮之外，Host 也拒绝删除，避免直接调用 API 或旧客户端
+  // 把唯一来源清空后留下不可恢复的空市场。
+  const removeSourceAnchor = `    if (mutation.action === 'remove') {
+      unavailableSourceRecordIds.add(records[index]!.sourceRecordId)`
+  if (!patchedRoutes.includes(removeSourceAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场删除来源锚点，请复查产品源保护覆盖')
+  }
+  patchedRoutes = patchedRoutes.replace(
+    removeSourceAnchor,
+    `    if (mutation.action === 'remove') {
+      const target = records[index]!
+      if (target.providerId === ${JSON.stringify(manifest.providerId)}
+        && target.manifestUrl === ${JSON.stringify(`${origin}/source.json`)}) {
+        throw new Error('product source cannot be removed')
+      }
+      unavailableSourceRecordIds.add(target.sourceRecordId)`,
   )
   // 2) Host:清空内置合作源目录(1024Store/dshfind 不再出现在可添加列表)。
   const builtInAnchor = 'export const BUILT_IN_PROVIDERS: readonly BuiltInProviderDefinition[] = ['
@@ -114,18 +134,82 @@ export function pinProductMarketSource(sources, origin, manifest) {
     + 'void [DSH_1024STORE_ADAPTER_ID, DSH_1024STORE_ENDPOINT, DSH_1024STORE_KEY, DSH_1024STORE_PROVIDER_ID, dsh1024StoreAdapter, DSHFIND_ADAPTER_ID, DSHFIND_ENDPOINT, DSHFIND_KEY, DSHFIND_PROVIDER_ID, dshfindAdapter]\n'
     + 'export const BUILT_IN_PROVIDERS: readonly BuiltInProviderDefinition[] = ['
     + service.slice(builtInEnd)
-  // 3) Renderer:隐藏"添加标准来源"按钮,用户不再手动登记源。
+  // 3) Renderer:隐藏来源添加/删除入口与固定来源页面的冗余说明。
   const addButtonAnchor = "        <Button variant=\"outline\" disabled={pending} icon={<IconPlusOutline16 />} onClick={onAddStandard}>{t('addStandard')}</Button>"
   if (!settingsTab.includes(addButtonAnchor)) {
     throw new Error('prepare-desktop: 未找到市场添加来源按钮锚点，请复查产品源预置覆盖')
   }
-  const patchedSettingsTab = settingsTab.replace(
+  let patchedSettingsTab = settingsTab.replace(
     addButtonAnchor,
     // void 引用保住解构参数：按钮删除后 noUnusedLocals 会拒绝未使用的
     // onAddStandard，而上层调用方仍按接口传入，不宜连根改动。
     '        {void onAddStandard}\n        {/* 产品覆盖：目录源由产品预置，不开放手动添加。 */}',
   )
-  return { routes: patchedRoutes, service: patchedService, settingsTab: patchedSettingsTab }
+  const sourceHeadAnchor = "        <div><h2>{t('sources')}</h2><p>{t('sourceNotice')}</p></div>"
+  const sourceGuideAnchor = `      <div className="dshMarketBanner dshMarketSourceGuide">
+        <IconGlobeOutline14 size={14} />
+        <span>
+          {t('sourcePartnershipBefore')}
+          <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('sourcePartnershipContact')}</a>
+          {t('sourcePartnershipAfter')}{' '}
+          <a href={adapterGuideHref} target="_blank" rel="noopener noreferrer">{t('sourcePartnershipGuide')}</a>
+        </span>
+      </div>`
+  const removeButtonAnchor = `        <Tooltip label={t('remove')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={t('remove')}
+            disabled={pending}
+            icon={<IconTrashOutline16 />}
+            onClick={onRemove}
+          />
+        </Tooltip>`
+  for (const [anchor, label] of [
+    [sourceHeadAnchor, '来源说明'],
+    [sourceGuideAnchor, '来源合作提示'],
+    [removeButtonAnchor, '删除来源按钮'],
+  ]) {
+    if (!patchedSettingsTab.includes(anchor)) {
+      throw new Error(`prepare-desktop: 未找到市场${label}锚点，请复查产品源界面覆盖`)
+    }
+  }
+  patchedSettingsTab = patchedSettingsTab
+    .replace(sourceHeadAnchor, "        <div><h2>{t('sources')}</h2></div>")
+    .replace(
+      sourceGuideAnchor,
+      '      {void adapterGuideHref}\n      {/* 产品覆盖：固定官方源无需显示合作与接入说明。 */}',
+    )
+    .replace(
+      removeButtonAnchor,
+      '        {void onRemove}\n        {/* 产品覆盖：官方目录源不可删除。 */}',
+    )
+  // 4) Locale:Market 自带独立品牌文案，不会跟随 Desktop productName，
+  // 因此中英文副标题都显式切换到用户可见品牌 Tokens Cowork。
+  const localeAnchors = [
+    [
+      "  subtitle: '从你选择的来源发现 DeepSeek Harness 插件',",
+      "  subtitle: '从你选择的来源发现 Tokens Cowork 插件',",
+    ],
+    [
+      "  subtitle: 'Discover DeepSeek Harness plugins from sources you choose',",
+      "  subtitle: 'Discover Tokens Cowork plugins from sources you choose',",
+    ],
+  ]
+  let patchedLocales = locales
+  for (const [anchor, replacement] of localeAnchors) {
+    if (!patchedLocales.includes(anchor)) {
+      throw new Error('prepare-desktop: 未找到市场品牌副标题锚点，请复查 Market 文案覆盖')
+    }
+    patchedLocales = patchedLocales.replace(anchor, replacement)
+  }
+  return {
+    routes: patchedRoutes,
+    service: patchedService,
+    settingsTab: patchedSettingsTab,
+    locales: patchedLocales,
+  }
 }
 
 /**
@@ -166,8 +250,8 @@ export function skipUpstreamBuiltInRuntimeTests(spec) {
 }
 
 /**
- * 跳过 client-overlay 中操作"添加标准来源"按钮的上游测试。产品隐藏了
- * 该入口，相应的对话框交互断言不再适用；其余 overlay 测试全量执行。
+ * 跳过 client-overlay 中操作来源添加/删除按钮的上游测试。产品隐藏了
+ * 这些入口，相应的交互断言不再适用；其余 overlay 测试全量执行。
  * @param spec - staging 副本中 tests/client-overlay.spec.tsx 的完整内容。
  * @returns 适配产品源策略后的测试内容。
  * @throws 上游测试锚点变化时抛出，中断打包待人工复查。
@@ -176,14 +260,30 @@ export function skipUpstreamAddSourceOverlayTests(spec) {
   const anchors = [
     "  it('adds a trimmed standard source and closes the dialog on success', async () => {",
     "  it('keeps the standard source dialog open when adding fails', async () => {",
+    "  it('removes a source from the source list', async () => {",
   ]
   let patched = spec
   for (const anchor of anchors) {
     if (!patched.includes(anchor)) {
-      throw new Error('prepare-desktop: 未找到上游添加来源 overlay 测试锚点，请复查市场测试适配')
+      throw new Error('prepare-desktop: 未找到上游来源操作 overlay 测试锚点，请复查市场测试适配')
     }
     // 产品覆盖：添加来源入口已隐藏，相关交互断言不再适用于产品构建。
     patched = patched.replace(anchor, anchor.replace("  it('", "  it.skip('"))
   }
   return patched
+}
+
+/**
+ * 跳过 MarketSettingsTab 中要求展示来源合作说明的上游测试。产品使用固定
+ * 官方源并隐藏该说明，相应链接断言不再适用；其余设置页测试全量执行。
+ * @param spec - staging 副本中 tests/market-settings-tab.spec.tsx 的完整内容。
+ * @returns 适配产品固定来源页面后的测试内容。
+ * @throws 上游测试锚点变化时抛出，中断打包待人工复查。
+ */
+export function skipUpstreamSourceDescriptionTests(spec) {
+  const anchor = "  it('links source teams to the partnership contact and catalog adapter guide', async () => {"
+  if (!spec.includes(anchor)) {
+    throw new Error('prepare-desktop: 未找到上游来源说明测试锚点，请复查市场测试适配')
+  }
+  return spec.replace(anchor, anchor.replace("  it('", "  it.skip('"))
 }
