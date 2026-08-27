@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TokensAPI 插件市场 · 管理面板</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1c2330; --muted: #667085;
+    --line: #e4e7ec; --brand: #2563eb; --ok: #059669; --warn: #d97706; --bad: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1420; --card: #171e2e; --ink: #e7ecf5; --muted: #8a94a6;
+      --line: #26304a; --brand: #60a5fa; --ok: #34d399; --warn: #fbbf24; --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .stats { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 18px; min-width: 130px;
+  }
+  .stat b { display: block; font-size: 22px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  thead th { border-top: none; background: color-mix(in srgb, var(--card) 60%, var(--bg)); font-size: 12px; color: var(--muted); }
+  td .pkg { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--muted); }
+  td .sum { color: var(--muted); font-size: 12.5px; max-width: 360px; }
+  .tag {
+    display: inline-block; border-radius: 999px; padding: 1px 10px; font-size: 12px;
+    border: 1px solid var(--line); white-space: nowrap;
+  }
+  .tag.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .tag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .tag.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+  .tag.dim { color: var(--muted); }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .foot { margin-top: 20px; color: var(--muted); font-size: 12.5px; }
+  .foot code { font-family: ui-monospace, Consolas, monospace; background: color-mix(in srgb, var(--card) 60%, var(--bg)); padding: 1px 6px; border-radius: 6px; }
+  button {
+    background: var(--brand); border: none; color: #fff; border-radius: 8px;
+    padding: 7px 16px; font-size: 13px; cursor: pointer; margin-left: auto;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  @media (max-width: 720px) { .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>插件市场管理面板</h1>
+    <span class="sub" id="origin"></span>
+    <button id="refresh">刷新</button>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b id="stat-total">–</b><span>名册插件</span></div>
+    <div class="stat"><b id="stat-npm">–</b><span>npm 自动同步</span></div>
+    <div class="stat"><b id="stat-live">–</b><span>市场目录在线条目</span></div>
+    <div class="stat"><b id="stat-drift">–</b><span>版本待同步</span></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>插件</th>
+        <th>名册版本</th>
+        <th>npm latest</th>
+        <th>市场目录</th>
+        <th class="hide-sm">状态</th>
+      </tr>
+    </thead>
+    <tbody id="rows"><tr><td colspan="5" style="color:var(--muted)">加载中…</td></tr></tbody>
+  </table>
+
+  <p class="foot">
+    数据说明：<b>名册</b>读自 <code>roster.json</code>；<b>npm latest</b> 实时查询 registry.npmjs.org；
+    <b>市场目录</b>读自本源 <code>/v1/plugins</code>（边缘缓存约 5 分钟，客户端市场另有 5 分钟索引缓存）。
+    npm 自动同步的插件（<span class="tag ok">npm</span>）由协作者 <code>npm publish</code> 后自动更新，无需任何操作；
+    浏览版插件（<span class="tag dim">browse</span>）改版本需编辑 <code>roster.json</code> 并推送部署。
+    新增插件：向 <code>roster.json</code> 的 <code>items</code> 追加一条记录并推送。
+  </p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id)
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+
+async function fetchJson(url) {
+  const r = await fetch(url, { cache: 'no-store' })
+  if (!r.ok) throw new Error(url + ' -> ' + r.status)
+  return r.json()
+}
+
+async function npmLatest(pkg) {
+  try {
+    const tags = await fetchJson('https://registry.npmjs.org/-/package/' + pkg + '/dist-tags')
+    return typeof tags.latest === 'string' ? tags.latest : null
+  } catch { return null }
+}
+
+async function load() {
+  $('origin').textContent = location.origin
+  $('refresh').disabled = true
+  const rows = $('rows')
+  rows.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">加载中…</td></tr>'
+  try {
+    const [roster, live] = await Promise.all([
+      fetchJson('/roster.json'),
+      fetchJson('/v1/plugins').catch(() => ({ items: [] })),
+    ])
+    const liveMap = new Map(live.items.map(it => [it.id, it]))
+    const npmItems = roster.items.filter(it => it.npm === true)
+    const npmVersions = new Map(await Promise.all(
+      npmItems.map(async it => [it.id, await npmLatest(it.package)]),
+    ))
+
+    let drift = 0
+    rows.innerHTML = roster.items.map(it => {
+      const liveItem = liveMap.get(it.id)
+      const liveVer = liveItem ? liveItem.latestVersion : null
+      const npmVer = npmVersions.get(it.id) ?? null
+      let state, cls
+      if (it.npm === true) {
+        if (npmVer === null) { state = 'npm 查询失败'; cls = 'warn' }
+        else if (liveVer === npmVer) { state = '已同步'; cls = 'ok' }
+        else { state = '目录缓存待刷新'; cls = 'warn'; drift++ }
+      } else {
+        state = liveVer === it.version ? '已同步' : (liveVer === null ? '目录中缺失' : '目录待部署')
+        cls = state === '已同步' ? 'ok' : 'bad'
+        if (state !== '已同步') drift++
+      }
+      return '<tr>'
+        + '<td><div>' + esc(it.displayName) + ' <span class="tag ' + (it.npm ? 'ok' : 'dim') + '">' + (it.npm ? 'npm' : 'browse') + '</span></div>'
+        + '<div class="pkg"><a href="' + esc(it.repository) + '" target="_blank" rel="noopener">' + esc(it.package) + '</a></div>'
+        + '<div class="sum hide-sm">' + esc(it.summary) + '</div></td>'
+        + '<td class="mono">' + esc(it.version) + '</td>'
+        + '<td class="mono">' + (it.npm ? esc(npmVer ?? '—') : '<span class="tag dim">不适用</span>') + '</td>'
+        + '<td class="mono">' + esc(liveVer ?? '—') + '</td>'
+        + '<td class="hide-sm"><span class="tag ' + cls + '">' + state + '</span></td>'
+        + '</tr>'
+    }).join('')
+
+    $('stat-total').textContent = roster.items.length
+    $('stat-npm').textContent = npmItems.length
+    $('stat-live').textContent = live.items.length
+    $('stat-drift').textContent = drift
+  } catch (error) {
+    rows.innerHTML = '<tr><td colspan="5" style="color:var(--bad)">加载失败：' + esc(error.message) + '</td></tr>'
+  } finally {
+    $('refresh').disabled = false
+  }
+}
+
+$('refresh').addEventListener('click', load)
+load()
+</script>
+</body>
+</html>
