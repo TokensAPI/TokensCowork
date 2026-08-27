@@ -2,8 +2,8 @@
   "use strict";
 
   var defaultConfig = window.DOWNLOAD_PAGE_CONFIG || {};
-  var previewStorageKey = "tokensharness-download-page-preview";
-  var languageStorageKey = "tokensharness-download-page-language";
+  var previewStorageKey = "tokenscowork-download-page-preview";
+  var languageStorageKey = "tokenscowork-download-page-language";
   var contentKeys = ["productName", "eyebrow", "headline", "description", "notice", "footerText"];
   var editableKeys = contentKeys.concat(["repository"]);
   var iconMarkup = {
@@ -70,7 +70,7 @@
       bundledPlugins: "内置插件",
       bundledPluginsSource: "随安装包内置，开箱即用",
       pluginHomepage: "GitHub 主页",
-      previewLabel: "TokensHarness 应用界面预览",
+      previewLabel: "TokensCowork 应用界面预览",
       newSession: "新会话",
       workspace: "工作区",
       buildDownloadPage: "构建下载页面",
@@ -143,7 +143,7 @@
       bundledPlugins: "Bundled plugins",
       bundledPluginsSource: "Included in the installer, ready to use",
       pluginHomepage: "GitHub",
-      previewLabel: "TokensHarness application preview",
+      previewLabel: "TokensCowork application preview",
       newSession: "New session",
       workspace: "Workspace",
       buildDownloadPage: "Build download page",
@@ -199,7 +199,7 @@
   function repositoryParts() {
     var value = String(config.repository || "").trim().replace(/^https?:\/\/github\.com\//, "").replace(/\/$/, "");
     var parts = value.split("/").filter(Boolean);
-    return { owner: parts[0] || "TokensAPI", repo: parts[1] || "tokens_TokensHarness_code" };
+    return { owner: parts[0] || "TokensAPI", repo: parts[1] || "TokensCowork" };
   }
 
   function githubUrl(path) {
@@ -460,7 +460,7 @@
 
   var pluginManifestCache = {};
 
-  // 内置插件清单来自该 Release 的 TokensHarness-<v>-plugins.json 资产
+  // 内置插件清单来自该 Release 的 TokensCowork-<v>-plugins.json 资产
   // （发布工作流由 product.json 生成）。缺资产或拉取失败时隐藏整个区块。
   function renderBundledPlugins(release) {
     var section = document.getElementById("bundled-plugins");

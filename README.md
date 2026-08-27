@@ -1,6 +1,6 @@
-# tokens_TokensHarness_code
+# TokensCowork
 
-TokensHarness 桌面产品的纯构建 Superproject。顶层不复制 Desktop、DeepSeek Harness 或插件业务代码，只固定子模块提交、持有组装脚本，并负责跨平台打包、验收与发布。
+TokensCowork 桌面产品的纯构建 Superproject。顶层不复制 Desktop、DeepSeek Harness 或插件业务代码，只固定子模块提交、持有组装脚本，并负责跨平台打包、验收与发布。
 
 所有产品加工只发生在生成目录 `.build/desktop/`；`desktop/` 与 `plugins/` 子模块始终保持只读。
 
@@ -57,14 +57,16 @@ corepack yarn product:check
 ```text
 检查版本、Git pin 和产品声明
 → 重建 .build/desktop
-→ 注入默认插件、产品品牌和 build/product.yarn.lock
+→ 注入默认插件、TokensCowork 品牌和 build/product.yarn.lock
 → yarn install --immutable
 → 编译并裁剪插件
 → 检查生产依赖许可证
 → 平台打包与最终验收
 ```
 
-装配阶段还会施加产品覆盖：停用上游 `desktop-updates` 插件（它指向官方 DSH Desktop 下载源，与本产品无关），由内置的 `tokens-version-updates` 插件改从本仓库 GitHub Release 检查与下载更新。上游补丁条目一旦变动，装配会直接失败而不是静默漏掉覆盖。
+装配阶段还会施加产品覆盖：停用上游 `desktop-updates` 插件（它指向官方 DSH Desktop 下载源，与本产品无关），由内置的 `tokens-version-updates` 插件改从 `TokensAPI/TokensCowork` 的 GitHub Release 检查与下载更新。上游补丁条目一旦变动，装配会直接失败而不是静默漏掉覆盖。
+
+`product.appId` 使用新身份 `com.tokensapi.tokenscowork`。Windows 安装器另外固定 `windowsInstallerGuid`，其值等同旧版本根据原 appId 生成的安装 GUID，因此应用身份已经改名，覆盖升级仍能识别旧安装记录；该 GUID 不包含旧品牌文本，也不影响 macOS 新身份。
 
 macOS 打包细节：`product:dist:mac:auto` 是本地和 GitHub Actions 的统一 DMG 入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择架构。当 `MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和 `APPLE_TEAM_ID` 全部存在时执行 Developer ID 签名、公证和 staple；全部缺失时自动 ad-hoc 签名；只配置一部分时立即失败。`BUILD-INFO.txt` 记录实际采用的签名模式。
 
@@ -72,7 +74,7 @@ Windows 最终验收（`build/verify/package.mjs`）除品牌与原生架构检�
 
 ## 发布流程
 
-推送 `v*` Tag 触发 `Build Desktop` 工作流：Windows amd64、macOS arm64、macOS amd64 并行构建，全部通过后创建 GitHub Release。Release 包含三个安装包、统一 SHA-256 文件和插件清单资产 `TokensHarness-<version>-plugins.json`（由 `scripts/generate-plugin-manifest.mjs` 从 `product.json` 生成，供下载页渲染"内置插件"）。
+推送 `v*` Tag 触发 `Build Desktop` 工作流：Windows amd64、macOS arm64、macOS amd64 并行构建，全部通过后创建 GitHub Release。Release 包含三个安装包、统一 SHA-256 文件和插件清单资产 `TokensCowork-<version>-plugins.json`（由 `scripts/generate-plugin-manifest.mjs` 从 `product.json` 生成，供下载页渲染"内置插件"）。
 
 发布通道以 GitHub Release 的 `prerelease` 元数据为唯一事实来源：新版本默认作为 Pre-release 发布，验证通过后人工在 Release 页面取消 Pre-release 标记即进入稳定更新通道；一次性操作不写入 CI 流程。
 
@@ -89,7 +91,7 @@ Windows 最终验收（`build/verify/package.mjs`）除品牌与原生架构检�
 ## Windows 静默卸载
 
 `corepack yarn product:uninstall:win` 用于反复装卸测试。加 `--purge-data` 时一并清除
-`%APPDATA%\TokensHarness\`，默认保留。
+`%APPDATA%\TokensCowork\`，默认保留。首次启动新品牌版本时，若新目录尚不存在，会优先把旧 `%APPDATA%\TokensHarness\` 重命名到新目录；重命名失败时尝试复制，但运行时始终使用新的 TokensCowork 目录，不会长期回退到旧目录。
 
 保留用户数据是产品约定，两头都得守住：构建侧不设
 `nsis.deleteAppDataOnUninstall`，因为它是**编译期**开关，写进安装包后运行期
@@ -98,7 +100,7 @@ Windows 最终验收（`build/verify/package.mjs`）除品牌与原生架构检�
 electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里根本没有解析分支，
 写了也不会生效。
 
-不要直接运行 `Uninstall TokensHarness.exe /S`：NSIS 卸载器会先把自身复制到 `%TEMP%`
+不要直接运行 `Uninstall TokensCowork.exe /S`：NSIS 卸载器会先把自身复制到 `%TEMP%`
 再执行，好让它能删掉自己所在的目录，而副本的 `$INSTDIR` 是空的，于是 `RMDir /r $INSTDIR`
 无事可做、流程照常走完并**返回 0** —— 表现为卸载成功但程序原封不动。
 

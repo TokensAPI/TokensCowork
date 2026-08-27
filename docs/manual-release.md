@@ -1,6 +1,6 @@
-# TokensHarness 手动构建与发布指南
+# TokensCowork 手动构建与发布指南
 
-本文面向需要新增或升级内置插件、在本地验证安装包，或手动发布 TokensHarness 新版本的维护者。
+本文面向需要新增或升级内置插件、在本地验证安装包，或手动发布 TokensCowork 新版本的维护者。
 
 > 仓库是只负责组装和构建的 Superproject。不要直接修改 `desktop/` 或 `plugins/` 下的子模块工作区；插件代码应先在插件自身仓库提交，再由本项目固定提交 SHA。
 
@@ -92,7 +92,7 @@ corepack yarn product:version-check
 创建 `docs/releases/v0.3.1.md`，首行必须是：
 
 ```markdown
-# TokensHarness v0.3.1
+# TokensCowork v0.3.1
 ```
 
 文件必须包含以下章节：
@@ -179,23 +179,23 @@ git ls-remote origin refs/heads/master
 创建并推送 Tag：
 
 ```powershell
-git tag -a v0.3.1 -m "TokensHarness v0.3.1"
+git tag -a v0.3.1 -m "TokensCowork v0.3.1"
 git push origin v0.3.1
 ```
 
-Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/tokens_TokensHarness_code/actions/workflows/release.yml) 会自动：
+Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release.yml) 会自动：
 
 1. 校验版本号和发布说明。
 2. 校验所有 Git pin、产品组装和生产依赖许可证。
 3. 构建 Windows AMD64、macOS ARM64 和 macOS AMD64 安装包。
 4. 创建正式 GitHub Release，上传三个安装包和 SHA-256 校验文件。
-5. 触发 [`Deploy Download Page`](https://github.com/TokensAPI/tokens_TokensHarness_code/actions/workflows/pages.yml) 同步下载页数据。
+5. 触发 [`Deploy Download Page`](https://github.com/TokensAPI/TokensCowork/actions/workflows/pages.yml) 同步下载页数据。
 
 发布入口：
 
-- [GitHub Actions](https://github.com/TokensAPI/tokens_TokensHarness_code/actions)
-- [GitHub Releases](https://github.com/TokensAPI/tokens_TokensHarness_code/releases)
-- [TokensHarness 下载页](https://tokensapi.github.io/tokens_TokensHarness_code/)
+- [GitHub Actions](https://github.com/TokensAPI/TokensCowork/actions)
+- [GitHub Releases](https://github.com/TokensAPI/TokensCowork/releases)
+- [TokensCowork 下载页](https://tokensapi.github.io/TokensCowork/)
 
 ## 10. 失败处理
 

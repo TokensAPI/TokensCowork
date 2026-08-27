@@ -84,6 +84,9 @@ if (buildManifest.build?.appId !== product.appId
   || buildManifest.build?.productName !== product.name) {
   throw new Error('Windows build configuration branding differs from product.json')
 }
+if (buildManifest.build?.nsis?.guid !== product.windowsInstallerGuid) {
+  throw new Error('Windows installer upgrade identity differs from product.json')
+}
 // deleteAppDataOnUninstall 是编译期开关：一旦打进安装包，卸载时运行期传的
 // /KEEP_APP_DATA 也救不回用户数据。产品约定卸载默认保留，故它必须不为真。
 if (buildManifest.build?.nsis?.deleteAppDataOnUninstall === true) {

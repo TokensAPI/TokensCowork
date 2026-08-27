@@ -1,6 +1,6 @@
 # Desktop product build
 
-本目录把只读的 Desktop、DeepSeek Harness 和产品插件组装为 TokensHarness。
+本目录把只读的 Desktop、DeepSeek Harness 和产品插件组装为 TokensCowork。
 所有产品改写只能发生在生成目录 `.build/desktop/`，不得修改 `desktop/`、
 `desktop/deepseek-harness/` 或 `plugins/` 子模块工作树。
 
@@ -46,7 +46,7 @@ build/
 - 发布任务只汇总安装包、SHA256、插件清单和 BUILD-INFO，不重新构建产品。
 
 Windows Desktop 必须编译两次：先以原始 DSH 身份通过上游专项测试，再注入
-TokensHarness 品牌生成最终产品。两个 macOS 架构也必须使用不同原生 runner。
+TokensCowork 品牌生成最终产品。两个 macOS 架构也必须使用不同原生 runner。
 除此之外，不再运行独立的重复 Desktop 质量构建。
 
 ## 命令

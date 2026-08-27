@@ -15,7 +15,7 @@ export const requiredReleaseSections = [
 
 export function validateReleaseNotes({ content, version }) {
   const errors = []
-  const expectedTitle = `# TokensHarness v${version}`
+  const expectedTitle = `# TokensCowork v${version}`
   const firstLine = content.split(/\r?\n/u, 1)[0]?.trim()
 
   if (firstLine !== expectedTitle) errors.push(`first line must be: ${expectedTitle}`)

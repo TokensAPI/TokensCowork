@@ -48,9 +48,21 @@ function assertGitlink(path, commit) {
 }
 
 if (manifest.schemaVersion !== 1) fail('product.json must use schemaVersion 1')
-if (manifest.product?.name !== 'TokensHarness') fail('product name must be TokensHarness')
-if (typeof manifest.product?.appId !== 'string' || manifest.product.appId.length === 0) {
-  fail('product appId must be a non-empty string')
+if (manifest.product?.name !== 'TokensCowork') fail('product name must be TokensCowork')
+if (manifest.product?.repository !== 'TokensAPI/TokensCowork') {
+  fail('product repository must be TokensAPI/TokensCowork')
+}
+if (!Array.isArray(manifest.product?.legacyNames)
+  || !manifest.product.legacyNames.includes('TokensHarness')) {
+  fail('product legacyNames must preserve TokensHarness user data')
+}
+if (manifest.product?.appId !== 'com.tokensapi.tokenscowork') {
+  fail('product appId must be com.tokensapi.tokenscowork')
+}
+if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(
+  manifest.product?.windowsInstallerGuid ?? '',
+)) {
+  fail('product windowsInstallerGuid must be a UUID')
 }
 if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(canonicalVersion)) {
   fail('VERSION must contain a valid product version')

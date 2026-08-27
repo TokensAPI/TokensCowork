@@ -1,8 +1,13 @@
 {
   "schemaVersion": 1,
   "product": {
-    "name": "TokensHarness",
-    "appId": "com.tokensapi.tokensharness",
+    "name": "TokensCowork",
+    "appId": "com.tokensapi.tokenscowork",
+    "windowsInstallerGuid": "c934e938-5a76-57ee-b6d0-af6fb8157615",
+    "repository": "TokensAPI/TokensCowork",
+    "legacyNames": [
+      "TokensHarness"
+    ],
     "version": "0.3.13"
   },
   "desktop": {
@@ -14,8 +19,8 @@
   "plugins": [
     {
       "id": "tokens-version-updates",
-      "displayName": "TokensHarness 更新",
-      "description": "从 TokensHarness GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
+      "displayName": "TokensCowork 更新",
+      "description": "从 TokensCowork GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
       "commit": "90251f448dbd302e68c464d7528848ada7a77e1a",
@@ -32,7 +37,7 @@
     {
       "id": "tokens-connect",
       "displayName": "连接中心",
-      "description": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensHarness。",
+      "description": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensCowork。",
       "path": "plugins/tokens_DshConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshConnect_code.git",
       "commit": "a18d23ccddd1ddb53b8b5c095d72db1dc6491fb6",
@@ -76,9 +81,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "c83751ff7bb73606d8bcdeae0dac0b511c50dfd4",
+      "commit": "b27ccf880147f13e3bd63214f61b8a1b949449e2",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.2.12",
+      "version": "0.2.13",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },

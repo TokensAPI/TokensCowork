@@ -94,6 +94,8 @@ if (!releaseMac.includes(upstreamReleaseCheck)) {
 desktopPackage.version = product.version
 desktopPackage.build.appId = product.appId
 desktopPackage.build.productName = product.name
+desktopPackage.build.win.artifactName = `${product.name}-\${version}-\${arch}-Portable.\${ext}`
+desktopPackage.build.nsis.guid = product.windowsInstallerGuid
 desktopPackage.build.nsis.shortcutName = product.name
 desktopPackage.build.nsis.artifactName = `${product.name}-\${version}-\${arch}-Setup.\${ext}`
 if (!Array.isArray(desktopPackage.build.files)) {

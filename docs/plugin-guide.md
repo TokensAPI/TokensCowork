@@ -1,6 +1,6 @@
 # DSH 插件开发：从 0 到 1
 
-面向 TokensHarness 产品的插件开发入门。基于上游 DeepSeek Harness / DSH Desktop 的官方文档，
+面向 TokensCowork 产品的插件开发入门。基于上游 DeepSeek Harness / DSH Desktop 的官方文档，
 结合本仓库的真实插件示例整理。
 
 上游文档位置（本仓库子模块内）：

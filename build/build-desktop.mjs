@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 /* ====================================================================
- * TokensHarness 桌面产品构建入口
+ * TokensCowork 桌面产品构建入口
  *
  * 所有模式都先在 `.build/desktop` 组装只读上游与产品插件，再按目标执行
  * 校验或原生打包。构建过程不得修改 desktop/ 与 plugins/ 子模块工作树。
@@ -183,7 +183,7 @@ if (mode === 'check') {
   run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'check'], stage, unsignedEnvironment)
 
   // Windows 专项测试会验收 DSH Desktop 的原始版本和应用标识。通过后再注入
-  // TokensHarness 品牌并重新编译，避免把正常的产品改写误报为上游回归。
+  // TokensCowork 品牌并重新编译，避免把正常的产品改写误报为上游回归。
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
   configureProduct(unsignedEnvironment, 'windows')
   // Market 已由上面的完整检查生成，产品配置也不会修改 Market 源码；这里只重编

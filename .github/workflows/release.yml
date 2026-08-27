@@ -127,9 +127,10 @@ jobs:
           function Assert-InstalledVersion {
             param(
               [Parameter(Mandatory = $true)][string]$InstallDirectory,
-              [Parameter(Mandatory = $true)][string]$ExpectedVersion
+              [Parameter(Mandatory = $true)][string]$ExpectedVersion,
+              [Parameter(Mandatory = $true)][string]$ProductName
             )
-            $executable = Join-Path $InstallDirectory "TokensHarness.exe"
+            $executable = Join-Path $InstallDirectory "$ProductName.exe"
             if (-not (Test-Path -LiteralPath $executable)) {
               throw "Installed executable is missing: $executable"
             }
@@ -140,7 +141,7 @@ jobs:
           }
 
           $currentVersion = "${{ needs.metadata.outputs.version }}"
-          $currentInstallers = @(Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensHarness-*-x64-Setup.exe" -File -ErrorAction Stop)
+          $currentInstallers = @(Get-ChildItem ".build/desktop/dsh-plugin-desktop/dist" -Filter "TokensCowork-*-x64-Setup.exe" -File -ErrorAction Stop)
           if ($currentInstallers.Count -ne 1) {
             throw "Expected exactly one current Windows installer, found $($currentInstallers.Count)"
           }
@@ -150,20 +151,25 @@ jobs:
             throw "Latest stable release has an invalid tag: $previousTag"
           }
           $previousVersion = $Matches[1]
-          $previousName = "TokensHarness-$previousVersion-windows-amd64-installer.exe"
-          $previousDirectory = Join-Path $env:RUNNER_TEMP "TokensHarness-previous-stable"
+          $previousPattern = "*-$previousVersion-windows-amd64-installer.exe"
+          $previousDirectory = Join-Path $env:RUNNER_TEMP "TokensCowork-previous-stable"
           New-Item -ItemType Directory -Path $previousDirectory -Force | Out-Null
-          gh release download $previousTag --repo $env:GITHUB_REPOSITORY --pattern $previousName --dir $previousDirectory
-          $previousInstaller = Join-Path $previousDirectory $previousName
+          gh release download $previousTag --repo $env:GITHUB_REPOSITORY --pattern $previousPattern --dir $previousDirectory
+          $previousInstallers = @(Get-ChildItem -LiteralPath $previousDirectory -Filter "*-windows-amd64-installer.exe" -File)
+          if ($previousInstallers.Count -ne 1) {
+            throw "Expected exactly one previous Windows installer, found $($previousInstallers.Count)"
+          }
+          $previousInstaller = $previousInstallers[0].FullName
+          $previousProductName = if ($previousInstallers[0].Name -like "TokensCowork-*") { "TokensCowork" } else { "TokensHarness" }
 
-          $installDir = Join-Path $env:RUNNER_TEMP "TokensHarness-install-smoke"
+          $installDir = Join-Path $env:RUNNER_TEMP "TokensCowork-install-smoke"
           $installArguments = @("/S", "/currentuser", "/D=$installDir")
           $startedAt = Get-Date
           $previousExitCode = Invoke-Installer -Path $previousInstaller -InstallerArguments $installArguments
           if ($previousExitCode -ne 0) {
             throw "Previous stable installer failed with exit code $previousExitCode"
           }
-          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion -ProductName $previousProductName
 
           # Reproduce the real failure mode: the old uninstaller cannot move one busy output file.
           # The current installer must stop without corrupting the old installation.
@@ -177,7 +183,7 @@ jobs:
           if ($blockedExitCode -eq 0) {
             throw "Locked-file upgrade incorrectly reported success"
           }
-          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $previousVersion -ProductName $previousProductName
 
           # Once the file is released, the installer must automatically uninstall the old version
           # and complete the upgrade without requiring a manual directory cleanup.
@@ -185,7 +191,7 @@ jobs:
           if ($upgradeExitCode -ne 0) {
             throw "Windows upgrade smoke failed with exit code $upgradeExitCode"
           }
-          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $currentVersion
+          Assert-InstalledVersion -InstallDirectory $installDir -ExpectedVersion $currentVersion -ProductName "TokensCowork"
 
           $elapsed = (Get-Date) - $startedAt
           $installedFiles = @(Get-ChildItem -LiteralPath $installDir -File -Recurse).Count
@@ -196,22 +202,22 @@ jobs:
         run: |
           $version = "${{ needs.metadata.outputs.version }}"
           $dist = ".build/desktop/dsh-plugin-desktop/dist"
-          $installers = @(Get-ChildItem -LiteralPath $dist -Filter "TokensHarness-*-x64-Setup.exe" -File)
+          $installers = @(Get-ChildItem -LiteralPath $dist -Filter "TokensCowork-*-x64-Setup.exe" -File)
           if ($installers.Count -ne 1) {
             throw "Expected exactly one Windows installer, found $($installers.Count)"
           }
-          $releaseName = "TokensHarness-$version-windows-amd64-installer.exe"
+          $releaseName = "TokensCowork-$version-windows-amd64-installer.exe"
           $releasePath = Join-Path $dist $releaseName
           Move-Item -LiteralPath $installers[0].FullName -Destination $releasePath
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $releasePath).Hash.ToLowerInvariant()
-          "$hash  $releaseName" | Set-Content -Encoding ascii "$dist/TokensHarness-$version-windows-amd64-SHA256SUMS.txt"
+          "$hash  $releaseName" | Set-Content -Encoding ascii "$dist/TokensCowork-$version-windows-amd64-SHA256SUMS.txt"
           @(
             "version=$version"
             "git_sha=$env:GITHUB_SHA"
             "platform=windows"
             "architecture=amd64"
             "signing=unsigned"
-          ) | Set-Content -Encoding ascii "$dist/TokensHarness-$version-windows-amd64-BUILD-INFO.txt"
+          ) | Set-Content -Encoding ascii "$dist/TokensCowork-$version-windows-amd64-BUILD-INFO.txt"
 
       - name: Upload Windows package
         uses: actions/upload-artifact@v7
@@ -303,9 +309,9 @@ jobs:
             echo "Expected exactly one macOS DMG" >&2
             exit 1
           fi
-          app_binary="$(find "${dist}" -type f -path '*/TokensHarness.app/Contents/MacOS/TokensHarness' -print -quit)"
+          app_binary="$(find "${dist}" -type f -path '*/TokensCowork.app/Contents/MacOS/TokensCowork' -print -quit)"
           test -n "${app_binary}"
-          app_path="${app_binary%/Contents/MacOS/TokensHarness}"
+          app_path="${app_binary%/Contents/MacOS/TokensCowork}"
           lipo -archs "${app_binary}" | tr ' ' '\n' | grep -qx "${{ matrix.binary_arch }}"
           codesign --display --verbose=4 "${app_path}"
           codesign --verify --deep --strict --verbose=4 "${app_path}"
@@ -317,11 +323,11 @@ jobs:
             signing="ad-hoc"
           fi
           hdiutil verify "${packages[0]}"
-          release_name="TokensHarness-${version}-macos-${arch}-installer.dmg"
+          release_name="TokensCowork-${version}-macos-${arch}-installer.dmg"
           mv "${packages[0]}" "${dist}/${release_name}"
           (
             cd "${dist}"
-            shasum -a 256 "${release_name}" > "TokensHarness-${version}-macos-${arch}-SHA256SUMS.txt"
+            shasum -a 256 "${release_name}" > "TokensCowork-${version}-macos-${arch}-SHA256SUMS.txt"
           )
           {
             printf 'version=%s\n' "${version}"
@@ -329,7 +335,7 @@ jobs:
             printf 'platform=darwin\n'
             printf 'architecture=%s\n' "${arch}"
             printf 'signing=%s\n' "${signing}"
-          } > "${dist}/TokensHarness-${version}-macos-${arch}-BUILD-INFO.txt"
+          } > "${dist}/TokensCowork-${version}-macos-${arch}-BUILD-INFO.txt"
 
       - name: Upload macOS package
         uses: actions/upload-artifact@v7
@@ -382,7 +388,7 @@ jobs:
           if [[ -z "${existing_sha}" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "${tag}" "${GITHUB_SHA}" -m "TokensHarness ${tag}"
+            git tag -a "${tag}" "${GITHUB_SHA}" -m "TokensCowork ${tag}"
             git push origin "refs/tags/${tag}"
           fi
           if gh release view "${tag}" >/dev/null 2>&1; then
@@ -397,8 +403,8 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
-          node scripts/generate-plugin-manifest.mjs > "release-assets/TokensHarness-${version}-plugins.json"
-          cat "release-assets/TokensHarness-${version}-plugins.json"
+          node scripts/generate-plugin-manifest.mjs > "release-assets/TokensCowork-${version}-plugins.json"
+          cat "release-assets/TokensCowork-${version}-plugins.json"
 
       - name: Create checksums and GitHub Release
         shell: bash
@@ -408,19 +414,19 @@ jobs:
           tag="${{ needs.metadata.outputs.tag }}"
           release_notes="${{ needs.metadata.outputs.release_notes }}"
           packages=(
-            "release-assets/TokensHarness-${version}-windows-amd64-installer.exe"
-            "release-assets/TokensHarness-${version}-macos-arm64-installer.dmg"
-            "release-assets/TokensHarness-${version}-macos-amd64-installer.dmg"
+            "release-assets/TokensCowork-${version}-windows-amd64-installer.exe"
+            "release-assets/TokensCowork-${version}-macos-arm64-installer.dmg"
+            "release-assets/TokensCowork-${version}-macos-amd64-installer.dmg"
           )
           build_info=(
-            "release-assets/TokensHarness-${version}-windows-amd64-BUILD-INFO.txt"
-            "release-assets/TokensHarness-${version}-macos-arm64-BUILD-INFO.txt"
-            "release-assets/TokensHarness-${version}-macos-amd64-BUILD-INFO.txt"
+            "release-assets/TokensCowork-${version}-windows-amd64-BUILD-INFO.txt"
+            "release-assets/TokensCowork-${version}-macos-arm64-BUILD-INFO.txt"
+            "release-assets/TokensCowork-${version}-macos-amd64-BUILD-INFO.txt"
           )
           for asset in "${packages[@]}" "${build_info[@]}" "${release_notes}"; do
             test -f "${asset}"
           done
-          checksums="release-assets/TokensHarness-${version}-SHA256SUMS.txt"
+          checksums="release-assets/TokensCowork-${version}-SHA256SUMS.txt"
           (
             cd release-assets
             sha256sum \
@@ -436,9 +442,9 @@ jobs:
           gh release create "${tag}" \
             "${packages[@]}" \
             "${checksums}" \
-            "release-assets/TokensHarness-${version}-plugins.json" \
+            "release-assets/TokensCowork-${version}-plugins.json" \
             "${release_flags[@]}" \
-            --title "TokensHarness ${tag}" \
+            --title "TokensCowork ${tag}" \
             --target "${GITHUB_SHA}" \
             --notes-file "${release_notes}"
 
@@ -452,7 +458,7 @@ jobs:
         shell: bash
         run: |
           {
-            echo '## TokensHarness Desktop Build'
+            echo '## TokensCowork Desktop Build'
             echo
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'

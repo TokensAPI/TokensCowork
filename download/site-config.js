@@ -7,22 +7,22 @@
  */
 window.DOWNLOAD_PAGE_CONFIG = {
   defaultLanguage: "zh",
-  productName: "TokensHarness",
-  eyebrow: "TokensHarness Desktop",
+  productName: "TokensCowork",
+  eyebrow: "TokensCowork Desktop",
   headline: "把 AI 全能助手\n带到你的桌面",
   description: "专注、流畅、开箱即用。无需繁琐配置，在熟悉的桌面环境中开始构建。",
-  notice: "这是一个TokensHarness团队维护的项目。",
-  repository: "TokensAPI/tokens_TokensHarness_code",
+  notice: "这是一个 TokensCowork 团队维护的项目。",
+  repository: "TokensAPI/TokensCowork",
   fallbackVersion: "0.1.6",
   footerText: "Tokens进,万物出",
 
   // 英文内容。切换到 EN 后使用这些字段；未填写的字段会沿用中文配置。
   english: {
-    productName: "TokensHarness",
-    eyebrow: "TokensHarness Desktop",
+    productName: "TokensCowork",
+    eyebrow: "TokensCowork Desktop",
     headline: "Bring your all-in-one AI assistant\nto the desktop",
     description: "Focused, fluid, and ready out of the box. Start building in a familiar desktop environment without complicated setup.",
-    notice: "A project maintained by the TokensHarness team.",
+    notice: "A project maintained by the TokensCowork team.",
     footerText: "Tokens in, possibilities out"
   },
 

@@ -60,7 +60,7 @@ export function brandDesktopMain(main, product, legacyProductNames) {
   return main
     .replace(
       upstreamElectronImport,
-      `${upstreamElectronImport}\nimport { existsSync, renameSync } from 'node:fs'`,
+      `${upstreamElectronImport}\nimport { cpSync, existsSync, renameSync } from 'node:fs'`,
     )
     .replace(upstreamMainProductName, `const PRODUCT_NAME = ${JSON.stringify(product.name)}`)
     .replace(
@@ -70,19 +70,23 @@ export function brandDesktopMain(main, product, legacyProductNames) {
     .replace(
       upstreamRunProductName,
       `function migrateLegacyUserData(): void {
-  const currentUserData = app.getPath('userData')
-  if (existsSync(currentUserData)) return
   const appData = app.getPath('appData')
-  for (const legacyName of LEGACY_PRODUCT_NAMES) {
-    const legacyUserData = join(appData, legacyName)
-    if (!existsSync(legacyUserData)) continue
-    try {
-      renameSync(legacyUserData, currentUserData)
-    } catch {
-      app.setPath('userData', legacyUserData)
+  const currentUserData = join(appData, PRODUCT_NAME)
+  if (!existsSync(currentUserData)) {
+    for (const legacyName of LEGACY_PRODUCT_NAMES) {
+      const legacyUserData = join(appData, legacyName)
+      if (!existsSync(legacyUserData)) continue
+      try {
+        renameSync(legacyUserData, currentUserData)
+      } catch {
+        try {
+          cpSync(legacyUserData, currentUserData, { recursive: true, errorOnExist: false })
+        } catch {}
+      }
+      break
     }
-    return
   }
+  app.setPath('userData', currentUserData)
 }
 
 async function run(): Promise<void> {

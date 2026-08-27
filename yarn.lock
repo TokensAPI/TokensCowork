@@ -5,8 +5,8 @@ __metadata:
   version: 10
   cacheKey: 10c0
 
-"tokens-tokensharness-code@workspace:.":
+"tokens-cowork@workspace:.":
   version: 0.0.0-use.local
-  resolution: "tokens-tokensharness-code@workspace:."
+  resolution: "tokens-cowork@workspace:."
   languageName: unknown
   linkType: soft

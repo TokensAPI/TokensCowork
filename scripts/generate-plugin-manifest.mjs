@@ -1,7 +1,7 @@
 /**
  * 内置插件清单生成：从 product.json 抽取默认启用插件的用户可见信息，
  * 输出下载页渲染"内置插件"所需的 JSON。发布工作流将其作为
- * TokensHarness-<version>-plugins.json 资产随 Release 发布。
+ * TokensCowork-<version>-plugins.json 资产随 Release 发布。
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

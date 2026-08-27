@@ -1,6 +1,6 @@
 # TokensAPI 插件市场目录源
 
-本目录是 DSH Community Market「标准目录源」的静态实现，只收录 TokensHarness 产品自有插件（数据来自 `product.json`）。用户在客户端 **设置 → 插件 → 插件市场 → 源** 中登记 manifest URL 后，即可浏览 TokensAPI 生态的插件。
+本目录是 DSH Community Market「标准目录源」的静态实现，只收录 TokensCowork 产品自有插件（数据来自 `product.json`）。用户在客户端 **设置 → 插件 → 插件市场 → 源** 中登记 manifest URL 后，即可浏览 TokensAPI 生态的插件。
 
 ## 文件
 
@@ -26,7 +26,7 @@ _headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 
 
 ## 用户使用方式
 
-在 TokensHarness 中打开 **设置 → 插件 → 插件市场 → Sources → 添加源**，填入：
+在 TokensCowork 中打开 **设置 → 插件 → 插件市场 → Sources → 添加源**，填入：
 
 ```text
 https://<origin>/source.json

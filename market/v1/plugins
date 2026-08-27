@@ -4,8 +4,8 @@
     {
       "id": "tokens-version-updates",
       "name": "@tokens/dsh-version-updates",
-      "displayName": "TokensHarness 更新",
-      "summary": "从 TokensHarness GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
+      "displayName": "TokensCowork 更新",
+      "summary": "从 TokensCowork GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "homepage": "https://github.com/sobermh/tokens_DshVersionUpdates_code",
       "latestVersion": "0.1.0",
       "repository": {
@@ -20,7 +20,7 @@
       "id": "tokens-connect",
       "name": "@tokens/dsh-connect",
       "displayName": "连接中心",
-      "summary": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensHarness。",
+      "summary": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensCowork。",
       "homepage": "https://github.com/sobermh/tokens_DshConnect_code",
       "latestVersion": "2.4.4",
       "repository": {

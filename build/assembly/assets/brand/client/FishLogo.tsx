@@ -4,7 +4,7 @@ import type { IconProps } from './icons/props.ts'
 export function FishLogo({ size = 24, className }: IconProps) {
   return (
     <img
-      src="/tokensharness-logo.png"
+      src="/tokenscowork-logo.png"
       width={size}
       height={size}
       className={className}

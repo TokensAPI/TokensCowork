@@ -29,8 +29,8 @@ import { fileURLToPath } from 'node:url'
 export const UNINSTALL_REGISTRY_ROOT
   = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
 
-const PRODUCT_NAME = 'TokensHarness'
-const UNINSTALLER_NAME = `Uninstall ${PRODUCT_NAME}.exe`
+const PRODUCT_NAME = 'TokensCowork'
+const LEGACY_PRODUCT_NAME = 'TokensHarness'
 
 /** 允许卸载器占用的时长上限，超时按失败处理而不是无限等待。 */
 const UNINSTALL_TIMEOUT_MS = 5 * 60 * 1000
@@ -133,24 +133,26 @@ export function normalizeInstallInfo(record) {
 function readInstallInfo() {
   const script = `
     $ErrorActionPreference = 'Stop'
+    $productNames = @('${PRODUCT_NAME}', '${LEGACY_PRODUCT_NAME}')
     $records = @(
       Get-ChildItem '${UNINSTALL_REGISTRY_ROOT}' | ForEach-Object {
         $entry = Get-ItemProperty $_.PSPath
-        if ($entry.DisplayName -like '${PRODUCT_NAME}*' -and $entry.UninstallString -like '*${UNINSTALLER_NAME}*') {
-          [PSCustomObject]@{
-            InstallLocation = [string]$entry.InstallLocation
-            UninstallString = [string]$entry.UninstallString
-            RegistryKey = $_.PSChildName
+        foreach ($productName in $productNames) {
+          if ($entry.DisplayName -like "$productName*" -and $entry.UninstallString -like "*Uninstall $productName.exe*") {
+            [PSCustomObject]@{
+              ProductName = $productName
+              InstallLocation = [string]$entry.InstallLocation
+              UninstallString = [string]$entry.UninstallString
+              RegistryKey = $_.PSChildName
+            }
+            break
           }
         }
       }
     )
     if ($records.Count -eq 0) { exit 3 }
-    if ($records.Count -ne 1) {
-      [Console]::Error.Write("发现 $($records.Count) 条 ${PRODUCT_NAME} 卸载记录")
-      exit 4
-    }
-    [Console]::Out.Write(($records[0] | ConvertTo-Json -Compress))
+    $selected = $records | Sort-Object @{ Expression = { if ($_.ProductName -eq '${PRODUCT_NAME}') { 0 } else { 1 } } } | Select-Object -First 1
+    [Console]::Out.Write(($selected | ConvertTo-Json -Compress))
   `
   const result = spawnSync(
     'powershell.exe',
@@ -211,10 +213,12 @@ export function uninstall(options = {}) {
   if (options.purgeData === true) {
     const appData = process.env.APPDATA
     if (typeof appData === 'string' && appData.trim() !== '') {
-      const dataDirectory = join(appData, 'TokensHarness')
-      if (existsSync(dataDirectory) && statSync(dataDirectory).isDirectory()) {
-        rmSync(dataDirectory, { recursive: true, force: true })
-        cleaned.push('用户数据')
+      for (const productName of [PRODUCT_NAME, LEGACY_PRODUCT_NAME]) {
+        const dataDirectory = join(appData, productName)
+        if (existsSync(dataDirectory) && statSync(dataDirectory).isDirectory()) {
+          rmSync(dataDirectory, { recursive: true, force: true })
+          cleaned.push(`${productName} 用户数据`)
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-# TokensHarness 下载页
+# TokensCowork 下载页
 
 这是一个无需构建工具的静态下载页，安装包默认来自 GitHub Releases。
 
@@ -39,7 +39,7 @@ npx serve download
 仓库通过 `.github/workflows/pages.yml` 自动部署本目录。Pages 的 **Source** 必须设置为 **GitHub Actions**；`master` 分支的下载页文件变化后会自动运行 `Deploy Download Page`，也可以从 Actions 页面手动触发。默认访问地址为：
 
 ```text
-https://tokensapi.github.io/tokens_TokensHarness_code/
+https://tokensapi.github.io/TokensCowork/
 ```
 
 页面不需要服务端和构建步骤，也可以部署到 Cloudflare Pages、Vercel 或现有网站服务器。

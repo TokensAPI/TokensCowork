@@ -1,8 +1,9 @@
 {
-  "name": "tokens-tokensharness-code",
+  "name": "tokens-cowork",
   "version": "0.3.13",
   "private": true,
-  "description": "Pinned superproject for assembling and releasing a DSH Desktop product",
+  "description": "Pinned superproject for assembling and releasing TokensCowork Desktop",
+  "repository": "https://github.com/TokensAPI/TokensCowork.git",
   "license": "MIT",
   "packageManager": "yarn@4.18.0",
   "engines": {

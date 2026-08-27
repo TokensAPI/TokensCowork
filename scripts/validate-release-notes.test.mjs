@@ -5,7 +5,7 @@ import { requiredReleaseSections, validateReleaseNotes } from './validate-releas
 
 function validNotes(version = '0.1.0') {
   return [
-    `# TokensHarness v${version}`,
+    `# TokensCowork v${version}`,
     '',
     'Summary.',
     '',
@@ -22,7 +22,7 @@ test('rejects title, section, placeholder, and planning residue errors', () => {
     .replace('## 下载说明\n\nComplete content.\n', '')
     .replace('Summary.', '{{SUMMARY}} TODO')
   const errors = validateReleaseNotes({ content, version: '0.1.0' })
-  assert.ok(errors.includes('first line must be: # TokensHarness v0.1.0'))
+  assert.ok(errors.includes('first line must be: # TokensCowork v0.1.0'))
   assert.ok(errors.includes('missing required section: ## 下载说明'))
   assert.ok(errors.includes('template placeholders must be resolved'))
   assert.ok(errors.includes('TODO/TBD markers are not allowed'))

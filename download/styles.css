@@ -134,7 +134,8 @@ h1 { margin: 0; max-width: 720px; font-size: clamp(48px, 5vw, 76px); line-height
 .window-controls i:nth-child(2) { background: #ffbd2e; }
 .window-controls i:nth-child(3) { background: #28c840; }
 .mini-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 26px; color: #f0f4f6; }
-.mini-logo { display: grid; place-items: center; width: 21px; height: 21px; color: #0e191c; background: var(--accent); border-radius: 6px; font-weight: 900; }
+.mini-logo { display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%; overflow: hidden; }
+.mini-logo img { width: 100%; height: 100%; object-fit: contain; }
 .new-chat { width: 100%; padding: 10px; color: #e7eef2; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; }
 .new-chat span { color: var(--accent); }
 .section-label { margin: 22px 0 10px; color: #748794; }

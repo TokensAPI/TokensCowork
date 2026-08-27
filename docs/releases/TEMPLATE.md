@@ -1,4 +1,4 @@
-# TokensHarness v{{VERSION}}
+# TokensCowork v{{VERSION}}
 
 {{SUMMARY}}
 
@@ -20,9 +20,9 @@
 
 | 系统 | 架构 | 安装包 |
 |---|---|---|
-| Windows | amd64 | `TokensHarness-{{VERSION}}-windows-amd64-installer.exe` |
-| macOS | Apple Silicon | `TokensHarness-{{VERSION}}-macos-arm64-installer.dmg` |
-| macOS | Intel | `TokensHarness-{{VERSION}}-macos-amd64-installer.dmg` |
+| Windows | amd64 | `TokensCowork-{{VERSION}}-windows-amd64-installer.exe` |
+| macOS | Apple Silicon | `TokensCowork-{{VERSION}}-macos-arm64-installer.dmg` |
+| macOS | Intel | `TokensCowork-{{VERSION}}-macos-amd64-installer.dmg` |
 
 ## 安装说明
 
@@ -34,7 +34,7 @@
 ### macOS
 
 1. Apple Silicon 用户下载 `arm64`，Intel 用户下载 `amd64`。
-2. 打开 DMG，将 TokensHarness 拖入“应用程序”。
+2. 打开 DMG，将 TokensCowork 拖入“应用程序”。
 3. 未签名版本首次启动时需要右键选择“打开”。
 
 ## 验证结果
