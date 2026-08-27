@@ -1,6 +1,6 @@
 {
   "name": "tokens-cowork",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "private": true,
   "description": "Pinned superproject for assembling and releasing TokensCowork Desktop",
   "repository": "https://github.com/TokensAPI/TokensCowork.git",
