@@ -21,7 +21,7 @@ export function applyWindowsInstallerGuard({
   desktopPackage,
   assertGeneratedPath,
 }) {
-  const source = resolve(windowsInstallerRoot, 'upgrade-guard.nsh')
+  const source = resolve(windowsInstallerRoot, 'installer', 'upgrade-guard.nsh')
   if (!existsSync(source)) {
     throw new Error(`configure-product: Windows installer guard is missing: ${source}`)
   }

@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, relative, resolve, sep } from 'node:path'
 
+import { brandDesktopPatch } from './overlays/branding.mjs'
 import { removeManagedBundlesFromProfile, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
 import { allowMarketSourceSyntheticProxy, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
@@ -74,12 +75,12 @@ cpSync(
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
 for (const [sourceName, destinationParts] of [
-  ['windows-acl-host-console.ts', ['src', 'windows-acl-host-console.ts']],
-  ['windows-acl-infrastructure-fuse.ts', ['src', 'windows-acl-infrastructure-fuse.ts']],
-  ['windows-acl-product.spec.ts', ['tests', 'windows-acl-product.spec.ts']],
+  ['host-console.ts', ['src', 'windows-acl-host-console.ts']],
+  ['infrastructure-fuse.ts', ['src', 'windows-acl-infrastructure-fuse.ts']],
+  ['product.spec.ts', ['tests', 'windows-acl-product.spec.ts']],
 ]) {
   cpSync(
-    resolve(root, 'build', 'assembly', 'assets', 'windows', sourceName),
+    resolve(root, 'build', 'assembly', 'assets', 'windows', 'acl', sourceName),
     resolve(stage, 'dsh-plugin-desktop', ...destinationParts),
   )
 }
@@ -154,16 +155,10 @@ writeFileSync(
 // TokensCowork 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
 // 验收产品更新入口；纯净产品没有替代插件时，验收所有更新入口均已隐藏。
 desktopPatch = disableUpstreamUpdates(desktopPatch)
-desktopPatch += '\n\n- id: ui-brand-official\n  disabled: true'
 
-/* ------------------------ 系统提示词品牌 ------------------------ */
-// 只换品牌不加规则：关闭上游 "powered by DeepSeek Harness" 身份行，
-// persona 换成产品身份一句话；工具说明与运行时上下文保持上游原样。
-desktopPatch += '\n\n# 产品覆盖：系统提示词身份行使用产品品牌。\n'
-  + '- id: system-prompt\n'
-  + '  config:\n'
-  + '    includeHarnessIdentity: false\n'
-  + `    persona: You are the AI agent inside ${manifest.product.name}.`
+/* -------------------------- 补丁层品牌覆盖 -------------------------- */
+// 停用上游官方 UI 品牌插件；系统提示词身份行换成产品品牌。
+desktopPatch = brandDesktopPatch(desktopPatch, manifest.product.name)
 if (hasProductUpdatePlugin) {
   profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
 } else {

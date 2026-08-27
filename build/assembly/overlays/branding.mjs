@@ -157,3 +157,22 @@ export function applyProductLogo({ productBrandRoot, stage, assertGeneratedPath 
     rmSync(resolve(desktopBuildRoot, filename), { force: true })
   }
 }
+
+/**
+ * 系统提示词与界面品牌的补丁层覆盖：停用上游官方 UI 品牌插件，把
+ * 系统提示词身份行换成产品品牌。只换品牌不加规则——persona 一句话，
+ * 工具说明与运行时上下文保持上游原样。
+ * @param desktopPatch - staging 副本 cordis.patch.yml 的当前内容。
+ * @param productName - 产品名（来自 product.json）。
+ * @returns 追加品牌覆盖条目后的补丁内容。
+ */
+export function brandDesktopPatch(desktopPatch, productName) {
+  return desktopPatch
+    + '\n\n# 产品覆盖：停用上游官方 UI 品牌。\n'
+    + '- id: ui-brand-official\n  disabled: true'
+    + '\n\n# 产品覆盖：系统提示词身份行使用产品品牌。\n'
+    + '- id: system-prompt\n'
+    + '  config:\n'
+    + '    includeHarnessIdentity: false\n'
+    + `    persona: You are the AI agent inside ${productName}.`
+}

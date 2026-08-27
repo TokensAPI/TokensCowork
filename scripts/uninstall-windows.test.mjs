@@ -118,7 +118,7 @@ test('rejects a directory holding a lookalike that is not the uninstaller', () =
 /* ---------------------- NSIS 覆盖升级保护 ---------------------- */
 
 const upgradeGuard = readFileSync(
-  resolve(import.meta.dirname, '..', 'build', 'assembly', 'assets', 'windows', 'upgrade-guard.nsh'),
+  resolve(import.meta.dirname, '..', 'build', 'assembly', 'assets', 'windows', 'installer', 'upgrade-guard.nsh'),
   'utf8',
 )
 
