@@ -40,9 +40,9 @@
       "description": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensCowork。",
       "path": "plugins/tokens_DshConnect_code",
       "repository": "https://github.com/sobermh/tokens_DshConnect_code.git",
-      "commit": "a18d23ccddd1ddb53b8b5c095d72db1dc6491fb6",
+      "commit": "767a164df1d6f020ba865ea2472f19575da09cc1",
       "package": "@tokens/dsh-connect",
-      "version": "2.4.4",
+      "version": "2.5.0",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeBuild": {
