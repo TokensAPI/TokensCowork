@@ -432,3 +432,192 @@ export function awaitProductSourceMigrationInLifecycleTest(spec) {
     )
     .replace(installableAnchor, installableAnchor.replace('status: 404', 'status: 200'))
 }
+
+/**
+ * 市场受控更新：放行"已有回执且目录版本更新"的重装,把它变成受控更新。
+ *
+ * 上游市场只有 install/uninstall 两种受控操作:同一包已有回执时预览与
+ * 执行都直接 409,用户只能看到"手动安装"提示。本覆盖不新增状态机,只做
+ * 三件事——预览与执行阶段将"同包旧回执 + 更高版本"识别为更新意图并放行
+ * (pnpm add 对已装包本身就是原地升级);安装成功写回执时以"替换同包旧
+ * 条目"代替"追加";预览响应带上 updateFrom 字段,前端把按钮与提示渲染
+ * 为"更新到 x.y.z"。版本相同或更低仍维持上游的拒绝行为。
+ *
+ * 独立可删:prepare.mjs 中对应调用删除后,产品回到上游"卸载后重装"语义。
+ * @param sources - staging 副本中 install/service.ts、client/MarketSettingsTab.tsx、client/locales.ts 的内容。
+ * @returns 改写后的各文件内容。
+ * @throws 上游锚点变化时抛出,中断打包待人工复查。
+ */
+export function enableManagedPluginUpdate(sources) {
+  const { installService, settingsTab, locales } = sources
+
+  /* ---- 1) install/service.ts:预览放行 + 回执携带 + 替换写入 ---- */
+  // 预览阶段(previewInstall):旧回执存在且目录版本更高 → 跳过两道闸。
+  const previewGateAnchor = `    const profile = this.profile()
+    this.assertNoReceipt(profile, candidate.packageName)
+    await assertNotInstalled(profile, candidate.packageName)`
+  if (!installService.includes(previewGateAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场安装预览闸门锚点，请复查受控更新覆盖')
+  }
+  // 执行阶段(第一处校验):同样放行。上游在执行中段还有一次
+  // assertNotInstalled(pnpm 运行前),更新场景下包本就在 profile 里,
+  // 也必须一并放行,否则执行必失败。
+  const executeGateAnchor = `      this.assertNoReceipt(profile, candidate.packageName)
+      await assertNotInstalled(profile, candidate.packageName)`
+  const executeMidAnchor = `      await assertNotInstalled(profile, candidate.packageName)
+      if (this.candidates.get(candidate.key) !== candidate) {
+        throw new MarketInstallError('not-available', 'The catalog source changed before installation.')
+      }`
+  if (!installService.includes(executeGateAnchor) || !installService.includes(executeMidAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场安装执行闸门锚点，请复查受控更新覆盖')
+  }
+  // 判定函数:同 profile 同包已有回执,且目录候选版本严格更高(三段
+  // 数字逐段比较;与上游 stableExactVersion 同为不含预发布的三段式)。
+  const updateHelper = `  private updatableReceipt(profile: MarketDesktopProfile, packageName: string, version: string) {
+    const existing = this.receipts().find(receipt =>
+      receipt.profileName === profile.name && receipt.packageName === packageName)
+    if (existing === undefined) return undefined
+    const parse = (value: string) => value.split('.').map(part => Number.parseInt(part, 10))
+    const [next, prior] = [parse(version), parse(existing.version)]
+    if (next.length !== 3 || prior.length !== 3 || ![...next, ...prior].every(Number.isFinite)) return undefined
+    for (let index = 0; index < 3; index++) {
+      if ((next[index] ?? 0) > (prior[index] ?? 0)) return existing
+      if ((next[index] ?? 0) < (prior[index] ?? 0)) return undefined
+    }
+    return undefined
+  }
+
+  private assertNoReceipt(`
+  const helperAnchor = '  private assertNoReceipt('
+  if (!installService.includes(helperAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场回执断言锚点，请复查受控更新覆盖')
+  }
+  // 替换顺序敏感:预览段插入的代码内含执行段锚点字样,必须先替换执行段
+  // (原文唯一命中),再替换预览段,否则执行段替换会命中预览段的插入文本。
+  let patchedInstall = installService
+    .replace(helperAnchor, updateHelper)
+    .replace(
+      executeGateAnchor,
+      `      // 产品覆盖:更新意图下跳过回执与在装闸门(见 previewInstall)。
+      const productExecuteUpdate = this.updatableReceipt(profile, candidate.packageName, candidate.version)
+      if (productExecuteUpdate === undefined) {
+        this.assertNoReceipt(profile, candidate.packageName)
+        await assertNotInstalled(profile, candidate.packageName)
+      }`,
+    )
+    .replace(
+      executeMidAnchor,
+      `      if (productExecuteUpdate === undefined) await assertNotInstalled(profile, candidate.packageName)
+      if (this.candidates.get(candidate.key) !== candidate) {
+        throw new MarketInstallError('not-available', 'The catalog source changed before installation.')
+      }`,
+    )
+    .replace(
+      previewGateAnchor,
+      `    const profile = this.profile()
+    // 产品覆盖:同包旧回执 + 更高版本 = 受控更新,放行重装(pnpm 原地升级)。
+    const productUpdateFrom = this.updatableReceipt(profile, candidate.packageName, candidate.version)
+    if (productUpdateFrom === undefined) {
+      this.assertNoReceipt(profile, candidate.packageName)
+      await assertNotInstalled(profile, candidate.packageName)
+    }`,
+    )
+  // 预览响应带 updateFrom(旧版本号),前端据此渲染"更新"文案。
+  const previewResponseAnchor = `    return {
+      intent: token,
+      action: 'install',
+      profileName: profile.name,
+      packageName: candidate.packageName,
+      version: candidate.version,
+      displayName: candidate.displayName,
+      expiresAt: new Date(this.now() + this.intentTtlMs).toISOString(),
+    }`
+  if (!patchedInstall.includes(previewResponseAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场安装预览响应锚点，请复查受控更新覆盖')
+  }
+  patchedInstall = patchedInstall.replace(
+    previewResponseAnchor,
+    `    return {
+      intent: token,
+      action: 'install',
+      profileName: profile.name,
+      packageName: candidate.packageName,
+      version: candidate.version,
+      displayName: candidate.displayName,
+      expiresAt: new Date(this.now() + this.intentTtlMs).toISOString(),
+      ...(productUpdateFrom === undefined ? {} : { updateFrom: productUpdateFrom.version }),
+    } as MarketInstallPreview & { updateFrom?: string }`,
+  )
+  // 安装成功写回执:替换同包旧条目而不是追加(更新后账面版本随之更新)。
+  const receiptWriteAnchor = '        await this.saveReceipts([...this.receipts(), receipt])'
+  if (!patchedInstall.includes(receiptWriteAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场回执写入锚点，请复查受控更新覆盖')
+  }
+  patchedInstall = patchedInstall.replace(
+    receiptWriteAnchor,
+    `        await this.saveReceipts([...this.receipts().filter(existing =>
+          !(existing.profileName === receipt.profileName && existing.packageName === receipt.packageName)), receipt])`,
+  )
+
+  /* ---- 2) MarketSettingsTab.tsx:更新态的标题/说明/按钮文案 ---- */
+  // 详情对话框(ItemActionModal)的确认页:标题与描述按 updateFrom 切换。
+  const modalTitleAnchor = "      title={preview === undefined ? value.item.displayName : t('confirmInstallTitle')}"
+  const modalDescriptionAnchor = "      {...(preview === undefined ? {} : { description: t('confirmInstallBody') })}"
+  const modalButtonAnchor = `    >{pending ? t('installing') : t('confirmInstall')}</Button>
+  </> : <>`
+  const modalFactsAnchor = `            <OperationFacts operation={preview} t={t} />
+            <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>`
+  if (!settingsTab.includes(modalTitleAnchor) || !settingsTab.includes(modalDescriptionAnchor)
+    || !settingsTab.includes(modalButtonAnchor) || !settingsTab.includes(modalFactsAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场对话框更新文案锚点，请复查受控更新覆盖')
+  }
+  const updateFromProbe = '(preview as { updateFrom?: string }).updateFrom'
+  const patchedSettingsTab = settingsTab
+    .replace(
+      modalTitleAnchor,
+      `      title={preview === undefined ? value.item.displayName : (${updateFromProbe} === undefined ? t('confirmInstallTitle') : t('confirmUpdateTitle'))}`,
+    )
+    .replace(
+      modalDescriptionAnchor,
+      `      {...(preview === undefined ? {} : { description: ${updateFromProbe} === undefined ? t('confirmInstallBody') : t('confirmUpdateBody') })}`,
+    )
+    .replace(
+      modalButtonAnchor,
+      `    >{pending
+      ? ((preview as { updateFrom?: string } | undefined)?.updateFrom === undefined ? t('installing') : t('updating'))
+      : ((preview as { updateFrom?: string } | undefined)?.updateFrom === undefined
+        ? t('confirmInstall')
+        : t('confirmUpdate') + ' ' + (preview?.version ?? ''))}</Button>
+  </> : <>`,
+    )
+    .replace(
+      modalFactsAnchor,
+      `            <OperationFacts operation={preview} t={t} />
+            {${updateFromProbe} !== undefined && (
+              <div className="dshMarketOperationWarning"><StateDot state="ongoing" size={12} /><span>{t('updateFromNotice')} {${updateFromProbe}} {'\\u2192'} {preview.version}</span></div>
+            )}
+            <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>`,
+    )
+
+  /* ---- 3) locales.ts:中英文案 ---- */
+  const zhAnchor = "  confirmInstall: '确认安装',"
+  const enAnchor = "  confirmInstall: 'Confirm install',"
+  if (!locales.includes(zhAnchor) || !locales.includes(enAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场安装文案锚点，请复查受控更新覆盖')
+  }
+  const patchedLocales = locales
+    .replace(zhAnchor, `${zhAnchor}
+  confirmUpdateTitle: '确认更新插件',
+  confirmUpdateBody: '请确认 DSH Desktop 验证的 npm 包、版本和目标配置。已安装的旧版本将原地升级。',
+  confirmUpdate: '更新到',
+  updating: '正在更新…',
+  updateFromNotice: '当前已安装',`)
+    .replace(enAnchor, `${enAnchor}
+  confirmUpdateTitle: 'Confirm plugin update',
+  confirmUpdateBody: 'Review the npm package, version, and target profile verified by DSH Desktop. The installed version is upgraded in place.',
+  confirmUpdate: 'Update to',
+  updating: 'Updating…',
+  updateFromNotice: 'Currently installed',`)
+
+  return { installService: patchedInstall, settingsTab: patchedSettingsTab, locales: patchedLocales }
+}

@@ -3,7 +3,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
 import { removeManagedBundlesFromProfile, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
-import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, enableManagedPluginUpdate, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
 
@@ -145,6 +145,19 @@ writeFileSync(marketSourceStorePath, pinnedMarket.sourceStore)
 writeFileSync(marketServicePath, pinnedMarket.service)
 writeFileSync(marketSettingsTabPath, pinnedMarket.settingsTab)
 writeFileSync(marketLocalesPath, pinnedMarket.locales)
+
+/* ------------------- 市场受控更新（独立可删块） -------------------- */
+// 让"已装插件出现更高版本"走受控更新而非 409:详见 overlays/market.mjs
+// 的 enableManagedPluginUpdate。删除本块即回到上游"卸载后重装"语义。
+const marketInstallServicePath = resolve(stage, 'dsh-community-market', 'src', 'install', 'service.ts')
+const managedUpdate = enableManagedPluginUpdate({
+  installService: readFileSync(marketInstallServicePath, 'utf8'),
+  settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
+  locales: readFileSync(marketLocalesPath, 'utf8'),
+})
+writeFileSync(marketInstallServicePath, managedUpdate.installService)
+writeFileSync(marketSettingsTabPath, managedUpdate.settingsTab)
+writeFileSync(marketLocalesPath, managedUpdate.locales)
 const marketHostTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'host-routes.spec.ts')
 writeFileSync(marketHostTestsPath, skipUpstreamBuiltInSourceTests(readFileSync(marketHostTestsPath, 'utf8')))
 const marketRuntimeTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-runtime.spec.ts')
