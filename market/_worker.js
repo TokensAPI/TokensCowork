@@ -21,20 +21,11 @@ const CATALOG_TTL_SECONDS = 300
 /** 目录契约只接受精确稳定版本（不能是 rc/dev 等预发布）。 */
 const STABLE_VERSION = /^\d+\.\d+\.\d+$/u
 
-/** 组织入口路径:/t/<令牌>/source.json 与 /t/<令牌>/v1/plugins。 */
-const ORG_ROUTE = /^\/t\/([A-Za-z0-9_-]{1,128})\/(source\.json|v1\/plugins)$/u
-
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
     if (url.pathname === '/v1/plugins' && request.method === 'GET') {
       return catalogResponse(request, env, ctx)
-    }
-    const orgRoute = ORG_ROUTE.exec(url.pathname)
-    if (orgRoute !== null && request.method === 'GET') {
-      return orgRoute[2] === 'v1/plugins'
-        ? catalogResponse(request, env, ctx, orgRoute[1])
-        : orgSourceManifest(env, request.url, orgRoute[1])
     }
     if (url.pathname === '/api/latest' && request.method === 'GET') {
       return latestResponse(url)
@@ -45,31 +36,21 @@ export default {
 
 /**
  * 组装动态目录响应，带边缘缓存。
- *
- * 组织可见域：名册条目可带可选 `org` 标记。无标记 = 通用，所有入口可见；
- * 带标记 = 仅当调用方令牌解析出的组织与标记一致时可见。普通入口
- * (/v1/plugins) 与无效令牌都只看到通用条目——fail-open，市场永不空白。
  * @param {Request} request - 入站请求（缓存键）。
  * @param {{ ASSETS: { fetch(input: Request | string): Promise<Response> } }} env - Pages 绑定。
  * @param {{ waitUntil(promise: Promise<unknown>): void }} ctx - 执行上下文。
- * @param {string} [token] - 组织入口的市场令牌；缺省为通用入口。
  * @returns {Promise<Response>} application/json 的目录页响应。
  */
-async function catalogResponse(request, env, ctx, token) {
+async function catalogResponse(request, env, ctx) {
   const cache = caches.default
-  // 缓存按入口隔离:不同令牌的目录互不串。
-  const cachePath = token === undefined ? '/v1/plugins' : `/t/${token}/v1/plugins`
-  const cacheKey = new Request(new URL(cachePath, request.url).toString())
+  const cacheKey = new Request(new URL('/v1/plugins', request.url).toString())
   const cached = await cache.match(cacheKey)
   if (cached !== undefined) return cached
 
   let response
   try {
     const roster = await readRoster(env, request.url)
-    const org = token === undefined ? undefined : await resolveOrg(env, request.url, token)
-    const visible = roster.items.filter(item =>
-      item.org === undefined || (org !== undefined && item.org === org))
-    const items = await Promise.all(visible.map(item => catalogItem(item, roster.publisher)))
+    const items = await Promise.all(roster.items.map(item => catalogItem(item, roster.publisher)))
     response = jsonResponse({ schemaVersion: '1.0.0', items, page: {} })
   } catch {
     // 名册不可读：回退到构建时生成的静态快照，端点保持可用。
@@ -83,44 +64,6 @@ async function catalogResponse(request, env, ctx, token) {
     ctx.waitUntil(cache.put(cacheKey, response.clone()))
   }
   return response
-}
-
-/**
- * 用市场令牌解析组织 id。映射存于静态 orgs.json 的 tokens 表
- * （{ "<令牌>": "<组织id>" }）。查不到返回 undefined——调用方按通用
- * 目录处理，不报错。
- * @param {{ ASSETS: { fetch(input: string): Promise<Response> } }} env - Pages 绑定。
- * @param {string} requestUrl - 用于解析同源静态资源地址。
- * @param {string} token - 路径里的市场令牌。
- * @returns {Promise<string | undefined>} 组织 id。
- */
-async function resolveOrg(env, requestUrl, token) {
-  try {
-    const response = await env.ASSETS.fetch(new URL('/orgs.json', requestUrl).toString())
-    if (!response.ok) return undefined
-    const orgs = await response.json()
-    const org = orgs.tokens?.[token]
-    return typeof org === 'string' && org.length > 0 ? org : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * 组织入口的目录源 manifest：基于静态 source.json，把 endpoint 改写为
- * 该令牌的目录端点（市场 Host 要求 manifest 与端点同源同路径前缀）。
- * @param {{ ASSETS: { fetch(input: string): Promise<Response> } }} env - Pages 绑定。
- * @param {string} requestUrl - 入站 URL。
- * @param {string} token - 路径里的市场令牌。
- * @returns {Promise<Response>} 改写后的 manifest 响应。
- */
-async function orgSourceManifest(env, requestUrl, token) {
-  const response = await env.ASSETS.fetch(new URL('/source.json', requestUrl).toString())
-  if (!response.ok) return env.ASSETS.fetch(requestUrl)
-  const manifest = await response.json()
-  const origin = new URL(requestUrl).origin
-  manifest.transport = { ...manifest.transport, endpoint: `${origin}/t/${token}/v1/plugins` }
-  return jsonResponse(manifest)
 }
 
 /**
