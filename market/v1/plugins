@@ -22,7 +22,7 @@
       "displayName": "连接中心",
       "summary": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensCowork。",
       "homepage": "https://github.com/sobermh/tokens_DshConnect_code",
-      "latestVersion": "2.4.4",
+      "latestVersion": "2.5.0",
       "repository": {
         "url": "https://github.com/sobermh/tokens_DshConnect_code"
       },
@@ -37,7 +37,7 @@
       "displayName": "Tokens Cowork UI",
       "summary": "为 Tokens Cowork 提供品牌视觉、主题皮肤、技能入口和侧栏界面扩展。",
       "homepage": "https://github.com/TokensAPI/dsh-tokensapi-ui",
-      "latestVersion": "0.2.11",
+      "latestVersion": "0.2.15",
       "repository": {
         "url": "https://github.com/TokensAPI/dsh-tokensapi-ui"
       },
