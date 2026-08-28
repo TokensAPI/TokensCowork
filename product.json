@@ -115,6 +115,19 @@
       }
     },
     {
+      "id": "tokens-progressive-tools",
+      "displayName": "渐进式工具",
+      "description": "只让高频工具常驻模型上下文，其余工具按需搜索并通过原有 DSH 安全执行链分发。",
+      "path": "plugins/tokens_DshProgressiveTools_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code.git",
+      "commit": "ecb87b4a73a5177eb237d006d8053f40eebb45fc",
+      "package": "@tokensapi/dsh-progressive-tools",
+      "version": "0.1.0",
+      "enabledByDefault": false,
+      "npmInstall": false,
+      "patch": "cordis.patch.yml"
+    },
+    {
       "id": "tokens-browser-use",
       "displayName": "浏览器操作",
       "description": "桥接 Playwright MCP，让模型驱动可见浏览器完成网页操作，带可视光标与坐标模式。",

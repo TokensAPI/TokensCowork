@@ -92,6 +92,21 @@
       }
     },
     {
+      "id": "tokens-progressive-tools",
+      "name": "@tokensapi/dsh-progressive-tools",
+      "displayName": "渐进式工具",
+      "summary": "只让高频工具常驻模型上下文，其余工具按需搜索并通过原有 DSH 安全执行链分发。",
+      "homepage": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code",
+      "latestVersion": "0.1.0",
+      "repository": {
+        "url": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code"
+      },
+      "publisher": {
+        "name": "TokensAPI",
+        "url": "https://github.com/TokensAPI"
+      }
+    },
+    {
       "id": "tokens-browser-use",
       "name": "@tokensapi/dsh-browser-use",
       "displayName": "浏览器操作",

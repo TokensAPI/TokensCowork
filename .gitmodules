@@ -22,3 +22,6 @@
 [submodule "tokens-connect"]
 	path = plugins/tokens_DshConnect_code
 	url = https://github.com/sobermh/tokens_DshConnect_code.git
+[submodule "tokens-progressive-tools"]
+	path = plugins/tokens_DshProgressiveTools_code
+	url = https://github.com/TokensAPI/tokens_DshProgressiveTools_code.git

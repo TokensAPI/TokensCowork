@@ -57,6 +57,15 @@
       "npm": false
     },
     {
+      "id": "tokens-progressive-tools",
+      "package": "@tokensapi/dsh-progressive-tools",
+      "displayName": "渐进式工具",
+      "summary": "只让高频工具常驻模型上下文，其余工具按需搜索并通过原有 DSH 安全执行链分发。",
+      "repository": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code",
+      "version": "0.1.0",
+      "npm": false
+    },
+    {
       "id": "tokens-browser-use",
       "package": "@tokensapi/dsh-browser-use",
       "displayName": "浏览器操作",

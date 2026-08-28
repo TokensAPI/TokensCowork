@@ -7,11 +7,12 @@
 ```text
 source.config.json   部署 origin 配置（唯一手工维护的文件）
 source.json          目录源 manifest（生成产物，用户登记的就是它的 URL）
+roster.json          动态目录名册（Worker 运行时读取；npm 发布状态在这里登记）
 v1/plugins           目录端点响应（生成产物，市场 Host 拉取的插件列表）
 _headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 JSON）
 ```
 
-`source.json` 与 `v1/plugins` 由 `node scripts/generate-market-catalog.mjs` 从 `product.json` 生成，不要手工编辑；插件的展示名与介绍改 `product.json` 后重新生成。
+`source.json` 与 `v1/plugins` 由 `node scripts/generate-market-catalog.mjs` 从 `product.json` 生成，不要手工编辑；插件的展示名与介绍改 `product.json` 后重新生成。`roster.json` 是 Worker 的运行时名册，新增市场插件时必须同步登记；只有包已经发布并验证后才能把 `npm` 设为 `true`。
 
 ## 为什么不能部署到 GitHub Pages
 
