@@ -101,6 +101,10 @@
       "repository": {
         "url": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code"
       },
+      "package": {
+        "registry": "npm",
+        "name": "@tokensapi/dsh-progressive-tools"
+      },
       "publisher": {
         "name": "TokensAPI",
         "url": "https://github.com/TokensAPI"

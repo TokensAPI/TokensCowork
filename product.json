@@ -124,7 +124,7 @@
       "package": "@tokensapi/dsh-progressive-tools",
       "version": "0.1.0",
       "enabledByDefault": false,
-      "npmInstall": false,
+      "npmInstall": true,
       "patch": "cordis.patch.yml"
     },
     {
