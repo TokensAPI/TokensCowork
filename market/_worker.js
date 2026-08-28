@@ -27,6 +27,9 @@ export default {
     if (url.pathname === '/v1/plugins' && request.method === 'GET') {
       return catalogResponse(request, env, ctx)
     }
+    if (url.pathname === '/api/latest' && request.method === 'GET') {
+      return latestResponse(url)
+    }
     return env.ASSETS.fetch(request)
   },
 }
@@ -126,13 +129,39 @@ async function latestStableVersion(packageName, fallback) {
 }
 
 /**
+ * 管理面板专用:服务端代查一个 npm 包的 latest dist-tag。面板浏览器
+ * 直连 registry 会被 CORS 与网络环境拦下,改为同源问本端点。
+ * @param {URL} url - 入站 URL,查询参数 pkg 为 npm 包名。
+ * @returns {Promise<Response>} { pkg, latest } 或 400/502 错误说明。
+ */
+async function latestResponse(url) {
+  const pkg = url.searchParams.get('pkg') ?? ''
+  // 校验 npm 包名的合法形状,防止把任意路径拼进 registry 请求。
+  if (!/^(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/u.test(pkg)) {
+    return jsonResponse({ error: 'invalid pkg' }, 400)
+  }
+  try {
+    const response = await fetch(
+      `https://registry.npmjs.org/-/package/${pkg}/dist-tags`,
+      { headers: { accept: 'application/json' }, cf: { cacheTtl: 120, cacheEverything: true } },
+    )
+    if (!response.ok) return jsonResponse({ pkg, latest: null }, 200)
+    const tags = await response.json()
+    return jsonResponse({ pkg, latest: typeof tags.latest === 'string' ? tags.latest : null })
+  } catch {
+    return jsonResponse({ pkg, latest: null })
+  }
+}
+
+/**
  * 构造符合市场 Host 要求的 JSON 响应。
  * @param {object} body - 响应对象。
+ * @param {number} [status] - HTTP 状态码,默认 200。
  * @returns {Response} Content-Type 为 application/json 的响应。
  */
-function jsonResponse(body) {
+function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': `public, max-age=60, s-maxage=${CATALOG_TTL_SECONDS}`,

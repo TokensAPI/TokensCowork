@@ -108,9 +108,10 @@ async function fetchJson(url) {
 }
 
 async function npmLatest(pkg) {
+  // 走本源 Worker 代查,避免浏览器直连 registry 的 CORS 与网络问题。
   try {
-    const tags = await fetchJson('https://registry.npmjs.org/-/package/' + pkg + '/dist-tags')
-    return typeof tags.latest === 'string' ? tags.latest : null
+    const data = await fetchJson('/api/latest?pkg=' + encodeURIComponent(pkg))
+    return typeof data.latest === 'string' ? data.latest : null
   } catch { return null }
 }
 
