@@ -72,7 +72,7 @@
       "summary": "接入 TokensAPI 图像与视频生成能力，让模型在会话中按上下文生成图片和视频。",
       "repository": "https://github.com/TokensAPI/tokens_DshMediaGen_code",
       "version": "0.3.0",
-      "npm": true
+      "npm": false
     }
   ]
 }
