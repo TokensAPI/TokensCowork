@@ -126,7 +126,7 @@ export function pinProductMarketSource(sources, origin, manifest) {
       unavailableSourceRecordIds.add(target.sourceRecordId)`,
   )
   // 2) Source store:提供一次性迁移函数。产品入口在注册 Web 路由前等待迁移
-  //    完成，通用 store/load 与上游路由测试保持原语义。
+  //    完成，并将来源收敛为唯一产品源；通用 store/load 保持上游原语义。
   const sourceStoreClassAnchor = 'export class SettingsCatalogSourceStore implements CatalogSourceStore {'
   if (!sourceStore.includes(sourceStoreClassAnchor)) {
     throw new Error('prepare-desktop: 未找到市场来源存储锚点，请复查产品源自愈覆盖')
@@ -148,11 +148,7 @@ export function pinProductMarketSource(sources, origin, manifest) {
     enabled: true,
     order: 0,
   }
-  const retained = records
-    .filter(record => !isRequired(record))
-    .sort((left, right) => left.order - right.order)
-    .map((record, index) => ({ ...record, enabled: false, order: index + 1 }))
-  const repaired = [required, ...retained]
+  const repaired = [required]
   validateLocalSourceRecords(repaired)
   if (JSON.stringify(records) !== JSON.stringify(repaired)) {
     await scope.update({ sources: repaired })
@@ -370,8 +366,8 @@ export function skipUpstreamSourceDescriptionTests(spec) {
 }
 
 /**
- * 为产品 staging 增加持久化空来源的回归测试。该状态来自旧版本中用户已
- * 删除官方源的配置，重新安装仍会保留；迁移函数必须补回且只写一次。
+ * 为产品 staging 增加历史来源迁移回归测试。旧版本保存的其他来源不应
+ * 继续出现在产品界面；迁移后必须只保留产品源，且稳定状态不重复写入。
  * @param spec - staging 副本中 tests/source-store.spec.ts 的完整内容。
  * @returns 增加产品源自愈断言后的测试内容。
  * @throws 上游测试文件结尾变化时抛出，中断打包待人工复查。
@@ -391,8 +387,20 @@ export function addRequiredSourceRepairTest(spec) {
   )
   const test = `
 
-  it('restores a required product source from persisted empty settings', async () => {
-    let document: MarketSettingsDocument = { sources: [] }
+  it('replaces persisted legacy sources with the required product source', async () => {
+    const legacyManifest = {
+      ...manifest,
+      providerId: 'org.example.legacy-catalog',
+      transport: { ...manifest.transport, endpoint: 'https://legacy.example.org/v1/plugins' },
+    }
+    const legacySource: LocalSourceRecord = {
+      ...source,
+      sourceRecordId: '028f1f77-a5c4-7b73-a9ae-0242ac120003',
+      providerId: legacyManifest.providerId,
+      manifestUrl: 'https://legacy.example.org/catalog-source.json',
+      manifest: legacyManifest,
+    }
+    let document: MarketSettingsDocument = { sources: [legacySource] }
     const update = vi.fn(async (next: MarketSettingsDocument) => { document = next })
     const scope = {
       get: () => document,
