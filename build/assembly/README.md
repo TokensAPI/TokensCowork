@@ -15,7 +15,7 @@ assembly/
 │  │                         Logo 替换、补丁层品牌（UI 品牌停用 + 系统提示词身份）
 │  ├─ updates.mjs            更新：停用上游更新、更新菜单验收、更新插件产品配置
 │  ├─ market.mjs             插件市场：fake-IP 豁免、预置产品源、隐藏上游合作源
-│  │                         与添加/删除入口、上游测试适配
+│  │                         与添加/删除入口、产品包受控安装/更新、上游测试适配
 │  ├─ windows-acl.mjs        Windows ACL 启动链：宿主控制台注入、基础设施熔断
 │  ├─ windows-installer.mjs  Windows 安装器：升级保护 nsh、NSIS 资源固定
 │  └─ desktop-runtime.mjs    桌面运行时：持久 profile 修复、stderr 保护

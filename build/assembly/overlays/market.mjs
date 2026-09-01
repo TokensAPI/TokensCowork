@@ -442,22 +442,73 @@ export function awaitProductSourceMigrationInLifecycleTest(spec) {
 }
 
 /**
- * 市场受控更新：放行"已有回执且目录版本更新"的重装,把它变成受控更新。
+ * 市场受控安装与更新：修复产品 npm 包首次安装、市场回执更新和历史
+ * 手动安装迁移三条路径。
  *
- * 上游市场只有 install/uninstall 两种受控操作:同一包已有回执时预览与
- * 执行都直接 409,用户只能看到"手动安装"提示。本覆盖不新增状态机,只做
- * 三件事——预览与执行阶段将"同包旧回执 + 更高版本"识别为更新意图并放行
- * (pnpm add 对已装包本身就是原地升级);安装成功写回执时以"替换同包旧
- * 条目"代替"追加";预览响应带上 updateFrom 字段,前端把按钮与提示渲染
- * 为"更新到 x.y.z"。版本相同或更低仍维持上游的拒绝行为。
+ * 上游会拒绝任何声明 prepare 的包，而产品的已发布预编译包可能保留仅在
+ * publish/pack 阶段使用的 prepare。这里仅对 roster 中明确登记为 npm 的
+ * 产品包放行“只有 prepare、没有 preinstall/install/postinstall”的形态；
+ * 其余包和其余安装脚本仍按上游策略拒绝。
+ *
+ * 更新阶段把“同包旧版本 + 更高目录版本”识别为受控更新。已有市场回执
+ * 直接复核本地精确包；历史上按提示手动安装的包则先用 npm registry 对旧
+ * 版本的仓库、integrity 与 bundle 再做一次完整验证，验证通过后才允许原地
+ * 升级并写入市场回执。版本相同或更低仍维持上游的拒绝行为。
  *
  * 独立可删:prepare.mjs 中对应调用删除后,产品回到上游"卸载后重装"语义。
- * @param sources - staging 副本中 install/service.ts、client/MarketSettingsTab.tsx、client/locales.ts 的内容。
+ * @param sources - staging 副本中市场 Host、Renderer 与测试文件的内容。
+ * @param managedPackages - market/roster.json 中 npm=true 的产品包名。
  * @returns 改写后的各文件内容。
  * @throws 上游锚点变化时抛出,中断打包待人工复查。
  */
-export function enableManagedPluginUpdate(sources) {
-  const { installService, settingsTab, locales } = sources
+export function enableManagedPluginUpdate(sources, managedPackages) {
+  const { installService, settingsTab, locales, installTests, settingsTabTests } = sources
+  if (!Array.isArray(managedPackages) || managedPackages.length === 0
+    || managedPackages.some(name => typeof name !== 'string' || name.length === 0)) {
+    throw new Error('prepare-desktop: 市场受管 npm 包清单无效')
+  }
+
+  /* ---- 0) npm verifier:仅放行产品预编译包的 publish-time prepare ---- */
+  const lifecycleAnchor = `      const scripts = manifest.scripts
+      if (scripts !== undefined && (
+        scripts === null
+        || typeof scripts !== 'object'
+        || Array.isArray(scripts)
+        || LIFECYCLE_SCRIPTS.some(script => own(scripts, script))
+      )) {
+        throw new MarketInstallError('verification-failed', 'Plugin packages with install lifecycle scripts are not supported.')
+      }`
+  if (!installService.includes(lifecycleAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场生命周期脚本校验锚点，请复查受控安装覆盖')
+  }
+  const blockedPackagesAnchor = "const BLOCKED_PRODUCT_PACKAGES = new Set(['dsh-plugin-desktop', 'dsh-community-market'])"
+  if (!installService.includes(blockedPackagesAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场受管产品包常量锚点，请复查受控安装覆盖')
+  }
+  const productPackagesLiteral = JSON.stringify([...new Set(managedPackages)].sort())
+  let patchedInstall = installService.replace(
+    blockedPackagesAnchor,
+    `const BLOCKED_PRODUCT_PACKAGES = new Set(['dsh-plugin-desktop', 'dsh-community-market'])
+// 产品覆盖：仅这些已登记、已发布且仍会经过 registry/repository/integrity 复核的包
+// 可以保留 publish-time prepare；真正的安装脚本继续一律拒绝。
+const PRODUCT_MANAGED_PACKAGES = new Set<string>(${productPackagesLiteral})`,
+  )
+  patchedInstall = patchedInstall.replace(
+    lifecycleAnchor,
+    `      const scripts = manifest.scripts
+      const scriptsValid = scripts !== null && typeof scripts === 'object' && !Array.isArray(scripts)
+      const lifecycleScripts = scriptsValid
+        ? LIFECYCLE_SCRIPTS.filter(script => own(scripts, script))
+        : []
+      const productPublishPrepareOnly = PRODUCT_MANAGED_PACKAGES.has(candidate.packageName)
+        && lifecycleScripts.length === 1
+        && lifecycleScripts[0] === 'prepare'
+        && typeof (scripts as Record<string, unknown>).prepare === 'string'
+      if (scripts !== undefined && (!scriptsValid
+        || lifecycleScripts.length > 0 && !productPublishPrepareOnly)) {
+        throw new MarketInstallError('verification-failed', 'Plugin packages with install lifecycle scripts are not supported.')
+      }`,
+  )
 
   /* ---- 1) install/service.ts:预览放行 + 回执携带 + 替换写入 ---- */
   // 预览阶段(previewInstall):旧回执存在且目录版本更高 → 跳过两道闸。
@@ -479,20 +530,74 @@ export function enableManagedPluginUpdate(sources) {
   if (!installService.includes(executeGateAnchor) || !installService.includes(executeMidAnchor)) {
     throw new Error('prepare-desktop: 未找到市场安装执行闸门锚点，请复查受控更新覆盖')
   }
-  // 判定函数:同 profile 同包已有回执,且目录候选版本严格更高(三段
-  // 数字逐段比较;与上游 stableExactVersion 同为不含预发布的三段式)。
-  const updateHelper = `  private updatableReceipt(profile: MarketDesktopProfile, packageName: string, version: string) {
-    const existing = this.receipts().find(receipt =>
-      receipt.profileName === profile.name && receipt.packageName === packageName)
-    if (existing === undefined) return undefined
+  // 判定函数：先验证严格升版，再验证当前安装确实对应旧版本。无回执的历史
+  // 手动安装还必须用 registry 重新证明旧包的 repository/integrity/bundle，
+  // 证明通过才允许市场接管。
+  const updateHelper = `  private newerVersion(version: string, priorVersion: string): boolean {
     const parse = (value: string) => value.split('.').map(part => Number.parseInt(part, 10))
-    const [next, prior] = [parse(version), parse(existing.version)]
-    if (next.length !== 3 || prior.length !== 3 || ![...next, ...prior].every(Number.isFinite)) return undefined
+    const [next, prior] = [parse(version), parse(priorVersion)]
+    if (next.length !== 3 || prior.length !== 3 || ![...next, ...prior].every(Number.isFinite)) return false
     for (let index = 0; index < 3; index++) {
-      if ((next[index] ?? 0) > (prior[index] ?? 0)) return existing
-      if ((next[index] ?? 0) < (prior[index] ?? 0)) return undefined
+      if ((next[index] ?? 0) > (prior[index] ?? 0)) return true
+      if ((next[index] ?? 0) < (prior[index] ?? 0)) return false
     }
-    return undefined
+    return false
+  }
+
+  private async updatableInstall(
+    profile: MarketDesktopProfile,
+    candidate: InstallCandidate,
+    signal: AbortSignal,
+  ): Promise<{ readonly version: string } | undefined> {
+    const receipt = this.receipts().find(existing =>
+      existing.profileName === profile.name && existing.packageName === candidate.packageName)
+    if (receipt !== undefined) {
+      if (!this.newerVersion(candidate.version, receipt.version)) return undefined
+      try {
+        await assertInstalledBundle(
+          profile,
+          receipt.packageName,
+          receipt.version,
+          receipt.bundlePatch,
+          receipt.integrity,
+        )
+        return receipt
+      } catch {
+        signal.throwIfAborted()
+        return undefined
+      }
+    }
+
+    let installedVersion: string | undefined
+    try {
+      installedVersion = profileDependency(
+        await readManifest(join(profile.dir, 'package.json')),
+        candidate.packageName,
+      )
+    } catch {
+      signal.throwIfAborted()
+      return undefined
+    }
+    if (!stableExactVersion(installedVersion)
+      || !this.newerVersion(candidate.version, installedVersion)) return undefined
+
+    try {
+      const verification = await this.verifier.verify(
+        { ...candidate, version: installedVersion },
+        signal,
+      )
+      await assertInstalledBundle(
+        profile,
+        candidate.packageName,
+        installedVersion,
+        verification.bundlePatch,
+        verification.integrity,
+      )
+      return { version: installedVersion }
+    } catch {
+      signal.throwIfAborted()
+      return undefined
+    }
   }
 
   private assertNoReceipt(`
@@ -502,12 +607,12 @@ export function enableManagedPluginUpdate(sources) {
   }
   // 替换顺序敏感:预览段插入的代码内含执行段锚点字样,必须先替换执行段
   // (原文唯一命中),再替换预览段,否则执行段替换会命中预览段的插入文本。
-  let patchedInstall = installService
+  patchedInstall = patchedInstall
     .replace(helperAnchor, updateHelper)
     .replace(
       executeGateAnchor,
       `      // 产品覆盖:更新意图下跳过回执与在装闸门(见 previewInstall)。
-      const productExecuteUpdate = this.updatableReceipt(profile, candidate.packageName, candidate.version)
+      const productExecuteUpdate = await this.updatableInstall(profile, candidate, operationSignal)
       if (productExecuteUpdate === undefined) {
         this.assertNoReceipt(profile, candidate.packageName)
         await assertNotInstalled(profile, candidate.packageName)
@@ -524,7 +629,7 @@ export function enableManagedPluginUpdate(sources) {
       previewGateAnchor,
       `    const profile = this.profile()
     // 产品覆盖:同包旧回执 + 更高版本 = 受控更新,放行重装(pnpm 原地升级)。
-    const productUpdateFrom = this.updatableReceipt(profile, candidate.packageName, candidate.version)
+    const productUpdateFrom = await this.updatableInstall(profile, candidate, operationSignal)
     if (productUpdateFrom === undefined) {
       this.assertNoReceipt(profile, candidate.packageName)
       await assertNotInstalled(profile, candidate.packageName)
@@ -575,12 +680,50 @@ export function enableManagedPluginUpdate(sources) {
   </> : <>`
   const modalFactsAnchor = `            <OperationFacts operation={preview} t={t} />
             <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>`
+  const matchingInstallationAnchor = 'function matchingInstallation('
+  const inventoryAnchor = `      if (installation !== undefined) setSelectedInstallation(installation)
+      else beginInstallPreview()`
+  const footerAnchor = '  const footer = installation === undefined && preview !== undefined ? <>'
+  const modalProgressAnchor = `{pending && <div className="dshMarketOperationProgress" role="status"><StateDot state="ongoing" size={12} />{t('installing')}</div>}`
+  const successTitleAnchor = `  const title = operation.preview.action === 'install'
+    ? t('installComplete')`
   if (!settingsTab.includes(modalTitleAnchor) || !settingsTab.includes(modalDescriptionAnchor)
-    || !settingsTab.includes(modalButtonAnchor) || !settingsTab.includes(modalFactsAnchor)) {
+    || !settingsTab.includes(modalButtonAnchor) || !settingsTab.includes(modalFactsAnchor)
+    || !settingsTab.includes(matchingInstallationAnchor) || !settingsTab.includes(inventoryAnchor)
+    || !settingsTab.includes(footerAnchor) || !settingsTab.includes(modalProgressAnchor)
+    || !settingsTab.includes(successTitleAnchor)) {
     throw new Error('prepare-desktop: 未找到市场对话框更新文案锚点，请复查受控更新覆盖')
   }
   const updateFromProbe = '(preview as { updateFrom?: string }).updateFrom'
   const patchedSettingsTab = settingsTab
+    .replace(
+      matchingInstallationAnchor,
+      `function newerStableVersion(nextVersion: string | undefined, priorVersion: string): boolean {
+  if (nextVersion === undefined) return false
+  const pattern = /^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$/u
+  if (!pattern.test(nextVersion) || !pattern.test(priorVersion)) return false
+  const next = nextVersion.split('.').map(Number)
+  const prior = priorVersion.split('.').map(Number)
+  for (let index = 0; index < 3; index++) {
+    if (next[index]! > prior[index]!) return true
+    if (next[index]! < prior[index]!) return false
+  }
+  return false
+}
+
+${matchingInstallationAnchor}`,
+    )
+    .replace(
+      inventoryAnchor,
+      `      if (installation !== undefined) {
+        setSelectedInstallation(installation)
+        const managedUpdateAvailable = installation.kind === 'managed'
+          && newerStableVersion(value.item.latestVersion, installation.receipt.version)
+        // 历史手动安装没有市场回执，Host 会复核本地旧包后决定是否允许接管更新。
+        if (managedUpdateAvailable || installation.kind === 'external') beginInstallPreview()
+      } else beginInstallPreview()`,
+    )
+    .replace(footerAnchor, '  const footer = preview !== undefined ? <>')
     .replace(
       modalTitleAnchor,
       `      title={preview === undefined ? value.item.displayName : (${updateFromProbe} === undefined ? t('confirmInstallTitle') : t('confirmUpdateTitle'))}`,
@@ -606,6 +749,15 @@ export function enableManagedPluginUpdate(sources) {
             )}
             <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>`,
     )
+    .replace(
+      modalProgressAnchor,
+      `{pending && <div className="dshMarketOperationProgress" role="status"><StateDot state="ongoing" size={12} />{${updateFromProbe} === undefined ? t('installing') : t('updating')}</div>}`,
+    )
+    .replace(
+      successTitleAnchor,
+      `  const title = operation.preview.action === 'install'
+    ? ((operation.preview as { updateFrom?: string }).updateFrom === undefined ? t('installComplete') : t('updateComplete'))`,
+    )
 
   /* ---- 3) locales.ts:中英文案 ---- */
   const zhAnchor = "  confirmInstall: '确认安装',"
@@ -619,13 +771,229 @@ export function enableManagedPluginUpdate(sources) {
   confirmUpdateBody: '请确认 DSH Desktop 验证的 npm 包、版本和目标配置。已安装的旧版本将原地升级。',
   confirmUpdate: '更新到',
   updating: '正在更新…',
-  updateFromNotice: '当前已安装',`)
+  updateFromNotice: '当前已安装',
+  updateComplete: '插件更新完成',`)
     .replace(enAnchor, `${enAnchor}
   confirmUpdateTitle: 'Confirm plugin update',
   confirmUpdateBody: 'Review the npm package, version, and target profile verified by DSH Desktop. The installed version is upgraded in place.',
   confirmUpdate: 'Update to',
   updating: 'Updating…',
-  updateFromNotice: 'Currently installed',`)
+  updateFromNotice: 'Currently installed',
+  updateComplete: 'Plugin updated',`)
 
-  return { installService: patchedInstall, settingsTab: patchedSettingsTab, locales: patchedLocales }
+  /* ---- 4) 产品回归：prepare 放行、回执更新、手动安装迁移与更新 UI ---- */
+  const verifierTestsAnchor = `  })
+})
+
+describe('manual install display instructions'`
+  const serviceTestsAnchor = `  it('uses one-shot opaque intents, fixed argv, verified bundle state, and profile receipts', async () => {`
+  if (!installTests.includes(verifierTestsAnchor) || !installTests.includes(serviceTestsAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场受控更新 Host 测试锚点')
+  }
+  let patchedInstallTests = installTests.replace(
+    verifierTestsAnchor,
+    `  })
+
+  it('allows only publish-time prepare for roster-managed product packages', async () => {
+    const productPackage = '@tokensapi/dsh-progressive-tools'
+    const productVersion = '0.1.0'
+    const productRepository = { url: 'https://github.com/tokensapi/tokens_dshprogressivetools_code' }
+    const productIntegrity = \`sha512-\${Buffer.alloc(64, 3).toString('base64')}\`
+    const productTarball = 'https://registry.npmjs.org/@tokensapi/dsh-progressive-tools/-/dsh-progressive-tools-0.1.0.tgz'
+    const getJson = vi.fn<(...args: any[]) => Promise<{ finalUrl: string; value: unknown }>>(async () => ({
+      finalUrl: \`https://registry.npmjs.org/\${productPackage}/\${productVersion}\`,
+      value: {
+        name: productPackage,
+        version: productVersion,
+        repository: { type: 'git', url: 'git+https://github.com/TokensAPI/tokens_DshProgressiveTools_code.git' },
+        scripts: { prepare: 'pnpm run build', prepack: 'pnpm run check' },
+        dist: { integrity: productIntegrity, tarball: productTarball },
+        dsh: { bundle: { patch: './cordis.patch.yml' } },
+      },
+    }))
+    const verifier = createNpmRegistryVerifier({ getJson } as unknown as CatalogHttpClient)
+    await expect(verifier.verify({
+      packageName: productPackage,
+      version: productVersion,
+      repository: productRepository,
+    }, new AbortController().signal)).resolves.toMatchObject({ integrity: productIntegrity })
+
+    getJson.mockResolvedValueOnce({
+      finalUrl: \`https://registry.npmjs.org/\${productPackage}/\${productVersion}\`,
+      value: {
+        name: productPackage,
+        version: productVersion,
+        repository: productRepository,
+        scripts: { prepare: 'pnpm run build', postinstall: 'node unsafe.js' },
+        dist: { integrity: productIntegrity, tarball: productTarball },
+        dsh: { bundle: { patch: './cordis.patch.yml' } },
+      },
+    })
+    await expect(verifier.verify({
+      packageName: productPackage,
+      version: productVersion,
+      repository: productRepository,
+    }, new AbortController().signal)).rejects.toMatchObject({ code: 'verification-failed' })
+  })
+})
+
+describe('manual install display instructions'`,
+  )
+
+  const updateServiceTests = `  it('updates a verified market receipt and replaces it with the new exact version', async () => {
+    const profileDir = await createProfile()
+    const priorVersion = '1.2.2'
+    const priorIntegrity = \`sha512-\${Buffer.alloc(64, 2).toString('base64')}\`
+    const pluginDir = join(profileDir, 'node_modules', packageName)
+    await mkdir(pluginDir, { recursive: true })
+    await writeFile(join(pluginDir, 'cordis.patch.yml'), '[]\\n')
+    await writeFile(join(pluginDir, 'package.json'), JSON.stringify({
+      name: packageName,
+      version: priorVersion,
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }))
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name: 'fixture-profile',
+      dependencies: { [packageName]: priorVersion },
+      dsh: { profile: { bundles: [packageName] } },
+    }))
+    await writeFile(join(profileDir, 'pnpm-lock.yaml'), stringifyYaml({
+      lockfileVersion: '9.0',
+      importers: { '.': { dependencies: { [packageName]: { specifier: priorVersion, version: priorVersion } } } },
+      packages: { [\`\${packageName}@\${priorVersion}\`]: { resolution: { integrity: priorIntegrity } } },
+      snapshots: { [\`\${packageName}@\${priorVersion}\`]: {} },
+    }))
+    const priorReceipt: MarketInstallReceipt = {
+      receiptId: 'receipt:managed-update-0001',
+      profileName: 'web',
+      packageName,
+      version: priorVersion,
+      integrity: priorIntegrity,
+      bundlePatch: './cordis.patch.yml',
+      sourceRecordId: 'source-1',
+      providerId: DSH_1024STORE_PROVIDER_ID,
+      itemId: 'example/dsh-plugin-safe',
+      displayName: 'Safe Plugin',
+      installedAt: '2026-08-18T00:00:00.000Z',
+    }
+    const settings = memoryScope([priorReceipt])
+    const calls: Array<{ args: readonly string[]; dir: string; signal?: AbortSignal }> = []
+    const service = new MarketInstallService(
+      settings.scope,
+      () => ({ name: 'web', dir: profileDir }),
+      runner(profileDir, calls),
+      { verify: vi.fn(async () => verification) },
+    )
+    service.observeCatalog(snapshot())
+
+    const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', new AbortController().signal)
+    expect((preview as { updateFrom?: string }).updateFrom).toBe(priorVersion)
+    await expect(service.executeInstall(preview.intent, new AbortController().signal)).resolves.toMatchObject({
+      receipt: { packageName, version },
+    })
+    expect(settings.receipts()).toHaveLength(1)
+    expect(settings.receipts()[0]).toMatchObject({ packageName, version })
+    expect(calls[0]?.args.at(-1)).toBe(\`\${packageName}@\${version}\`)
+  })
+
+  it('verifies and adopts a historical manual install before updating it', async () => {
+    const profileDir = await createProfile()
+    const priorVersion = '1.2.2'
+    const priorIntegrity = \`sha512-\${Buffer.alloc(64, 4).toString('base64')}\`
+    const pluginDir = join(profileDir, 'node_modules', packageName)
+    await mkdir(pluginDir, { recursive: true })
+    await writeFile(join(pluginDir, 'cordis.patch.yml'), '[]\\n')
+    await writeFile(join(pluginDir, 'package.json'), JSON.stringify({
+      name: packageName,
+      version: priorVersion,
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }))
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name: 'fixture-profile',
+      dependencies: { [packageName]: priorVersion },
+      dsh: { profile: { bundles: [packageName] } },
+    }))
+    await writeFile(join(profileDir, 'pnpm-lock.yaml'), stringifyYaml({
+      lockfileVersion: '9.0',
+      importers: { '.': { dependencies: { [packageName]: { specifier: priorVersion, version: priorVersion } } } },
+      packages: { [\`\${packageName}@\${priorVersion}\`]: { resolution: { integrity: priorIntegrity } } },
+      snapshots: { [\`\${packageName}@\${priorVersion}\`]: {} },
+    }))
+    const settings = memoryScope()
+    const verify = vi.fn(async (candidate: { version: string }) => candidate.version === priorVersion
+      ? { integrity: priorIntegrity, bundlePatch: './cordis.patch.yml', tarball: 'https://registry.npmjs.org/prior.tgz' }
+      : verification)
+    const service = new MarketInstallService(
+      settings.scope,
+      () => ({ name: 'web', dir: profileDir }),
+      runner(profileDir, []),
+      { verify },
+    )
+    service.observeCatalog(snapshot())
+
+    const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', new AbortController().signal)
+    expect((preview as { updateFrom?: string }).updateFrom).toBe(priorVersion)
+    await expect(service.executeInstall(preview.intent, new AbortController().signal)).resolves.toMatchObject({
+      receipt: { packageName, version },
+    })
+    expect(settings.receipts()).toHaveLength(1)
+    expect(verify.mock.calls.some(([candidate]) => candidate.version === priorVersion)).toBe(true)
+  })
+
+`
+  patchedInstallTests = patchedInstallTests.replace(serviceTestsAnchor, `${updateServiceTests}${serviceTestsAnchor}`)
+
+  const settingsUpdateTestsAnchor = `  it('ignores a late inventory result after switching the selected catalog item', async () => {`
+  if (!settingsTabTests.includes(settingsUpdateTestsAnchor)) {
+    throw new Error('prepare-desktop: 未找到市场受控更新 Renderer 测试锚点')
+  }
+  const updateRendererTest = `  it('previews a newer managed version as an update from the item dialog', async () => {
+    const item = makeInstallableItem(firstSource, 'update-plugin', 'Update Plugin', 'dsh-plugin-update', '1.2.3')
+    const receipt = makeReceipt({
+      packageName: item.package!.name,
+      itemId: item.id,
+      displayName: item.displayName,
+      version: '1.2.2',
+    })
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [item]))
+    vi.mocked(readMarketInstallations).mockResolvedValue({
+      installations: [{ kind: 'managed', status: 'active', action: 'uninstall', receipt }],
+    })
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install',
+      profileName: receipt.profileName,
+      packageName: receipt.packageName,
+      version: item.latestVersion!,
+      displayName: item.displayName,
+      expiresAt: '2026-08-18T00:05:00.000Z',
+      previewId: 'opaque-managed-update-preview',
+      updateFrom: receipt.version,
+    } as never)
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Update Plugin/u }))
+    await waitFor(() => expect(previewMarketOperation).toHaveBeenCalledWith({
+      action: 'install',
+      sourceRecordId: firstSource.sourceRecordId,
+      itemId: item.id,
+    }, expect.any(AbortSignal)))
+    const dialog = screen.getByRole('dialog', { name: en.confirmUpdateTitle })
+    expect(within(dialog).getByRole('button', { name: \`\${en.confirmUpdate} \${item.latestVersion}\` })).toBeTruthy()
+    expect(within(dialog).getByText(new RegExp(\`\${en.updateFromNotice}.*1\\.2\\.2.*1\\.2\\.3\`, 'u'))).toBeTruthy()
+  })
+
+`
+  const patchedSettingsTabTests = settingsTabTests.replace(
+    settingsUpdateTestsAnchor,
+    `${updateRendererTest}${settingsUpdateTestsAnchor}`,
+  )
+
+  return {
+    installService: patchedInstall,
+    settingsTab: patchedSettingsTab,
+    locales: patchedLocales,
+    installTests: patchedInstallTests,
+    settingsTabTests: patchedSettingsTabTests,
+  }
 }

@@ -125,6 +125,10 @@ writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
 // 预置产品目录源为唯一入口：默认选中、隐藏上游合作源与添加/删除入口，
 // 同时精简固定来源页面的说明信息。
 const marketSourceManifest = JSON.parse(readFileSync(resolve(root, 'market', 'source.json'), 'utf8'))
+const marketRoster = JSON.parse(readFileSync(resolve(root, 'market', 'roster.json'), 'utf8'))
+const managedMarketPackages = marketRoster.items
+  .filter(item => item.npm === true)
+  .map(item => item.package)
 const marketIndexPath = resolve(stage, 'dsh-community-market', 'src', 'index.ts')
 const marketRoutesPath = resolve(stage, 'dsh-community-market', 'src', 'host', 'routes.ts')
 const marketSourceStorePath = resolve(stage, 'dsh-community-market', 'src', 'catalog', 'source-store.ts')
@@ -147,24 +151,30 @@ writeFileSync(marketSettingsTabPath, pinnedMarket.settingsTab)
 writeFileSync(marketLocalesPath, pinnedMarket.locales)
 
 /* ------------------- 市场受控更新（独立可删块） -------------------- */
-// 让"已装插件出现更高版本"走受控更新而非 409:详见 overlays/market.mjs
-// 的 enableManagedPluginUpdate。删除本块即回到上游"卸载后重装"语义。
+// 让产品 npm 包完成首次受控安装，并让市场回执或历史手动安装遇到更高版本
+// 时走受控更新而非 409；详见 overlays/market.mjs 的 enableManagedPluginUpdate。
+// 删除本块即回到上游“生命周期脚本转手动安装、已装包卸载后重装”语义。
 const marketInstallServicePath = resolve(stage, 'dsh-community-market', 'src', 'install', 'service.ts')
+const marketInstallTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-install.spec.ts')
+const marketSettingsTabTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-settings-tab.spec.tsx')
 const managedUpdate = enableManagedPluginUpdate({
   installService: readFileSync(marketInstallServicePath, 'utf8'),
   settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
   locales: readFileSync(marketLocalesPath, 'utf8'),
-})
+  installTests: readFileSync(marketInstallTestsPath, 'utf8'),
+  settingsTabTests: readFileSync(marketSettingsTabTestsPath, 'utf8'),
+}, managedMarketPackages)
 writeFileSync(marketInstallServicePath, managedUpdate.installService)
 writeFileSync(marketSettingsTabPath, managedUpdate.settingsTab)
 writeFileSync(marketLocalesPath, managedUpdate.locales)
+writeFileSync(marketInstallTestsPath, managedUpdate.installTests)
+writeFileSync(marketSettingsTabTestsPath, managedUpdate.settingsTabTests)
 const marketHostTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'host-routes.spec.ts')
 writeFileSync(marketHostTestsPath, skipUpstreamBuiltInSourceTests(readFileSync(marketHostTestsPath, 'utf8')))
 const marketRuntimeTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-runtime.spec.ts')
 writeFileSync(marketRuntimeTestsPath, skipUpstreamBuiltInRuntimeTests(readFileSync(marketRuntimeTestsPath, 'utf8')))
 const marketOverlayTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-overlay.spec.tsx')
 writeFileSync(marketOverlayTestsPath, skipUpstreamAddSourceOverlayTests(readFileSync(marketOverlayTestsPath, 'utf8')))
-const marketSettingsTabTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-settings-tab.spec.tsx')
 writeFileSync(
   marketSettingsTabTestsPath,
   skipUpstreamSourceDescriptionTests(readFileSync(marketSettingsTabTestsPath, 'utf8')),
