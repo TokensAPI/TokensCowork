@@ -36,7 +36,9 @@ const expected = {
   'market/v1/plugins': `${JSON.stringify(buildCatalogPage(roster), undefined, 2)}\n`,
 }
 for (const [path, content] of Object.entries(expected)) {
-  if (readFileSync(resolve(root, path), 'utf8') !== content) {
+  // Windows CI 的 git autocrlf 会把检出内容转成 CRLF，比较前归一化，
+  // 否则与 LF 生成结果逐字节比较必然失配（同 v0.3.14 锚点事故）。
+  if (readFileSync(resolve(root, path), 'utf8').replaceAll('\r\n', '\n') !== content) {
     fail(`${path} 与 market/roster.json 不一致；运行 node scripts/generate-market-catalog.mjs 重新生成`)
   }
 }
