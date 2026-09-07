@@ -7,6 +7,7 @@
  *
  * 用法：
  *   node scripts/dev-patch-plugin.mjs <插件id>            # 替换
+ *   node scripts/dev-patch-plugin.mjs <插件id> --source <目录> # 用独立插件工作区替换
  *   node scripts/dev-patch-plugin.mjs <插件id> --restore  # 从备份还原
  *   node scripts/dev-patch-plugin.mjs --list              # 列出可用插件
  *
@@ -46,6 +47,11 @@ if (args.length === 0 || args[0] === '--list') {
 }
 const pluginId = args[0]
 const restore = args.includes('--restore')
+const sourceIndex = args.indexOf('--source')
+const explicitSource = sourceIndex === -1 ? undefined : args[sourceIndex + 1]
+if (sourceIndex !== -1 && (explicitSource === undefined || explicitSource.startsWith('--'))) {
+  throw new Error('dev-patch-plugin: --source 后必须提供本地插件目录')
+}
 const plugin = manifest.plugins.find(item => item.id === pluginId && item.enabledByDefault === true)
 if (plugin === undefined) {
   throw new Error(`dev-patch-plugin: 未找到默认启用的插件 "${pluginId}"（--list 查看可用项）`)
@@ -96,9 +102,16 @@ if (restore) {
 
 /* --------------------------- 构建（如声明） --------------------------- */
 
-const sourceDir = resolve(root, plugin.path)
+// The normal source is the project's pinned submodule. An explicit source is
+// intentionally development-only: it lets a separately checked-out plugin be
+// tested in Desktop before its commit is pinned into the product project.
+const sourceDir = explicitSource === undefined ? resolve(root, plugin.path) : resolve(explicitSource)
 if (!existsSync(sourceDir)) {
-  throw new Error(`dev-patch-plugin: 插件子模块不存在：${sourceDir}（先 git submodule update --init）`)
+  throw new Error(
+    explicitSource === undefined
+      ? `dev-patch-plugin: 插件子模块不存在：${sourceDir}（先 git submodule update --init）`
+      : `dev-patch-plugin: 指定的本地插件目录不存在：${sourceDir}`,
+  )
 }
 if (plugin.runtimeBuild?.script !== undefined) {
   process.stdout.write(`dev-patch-plugin: 在子模块中执行 ${plugin.runtimeBuild.script}...\n`)
