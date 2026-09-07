@@ -1,11 +1,15 @@
 /* ============================================================
  * 插件市场目录源生成
  * ============================================================
- * 从 product.json 抽取本产品自有插件，生成 DSH Community Market
- * 标准目录源（standard source）所需的两个静态文件：
+ * 从 market/roster.json 名册生成 DSH Community Market 标准目录源
+ * （standard source）所需的两个静态文件：
  *
  *   market/source.json   目录源 manifest（用户在市场"源"里登记的 URL）
- *   market/v1/plugins    目录端点响应（市场 Host 拉取的插件列表）
+ *   market/v1/plugins    目录端点的静态快照
+ *
+ * 线上 /v1/plugins 由 market/_worker.js 动态生成，同样以名册为输入，
+ * 并对 npm 条目实时解析 dist-tags.latest；这里产出的快照只在名册
+ * 读取失败时兜底。两侧共用同一份名册，快照与线上不会漂移。
  *
  * 输出遵循 desktop/dsh-community-market/docs/schemas/ 下的
  * catalog-source 1.0.0 与 catalog-provider-page 1.0.0 契约。
@@ -41,33 +45,38 @@ function assertPlainText(value, maxLength, label) {
 }
 
 /**
- * 由产品清单构造目录端点的 provider page。
- * @param {object} product - 解析后的 product.json 内容。
+ * 由插件名册构造目录端点的 provider page。
+ * @param {object} roster - 解析后的 market/roster.json 内容。
  * @returns {{ schemaVersion: string, items: object[], page: object }}
  *   符合 catalog-provider-page 1.0.0 的响应对象。
- * @throws 插件缺少展示字段或字段违反契约约束时抛出。
+ * @throws 名册形状不对、条目缺少展示字段或字段违反契约约束时抛出。
  */
-export function buildCatalogPage(product) {
-  const items = (product.plugins ?? []).map(plugin => {
-    const repository = String(plugin.repository ?? '').replace(/\.git$/u, '')
+export function buildCatalogPage(roster) {
+  if (!Array.isArray(roster.items)
+    || typeof roster.publisher !== 'object' || roster.publisher === null) {
+    throw new Error('generate-market-catalog: roster.json 缺少 items 数组或 publisher')
+  }
+  const items = roster.items.map(item => {
+    const repository = String(item.repository ?? '').replace(/\.git$/u, '')
     if (!/^https:\/\/github\.com\/[^/]+\/[^/]+$/u.test(repository)) {
-      throw new Error(`generate-market-catalog: ${plugin.id} 的 repository 不是规范的 GitHub HTTPS 地址`)
+      throw new Error(`generate-market-catalog: ${item.id} 的 repository 不是规范的 GitHub HTTPS 地址`)
     }
     return {
-      id: assertPlainText(plugin.id, 160, `${plugin.id}.id`),
-      name: assertPlainText(plugin.package, 160, `${plugin.id}.package`),
-      displayName: assertPlainText(plugin.displayName, 120, `${plugin.id}.displayName`),
-      summary: assertPlainText(plugin.description, 1000, `${plugin.id}.description`),
+      id: assertPlainText(item.id, 160, `${item.id}.id`),
+      name: assertPlainText(item.package, 160, `${item.id}.package`),
+      displayName: assertPlainText(item.displayName, 120, `${item.id}.displayName`),
+      summary: assertPlainText(item.summary, 1000, `${item.id}.summary`),
       homepage: repository,
-      latestVersion: assertPlainText(plugin.version, 64, `${plugin.id}.version`),
+      latestVersion: assertPlainText(item.version, 64, `${item.id}.version`),
       repository: { url: repository },
-      // npmInstall 标记的插件已发布到 npm 官方 registry：目录条目带上
-      // package 字段后，市场 Host 会将其识别为可托管安装的候选，并在
-      // 预览与执行时对 npm 实时核验身份、仓库与完整性。
-      ...(plugin.npmInstall === true
-        ? { package: { registry: 'npm', name: plugin.package } }
+      // npm: true 的条目已发布到 npm 官方 registry：目录条目带上 package
+      // 字段后，市场 Host 会将其识别为可托管安装的候选，并在预览与执行
+      // 时对 npm 实时核验身份、仓库与完整性。这里的 latestVersion 是名册
+      // 里的兜底值，线上由 worker 换成 dist-tags.latest。
+      ...(item.npm === true
+        ? { package: { registry: 'npm', name: item.package } }
         : {}),
-      publisher: { name: 'TokensAPI', url: 'https://github.com/TokensAPI' },
+      publisher: roster.publisher,
     }
   })
   return { schemaVersion: '1.0.0', items, page: {} }
@@ -87,7 +96,7 @@ export function buildSourceManifest(origin) {
     manifestVersion: '1.0.0',
     providerId: 'com.tokensapi.plugins',
     name: 'TokensAPI 插件源',
-    description: 'TokensCowork 产品自有插件的官方目录源，数据来自 product.json 插件登记。',
+    description: 'TokensCowork 插件的官方目录源，数据来自 market/roster.json 名册。',
     homepage: 'https://github.com/TokensAPI/TokensCowork',
     attribution: { name: 'TokensAPI', url: 'https://github.com/TokensAPI' },
     transport: { kind: 'https-json', endpoint: `${origin}/v1/plugins`, method: 'GET' },
@@ -101,9 +110,9 @@ export function buildSourceManifest(origin) {
 
 if (process.argv[1] === import.meta.filename) {
   const root = resolve(import.meta.dirname, '..')
-  const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+  const roster = JSON.parse(readFileSync(resolve(root, 'market', 'roster.json'), 'utf8'))
   const config = JSON.parse(readFileSync(resolve(root, 'market', 'source.config.json'), 'utf8'))
-  const page = buildCatalogPage(product)
+  const page = buildCatalogPage(roster)
   const manifest = buildSourceManifest(config.origin)
   mkdirSync(resolve(root, 'market', 'v1'), { recursive: true })
   writeFileSync(resolve(root, 'market', 'source.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
