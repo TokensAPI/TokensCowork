@@ -168,5 +168,13 @@ export function alignStablePackageRuntimeTests(stableSource, betaSource) {
     throw new Error('prepare-desktop: Stable package smoke readdirSync 清理锚点失配')
   }
   stable = stable.replace(readdirImportAnchor, '  readFileSync,\n')
+  const nativeBuildFilesAnchor = "      '!node_modules/node-pty/build/**',\n    ])"
+  if (stable.split(nativeBuildFilesAnchor).length !== 2) {
+    throw new Error('prepare-desktop: Stable package 原生构建排除清单锚点失配')
+  }
+  stable = stable.replace(
+    nativeBuildFilesAnchor,
+    "      '!node_modules/node-pty/build/**',\n      '!node_modules/fs-ext/build/**',\n    ])",
+  )
   return stable
 }
