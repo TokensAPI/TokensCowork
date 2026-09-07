@@ -8,7 +8,7 @@ import {
   statSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
@@ -53,7 +53,7 @@ const packagedAsarFiles = listPackage(packagedAsar)
 const packagedMain = extractFile(packagedAsar, 'lib/main.js').toString('utf8')
 const packagedRuntimeClosure = packagedAsarFiles
   .filter(path => path.startsWith('lib/') && path.endsWith('.js'))
-  .map(path => extractFile(packagedAsar, path).toString('utf8'))
+  .map(path => extractFile(packagedAsar, path.replaceAll('/', sep)).toString('utf8'))
   .join('\n')
 const unpackedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
   .map(path => path.replaceAll('\\', '/'))
