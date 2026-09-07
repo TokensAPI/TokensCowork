@@ -8,11 +8,10 @@ on:
       - "download/**"
       - ".github/workflows/pages.yml"
   release:
-    # published/prereleased 由 workflow_run(Build Desktop) 覆盖，这里只保留
-    # 没有构建流程跟随的手动场景。注意 release 事件的 run 跑在 tag ref 上，
-    # github-pages 环境需放行 v* tag 部署规则才能成功。
     types:
+      - published
       - released
+      - prereleased
       - edited
       - deleted
   workflow_run:
