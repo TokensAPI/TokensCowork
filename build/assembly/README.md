@@ -18,7 +18,8 @@ assembly/
 │  │                         与添加/删除入口、产品包受控安装/更新、上游测试适配
 │  ├─ windows-acl.mjs        Windows ACL 启动链：宿主控制台注入、基础设施熔断
 │  ├─ windows-installer.mjs  Windows 安装器：升级保护 nsh、NSIS 资源固定
-│  └─ desktop-runtime.mjs    桌面运行时：持久 profile 修复、stderr 保护
+│  ├─ desktop-runtime.mjs    桌面运行时：持久 profile 修复、stderr 保护
+│  └─ module-resolution.mjs  模块解析：将 DSH 内核锚定到当前 Desktop 安装目录
 └─ assets/            装配期复制进 staging 的产品资产
    ├─ brand/                 Logo 与客户端品牌组件
    └─ windows/

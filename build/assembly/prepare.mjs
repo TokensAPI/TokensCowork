@@ -4,6 +4,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 import { brandDesktopPatch } from './overlays/branding.mjs'
 import { removeManagedBundlesFromProfile, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
 import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, enableManagedPluginUpdate, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
+import { addDesktopCoreModuleResolutionTests, anchorDesktopCoreModules } from './overlays/module-resolution.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
 
@@ -98,6 +99,8 @@ const profileBootVerifierPath = resolve(
 const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
 const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
 const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
+const desktopModuleResolutionPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'module-resolution.ts')
+const desktopModuleResolutionTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'module-resolution.spec.ts')
 const windowsAclRunnerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-acl-runner.ts')
 const windowsPwshSandboxPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-pwsh-sandbox.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
@@ -109,6 +112,8 @@ let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
+let desktopModuleResolution = readFileSync(desktopModuleResolutionPath, 'utf8')
+let desktopModuleResolutionTests = readFileSync(desktopModuleResolutionTestsPath, 'utf8')
 let windowsAclRunner = readFileSync(windowsAclRunnerPath, 'utf8')
 let windowsPwshSandbox = readFileSync(windowsPwshSandboxPath, 'utf8')
 
@@ -257,6 +262,12 @@ desktopProfile = removeManagedBundlesFromProfile(
   enabledPlugins.map(plugin => plugin.package),
 )
 
+/* -------------------- 隔离 profile 中的旧 DSH 内核 -------------------- */
+// 第三方插件继续从用户 profile 加载，但 @deepseek-ai/* 和 Desktop 自身入口
+// 必须来自当前安装包，避免不同 dsh-tools 实例的 scheduler Symbol 不相等。
+desktopModuleResolution = anchorDesktopCoreModules(desktopModuleResolution)
+desktopModuleResolutionTests = addDesktopCoreModuleResolutionTests(desktopModuleResolutionTests)
+
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
 ;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
 
@@ -272,6 +283,8 @@ writeFileSync(profileBootVerifierPath, profileBootVerifier)
 writeFileSync(desktopProfilePath, desktopProfile)
 writeFileSync(desktopMainPath, desktopMain)
 writeFileSync(desktopLoggerPath, desktopLogger)
+writeFileSync(desktopModuleResolutionPath, desktopModuleResolution)
+writeFileSync(desktopModuleResolutionTestsPath, desktopModuleResolutionTests)
 writeFileSync(windowsAclRunnerPath, windowsAclRunner)
 writeFileSync(windowsPwshSandboxPath, windowsPwshSandbox)
 
