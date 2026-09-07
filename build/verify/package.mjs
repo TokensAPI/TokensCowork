@@ -7,6 +7,7 @@ import {
   readSync,
   statSync,
 } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..', '..')
@@ -43,14 +44,20 @@ const executable = resolve(desktopRoot, 'dist', 'win-unpacked', `${product.name}
 assertPortableExecutable(installer, 'Windows NSIS installer')
 assertPortableExecutable(executable, 'unpacked Windows application')
 const buildManifest = JSON.parse(readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'))
+const requireFromDesktop = createRequire(resolve(desktopRoot, 'package.json'))
+const { extractFile, listPackage } = requireFromDesktop('@electron/asar')
+const packagedAsar = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar')
 const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
-const packagedMain = readFileSync(resolve(unpackedResources, 'lib', 'main.js'), 'utf8')
-const packagedRuntimeClosure = readdirSync(resolve(unpackedResources, 'lib'), { withFileTypes: true })
-  .filter(entry => entry.isFile() && entry.name.endsWith('.js'))
-  .map(entry => readFileSync(resolve(unpackedResources, 'lib', entry.name), 'utf8'))
+const packagedAsarFiles = listPackage(packagedAsar)
+  .map(path => path.replaceAll('\\', '/').replace(/^\/+/, ''))
+const packagedMain = extractFile(packagedAsar, 'lib/main.js').toString('utf8')
+const packagedRuntimeClosure = packagedAsarFiles
+  .filter(path => path.startsWith('lib/') && path.endsWith('.js'))
+  .map(path => extractFile(packagedAsar, path).toString('utf8'))
   .join('\n')
-const packagedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
+const unpackedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
   .map(path => path.replaceAll('\\', '/'))
+const packagedRuntimeFiles = [...new Set([...packagedAsarFiles, ...unpackedRuntimeFiles])]
 const packagedNodeModuleFiles = packagedRuntimeFiles
   .filter(path => path.startsWith('node_modules/'))
 const forbiddenMetadata = packagedNodeModuleFiles.filter(path => path.endsWith('.map')
@@ -122,5 +129,5 @@ for (const path of forbiddenForeignRuntime) {
 }
 process.stdout.write(
   `verify-package: Windows ${product.name} ${product.version} installer passed `
-  + `(${packagedRuntimeFiles.length} unpacked entries)\n`,
+  + `(${packagedAsarFiles.length} ASAR entries, ${unpackedRuntimeFiles.length} unpacked entries)\n`,
 )
