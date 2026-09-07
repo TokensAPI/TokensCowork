@@ -453,7 +453,9 @@ export function awaitProductSourceMigrationInLifecycleTest(spec) {
  * 更新阶段把“同包旧版本 + 更高目录版本”识别为受控更新。已有市场回执
  * 直接复核本地精确包；历史上按提示手动安装的包则先用 npm registry 对旧
  * 版本的仓库、integrity 与 bundle 再做一次完整验证，验证通过后才允许原地
- * 升级并写入市场回执。版本相同或更低仍维持上游的拒绝行为。
+ * 升级并写入市场回执。回执与实际安装漂移时（如历史更新中途失败只升了包
+ * 没写回执），同样降级到手动安装复核路径接管，成功后替换陈旧回执自愈。
+ * 版本相同或更低仍维持上游的拒绝行为。
  *
  * 独立可删:prepare.mjs 中对应调用删除后,产品回到上游"卸载后重装"语义。
  * @param sources - staging 副本中市场 Host、Renderer 与测试文件的内容。
@@ -552,7 +554,6 @@ const PRODUCT_MANAGED_PACKAGES = new Set<string>(${productPackagesLiteral})`,
     const receipt = this.receipts().find(existing =>
       existing.profileName === profile.name && existing.packageName === candidate.packageName)
     if (receipt !== undefined) {
-      if (!this.newerVersion(candidate.version, receipt.version)) return undefined
       try {
         await assertInstalledBundle(
           profile,
@@ -561,10 +562,12 @@ const PRODUCT_MANAGED_PACKAGES = new Set<string>(${productPackagesLiteral})`,
           receipt.bundlePatch,
           receipt.integrity,
         )
-        return receipt
+        return this.newerVersion(candidate.version, receipt.version) ? receipt : undefined
       } catch {
         signal.throwIfAborted()
-        return undefined
+        // 回执与实际安装漂移(如历史更新中途失败):不再据此拒绝,落到下方
+        // 无回执路径按本地实际版本走 registry 复核,通过则接管;成功更新后
+        // 写回执时按包名替换,陈旧回执随之自愈。
       }
     }
 
@@ -894,6 +897,67 @@ describe('manual install display instructions'`,
     expect(settings.receipts()).toHaveLength(1)
     expect(settings.receipts()[0]).toMatchObject({ packageName, version })
     expect(calls[0]?.args.at(-1)).toBe(\`\${packageName}@\${version}\`)
+  })
+
+  it('adopts a drifted install when the market receipt no longer matches it', async () => {
+    const profileDir = await createProfile()
+    const staleVersion = '1.2.1'
+    const priorVersion = '1.2.2'
+    const priorIntegrity = \`sha512-\${Buffer.alloc(64, 5).toString('base64')}\`
+    const pluginDir = join(profileDir, 'node_modules', packageName)
+    await mkdir(pluginDir, { recursive: true })
+    await writeFile(join(pluginDir, 'cordis.patch.yml'), '[]\\n')
+    await writeFile(join(pluginDir, 'package.json'), JSON.stringify({
+      name: packageName,
+      version: priorVersion,
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }))
+    await writeFile(join(profileDir, 'package.json'), JSON.stringify({
+      name: 'fixture-profile',
+      dependencies: { [packageName]: priorVersion },
+      dsh: { profile: { bundles: [packageName] } },
+    }))
+    await writeFile(join(profileDir, 'pnpm-lock.yaml'), stringifyYaml({
+      lockfileVersion: '9.0',
+      importers: { '.': { dependencies: { [packageName]: { specifier: priorVersion, version: priorVersion } } } },
+      packages: { [\`\${packageName}@\${priorVersion}\`]: { resolution: { integrity: priorIntegrity } } },
+      snapshots: { [\`\${packageName}@\${priorVersion}\`]: {} },
+    }))
+    // 陈旧回执:记录的是更早的 staleVersion,与 profile 里实际安装的
+    // priorVersion 不符(对应"历史更新升了包但没写回执"的漂移现场)。
+    const staleReceipt: MarketInstallReceipt = {
+      receiptId: 'receipt:stale-drift-0001',
+      profileName: 'web',
+      packageName,
+      version: staleVersion,
+      integrity: \`sha512-\${Buffer.alloc(64, 6).toString('base64')}\`,
+      bundlePatch: './cordis.patch.yml',
+      sourceRecordId: 'source-1',
+      providerId: DSH_1024STORE_PROVIDER_ID,
+      itemId: 'example/dsh-plugin-safe',
+      displayName: 'Safe Plugin',
+      installedAt: '2026-08-18T00:00:00.000Z',
+    }
+    const settings = memoryScope([staleReceipt])
+    const verify = vi.fn(async (candidate: { version: string }) => candidate.version === priorVersion
+      ? { integrity: priorIntegrity, bundlePatch: './cordis.patch.yml', tarball: 'https://registry.npmjs.org/prior.tgz' }
+      : verification)
+    const service = new MarketInstallService(
+      settings.scope,
+      () => ({ name: 'web', dir: profileDir }),
+      runner(profileDir, []),
+      { verify },
+    )
+    service.observeCatalog(snapshot())
+
+    const preview = await service.previewInstall('source-1', 'example/dsh-plugin-safe', new AbortController().signal)
+    expect((preview as { updateFrom?: string }).updateFrom).toBe(priorVersion)
+    await expect(service.executeInstall(preview.intent, new AbortController().signal)).resolves.toMatchObject({
+      receipt: { packageName, version },
+    })
+    expect(settings.receipts()).toHaveLength(1)
+    expect(settings.receipts()[0]).toMatchObject({ packageName, version })
+    expect(verify.mock.calls.some(([candidate]) => candidate.version === priorVersion)).toBe(true)
   })
 
   it('verifies and adopts a historical manual install before updating it', async () => {
