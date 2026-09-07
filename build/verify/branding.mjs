@@ -56,29 +56,29 @@ if (desktopPackage.build?.nsis?.deleteAppDataOnUninstall === true) {
 }
 
 const mainSource = read('src/main.ts')
+const productIdentitySource = read('src/product-identity.ts')
 const indexSource = read('src/index.ts')
+const certificateSource = read('src/lan-https-certificate.ts')
 const mainRuntime = read('lib/main.js')
 const desktopRuntimeClosure = readRuntimeClosure()
 const assistedMessages = read('build/assistedMessages.yml')
 const windowsUpgradeGuard = read('build/tokenscowork-upgrade-guard.nsh')
 const desktopPatch = read('cordis.patch.yml')
 
-for (const [content, label] of [
-  [mainSource, 'main source'],
-  [mainRuntime, 'compiled main runtime'],
-]) {
-  requireText(content, product.name, label)
-  requireText(content, product.appId, label)
-  rejectText(content, 'ai.deepseek.dsh.desktop', label)
-}
+requireText(productIdentitySource, `productName: ${JSON.stringify(product.name)}`, 'product identity source')
+requireText(productIdentitySource, `appId: ${JSON.stringify(product.appId)}`, 'product identity source')
+rejectText(productIdentitySource, "productName: 'DSH Desktop',", 'stable product identity source')
+rejectText(productIdentitySource, "appId: 'ai.deepseek.dsh.desktop',", 'stable product identity source')
+requireText(desktopRuntimeClosure, product.name, 'compiled desktop runtime closure')
+requireText(desktopRuntimeClosure, product.appId, 'compiled desktop runtime closure')
+requireText(certificateSource, `${product.name} Local CA`, 'local certificate source')
+rejectText(certificateSource, 'DeepSeek Harness Desktop Local CA', 'local certificate source')
+requireText(mainRuntime, `${product.name} Local CA`, 'compiled main runtime')
+rejectText(mainRuntime, 'DeepSeek Harness Desktop Local CA', 'compiled main runtime')
 
-for (const [content, label] of [
-  [indexSource, 'desktop shell source'],
-  [desktopRuntimeClosure, 'compiled desktop shell runtime closure'],
-]) {
-  requireText(content, product.name, label)
-  rejectText(content, 'DeepSeek Harness Desktop', label)
-}
+requireText(indexSource, product.name, 'desktop shell source')
+rejectText(indexSource, 'DeepSeek Harness Desktop', 'desktop shell source')
+requireText(desktopRuntimeClosure, product.name, 'compiled desktop shell runtime closure')
 
 requireText(assistedMessages, product.name, 'assisted installer messages')
 rejectText(assistedMessages, 'DSH Desktop', 'assisted installer messages')
@@ -88,6 +88,8 @@ requireText(windowsUpgradeGuard, 'SetErrorLevel 2', 'Windows installer failure h
 requireText(mainSource, 'LEGACY_PRODUCT_NAMES', 'user-data migration source')
 requireText(mainSource, 'migrateLegacyUserData()', 'user-data migration source')
 requireText(mainSource, "app.setPath('userData', currentUserData)", 'user-data migration source')
+requireText(mainSource, 'DESKTOP_PRODUCT_NAME', 'product identity import')
+requireText(mainSource, 'DESKTOP_APP_ID', 'application identity import')
 rejectText(mainSource, "app.setPath('userData', legacyUserData)", 'user-data migration source')
 for (const legacyName of product.legacyNames ?? []) {
   requireText(mainRuntime, legacyName, 'compiled legacy user-data migration')

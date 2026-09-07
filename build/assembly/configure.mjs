@@ -10,7 +10,9 @@ import { resolve, sep } from 'node:path'
 import {
   applyProductLogo,
   assertBrandingAnchors,
+  brandDesktopCertificate,
   brandDesktopMain,
+  brandDesktopProductIdentity,
   brandInstalledRuntimePrompts,
   upstreamProductName,
   upstreamRuntimeProductName,
@@ -47,8 +49,10 @@ const desktopRoot = resolve(stage, 'dsh-plugin-desktop')
 const desktopPackagePath = resolve(desktopRoot, 'package.json')
 const verifyMacReleasePath = resolve(desktopRoot, 'scripts', 'verify-mac-release.ts')
 const releaseMacPath = resolve(desktopRoot, 'scripts', 'release-mac.ts')
+const productIdentityPath = resolve(desktopRoot, 'src', 'product-identity.ts')
 const mainPath = resolve(desktopRoot, 'src', 'main.ts')
 const indexPath = resolve(desktopRoot, 'src', 'index.ts')
+const certificatePath = resolve(desktopRoot, 'src', 'lan-https-certificate.ts')
 const assistedMessagesPath = resolve(desktopRoot, 'build', 'assistedMessages.yml')
 const windowsInstallerIncludePath = resolve(desktopRoot, 'build', 'tokenscowork-upgrade-guard.nsh')
 const desktopPatchPath = resolve(desktopRoot, 'cordis.patch.yml')
@@ -57,8 +61,10 @@ const desktopPatchPath = resolve(desktopRoot, 'cordis.patch.yml')
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
 const verifyMacRelease = readFileSync(verifyMacReleasePath, 'utf8')
 const releaseMac = readFileSync(releaseMacPath, 'utf8')
+const productIdentity = readFileSync(productIdentityPath, 'utf8')
 const main = readFileSync(mainPath, 'utf8')
 const index = readFileSync(indexPath, 'utf8')
+const certificate = readFileSync(certificatePath, 'utf8')
 const assistedMessages = readFileSync(assistedMessagesPath, 'utf8')
 
 /* ----------------------- 打包参数（非覆盖） ----------------------- */
@@ -86,7 +92,7 @@ function assertGeneratedPath(path) {
 }
 
 /* --------------------------- 锚点校验 --------------------------- */
-assertBrandingAnchors({ verifyMacRelease, main, index, assistedMessages })
+assertBrandingAnchors({ verifyMacRelease, productIdentity, main, index, certificate, assistedMessages })
 if (!releaseMac.includes(upstreamReleaseCheck)) {
   throw new Error('configure-product: cannot locate redundant macOS release check')
 }
@@ -122,7 +128,9 @@ writeFileSync(
     `productName: ${JSON.stringify(product.name)},`,
   ),
 )
-writeFileSync(mainPath, brandDesktopMain(main, product, legacyProductNames))
+writeFileSync(productIdentityPath, brandDesktopProductIdentity(productIdentity, product))
+writeFileSync(mainPath, brandDesktopMain(main, legacyProductNames))
+writeFileSync(certificatePath, brandDesktopCertificate(certificate, product.name))
 writeFileSync(
   indexPath,
   index

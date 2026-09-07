@@ -15,9 +15,9 @@
       "id": "tokens-connect",
       "package": "@tokens/dsh-connect",
       "displayName": "连接中心",
-      "summary": "统一管理九种 IM 机器人与飞书个人账号授权，并接入本机 TokensCowork。",
+      "summary": "统一管理九种 IM 机器人及飞书、钉钉个人账号授权，并接入本机 TokensCowork。",
       "repository": "https://github.com/sobermh/tokens_DshConnect_code",
-      "version": "2.5.0",
+      "version": "2.6.0",
       "npm": false
     },
     {

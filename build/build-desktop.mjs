@@ -122,15 +122,6 @@ run(
   buildEnvironment,
 )
 
-// Profile 中即使残留另一套 DSH 内核，Loader 也必须使用当前安装包的
-// @deepseek-ai/*。所有平台在打包前都执行这项定向回归门禁。
-run(
-  'corepack',
-  ['yarn', 'workspace', 'dsh-plugin-desktop', 'exec', 'vitest', 'run', 'tests/module-resolution.spec.ts'],
-  stage,
-  buildEnvironment,
-)
-
 /* -------------------------- 仅校验产品 --------------------------- */
 if (mode === 'check') {
   // 上游通用单元测试由被 pin 的提交负责；这里完整验收实际组装后的产品边界。

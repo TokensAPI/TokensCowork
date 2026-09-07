@@ -11,36 +11,68 @@ import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs
 import { resolve } from 'node:path'
 
 /* ------------------------- 上游品牌锚点 ------------------------- */
-// Electron 的 userData 目录由 app.setName() 推导，而上游把产品名硬编码在这里。
-// 不改写它，产品的宿主状态会继续写进上游品牌的目录。
-export const upstreamMainProductName = "const PRODUCT_NAME = 'DSH Desktop'"
-export const upstreamElectronImport = "import { app, crashReporter, dialog } from 'electron'"
+// 新版上游将 Stable/Beta 的产品身份集中在 product-identity.ts。产品构建只
+// 覆盖 Stable 身份；Beta 继续作为另一个上游发行通道供 Profile 冲突检测。
+export const upstreamIdentityProductName = "productName: 'DSH Desktop',"
+export const upstreamIdentityAppId = "appId: 'ai.deepseek.dsh.desktop',"
+// Electron 的 userData 目录由 app.setName() 推导。覆盖身份后仍需在首次读取
+// userData 前迁移历史产品目录，避免升级时丢失宿主状态。
+export const upstreamMainProductName = 'const PRODUCT_NAME = DESKTOP_PRODUCT_NAME'
+export const upstreamNodeCryptoImport = "import { randomUUID } from 'node:crypto'"
 export const upstreamRunProductName = `async function run(): Promise<void> {
   app.setName(PRODUCT_NAME)`
-export const upstreamAppUserModelId = "app.setAppUserModelId('ai.deepseek.dsh.desktop')"
 export const upstreamRuntimeProductName = "productName: 'DSH Desktop',"
 export const upstreamWindowTitle = "windowTitle: 'DeepSeek Harness Desktop',"
 export const upstreamProductName = "productName: 'DSH Desktop',"
+const upstreamCertificateCommonName = "const CA_COMMON_NAME = 'DeepSeek Harness Desktop Local CA'"
+const upstreamWindowsBrandColor = "const BRAND_BLUE = '#4D6BFE'\n"
+const upstreamWindowsMarkPath = "const markPath = join(packageRoot, 'build', 'tray-icon.svg')"
+const upstreamWindowsSmallFrameLoader = `async function loadSmallFrameArtwork() {
+  const source = await readFile(markPath, 'utf8')
+  if (!source.includes(\`fill="\${BRAND_BLUE}"\`) || /<style\\b/iu.test(source)) {
+    throw new Error(\`generate-windows-app-icon: tray-icon.svg must use the fixed brand color \${BRAND_BLUE}\`)
+  }
+  const mark = source
+    .replace(/^<svg[^>]*>\\s*/u, '')
+    .replace(/<\\/svg>\\s*$/u, '')
+    .replaceAll(BRAND_BLUE, '#000000')
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50">'
+    + '<rect width="50" height="50" rx="11" fill="#FFFFFF"/>'
+    + \`<g transform="translate(5 5) scale(0.8)">\${mark}</g>\`
+    + '</svg>',
+  )
+}`
 
 /**
  * 校验全部品牌锚点仍然存在；任何一个失配都立即中断装配。
  * @param copies - 各 staging 副本的当前内容。
  */
-export function assertBrandingAnchors({ verifyMacRelease, main, index, assistedMessages }) {
+export function assertBrandingAnchors({
+  verifyMacRelease,
+  productIdentity,
+  main,
+  index,
+  certificate,
+  assistedMessages,
+}) {
   if (!verifyMacRelease.includes(upstreamProductName)) {
     throw new Error('configure-product: cannot locate macOS release product name')
   }
-  if (!main.includes(upstreamMainProductName)) {
-    throw new Error('configure-product: cannot locate desktop runtime product name')
+  if (!productIdentity.includes(upstreamIdentityProductName)
+    || !productIdentity.includes(upstreamIdentityAppId)) {
+    throw new Error('configure-product: cannot locate stable desktop product identity')
   }
-  if (!main.includes(upstreamElectronImport) || !main.includes(upstreamRunProductName)) {
+  if (!main.includes(upstreamMainProductName)
+    || !main.includes(upstreamNodeCryptoImport)
+    || !main.includes(upstreamRunProductName)) {
     throw new Error('configure-product: cannot locate desktop user-data migration anchors')
-  }
-  if (!main.includes(upstreamAppUserModelId)) {
-    throw new Error('configure-product: cannot locate Windows App User Model ID')
   }
   if (!index.includes(upstreamRuntimeProductName) || !index.includes(upstreamWindowTitle)) {
     throw new Error('configure-product: cannot locate desktop shell branding')
+  }
+  if (!certificate.includes(upstreamCertificateCommonName)) {
+    throw new Error('configure-product: cannot locate desktop local certificate branding')
   }
   if (!assistedMessages.includes('DSH Desktop')) {
     throw new Error('configure-product: cannot locate assisted installer branding')
@@ -48,24 +80,40 @@ export function assertBrandingAnchors({ verifyMacRelease, main, index, assistedM
 }
 
 /**
+ * 覆盖 Stable Desktop 的唯一产品身份来源。main.ts、Profile 通道检测和
+ * Windows App User Model ID 都从这里读取，避免各处品牌配置发生漂移。
+ */
+export function brandDesktopProductIdentity(productIdentity, product) {
+  return productIdentity
+    .replace(upstreamIdentityProductName, `productName: ${JSON.stringify(product.name)},`)
+    .replace(upstreamIdentityAppId, `appId: ${JSON.stringify(product.appId)},`)
+}
+
+/** 覆盖局域网 HTTPS 本地 CA 的可见产品名。 */
+export function brandDesktopCertificate(certificate, productName) {
+  return certificate.replace(
+    upstreamCertificateCommonName,
+    `const CA_COMMON_NAME = ${JSON.stringify(`${productName} Local CA`)}`,
+  )
+}
+
+/**
  * 改写 Electron 主进程：产品名、旧用户数据迁移与 App User Model ID。
  * 改名发布后旧目录仍在时按 legacyNames 顺序迁移（或降级沿用），保证
  * 用户数据跨品牌无缝保留。
  * @param main - staging 副本 src/main.ts 的完整内容。
- * @param product - product.json 的 product 段。
  * @param legacyProductNames - 迁移候选的历史产品名列表。
  * @returns 改写后的 main.ts 内容。
  */
-export function brandDesktopMain(main, product, legacyProductNames) {
+export function brandDesktopMain(main, legacyProductNames) {
   return main
     .replace(
-      upstreamElectronImport,
-      `${upstreamElectronImport}\nimport { cpSync, existsSync, renameSync } from 'node:fs'`,
+      upstreamNodeCryptoImport,
+      `${upstreamNodeCryptoImport}\nimport { cpSync, existsSync, renameSync } from 'node:fs'`,
     )
-    .replace(upstreamMainProductName, `const PRODUCT_NAME = ${JSON.stringify(product.name)}`)
     .replace(
-      `const PRODUCT_NAME = ${JSON.stringify(product.name)}`,
-      `const PRODUCT_NAME = ${JSON.stringify(product.name)}\nconst LEGACY_PRODUCT_NAMES = ${JSON.stringify(legacyProductNames)} as const`,
+      upstreamMainProductName,
+      `${upstreamMainProductName}\nconst LEGACY_PRODUCT_NAMES = ${JSON.stringify(legacyProductNames)} as const`,
     )
     .replace(
       upstreamRunProductName,
@@ -93,7 +141,30 @@ async function run(): Promise<void> {
   app.setName(PRODUCT_NAME)
   migrateLegacyUserData()`,
     )
-    .replace(upstreamAppUserModelId, `app.setAppUserModelId(${JSON.stringify(product.appId)})`)
+}
+
+/**
+ * 新版上游用官方单色鲸鱼生成 Windows 小尺寸 ICO 帧。TokensCowork 的
+ * 正式标志是自带色彩的 PNG，直接使用该小图资产，避免强行套用上游蓝色。
+ */
+function brandWindowsIconGenerator(generator) {
+  if (!generator.includes(upstreamWindowsBrandColor)
+    || !generator.includes(upstreamWindowsMarkPath)
+    || !generator.includes(upstreamWindowsSmallFrameLoader)) {
+    throw new Error('configure-product: cannot locate Windows small-frame icon anchors')
+  }
+  return generator
+    .replace(upstreamWindowsBrandColor, '')
+    .replace(
+      upstreamWindowsMarkPath,
+      "const markPath = join(packageRoot, 'build', 'logo-mark.png')",
+    )
+    .replace(
+      upstreamWindowsSmallFrameLoader,
+      `async function loadSmallFrameArtwork() {
+  return await readFile(markPath)
+}`,
+    )
 }
 
 /**
@@ -117,6 +188,12 @@ export function applyProductLogo({ productBrandRoot, stage, assertGeneratedPath 
   }
 
   const desktopBuildRoot = resolve(stage, 'dsh-plugin-desktop', 'build')
+  const windowsIconGeneratorPath = resolve(
+    stage,
+    'dsh-plugin-desktop',
+    'scripts',
+    'generate-windows-app-icon.mjs',
+  )
   const outputs = [
     resolve(desktopBuildRoot, 'app-icon.png'),
     resolve(desktopBuildRoot, 'logo-mark.png'),
@@ -135,6 +212,7 @@ export function applyProductLogo({ productBrandRoot, stage, assertGeneratedPath 
     ),
   ]
   for (const path of outputs) assertGeneratedPath(path)
+  assertGeneratedPath(windowsIconGeneratorPath)
 
   cpSync(resolve(productBrandRoot, 'app-icon.png'), outputs[0])
   cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[1])
@@ -143,6 +221,10 @@ export function applyProductLogo({ productBrandRoot, stage, assertGeneratedPath 
   cpSync(resolve(productBrandRoot, 'logo-mark.svg'), outputs[4])
   cpSync(resolve(productBrandRoot, 'logo-mark.png'), outputs[5])
   cpSync(resolve(productBrandRoot, 'client', 'FishLogo.tsx'), outputs[6])
+  writeFileSync(
+    windowsIconGeneratorPath,
+    brandWindowsIconGenerator(readFileSync(windowsIconGeneratorPath, 'utf8')),
+  )
 
   // 删除上游派生图，后续 build 会从正式 Logo 重新按尺寸生成。
   for (const filename of [
@@ -213,10 +295,10 @@ export function brandInstalledRuntimePrompts({ stage, productName }) {
   ])
 
   // 3) agent 预设 persona:"coding agent" 改为通用助手身份,产品名入句。
-  //    standard/code 共享一种文案,cordis 预设另带上游品牌短语。
-  const presetsRoot = resolve(desktopModules, '@deepseek-ai', 'dsh', 'config', 'agent-presets')
+  //    新版由 dsh-agent-presets 独立发布 standard/PTC/Cordis 三套预设。
+  const presetsRoot = resolve(desktopModules, '@deepseek-ai', 'dsh-agent-presets', 'presets')
   const generalPersona = `You are a versatile AI assistant inside ${productName}, powered by the {{model}} model. You handle coding, research, writing, and everyday tasks alike. Your working directory is {{cwd}}.`
-  for (const preset of ['standard', 'code']) {
+  for (const preset of ['standard', 'ptc']) {
     replaceOnce(resolve(presetsRoot, preset, 'agent.cordis.yml'), [
       [
         'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.',

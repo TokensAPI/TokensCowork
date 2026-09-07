@@ -90,6 +90,9 @@ if (!existsSync(harnessPath)) fail('nested deepseek-harness submodule is not ini
 if (git(harnessPath, 'rev-parse', 'HEAD') !== manifest.desktop.deepseekHarnessCommit) {
   fail('nested deepseek-harness checkout differs from product.json')
 }
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(manifest.desktop.runtimeVersion ?? '')) {
+  fail('desktop runtimeVersion must be an exact version')
+}
 if (requireClean && git(harnessPath, 'status', '--porcelain') !== '') {
   fail('nested deepseek-harness submodule contains local changes')
 }
@@ -187,5 +190,5 @@ execFileSync(process.execPath, [resolve(root, 'build', 'verify', 'market.mjs')],
 })
 
 process.stdout.write(
-  `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)${requireClean ? ', clean inputs required' : ''}\n`,
+  `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, DSH ${manifest.desktop.runtimeVersion}, ${manifest.plugins.length} plugin submodule(s)${requireClean ? ', clean inputs required' : ''}\n`,
 )

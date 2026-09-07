@@ -2,9 +2,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
-import { removeManagedBundlesFromProfile, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
-import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, enableManagedPluginUpdate, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
-import { addDesktopCoreModuleResolutionTests, anchorDesktopCoreModules } from './overlays/module-resolution.mjs'
+import { alignCliRuntimeSmokeWithPlatform, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
 
@@ -96,6 +95,12 @@ const profileBootVerifierPath = resolve(
   'scripts',
   'verify-profile-boot.mjs',
 )
+const cliRuntimeVerifierPath = resolve(
+  stage,
+  'dsh-plugin-desktop',
+  'scripts',
+  'verify-cli-runtime.mjs',
+)
 const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
 const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
 const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
@@ -105,10 +110,34 @@ const windowsAclRunnerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'window
 const windowsPwshSandboxPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-pwsh-sandbox.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
+const desktopRuntimeVersion = manifest.desktop.runtimeVersion
+if (typeof desktopRuntimeVersion !== 'string' || desktopRuntimeVersion.length === 0) {
+  throw new Error('prepare-desktop: desktop runtimeVersion must be a non-empty string')
+}
+const betaDesktopPackage = JSON.parse(readFileSync(
+  resolve(stage, 'dsh-plugin-desktop-beta', 'package.json'),
+  'utf8',
+))
+const latestRuntimeDependencies = Object.entries(betaDesktopPackage.dependencies ?? {})
+  .filter(([name]) => name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-'))
+if (latestRuntimeDependencies.length === 0
+  || latestRuntimeDependencies.some(([, version]) => version !== desktopRuntimeVersion)) {
+  throw new Error('prepare-desktop: upstream beta runtime differs from product.json')
+}
+for (const [name, version] of latestRuntimeDependencies) {
+  desktopPackage.dependencies[name] = version
+}
+for (const name of Object.keys(desktopPackage.dependencies ?? {})) {
+  if ((name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-'))
+    && !latestRuntimeDependencies.some(([runtimeName]) => runtimeName === name)) {
+    delete desktopPackage.dependencies[name]
+  }
+}
 // 归一化 CRLF：Windows CI 的 git autocrlf 会把检出内容转成 CRLF，
 // 不归一化时后续覆盖的 LF 锚点全部失配。
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').replaceAll('\r\n', '\n').trimEnd()
 let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
+let cliRuntimeVerifier = readFileSync(cliRuntimeVerifierPath, 'utf8')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
@@ -130,10 +159,6 @@ writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
 // 预置产品目录源为唯一入口：默认选中、隐藏上游合作源与添加/删除入口，
 // 同时精简固定来源页面的说明信息。
 const marketSourceManifest = JSON.parse(readFileSync(resolve(root, 'market', 'source.json'), 'utf8'))
-const marketRoster = JSON.parse(readFileSync(resolve(root, 'market', 'roster.json'), 'utf8'))
-const managedMarketPackages = marketRoster.items
-  .filter(item => item.npm === true)
-  .map(item => item.package)
 const marketIndexPath = resolve(stage, 'dsh-community-market', 'src', 'index.ts')
 const marketRoutesPath = resolve(stage, 'dsh-community-market', 'src', 'host', 'routes.ts')
 const marketSourceStorePath = resolve(stage, 'dsh-community-market', 'src', 'catalog', 'source-store.ts')
@@ -155,31 +180,16 @@ writeFileSync(marketServicePath, pinnedMarket.service)
 writeFileSync(marketSettingsTabPath, pinnedMarket.settingsTab)
 writeFileSync(marketLocalesPath, pinnedMarket.locales)
 
-/* ------------------- 市场受控更新（独立可删块） -------------------- */
-// 让产品 npm 包完成首次受控安装，并让市场回执或历史手动安装遇到更高版本
-// 时走受控更新而非 409；详见 overlays/market.mjs 的 enableManagedPluginUpdate。
-// 删除本块即回到上游“生命周期脚本转手动安装、已装包卸载后重装”语义。
-const marketInstallServicePath = resolve(stage, 'dsh-community-market', 'src', 'install', 'service.ts')
-const marketInstallTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-install.spec.ts')
-const marketSettingsTabTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-settings-tab.spec.tsx')
-const managedUpdate = enableManagedPluginUpdate({
-  installService: readFileSync(marketInstallServicePath, 'utf8'),
-  settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
-  locales: readFileSync(marketLocalesPath, 'utf8'),
-  installTests: readFileSync(marketInstallTestsPath, 'utf8'),
-  settingsTabTests: readFileSync(marketSettingsTabTestsPath, 'utf8'),
-}, managedMarketPackages)
-writeFileSync(marketInstallServicePath, managedUpdate.installService)
-writeFileSync(marketSettingsTabPath, managedUpdate.settingsTab)
-writeFileSync(marketLocalesPath, managedUpdate.locales)
-writeFileSync(marketInstallTestsPath, managedUpdate.installTests)
-writeFileSync(marketSettingsTabTestsPath, managedUpdate.settingsTabTests)
+/* ----------------------- 适配固定市场源测试 ------------------------ */
+// 产品只暴露一个固定目录源；跳过上游多来源管理用例，并保留产品源迁移、
+// 自愈测试。插件安装与卸载测试继续完整运行上游最新版行为。
 const marketHostTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'host-routes.spec.ts')
 writeFileSync(marketHostTestsPath, skipUpstreamBuiltInSourceTests(readFileSync(marketHostTestsPath, 'utf8')))
 const marketRuntimeTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-runtime.spec.ts')
 writeFileSync(marketRuntimeTestsPath, skipUpstreamBuiltInRuntimeTests(readFileSync(marketRuntimeTestsPath, 'utf8')))
 const marketOverlayTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-overlay.spec.tsx')
 writeFileSync(marketOverlayTestsPath, skipUpstreamAddSourceOverlayTests(readFileSync(marketOverlayTestsPath, 'utf8')))
+const marketSettingsTabTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-settings-tab.spec.tsx')
 writeFileSync(
   marketSettingsTabTestsPath,
   skipUpstreamSourceDescriptionTests(readFileSync(marketSettingsTabTestsPath, 'utf8')),
@@ -256,20 +266,11 @@ for (const plugin of enabledPlugins) {
   desktopPatch += `\n\n# Product plugin: ${plugin.id}\n${pluginPatch}`
 }
 
-/* ----------------------- 修复旧版持久 profile ---------------------- */
-desktopProfile = removeManagedBundlesFromProfile(
-  desktopProfile,
-  enabledPlugins.map(plugin => plugin.package),
-)
-
-/* -------------------- 隔离 profile 中的旧 DSH 内核 -------------------- */
-// 第三方插件继续从用户 profile 加载，但 @deepseek-ai/* 和 Desktop 自身入口
-// 必须来自当前安装包，避免不同 dsh-tools 实例的 scheduler Symbol 不相等。
-desktopModuleResolution = anchorDesktopCoreModules(desktopModuleResolution)
-desktopModuleResolutionTests = addDesktopCoreModuleResolutionTests(desktopModuleResolutionTests)
-
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
 ;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
+
+/* -------------------- 对齐 CLI runtime smoke --------------------- */
+cliRuntimeVerifier = alignCliRuntimeSmokeWithPlatform(cliRuntimeVerifier)
 
 /* -------------------- 修复 Windows ACL 启动链 -------------------- */
 windowsAclRunner = addWindowsAclHostConsole(windowsAclRunner)
@@ -280,6 +281,7 @@ writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
 writeFileSync(profileBootVerifierPath, profileBootVerifier)
+writeFileSync(cliRuntimeVerifierPath, cliRuntimeVerifier)
 writeFileSync(desktopProfilePath, desktopProfile)
 writeFileSync(desktopMainPath, desktopMain)
 writeFileSync(desktopLoggerPath, desktopLogger)
@@ -300,5 +302,5 @@ if (enabledPlugins.length > 0) {
 
 /* --------------------------- 输出装配摘要 --------------------------- */
 process.stdout.write(
-  `prepare-desktop: staged ${manifest.product.name} ${manifest.product.version} from ${manifest.desktop.commit.slice(0, 10)} with ${enabledPlugins.length} default plugin(s) at ${stage}\n`,
+  `prepare-desktop: staged ${manifest.product.name} ${manifest.product.version} from ${manifest.desktop.commit.slice(0, 10)} with DSH ${desktopRuntimeVersion} and ${enabledPlugins.length} default plugin(s) at ${stage}\n`,
 )

@@ -73,3 +73,38 @@ export function protectDesktopStderr(mainSource, loggerSource) {
   }
   return { main, logger }
 }
+
+/**
+ * 对齐上游 CLI smoke 与 Windows 后台 Node 启动实现。
+ * Windows 的批处理 shim 必须保留 Electron Node 模式，且通过 `bin\\..`
+ * 暴露的 NODE 路径与规范化路径等价；旧 smoke 仍按清理变量和字符串直比验收。
+ * @param source - staging 副本中 verify-cli-runtime.mjs 的完整内容。
+ * @returns 按平台验收 Node 模式并规范化生命周期 Node 路径的 smoke 脚本。
+ * @throws 上游 smoke 锚点变化时抛出，中断打包待人工复查。
+ */
+export function alignCliRuntimeSmokeWithPlatform(source) {
+  const pathImportAnchor = "import { join } from 'node:path'"
+  const actualAnchor = "  const actual = JSON.parse(readFileSync(resultPath, 'utf8'))\n  const expected = {"
+  const runAsNodeAnchor = '    runAsNode: [],'
+  const nodeAnchor = '    node: installation.nodeShimPath,\n    npmNodeExecPath: installation.nodeShimPath,'
+  if (!source.includes(pathImportAnchor)
+    || source.split(actualAnchor).length !== 2
+    || source.split(runAsNodeAnchor).length !== 2
+    || source.split(nodeAnchor).length !== 2) {
+    throw new Error('prepare-desktop: 未找到上游 CLI runtime smoke 锚点，请复查平台环境验收')
+  }
+  return source
+    .replace(pathImportAnchor, "import { join, resolve } from 'node:path'")
+    .replace(
+      actualAnchor,
+      "  const actual = JSON.parse(readFileSync(resultPath, 'utf8'))\n  actual.node = resolve(actual.node)\n  actual.npmNodeExecPath = resolve(actual.npmNodeExecPath)\n  const expected = {",
+    )
+    .replace(
+      runAsNodeAnchor,
+      "    runAsNode: process.platform === 'win32' ? ['ELECTRON_RUN_AS_NODE'] : [],",
+    )
+    .replace(
+      nodeAnchor,
+      '    node: resolve(installation.nodeShimPath),\n    npmNodeExecPath: resolve(installation.nodeShimPath),',
+    )
+}
