@@ -28,6 +28,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # 名册是市场目录的唯一来源，生成快照与 product.json 各有一份副本。
+      # 部署前先核对，避免把分叉的数据推上线。直接用 node 跑，不经 corepack。
+      - name: Verify market data
+        run: node build/verify/market.mjs
+
       # 直接 npx 调用 wrangler:仓库根 package.json 声明 yarn@4 的
       # packageManager,wrangler-action 的 yarn 安装路径会被 corepack
       # 拦下,npx 则不受包管理器声明影响。

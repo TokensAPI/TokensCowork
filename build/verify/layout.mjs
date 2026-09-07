@@ -179,6 +179,13 @@ if (manifest.plugins.some(plugin => plugin.enabledByDefault === true)
   fail('enabled product plugins require build/product.yarn.lock; run product:refresh-lock')
 }
 
+// 市场名册、产品清单和生成快照各写一份内置插件版本，三者曾经分叉，
+// 发版校验时一并核对。
+execFileSync(process.execPath, [resolve(root, 'build', 'verify', 'market.mjs')], {
+  cwd: root,
+  stdio: 'inherit',
+})
+
 process.stdout.write(
   `verify-layout: ${manifest.product.name} ${canonicalVersion}, desktop ${manifest.desktop.commit.slice(0, 10)}, Harness ${manifest.desktop.deepseekHarnessCommit.slice(0, 10)}, ${manifest.plugins.length} plugin submodule(s)${requireClean ? ', clean inputs required' : ''}\n`,
 )
