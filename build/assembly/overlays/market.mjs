@@ -684,6 +684,13 @@ const PRODUCT_MANAGED_PACKAGES = new Set<string>(${productPackagesLiteral})`,
   const modalFactsAnchor = `            <OperationFacts operation={preview} t={t} />
             <div className="dshMarketOperationWarning"><StateDot state="warning" size={12} /><span>{t('operationWarning')}</span></div>`
   const matchingInstallationAnchor = 'function matchingInstallation('
+  // 回执携带的 sourceRecordId 是装配时随机生成的记录号,应用升级后必然轮换,
+  // 严格相等匹配会把升级前安装的插件全部误判为"未安装"(点击后撞 409)。
+  const managedMatchAnchor = `  const managed = installations.filter(installation => installation.kind === 'managed'
+    && installation.receipt.sourceRecordId === value.source.sourceRecordId
+    && installation.receipt.providerId === value.source.providerId
+    && installation.receipt.itemId === value.item.id
+    && installation.receipt.packageName === packageName)`
   const inventoryAnchor = `      if (installation !== undefined) setSelectedInstallation(installation)
       else beginInstallPreview()`
   const footerAnchor = '  const footer = installation === undefined && preview !== undefined ? <>'
@@ -694,11 +701,20 @@ const PRODUCT_MANAGED_PACKAGES = new Set<string>(${productPackagesLiteral})`,
     || !settingsTab.includes(modalButtonAnchor) || !settingsTab.includes(modalFactsAnchor)
     || !settingsTab.includes(matchingInstallationAnchor) || !settingsTab.includes(inventoryAnchor)
     || !settingsTab.includes(footerAnchor) || !settingsTab.includes(modalProgressAnchor)
-    || !settingsTab.includes(successTitleAnchor)) {
+    || !settingsTab.includes(successTitleAnchor) || !settingsTab.includes(managedMatchAnchor)) {
     throw new Error('prepare-desktop: 未找到市场对话框更新文案锚点，请复查受控更新覆盖')
   }
   const updateFromProbe = '(preview as { updateFrom?: string }).updateFrom'
   const patchedSettingsTab = settingsTab
+    .replace(
+      managedMatchAnchor,
+      `  // 产品覆盖:产品只有唯一自营源,受控安装按稳定的 providerId+itemId+包名
+  // 匹配;不再绑定升级即轮换的 sourceRecordId,旧回执照常识别为已安装。
+  const managed = installations.filter(installation => installation.kind === 'managed'
+    && installation.receipt.providerId === value.source.providerId
+    && installation.receipt.itemId === value.item.id
+    && installation.receipt.packageName === packageName)`,
+    )
     .replace(
       matchingInstallationAnchor,
       `function newerStableVersion(nextVersion: string | undefined, priorVersion: string): boolean {
@@ -1045,6 +1061,43 @@ describe('manual install display instructions'`,
     const dialog = screen.getByRole('dialog', { name: en.confirmUpdateTitle })
     expect(within(dialog).getByRole('button', { name: \`\${en.confirmUpdate} \${item.latestVersion}\` })).toBeTruthy()
     expect(within(dialog).getByText(new RegExp(\`\${en.updateFromNotice}.*1\\.2\\.2.*1\\.2\\.3\`, 'u'))).toBeTruthy()
+  })
+
+  it('still matches a managed install after the source record id rotated', async () => {
+    const item = makeInstallableItem(firstSource, 'update-plugin', 'Update Plugin', 'dsh-plugin-update', '1.2.3')
+    // 升级前写入的回执:携带旧安装包时代的 sourceRecordId,与当前源不同。
+    const receipt = makeReceipt({
+      packageName: item.package!.name,
+      itemId: item.id,
+      displayName: item.displayName,
+      version: '1.2.2',
+      sourceRecordId: '028f1f77-a5c4-7b73-a9ae-0242ac120777',
+    })
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [item]))
+    vi.mocked(readMarketInstallations).mockResolvedValue({
+      installations: [{ kind: 'managed', status: 'active', action: 'uninstall', receipt }],
+    })
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install',
+      profileName: receipt.profileName,
+      packageName: receipt.packageName,
+      version: item.latestVersion!,
+      displayName: item.displayName,
+      expiresAt: '2026-08-18T00:05:00.000Z',
+      previewId: 'opaque-rotated-update-preview',
+      updateFrom: receipt.version,
+    } as never)
+    render(<MarketSettingsTab {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Update Plugin/u }))
+    // 匹配不再绑定记录号:旧回执仍被识别为受控安装并走更新预览。
+    await waitFor(() => expect(previewMarketOperation).toHaveBeenCalledWith({
+      action: 'install',
+      sourceRecordId: firstSource.sourceRecordId,
+      itemId: item.id,
+    }, expect.any(AbortSignal)))
+    expect(screen.getByRole('dialog', { name: en.confirmUpdateTitle })).toBeTruthy()
   })
 
 `
