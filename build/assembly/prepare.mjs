@@ -2,7 +2,13 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
-import { alignCliRuntimeSmokeWithPlatform, alignStablePackageRuntimeTests, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
+import {
+  alignCliRuntimeSmokeWithPlatform,
+  alignStablePackageRuntimeTests,
+  defaultDesktopMarketToCommunity,
+  protectDesktopStderr,
+  skipDesktopSetupWizard,
+} from './overlays/desktop-runtime.mjs'
 import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
@@ -320,6 +326,21 @@ for (const plugin of enabledPlugins) {
   writeFileSync(resolve(destination, plugin.patch), `${pluginPatch}\n`)
   desktopPatch += `\n\n# Product plugin: ${plugin.id}\n${pluginPatch}`
 }
+
+/* ---------------------- 关闭首次设置向导 ------------------------- */
+desktopMain = skipDesktopSetupWizard(desktopMain)
+
+/* -------------------- 市场默认启用社区实现 ----------------------- */
+// 向导被跳过后用户失去上游预期的市场选择机会，产品把无状态时的
+// fail-safe 默认从 disabled 改为 community-market；显式选择仍生效。
+const desktopMarketPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-market.ts')
+const desktopMarketTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'desktop-market.spec.ts')
+const defaultedMarket = defaultDesktopMarketToCommunity(
+  readFileSync(desktopMarketPath, 'utf8'),
+  readFileSync(desktopMarketTestsPath, 'utf8'),
+)
+writeFileSync(desktopMarketPath, defaultedMarket.source)
+writeFileSync(desktopMarketTestsPath, defaultedMarket.tests)
 
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
 ;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
