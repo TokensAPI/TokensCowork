@@ -108,3 +108,65 @@ export function alignCliRuntimeSmokeWithPlatform(source) {
       '    node: resolve(installation.nodeShimPath),\n    npmNodeExecPath: resolve(installation.nodeShimPath),',
     )
 }
+
+/** 取出一个顶层 Vitest `it()` 用例，供 Stable/Beta 精确同步。 */
+function namedTestBlock(source, title) {
+  const marker = `  it(${JSON.stringify(title).replaceAll('"', "'")}, () => {`
+  if (source.split(marker).length !== 2) {
+    throw new Error(`prepare-desktop: 上游 package smoke 用例 ${JSON.stringify(title)} 不唯一`)
+  }
+  const start = source.indexOf(marker)
+  const candidates = [
+    source.indexOf('\n\n  it(', start + marker.length),
+    source.indexOf('\n})', start + marker.length),
+  ].filter(index => index > start)
+  if (candidates.length === 0) {
+    throw new Error(`prepare-desktop: 无法确定 package smoke 用例 ${JSON.stringify(title)} 的边界`)
+  }
+  return source.slice(start, Math.min(...candidates))
+}
+
+/**
+ * Stable Desktop 在产品装配时使用 Beta 的最新 DSH 运行时，因此两个补丁
+ * smoke 也必须采用 Beta 已维护的新运行时断言。只同步对应测试块，不改上游
+ * Stable/Beta 子模块源码，也不复制两者其余发行通道差异。
+ */
+export function alignStablePackageRuntimeTests(stableSource, betaSource) {
+  let stable = stableSource.replaceAll('\r\n', '\n')
+  const beta = betaSource.replaceAll('\r\n', '\n')
+  const vmImportAnchor = "import { fileURLToPath, pathToFileURL } from 'node:url'"
+  const resolutionAnchor = `const dshResolution = (name: string): unknown =>
+  workspaceManifest.resolutions?.[\`${'${name}'}@npm:${'${runtimeVersion}'}\`]`
+  if (!stable.includes(vmImportAnchor)
+    || stable.includes("import { runInNewContext } from 'node:vm'")
+    || stable.split(resolutionAnchor).length !== 2
+    || !stable.includes("const betaRuntimeVersion = '0.1.3-alpha.1'")) {
+    throw new Error('prepare-desktop: 未找到 Stable package runtime smoke 锚点')
+  }
+  stable = stable
+    .replace(
+      vmImportAnchor,
+      `${vmImportAnchor}\nimport { runInNewContext } from 'node:vm'`,
+    )
+    .replace(
+      resolutionAnchor,
+      `${resolutionAnchor}\nconst latestDshResolution = (name: string): unknown =>\n  workspaceManifest.resolutions?.[\`${'${name}'}@npm:${'${betaRuntimeVersion}'}\`]`,
+    )
+
+  for (const title of [
+    'hides official plugin-manager and general subprocess consoles on Windows',
+    'starts restricted Windows shells with a hidden console show state',
+  ]) {
+    const stableBlock = namedTestBlock(stable, title)
+    const betaBlock = namedTestBlock(beta, title)
+      .replaceAll('dshResolution(', 'latestDshResolution(')
+    stable = stable.replace(stableBlock, betaBlock)
+  }
+  const readdirImportAnchor = '  readFileSync,\n  readdirSync,\n'
+  if (stable.split(readdirImportAnchor).length !== 2
+    || (stable.match(/\breaddirSync\b/g) ?? []).length !== 1) {
+    throw new Error('prepare-desktop: Stable package smoke readdirSync 清理锚点失配')
+  }
+  stable = stable.replace(readdirImportAnchor, '  readFileSync,\n')
+  return stable
+}

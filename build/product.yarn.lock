@@ -9972,6 +9972,7 @@ __metadata:
     dshmarket: "npm:1.38.1"
     electron: "npm:43.3.0"
     electron-builder: "npm:26.15.7"
+    fs-ext: "npm:2.1.1"
     koffi: "npm:3.1.5"
     lucide-react: "npm:^1.33.0"
     node-addon-require-builtin: "npm:^0.1.4"

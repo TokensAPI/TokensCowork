@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
-import { alignCliRuntimeSmokeWithPlatform, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
+import { alignCliRuntimeSmokeWithPlatform, alignStablePackageRuntimeTests, protectDesktopStderr } from './overlays/desktop-runtime.mjs'
 import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
@@ -101,6 +101,40 @@ const cliRuntimeVerifierPath = resolve(
   'scripts',
   'verify-cli-runtime.mjs',
 )
+const desktopRuntimeVerifierPath = resolve(
+  stage,
+  'dsh-plugin-desktop',
+  'scripts',
+  'verify-packaged-runtime.ts',
+)
+const betaRuntimeVerifierPath = resolve(
+  stage,
+  'dsh-plugin-desktop-beta',
+  'scripts',
+  'verify-packaged-runtime.ts',
+)
+const desktopMacUniversalPath = resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-universal.ts')
+const betaMacUniversalPath = resolve(stage, 'dsh-plugin-desktop-beta', 'scripts', 'mac-universal.ts')
+const desktopFsExtPreparePath = resolve(stage, 'dsh-plugin-desktop', 'scripts', 'prepare-fs-ext.ts')
+const betaFsExtPreparePath = resolve(stage, 'dsh-plugin-desktop-beta', 'scripts', 'prepare-fs-ext.ts')
+const desktopPackageTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'package.spec.ts')
+const betaPackageTestsPath = resolve(stage, 'dsh-plugin-desktop-beta', 'tests', 'package.spec.ts')
+const desktopRuntimeVerifierTestsPath = resolve(
+  stage,
+  'dsh-plugin-desktop',
+  'tests',
+  'verify-packaged-runtime.spec.ts',
+)
+const betaRuntimeVerifierTestsPath = resolve(
+  stage,
+  'dsh-plugin-desktop-beta',
+  'tests',
+  'verify-packaged-runtime.spec.ts',
+)
+const desktopMacUniversalTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'mac-universal.spec.ts')
+const betaMacUniversalTestsPath = resolve(stage, 'dsh-plugin-desktop-beta', 'tests', 'mac-universal.spec.ts')
+const desktopFsExtPrepareTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'prepare-fs-ext.spec.ts')
+const betaFsExtPrepareTestsPath = resolve(stage, 'dsh-plugin-desktop-beta', 'tests', 'prepare-fs-ext.spec.ts')
 const desktopProfilePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'profile.ts')
 const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
 const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
@@ -133,11 +167,32 @@ for (const name of Object.keys(desktopPackage.dependencies ?? {})) {
     delete desktopPackage.dependencies[name]
   }
 }
+const betaFsExtVersion = betaDesktopPackage.dependencies?.['fs-ext']
+const betaFsExtExclude = '!node_modules/fs-ext/build/**'
+if (typeof betaFsExtVersion !== 'string'
+  || betaFsExtVersion.length === 0
+  || betaDesktopPackage.scripts?.['prepare:electron-native'] !== 'node scripts/prepare-fs-ext.ts'
+  || !betaDesktopPackage.build?.files?.includes(betaFsExtExclude)
+  || typeof betaDesktopPackage.build?.mac?.x64ArchFiles !== 'string'
+  || !betaDesktopPackage.build.mac.x64ArchFiles.includes('fs-ext/prebuilds/darwin-*/**')) {
+  throw new Error('prepare-desktop: upstream beta fs-ext packaging contract is incomplete')
+}
+desktopPackage.dependencies['fs-ext'] = betaFsExtVersion
+desktopPackage.scripts['prepare:electron-native'] = betaDesktopPackage.scripts['prepare:electron-native']
+if (!desktopPackage.build.files.includes(betaFsExtExclude)) {
+  desktopPackage.build.files.push(betaFsExtExclude)
+}
+desktopPackage.build.mac.x64ArchFiles = betaDesktopPackage.build.mac.x64ArchFiles
 // 归一化 CRLF：Windows CI 的 git autocrlf 会把检出内容转成 CRLF，
 // 不归一化时后续覆盖的 LF 锚点全部失配。
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').replaceAll('\r\n', '\n').trimEnd()
 let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
 let cliRuntimeVerifier = readFileSync(cliRuntimeVerifierPath, 'utf8')
+let desktopPackageTests = readFileSync(desktopPackageTestsPath, 'utf8')
+const betaPackageTests = readFileSync(betaPackageTestsPath, 'utf8')
+const betaRuntimeVerifierTests = readFileSync(betaRuntimeVerifierTestsPath, 'utf8')
+  .replaceAll('DSH Desktop Beta', 'DSH Desktop')
+  .replaceAll('dsh-plugin-desktop-beta', 'dsh-plugin-desktop')
 let desktopProfile = readFileSync(desktopProfilePath, 'utf8')
 let desktopMain = readFileSync(desktopMainPath, 'utf8')
 let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
@@ -271,6 +326,29 @@ for (const plugin of enabledPlugins) {
 
 /* -------------------- 对齐 CLI runtime smoke --------------------- */
 cliRuntimeVerifier = alignCliRuntimeSmokeWithPlatform(cliRuntimeVerifier)
+desktopPackageTests = alignStablePackageRuntimeTests(desktopPackageTests, betaPackageTests)
+
+/* -------------------- 对齐最新原生运行时装配 --------------------- */
+// Stable 产品使用 Beta 的 DSH alpha 运行时，也同步其 fs-ext Electron ABI
+// 准备、macOS 双架构清单和物理运行时门禁；所有改动仍只落在 staging。
+cpSync(betaFsExtPreparePath, desktopFsExtPreparePath)
+cpSync(betaMacUniversalPath, desktopMacUniversalPath)
+cpSync(betaRuntimeVerifierPath, desktopRuntimeVerifierPath)
+cpSync(betaFsExtPrepareTestsPath, desktopFsExtPrepareTestsPath)
+cpSync(betaMacUniversalTestsPath, desktopMacUniversalTestsPath)
+writeFileSync(desktopRuntimeVerifierTestsPath, betaRuntimeVerifierTests)
+const fsExtCliAnchor = '  prepareFsExtForElectron({ log: message => console.log(message) })'
+const fsExtPrepareSource = readFileSync(desktopFsExtPreparePath, 'utf8')
+if (fsExtPrepareSource.split(fsExtCliAnchor).length !== 2) {
+  throw new Error('prepare-desktop: upstream beta fs-ext CLI anchor is missing or ambiguous')
+}
+writeFileSync(
+  desktopFsExtPreparePath,
+  fsExtPrepareSource.replace(
+    fsExtCliAnchor,
+    "  prepareFsExtForElectron({ arch: process.argv[2] ?? process.arch, log: message => console.log(message) })",
+  ),
+)
 
 /* -------------------- 修复 Windows ACL 启动链 -------------------- */
 windowsAclRunner = addWindowsAclHostConsole(windowsAclRunner)
@@ -282,6 +360,7 @@ writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2
 writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
 writeFileSync(profileBootVerifierPath, profileBootVerifier)
 writeFileSync(cliRuntimeVerifierPath, cliRuntimeVerifier)
+writeFileSync(desktopPackageTestsPath, desktopPackageTests)
 writeFileSync(desktopProfilePath, desktopProfile)
 writeFileSync(desktopMainPath, desktopMain)
 writeFileSync(desktopLoggerPath, desktopLogger)

@@ -64,6 +64,18 @@ function buildProduct(environment = process.env) {
   run('corepack', ['yarn', 'run', 'build'], stage, environment)
 }
 
+/** 为指定 macOS 架构编译与 Electron ABI 一致的 fs-ext 原生绑定。 */
+function prepareMacNativeRuntime(architectures, environment = process.env) {
+  for (const architecture of architectures) {
+    run(
+      process.execPath,
+      [resolve(stage, 'dsh-plugin-desktop', 'scripts', 'prepare-fs-ext.ts'), architecture],
+      resolve(stage, 'dsh-plugin-desktop'),
+      environment,
+    )
+  }
+}
+
 /** 验证产品品牌已经进入源码配置与编译后的运行时闭包。 */
 function verifyProductBranding(environment = process.env) {
   run(process.execPath, [resolve(root, 'build', 'verify', 'branding.mjs')], root, environment)
@@ -139,6 +151,11 @@ if (mode === 'check') {
   // 完整质量门禁由独立任务执行；本分支只构建未签名的原生验证包。
   const requestedArch = assertNativeMacArchitecture()
   configureBuildAndVerifyProduct(buildEnvironment)
+  prepareMacNativeRuntime([requestedArch], buildEnvironment)
+  const packagingEnvironment = {
+    ...buildEnvironment,
+    DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
+  }
   run('corepack', [
     'yarn',
     'workspace',
@@ -154,7 +171,7 @@ if (mode === 'check') {
     '--config.mac.identity=null',
     '--config.mac.notarize=false',
     '--config.afterPack=./scripts/mac-unsigned-after-pack.ts',
-  ], stage)
+  ], stage, packagingEnvironment)
 } else if (mode === 'win') {
   /* ----------------------- Windows x64 安装包 ---------------------- */
   // Windows 安装器包含原生依赖，只允许在原生 x64 Windows Node 中组装。
@@ -167,6 +184,7 @@ if (mode === 'check') {
     // Market 与 Desktop 测试会并发创建大量 Windows 文件；限制 worker 可避免
     // NTFS/Defender 负载下偶发的子进程启动超时，调用方仍可显式覆盖。
     VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS ?? '2',
+    DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
   }
   // 当前 Windows 产品只生成未签名安装包；清除所有可能触发自动签名的变量。
   for (const key of [
@@ -219,10 +237,15 @@ if (mode === 'check') {
   // macOS 发布脚本中的重复 check，发布任务会等待全部平台构建通过。
   assertNativeMacArchitecture()
   configureBuildAndVerifyProduct(buildEnvironment)
+  prepareMacNativeRuntime(['arm64', 'x64'], buildEnvironment)
+  const releaseEnvironment = {
+    ...process.env,
+    DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
+  }
   run(
     'corepack',
     ['yarn', 'workspace', 'dsh-plugin-desktop', 'dist:mac'],
     stage,
-    process.env,
+    releaseEnvironment,
   )
 }
