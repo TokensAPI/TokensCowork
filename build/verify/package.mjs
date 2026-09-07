@@ -99,13 +99,15 @@ if (buildManifest.build?.nsis?.guid !== product.windowsInstallerGuid) {
 if (buildManifest.build?.nsis?.deleteAppDataOnUninstall === true) {
   throw new Error('Windows build configuration would delete user data on uninstall')
 }
-if (!packagedMain.includes(product.name) || !packagedMain.includes(product.appId)
-  || packagedMain.includes('ai.deepseek.dsh.desktop')) {
-  throw new Error('packaged Windows main runtime retains upstream identity')
+if (!packagedMain.includes(`${product.name} Local CA`)
+  || packagedMain.includes('DeepSeek Harness Desktop Local CA')) {
+  throw new Error('packaged Windows main runtime retains upstream certificate branding')
 }
 if (!packagedRuntimeClosure.includes(product.name)
+  || !packagedRuntimeClosure.includes(product.appId)
+  || packagedRuntimeClosure.includes('"ai.deepseek.dsh.desktop"')
   || packagedRuntimeClosure.includes('DeepSeek Harness Desktop')) {
-  throw new Error('packaged Windows desktop shell retains upstream window branding')
+  throw new Error('packaged Windows desktop runtime retains upstream identity')
 }
 if (forbiddenMetadata.length !== 0) {
   throw new Error(`packaged Windows runtime retains non-runtime metadata: ${forbiddenMetadata[0]}`)
