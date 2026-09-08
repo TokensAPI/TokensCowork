@@ -1,8 +1,8 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
-import { addMarketAuth } from './overlays/market/market-auth.mjs'
+import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './overlays/market/market-auth.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
@@ -41,6 +41,57 @@ function assertGeneratedPath(path) {
   }
 }
 
+/*
+ * staging 每次都整棵重建，但 node_modules 不是装配产物：它由 stage 里的
+ * package.json 与 yarn.lock 决定。跟着一起删只会让紧随其后的
+ * `yarn install --immutable` 从零重链整棵依赖树（单次约 5 分钟），
+ * 而改一行 overlay 就会触发一次重建。这里清空 staging 时跳过依赖树，
+ * 让随后的覆盖拷贝把源码填回来，那次 install 便退化成增量核对。
+ * 依赖真的变了也不会失准：yarn 仍按新的 lock 补齐与裁剪。需要纯净重建时
+ * 手动删掉 .build/desktop 再跑本脚本即可。
+ * 不能改用 rename 把依赖树挪开再挪回：树里有指回 workspace 的符号链接，
+ * Windows 上整目录 rename 会 EPERM。
+ */
+
+/**
+ * 列出 staging 里全部已装好的依赖树（相对 staging 的 POSIX 路径）。
+ * workspace 可以嵌套（如 dsh-plugin-desktop/product-plugins/*），深度不固定，
+ * 因此整棵扫描；进入 node_modules 后不再下钻，里面的嵌套依赖随其整体保留。
+ */
+function listStagedModules(base, relativeBase = '') {
+  const found = []
+  for (const entry of readdirSync(base, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const relativePath = relativeBase ? `${relativeBase}/${entry.name}` : entry.name
+    if (entry.name === 'node_modules') found.push(relativePath)
+    else found.push(...listStagedModules(resolve(base, entry.name), relativePath))
+  }
+  return found
+}
+
+/** 清空 staging，但保留其中已装好的 node_modules 及其各级父目录。 */
+function clearStageKeepingModules() {
+  if (!existsSync(stage)) return
+  const preserved = new Set(listStagedModules(stage))
+  // 依赖树的父目录必须留着当容器，只能逐层进去删同级的其它内容。
+  const containers = new Set()
+  for (const relativePath of preserved) {
+    const parts = relativePath.split('/')
+    for (let index = 1; index < parts.length; index += 1) containers.add(parts.slice(0, index).join('/'))
+  }
+  const clear = (base, relativeBase) => {
+    for (const entry of readdirSync(base, { withFileTypes: true })) {
+      const relativePath = relativeBase ? `${relativeBase}/${entry.name}` : entry.name
+      if (preserved.has(relativePath)) continue
+      const path = resolve(base, entry.name)
+      assertGeneratedPath(path)
+      if (containers.has(relativePath)) clear(path, relativePath)
+      else rmSync(path, { recursive: true, force: true })
+    }
+  }
+  clear(stage, '')
+}
+
 function copySource(source, destination, options = {}) {
   cpSync(source, destination, {
     recursive: true,
@@ -76,7 +127,7 @@ function renamePluginPatchPackage(patch, sourcePackage, packageName, pluginId) {
 /* ------------------------ 重建 staging 目录 ------------------------- */
 mkdirSync(stageRoot, { recursive: true })
 assertGeneratedPath(stage)
-if (existsSync(stage)) rmSync(stage, { recursive: true, force: true })
+clearStageKeepingModules()
 copySource(desktopSource, stage)
 cpSync(
   resolve(root, 'build', 'macos', 'unsigned-after-pack.ts'),
@@ -256,6 +307,7 @@ writeFileSync(marketIndexPath, authenticatedMarket.index)
 // 自愈测试。插件安装与卸载测试继续完整运行上游最新版行为。
 const marketHostTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'host-routes.spec.ts')
 writeFileSync(marketHostTestsPath, skipUpstreamBuiltInSourceTests(readFileSync(marketHostTestsPath, 'utf8')))
+writeFileSync(marketHostTestsPath, skipUpstreamPersistedCatalogTest(readFileSync(marketHostTestsPath, 'utf8')))
 const marketRuntimeTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'market-runtime.spec.ts')
 writeFileSync(marketRuntimeTestsPath, skipUpstreamBuiltInRuntimeTests(readFileSync(marketRuntimeTestsPath, 'utf8')))
 const marketOverlayTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-overlay.spec.tsx')

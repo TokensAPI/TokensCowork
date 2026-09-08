@@ -5,11 +5,14 @@ import { stripTypeScriptTypes } from 'node:module'
 import https from 'node:https'
 import { EventEmitter } from 'node:events'
 import { addMarketAuth } from './market-auth.mjs'
+import { allowMarketSourceSyntheticProxy } from './market-source.mjs'
 
 const base = new URL('../../../../desktop/dsh-community-market/src/', import.meta.url)
 const sources = Object.fromEntries(Object.entries({http:'network/restricted-http.ts',routes:'host/routes.ts',index:'index.ts'})
   .map(([k,p]) => [k,readFileSync(new URL(p,base),'utf8').replaceAll('\r\n','\n')]))
 const origin = 'https://tokenscowork-market.pages.dev'
+// 镜像 prepare 的真实顺序:fake-IP 豁免先改写单例,授权覆盖锚定其改写后形态。
+sources.http = allowMarketSourceSyntheticProxy(sources.http, new URL(origin).hostname)
 const output = addMarketAuth(sources, origin)
 const compiled = stripTypeScriptTypes(output.http, {mode:'transform',disableExperimentalWarning:true})
 const {createProductMarketAuthorization,createRestrictedHttpClient} = await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'))
@@ -48,5 +51,11 @@ test('overlay fails on source drift and avoids unscoped persisted catalogs',()=>
   assert.match(output.routes,/service.invalidateSource/)
   assert.match(output.routes,/cachedCatalogResponse\(undefined,/)
   assert.doesNotMatch(output.routes,/scope.update\(\{ catalogCache: cache \}\)/)
-  assert.match(output.index,/optional: \['credentials'\]/)
+  // cordis 4.0.2 的 Inject.resolve 只认数组或「服务名 -> 拦截配置」映射，
+  // {required,optional} 会被当成两个服务名而永远等不到；credentials 走
+  // ctx.reflect.get 免 inject 读取，因此 inject 必须保持上游原样。
+  assert.match(output.index,/export const inject = \['webServer', 'settings'\]/)
+  assert.doesNotMatch(output.index,/optional:/)
+  assert.match(output.routes,/ctx\.reflect\?\.get\?\.\('credentials'\)/)
+  assert.doesNotMatch(output.routes,/Reflect\.get\(ctx, 'credentials'\)/)
 })

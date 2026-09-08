@@ -13,16 +13,12 @@
     },
     {
       "id": "tokens-connect",
-      "package": "@tokens/dsh-connect",
+      "package": "@tokensapi/dsh-connect",
       "displayName": "连接中心",
       "summary": "统一管理九种 IM 机器人及飞书、钉钉个人账号授权，并接入本机 TokensCowork。",
       "repository": "https://github.com/sobermh/tokens_DshConnect_code",
-      "version": "2.6.0",
-      "installSource": {
-        "kind": "github",
-        "commit": "12423763e9771dca437edb0e1620750757634c40"
-      },
-      "npm": false
+      "version": "2.6.1",
+      "npm": true
     },
     {
       "id": "dsh-tokensapi-ui",
