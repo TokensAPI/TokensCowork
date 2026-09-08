@@ -81,3 +81,80 @@ for (const path of candidates) {
 if (patched === 0) {
   throw new Error('patch-runtime: 没有找到任何已安装的 agent-presets 副本;先运行 yarn install')
 }
+
+/* ============================================================
+ * DSH 0.1.3-alpha.1 Conversation 公共输入表面
+ * ============================================================
+ * 该版本的 InputBar 已经拥有稳定的 card 样式和 data-composer-card 契约，
+ * 但没有导出可供外部会话源复用的表面组件。产品 staging 在已安装产物中
+ * 提取 ComposerSurface，并让原生 InputBar 自身也通过它渲染。Bridge 因而
+ * 复用同一个 React 组件和同一份 CSS module，而不是复制 class 或样式。
+ * ============================================================ */
+const COMPOSER_MARKER = 'TokensCowork shared composer surface'
+const COMPOSER_DEFINITION_ANCHOR = `\t\t};
+\t\t//#endregion
+\t\t//#region lib/types/client/skeleton/InputBar.js`
+const COMPOSER_DEFINITION = `\t\t};
+\t\t/** TokensCowork shared composer surface: the public, target-neutral InputBar card. */
+\t\tconst ComposerSurface = react.forwardRef(function ComposerSurface({ workspaceTrigger = false, className, ...props }, ref) {
+\t\t\treturn (0, react_jsx_runtime.jsx)("div", {
+\t\t\t\t...props,
+\t\t\t\tref,
+\t\t\t\tclassName: clsx(InputBar_module_css_default.card, workspaceTrigger && InputBar_module_css_default.cardWorkspaceTrigger, className),
+\t\t\t\t"data-composer-card": true
+\t\t\t});
+\t\t});
+\t\t//#endregion
+\t\t//#region lib/types/client/skeleton/InputBar.js`
+const COMPOSER_INPUT_ANCHOR = `(0, react_jsx_runtime.jsxs)("div", {
+\t\t\t\t\t\tref: cardRef,
+\t\t\t\t\t\tclassName: clsx(InputBar_module_css_default.card, workspaceTrigger && InputBar_module_css_default.cardWorkspaceTrigger),
+\t\t\t\t\t\t"data-composer-card": true,`
+const COMPOSER_INPUT_REPLACEMENT = `(0, react_jsx_runtime.jsxs)(ComposerSurface, {
+\t\t\t\t\t\tref: cardRef,
+\t\t\t\t\t\tworkspaceTrigger,`
+const COMPOSER_EXPORT_ANCHOR = `\t\texports.Config = Config;`
+const COMPOSER_EXPORT_REPLACEMENT = `\t\texports.ComposerSurface = ComposerSurface;
+\t\texports.Config = Config;`
+const COMPOSER_TYPES_ANCHOR = `declare module '@deepseek-ai/cordis' {`
+const COMPOSER_TYPES_REPLACEMENT = `/** Public InputBar card surface for external conversation adapters. */
+export type ComposerSurfaceProps = import('react').HTMLAttributes<HTMLDivElement> & {
+    workspaceTrigger?: boolean;
+};
+export declare const ComposerSurface: import('react').ForwardRefExoticComponent<ComposerSurfaceProps & import('react').RefAttributes<HTMLDivElement>>;
+declare module '@deepseek-ai/cordis' {`
+
+const conversationRoots = [
+  resolve(stage, 'dsh-plugin-desktop', 'node_modules', '@deepseek-ai', 'dsh-client-ui-conversation'),
+  resolve(stage, 'node_modules', '@deepseek-ai', 'dsh-client-ui-conversation'),
+]
+let conversationPatched = 0
+for (const packageRoot of conversationRoots) {
+  const clientPath = resolve(packageRoot, 'lib', 'client.js')
+  if (!existsSync(clientPath)) continue
+  let client = readFileSync(clientPath, 'utf8')
+  if (!client.includes(COMPOSER_MARKER)) {
+    for (const [anchor, replacement] of [
+      [COMPOSER_DEFINITION_ANCHOR, COMPOSER_DEFINITION],
+      [COMPOSER_INPUT_ANCHOR, COMPOSER_INPUT_REPLACEMENT],
+      [COMPOSER_EXPORT_ANCHOR, COMPOSER_EXPORT_REPLACEMENT],
+    ]) {
+      if (!client.includes(anchor)) {
+        throw new Error(`patch-runtime: 未找到 Conversation composer surface 锚点(${clientPath})`)
+      }
+      client = client.replace(anchor, replacement)
+    }
+    writeFileSync(clientPath, client)
+    const typesPath = resolve(packageRoot, 'lib', 'types', 'client', 'index.d.ts')
+    const types = readFileSync(typesPath, 'utf8')
+    if (!types.includes(COMPOSER_TYPES_ANCHOR)) {
+      throw new Error(`patch-runtime: 未找到 Conversation composer 类型锚点(${typesPath})`)
+    }
+    writeFileSync(typesPath, types.replace(COMPOSER_TYPES_ANCHOR, COMPOSER_TYPES_REPLACEMENT))
+  }
+  conversationPatched += 1
+  process.stdout.write(`patch-runtime: shared ComposerSurface -> ${clientPath}\n`)
+}
+if (conversationPatched === 0) {
+  throw new Error('patch-runtime: 没有找到 DSH Conversation 运行时;先运行 yarn install')
+}
