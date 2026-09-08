@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { selectMacSigningMode } from './resolve-mac-signing.mjs'
+import { selectMacSigningMode } from './mac-signing-resolve.mjs'
 
 const complete = {
   MAC_CERT_P12_BASE64: 'certificate',

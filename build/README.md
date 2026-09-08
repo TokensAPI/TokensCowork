@@ -10,7 +10,7 @@
 
 ```text
 build/
-├─ build-desktop.mjs   # 总调度(唯一知道执行顺序的地方):check、Windows、macOS
+├─ desktop-build.mjs   # 总调度(唯一知道执行顺序的地方):check、Windows、macOS
 ├─ product.yarn.lock   # 产品固定依赖图
 ├─ steps/              # 流程步骤:被调度器/脚本按序执行
 ├─ overlays/           # 领域覆盖:被 steps 调用的纯函数改写模块(见其 README)
@@ -21,19 +21,19 @@ build/
 
 ## 命名规则(全部可执行文件同一语法)
 
-`<动词>-<对象>[-<限定>].mjs` —— 文件名独立可读:第一段是动作,对象段
-点名作用位置。
+`<对象/位置>-<动词>[-<限定>].mjs` —— 名词领头,一眼可见"在哪里、做什么";
+目录内按字母排序即按领域聚簇(staging-*、market-*、mac* 各成一组)。
 
-1. 动词封闭表:fetch / prepare / patch / compile / prune / configure /
-   refresh / build / resolve / verify / smoke / overlay / sign。
-2. 作用于 staging 的步骤与门禁,对象段显式带 `staging`
-   (如 patch-staging-runtime、verify-staging-branding)。
-3. 覆盖库统一以 `overlay-` 开头(如 overlay-branding、overlay-market-auth);
-   市场多文件主题在 `overlays/market/` 下仍以 `overlay-market-` 开头。
-4. `verify-` 为 CI 门禁,`smoke-` 为手动诊断,二者都在 verify/。
-5. 单测同名同目录 `<name>.test.mjs`;`assets/` 下的素材数据用名词,
-   是唯一不套动词语法的文件。
-
+1. 对象段点名作用位置:作用于 staging 的显式以 `staging-` 开头
+   (staging-prepare、staging-runtime-patch、staging-branding-verify);
+   仓库级用 repo-,产品级用 product-,打包产物用 packaged-。
+2. 动词收尾,封闭表:fetch / prepare / patch / compile / prune /
+   configure / refresh / build / resolve / verify / smoke / overlay / sign。
+3. 覆盖库以 `-overlay` 收尾(branding-overlay、market-auth-overlay);
+   市场主题在 overlays/market/ 下以 `market-` 开头。
+4. `-verify` 结尾为 CI 门禁,`-smoke` 结尾为手动诊断,都在 verify/。
+5. 单测同名同目录 `<name>.test.mjs`;`assets/` 下的素材数据用纯名词,
+   是唯一不带动词的文件。
 ## 构建流程
 
 所有完整检查和平台打包都先执行同一套干净装配：

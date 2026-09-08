@@ -1,9 +1,9 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, relative, resolve, sep } from 'node:path'
 
-import { brandDesktopPatch } from '../overlays/overlay-branding.mjs'
-import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/overlay-market-auth.mjs'
-import { separateInstalledSystemComponents } from '../overlays/market/overlay-market-installed-ui.mjs'
+import { brandDesktopPatch } from '../overlays/branding-overlay.mjs'
+import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/market-auth-overlay.mjs'
+import { separateInstalledSystemComponents } from '../overlays/market/market-installed-ui-overlay.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
@@ -11,10 +11,10 @@ import {
   pinDesktopMarketProvider,
   protectDesktopStderr,
   skipDesktopSetupWizard,
-} from '../overlays/overlay-desktop-runtime.mjs'
-import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from '../overlays/market/overlay-market-source.mjs'
-import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../overlays/overlay-updates.mjs'
-import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../overlays/overlay-windows-acl.mjs'
+} from '../overlays/desktop-runtime-overlay.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from '../overlays/market/market-source-overlay.mjs'
+import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../overlays/updates-overlay.mjs'
+import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../overlays/windows-acl-overlay.mjs'
 
 /* ====================================================================
  * 路径与产品清单
@@ -137,7 +137,7 @@ assertGeneratedPath(stage)
 clearStageKeepingModules()
 copySource(desktopSource, stage)
 cpSync(
-  resolve(root, 'build', 'hooks', 'sign-mac-adhoc.ts'),
+  resolve(root, 'build', 'hooks', 'mac-adhoc-sign.ts'),
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
 for (const [sourceName, destinationParts] of [

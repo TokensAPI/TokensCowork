@@ -45,12 +45,12 @@ npx wrangler d1 execute tokenscowork-market-access --remote --file market/script
 
 ## 桌面接入边界
 
-当前已发布 Desktop 的标准市场源请求不携带客户 API Key，因此仍只显示公开目录。产品构建层现已加入 `build/overlays/market/overlay-market-auth.mjs`：通过可选的统一 credentials 服务读取 `TOKENSAPI_API_KEY`，仅向产品市场 HTTPS origin 的目录接口发送 Bearer Header；不依赖模型插件，不向 npm/GitHub、管理接口或跨域重定向目标透传。无 Key 时正常读取公开目录。下次请求检测到 Key 变化时清理内存目录和游标，不使用未分用户的磁盘目录兜底。需要后续构建并安装新版才能使用；本次未打包发布。后台撤销权限后，已打开目录需刷新才能更新。
+当前已发布 Desktop 的标准市场源请求不携带客户 API Key，因此仍只显示公开目录。产品构建层现已加入 `build/overlays/market/market-auth-overlay.mjs`：通过可选的统一 credentials 服务读取 `TOKENSAPI_API_KEY`，仅向产品市场 HTTPS origin 的目录接口发送 Bearer Header；不依赖模型插件，不向 npm/GitHub、管理接口或跨域重定向目标透传。无 Key 时正常读取公开目录。下次请求检测到 Key 变化时清理内存目录和游标，不使用未分用户的磁盘目录兜底。需要后续构建并安装新版才能使用；本次未打包发布。后台撤销权限后，已打开目录需刷新才能更新。
 
 上游标准安装契约只支持 npm/GitHub；它不会自动安装 `/downloads/<id>` 的 R2 包。私有包自动安装仍需对应安装适配器，包含完整性、许可证与重启/更新流程校验。当前受保护下载接口可供携带凭证的客户端下载文件，不能宣称现有 Desktop 已完成私有安装闭环。
 
 ## 验证
 
-`node --test market/tests/access.test.mjs` 使用真实内存 SQLite 验证鉴权、跨 Key 隔离、撤销、到期、失败关闭与指纹存储。`node build/verify/verify-market-catalog.mjs` 验证原有公开名册不漂移。
+`node --test market/tests/access.test.mjs` 使用真实内存 SQLite 验证鉴权、跨 Key 隔离、撤销、到期、失败关闭与指纹存储。`node build/verify/market-catalog-verify.mjs` 验证原有公开名册不漂移。
 
-市场维护工具和数据库初始化文件放在 `market/scripts/`，后台测试放在 `market/tests/`。桌面市场覆盖统一放在 `build/overlays/market/`：`overlay-market-source.mjs` 管理来源与界面，`overlay-market-auth.mjs` 和 `overlay-market-auth.test.mjs` 负责透传及测试，不属于后台工具。Worker 拒绝对外读取市场脚本和测试目录。
+市场维护工具和数据库初始化文件放在 `market/scripts/`，后台测试放在 `market/tests/`。桌面市场覆盖统一放在 `build/overlays/market/`：`market-source-overlay.mjs` 管理来源与界面，`market-auth-overlay.mjs` 和 `market-auth-overlay.test.mjs` 负责透传及测试，不属于后台工具。Worker 拒绝对外读取市场脚本和测试目录。

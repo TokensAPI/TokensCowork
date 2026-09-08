@@ -18,9 +18,9 @@ import {
   upstreamProductName,
   upstreamRuntimeProductName,
   upstreamWindowTitle,
-} from '../overlays/overlay-branding.mjs'
-import { configureProductUpdates } from '../overlays/overlay-updates.mjs'
-import { applyWindowsInstallerGuard, pinNsisResources } from '../overlays/overlay-windows-installer.mjs'
+} from '../overlays/branding-overlay.mjs'
+import { configureProductUpdates } from '../overlays/updates-overlay.mjs'
+import { applyWindowsInstallerGuard, pinNsisResources } from '../overlays/windows-installer-overlay.mjs'
 
 /* ----------------------- 路径与产品清单 ----------------------- */
 const root = resolve(import.meta.dirname, '..', '..')

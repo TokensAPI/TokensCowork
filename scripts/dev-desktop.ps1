@@ -97,8 +97,8 @@ if (-not $Prepare -and $autoPrepare) {
 }
 
 if ($Prepare) {
-  Invoke-Step '拉取插件产物' $root 'node build\steps\fetch-plugin-artifacts.mjs'
-  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\steps\prepare-staging.mjs'
+  Invoke-Step '拉取插件产物' $root 'node build\steps\plugin-artifacts-fetch.mjs'
+  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\steps\staging-prepare.mjs'
   Invoke-Step '安装依赖（约 5 分钟）' $stage 'corepack yarn install --immutable'
 }
 
@@ -123,7 +123,7 @@ if (-not $configureNeeded) {
   }
 }
 if ($configureNeeded) {
-  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\configure-staging-product.mjs'
+  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\staging-product-configure.mjs'
   $Build = $true
 }
 

@@ -12,7 +12,7 @@
  *      2.4.4 而 product.json 已到 2.5.0，因为升插件和改市场是两条
  *      互不相干的工作流。
  *
- * 入口：pnpm/yarn market:check，以及 build/verify/verify-repo-layout.mjs 在发版
+ * 入口：pnpm/yarn market:check，以及 build/verify/repo-layout-verify.mjs 在发版
  * 校验时一并调用。
  * ============================================================ */
 import { readFileSync } from 'node:fs'
