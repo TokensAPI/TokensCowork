@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TokensCowork · 插件管理</title><link rel="stylesheet" href="/admin/market-admin.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TokensCowork · 插件管理</title><link rel="stylesheet" href="/admin/assets/market-admin.css"></head>
 <body class="signed-out">
 <aside><div class="brand">T<span>TokensCowork<small>插件管理工作台</small></span></div><nav><a href="#plugins-panel">▦　插件与权限</a><a href="#organizations-panel">◉　组织名录</a></nav><p class="sidebar-note">一个市场，灵活分配。<br>按组织或单独 Key 管理访问。</p></aside>
 <main>
@@ -18,4 +18,4 @@
 <h3>可见组织</h3><input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索组织"><div id="organization-options"></div>
 <h3>单独 API Key</h3><p class="muted">新录入的 Key 加密保存，登录后完整显示。旧记录只有指纹，需要重新粘贴原 Key 并保存才能补全，不影响原授权。</p><div id="saved-keys"></div><textarea id="api-keys" rows="4" autocomplete="off" spellcheck="false" placeholder="粘贴 API Key，每行一个，以 sk- 开头" aria-label="新增 API Key"></textarea>
 <p id="legacy-note" class="notice" hidden>原有有效 Key 已保留。保存后统一使用此处的组织与 Key 配置。</p><p id="public-confirmation" hidden><label><input id="confirm-public" type="checkbox">确认将此受限插件改为所有人可见</label></p><output id="plugin-error" role="alert"></output><div class="dialog-footer"><span id="permission-summary"></span><button type="submit">保存权限</button></div></form></dialog>
-<script type="module" src="/admin/organization-ui.js"></script></body></html>
+<script type="module" src="/admin/assets/market-admin.js"></script></body></html>

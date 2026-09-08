@@ -10,7 +10,7 @@
 
 为 `tokenscowork-market` Pages 的生产环境配置：
 
-- D1 绑定 `MARKET_DB`，执行 `market/scripts/schema.sql` 初始化。
+- D1 绑定 `MARKET_DB`，执行 `market/database/migrations/001-market-access.sql` 初始化。
 - Secret `MARKET_ADMIN_TOKEN`：独立随机管理员凭证，建议至少 32 字节随机值。
 - Secret `MARKET_HMAC_SECRET`：独立随机指纹密钥，建议至少 32 字节随机值；更换它会使现有 Key 绑定失效，需要重新录入。
 - 环境变量 `MARKET_ACCESS_REQUIRED=true`：授权存储或密钥缺失时拒绝请求，避免配置丢失时回退到公开静态目录。
@@ -20,12 +20,12 @@
 
 ```powershell
 npx wrangler d1 create tokenscowork-market-access
-npx wrangler d1 execute tokenscowork-market-access --remote --file market/scripts/schema.sql
+npx wrangler d1 execute tokenscowork-market-access --remote --file market/database/migrations/001-market-access.sql
 ```
 
 在 Pages 设置中绑定上述 D1/R2 和密钥。当前仓库不包含这些部署凭据与数据库 ID。
 
-2026-09-08 已为生产项目完成 D1 初始化、两个 Secret 与必需授权变量配置，并部署后台。管理员凭证通过当前 Windows 用户的 DPAPI 加密保存在忽略目录 `.build/market-admin.credential.xml`；运行 `market/scripts/copy-admin-token.ps1` 可复制到剪贴板登录。该文件无法由另一台机器或其他 Windows 用户解密，删除前应另行妥善保管管理员凭证。R2 私有包存储尚未配置，当前没有上传任何私有安装包。
+2026-09-08 已为生产项目完成 D1 初始化、两个 Secret 与必需授权变量配置，并部署后台。管理员凭证通过当前 Windows 用户的 DPAPI 加密保存在忽略目录 `.build/market-admin.credential.xml`；运行 `market/ops/market-copy-admin-token.ps1` 可复制到剪贴板登录。该文件无法由另一台机器或其他 Windows 用户解密，删除前应另行妥善保管管理员凭证。R2 私有包存储尚未配置，当前没有上传任何私有安装包。
 
 ## 接口
 
@@ -53,4 +53,4 @@ npx wrangler d1 execute tokenscowork-market-access --remote --file market/script
 
 `node --test market/tests/access.test.mjs` 使用真实内存 SQLite 验证鉴权、跨 Key 隔离、撤销、到期、失败关闭与指纹存储。`node build/verify/market-catalog-verify.mjs` 验证原有公开名册不漂移。
 
-市场维护工具和数据库初始化文件放在 `market/scripts/`，后台测试放在 `market/tests/`。桌面市场覆盖统一放在 `build/overlays/market/`：`market-source-overlay.mjs` 管理来源与界面，`market-auth-overlay.mjs` 和 `market-auth-overlay.test.mjs` 负责透传及测试，不属于后台工具。Worker 拒绝对外读取市场脚本和测试目录。
+市场维护工具放在 `market/ops/`，数据库脚本放在 `market/database/migrations/`，后台测试放在 `market/tests/`。桌面市场覆盖统一放在 `build/overlays/market/`：`market-source-overlay.mjs` 管理来源与界面，`market-auth-overlay.mjs` 和 `market-auth-overlay.test.mjs` 负责透传及测试，不属于后台工具。Worker 拒绝对外读取市场脚本和测试目录。

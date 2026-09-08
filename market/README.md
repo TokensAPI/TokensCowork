@@ -1,4 +1,50 @@
-# TokensAPI 插件市场目录源
+# TokensCowork 插件市场与管理后台
+
+## 工程结构与边界
+
+```text
+market/
+├── _worker.js                  Cloudflare 约定入口，仅转发
+├── _headers                    静态响应头与页面安全策略
+├── server/
+│   ├── market-worker.js        请求分发、目录与 npm 版本查询
+│   ├── routes/                 管理与下载 HTTP 路由
+│   ├── services/               插件访问规则、组织提供方适配
+│   ├── security/               会话、Key 指纹与加密存储
+│   └── http/                   请求解析、校验与响应
+├── admin/
+│   ├── index.html              管理页面结构，URL 保持 /admin/
+│   ├── access.html             旧入口兼容跳转
+│   └── assets/                 market-admin.js / market-api.js / market-admin.css
+├── database/migrations/        按编号执行的幂等 SQL
+├── ops/                        运维脚本与检查工具，不对公网开放
+├── tests/                      权限、会话、加密、目录与静态隔离测试
+├── legacy/admin/               未加载的历史页面脚本，仅供迁移参考
+├── roster.json                 唯一插件名册
+├── source.config.json          市场源配置
+└── package.json                统一维护命令
+```
+
+### 分层约定
+
+- HTTP 路由负责鉴权、输入校验与响应；访问规则在 services，密码学操作在 security。页面不直接调用数据库或组织提供方。
+- 浏览器请求统一走 `admin/assets/market-api.js`；该模块不操作 DOM。页面状态与交互在 `market-admin.js`，后续再按功能拆分，不为目录重排引入框架。
+- 文件采用小写 kebab-case；前端资源和运维入口保留 `market-` 前缀。Cloudflare 强制的 `_worker.js` / `_headers` 不改名。
+- 静态资源采用显式白名单，新增前端资源须同步 `server/market-worker.js`。源码、数据库、运维、测试、历史文件不公开提供。
+- 桌面产品覆盖仍在父仓库 `build/overlays/market/`，不混入市场后台，不修改只读子模块。
+- 现有 API、Cookie 名称、会话有效期与授权数据保持兼容。SQL 的 001/002 是现有幂等基线，不是新的数据库重建；后续变更另建递增编号脚本，禁止重置生产表。
+
+### 常用命令（父仓库根目录）
+
+```powershell
+npm --prefix market run verify  # 语法、相对引用、测试、名册一致性
+npm --prefix market test        # 后端回归
+npm --prefix market run build   # 生成现有部署产物
+```
+
+部署仍使用 Cloudflare Pages 的现有项目，CI 已同步新路径。部署前按序执行 database/migrations 中的 SQL，再生成目录并上传 market。
+生成产物 `source.json` 和 `v1/plugins` 不手改；不要将凭证、会话令牌或安装包加入版本库。
+完整 Key 的加密密钥和授权指纹密钥必须保留，目录重构不轮换任何秘密。
 
 本目录是 DSH Community Market「标准目录源」的 Cloudflare Pages 实现，只收录 TokensCowork 产品自有插件。插件目录数据的唯一来源是 `roster.json`。产品装配会预置并默认选中该官方源，无需用户手动登记。
 

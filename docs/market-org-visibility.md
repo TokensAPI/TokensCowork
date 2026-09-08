@@ -62,10 +62,10 @@
 - `PUT /api/admin/plugin-organizations`：`{id, metadata, objectKey, organizationIds: 数字数组, confirmPublic?: true}`。组织必须先登记，空数组表示公开；受限插件改公开必须明确确认。一次事务替换该插件的组织策略。
 - `GET /api/admin/access`：额外返回 organizations、organizationPolicies、organizationGrants、organizationProviderReady、organizationListReady，仅管理员可读。
 - `PUT /api/admin/organizations/sync`：后台组织列表接入后可同步。同步保留本地停用状态，不因列表遗漏删除已有授权；未接入返回 503。
-- `market/scripts/organization-schema.sql` 是可重复运行的新增表迁移，发布流程先迁移再部署。不会更改旧插件可见范围或清除旧 Key 数据；只有管理员保存某插件时，该插件才改用组织策略。
+- `market/database/migrations/002-organizations-keys-sessions.sql` 是可重复运行的新增表迁移，发布流程先迁移再部署。不会更改旧插件可见范围或清除旧 Key 数据；只有管理员保存某插件时，该插件才改用组织策略。
 - 目录每个请求只查询一次身份；下载逐次复用组织判断。查询失败返回 503、无效身份无受限权限、不允许旧 Key 规则绕过组织策略。
 
-`market/organizations.js` 是唯一的外部组织适配入口。目前定义的是**我方内部契约**，并非猜测 TokensAPI URL：
+`market/server/services/organization-service.js` 是唯一的外部组织适配入口。目前定义的是**我方内部契约**，并非猜测 TokensAPI URL：
 
 ```js
 // 私有后端依赖，测试时注入；线上尚未连接实际提供方。

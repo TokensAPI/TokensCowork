@@ -1,15 +1,12 @@
+import { marketRequest } from './market-api.js'
 const $ = id => document.getElementById(id)
 let state, plugins=[], selectedPlugin, busy=false, filter='all', retained=new Set()
 let category='all'
 let keyValues=new Map()
 const isBuiltin=p=>p.category==='builtin'
 const node=(tag,text,className='')=>{const el=document.createElement(tag);el.textContent=text;el.className=className;return el}
-async function json(path,data) {
-  const response=await fetch(path,{method:data?'PUT':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:data?{'content-type':'application/json'}:{},...(data?{body:JSON.stringify(data)}:{})})
-  const value=await response.json()
-  if(response.status===401){lock();throw new Error('管理凭证无效，请重新登录。')}
-  if(!response.ok) throw new Error(value.error||'请求失败')
-  return value
+async function json(path,data){
+  try{return await marketRequest(path,data)}catch(error){if(error.status===401)lock();throw error}
 }
 async function action(fn) {
   if(busy)return

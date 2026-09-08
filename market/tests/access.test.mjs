@@ -3,9 +3,18 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import worker from '../_worker.js'
-import { fingerprint } from '../access.js'
+import { fingerprint } from '../server/security/key-fingerprint.js'
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
+test('public admin entry and split assets remain reachable after directory refactor',async t=>{
+  const {call}=fixture(t)
+  for(const path of ['/admin/','/admin/index.html','/admin/access.html','/admin/assets/market-admin.js','/admin/assets/market-api.js','/admin/assets/market-admin.css','/source.json']){
+    assert.equal((await call(path)).status,200,path)
+  }
+  for(const path of ['/admin/organization-ui.js','/admin/status-ui.js','/admin/assets/unknown.js','/%73erver/security/admin-session.js']){
+    assert.equal((await call(path)).status,404,path)
+  }
+})
 test('session persists across requests, blocks CSRF and is revoked on logout',async t=>{
   const {env,db}=fixture(t)
   const call=(path,method='GET',cookie='',origin='https://market.example',data={})=>worker.fetch(new Request('https://market.example/api/admin/'+path,{method,headers:{Cookie:cookie,Origin:origin},...(method==='PUT'?{body:JSON.stringify(data)}:{})}),env,{})
@@ -145,8 +154,8 @@ test('legacy Key can be explicitly retained only before migration',async t=>{
 })
 function fixture(t) {
   const db = new DatabaseSync(':memory:')
-  db.exec(readFileSync(new URL('../scripts/schema.sql', import.meta.url), 'utf8'))
-  db.exec(readFileSync(new URL('../scripts/organization-schema.sql', import.meta.url), 'utf8'))
+  db.exec(readFileSync(new URL('../database/migrations/001-market-access.sql', import.meta.url), 'utf8'))
+  db.exec(readFileSync(new URL('../database/migrations/002-organizations-keys-sessions.sql', import.meta.url), 'utf8'))
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({ bind: (...v) => wrap(sql, v), first: async () => db.prepare(sql).get(...values), all: async () => ({ results: db.prepare(sql).all(...values) }), run: async () => db.prepare(sql).run(...values) })
   const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret', MARKET_KEY_ENCRYPTION_SECRET:'test-encryption-secret',
@@ -165,7 +174,7 @@ test('admin endpoints reject unauthenticated and customer credentials', async t 
 
 test('maintenance scripts and tests are not public assets', async t => {
   const { call } = fixture(t)
-  for (const path of ['/scripts/schema.sql','/tests/access.test.mjs','/%73cripts/schema.sql']) {
+  for (const path of ['/scripts/schema.sql','/tests/access.test.mjs','/%73cripts/schema.sql','/server/market-worker.js','/server/security/key-vault.js','/database/migrations/001-market-access.sql','/ops/market-copy-admin-token.ps1','/legacy/admin/market-access.js','/roster-not-public.json','/package.json','/README.md','/source.config.json']) {
     assert.equal((await call(path)).status, 404)
   }
 })
