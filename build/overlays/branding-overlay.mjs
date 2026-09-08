@@ -291,16 +291,23 @@ export function brandInstalledRuntimePrompts({ stage, productName }) {
 
   const replaceOnce = (path, replacements) => {
     let content = readFileSync(path, 'utf8')
+    let changed = false
     for (const [from, to, expected] of replacements) {
       const count = content.split(from).length - 1
-      if (count !== expected) {
-        throw new Error(
-          `configure-product: 品牌锚点 "${from.slice(0, 48)}..." 在 ${path} 出现 ${count} 次,预期 ${expected} 次`,
-        )
+      if (count === expected) {
+        content = content.replaceAll(from, to)
+        changed = true
+        continue
       }
-      content = content.replaceAll(from, to)
+      // node_modules 跨装配保留（见 steps/staging-prepare.mjs），本函数因此会撞上
+      // 自己上一轮改过的文件：锚点已经不在，但替换结果按预期次数在位。那是已生效，
+      // 不是上游漂移——上游真变了的话两者都对不上，仍旧抛错。
+      if (count === 0 && content.split(to).length - 1 === expected) continue
+      throw new Error(
+        `configure-product: 品牌锚点 "${from.slice(0, 48)}..." 在 ${path} 出现 ${count} 次,预期 ${expected} 次`,
+      )
     }
-    writeFileSync(path, content)
+    if (changed) writeFileSync(path, content)
   }
 
   // 1) app-boot:源码检出说明行("The DeepSeek Harness implementation checkout is at...")。
