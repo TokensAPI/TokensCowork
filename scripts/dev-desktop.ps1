@@ -5,13 +5,13 @@
 #   powershell -File scripts\dev-desktop.ps1 -Watch       # 热加载：改代码自动重编，窗口内 Ctrl+R 生效
 #   powershell -File scripts\dev-desktop.ps1 -Build       # 改了代码、没开 -Watch 时，强制重建再启动
 #   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
-#   powershell -File scripts\dev-desktop.ps1 -Prepare     # 改过 build/assembly/overlays/** 后先重新装配
+#   powershell -File scripts\dev-desktop.ps1 -Prepare     # 改过 build/overlays/** 后先重新装配
 #
 # 热加载范围：
 # - 市场客户端 / 桌面渲染层（.build/desktop/*/src 下的 client、native-ui 代码）：
 #   保存后 watcher 自动重编，回应用窗口按 Ctrl+R 即见效果。
 # - Electron 主进程代码：watcher 会自动重编，但要关掉应用重新跑本脚本（默认即秒起）。
-# - overlay（build/assembly/overlays/**）：必须 -Prepare 重新装配才会进 staging。
+# - overlay（build/overlays/**）：必须 -Prepare 重新装配才会进 staging。
 #   在 staging 里直接改源码迭代最快，但最终务必落回 overlay，否则下次装配即丢失。
 #
 # 数据模式：
@@ -83,9 +83,8 @@ $prepareInputs = @(
   Get-Item (Join-Path $root 'build\product.yarn.lock')
   Get-Item (Join-Path $root 'market\source.json')
   Get-Item (Join-Path $root 'market\source.config.json')
-  Get-ChildItem (Join-Path $root 'build\assembly') -Recurse -File |
+  Get-ChildItem (Join-Path $root 'build\steps'), (Join-Path $root 'build\overlays'), (Join-Path $root 'build\assets'), (Join-Path $root 'build\hooks') -Recurse -File |
     Where-Object { $_.Extension -ne '.md' }
-  Get-ChildItem (Join-Path $root 'build\plugins') -Filter '*.mjs' -File
 )
 $autoPrepare = -not (Test-Path $prepareProbe)
 if (-not $autoPrepare) {
@@ -98,8 +97,8 @@ if (-not $Prepare -and $autoPrepare) {
 }
 
 if ($Prepare) {
-  Invoke-Step '拉取插件产物' $root 'node build\plugins\fetch-artifacts.mjs'
-  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\assembly\prepare.mjs'
+  Invoke-Step '拉取插件产物' $root 'node build\steps\fetch-plugin-artifacts.mjs'
+  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\steps\prepare-staging.mjs'
   Invoke-Step '安装依赖（约 5 分钟）' $stage 'corepack yarn install --immutable'
 }
 
@@ -124,7 +123,7 @@ if (-not $configureNeeded) {
   }
 }
 if ($configureNeeded) {
-  Invoke-Step '注入产品品牌与 Logo' $root 'node build\assembly\configure.mjs'
+  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\configure-product.mjs'
   $Build = $true
 }
 

@@ -184,7 +184,7 @@ if (manifest.plugins.some(plugin => plugin.enabledByDefault === true)
 
 // 市场名册、产品清单和生成快照各写一份内置插件版本，三者曾经分叉，
 // 发版校验时一并核对。
-execFileSync(process.execPath, [resolve(root, 'build', 'verify', 'market.mjs')], {
+execFileSync(process.execPath, [resolve(root, 'build', 'verify', 'verify-market.mjs')], {
   cwd: root,
   stdio: 'inherit',
 })

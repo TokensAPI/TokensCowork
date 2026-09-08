@@ -18,15 +18,15 @@ import {
   upstreamProductName,
   upstreamRuntimeProductName,
   upstreamWindowTitle,
-} from './overlays/branding.mjs'
-import { configureProductUpdates } from './overlays/updates.mjs'
-import { applyWindowsInstallerGuard, pinNsisResources } from './overlays/windows-installer.mjs'
+} from '../overlays/branding.mjs'
+import { configureProductUpdates } from '../overlays/updates.mjs'
+import { applyWindowsInstallerGuard, pinNsisResources } from '../overlays/windows-installer.mjs'
 
 /* ----------------------- 路径与产品清单 ----------------------- */
 const root = resolve(import.meta.dirname, '..', '..')
 const stage = resolve(root, '.build', 'desktop')
-const productBrandRoot = resolve(import.meta.dirname, 'assets', 'brand')
-const windowsInstallerRoot = resolve(import.meta.dirname, 'assets', 'windows')
+const productBrandRoot = resolve(import.meta.dirname, '..', 'assets', 'brand')
+const windowsInstallerRoot = resolve(import.meta.dirname, '..', 'assets', 'windows')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const product = manifest.product
 const hasProductUpdatePlugin = manifest.plugins.some(

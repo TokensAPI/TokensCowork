@@ -126,7 +126,7 @@ export declare const ComposerSurface: import('react').ForwardRefExoticComponent<
 declare module '@deepseek-ai/cordis' {`
 
 const EXTERNAL_COMPOSER_MARKER = 'TokensCowork native external composer'
-const externalComposerRuntime = readFileSync(resolve(import.meta.dirname, 'external-composer-runtime.txt'), 'utf8').trimEnd()
+const externalComposerRuntime = readFileSync(resolve(import.meta.dirname, '..', 'assets', 'runtime', 'external-composer-runtime.txt'), 'utf8').trimEnd()
 const EXTERNAL_COMPOSER_ANCHOR = `\t\t});
 \t\t//#endregion
 \t\t//#region lib/types/client/skeleton/InputBar.js`

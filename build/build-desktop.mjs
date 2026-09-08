@@ -53,7 +53,7 @@ function run(command, args, cwd, env = process.env) {
 function configureProduct(environment = process.env, packagingTarget = 'default') {
   run(
     process.execPath,
-    [resolve(root, 'build', 'assembly', 'configure.mjs'), packagingTarget],
+    [resolve(root, 'build', 'steps', 'configure-product.mjs'), packagingTarget],
     root,
     environment,
   )
@@ -78,7 +78,7 @@ function prepareMacNativeRuntime(architectures, environment = process.env) {
 
 /** 验证产品品牌已经进入源码配置与编译后的运行时闭包。 */
 function verifyProductBranding(environment = process.env) {
-  run(process.execPath, [resolve(root, 'build', 'verify', 'branding.mjs')], root, environment)
+  run(process.execPath, [resolve(root, 'build', 'verify', 'verify-branding.mjs')], root, environment)
 }
 
 /** 配置、编译并验收一个可供平台打包器消费的产品工作区。 */
@@ -114,20 +114,20 @@ const buildEnvironment = mode === 'mac' ? withoutMacReleaseSecrets(process.env) 
 // 先验证所有 Git pin 与产品声明，再把只读来源复制到 staging 工作区。
 run(
   process.execPath,
-  [resolve(root, 'build', 'verify', 'layout.mjs'), '--require-clean'],
+  [resolve(root, 'build', 'verify', 'verify-layout.mjs'), '--require-clean'],
   root,
   buildEnvironment,
 )
-run(process.execPath, [resolve(root, 'build', 'plugins', 'fetch-artifacts.mjs')], root, buildEnvironment)
-run(process.execPath, [resolve(root, 'build', 'assembly', 'prepare.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'fetch-plugin-artifacts.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'prepare-staging.mjs')], root, buildEnvironment)
 
 // staging 必须严格复用已提交的产品锁文件；插件仅在 staging 中编译和裁剪。
 run('corepack', ['yarn', 'install', '--immutable'], stage, buildEnvironment)
 // 预设健康检查的 asar 感知补丁必须在打包前落进已安装的运行时,
 // verify-package 会按补丁标记验收(v0.4.x 真机回归的防线)。
-run(process.execPath, [resolve(root, 'build', 'assembly', 'patch-runtime.mjs')], root, buildEnvironment)
-run(process.execPath, [resolve(root, 'build', 'plugins', 'compile.mjs')], root, buildEnvironment)
-run(process.execPath, [resolve(root, 'build', 'plugins', 'prune.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'patch-runtime.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'compile-plugins.mjs')], root, buildEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'prune-plugins.mjs')], root, buildEnvironment)
 
 // 许可证门禁必须早于任何可分发安装包的生成。
 run(
@@ -233,7 +233,7 @@ if (mode === 'check') {
     '--config.win.signExecutable=false',
     '--config.npmRebuild=false',
   ], stage, unsignedEnvironment)
-  run(process.execPath, [resolve(root, 'build', 'verify', 'package.mjs'), 'windows'], root)
+  run(process.execPath, [resolve(root, 'build', 'verify', 'verify-packaged-app.mjs'), 'windows'], root)
 } else {
   /* ----------------------- 正式 macOS 安装包 ----------------------- */
   // 通用质量门禁由同一次工作流的 Windows 任务负责；产品配置会移除上游

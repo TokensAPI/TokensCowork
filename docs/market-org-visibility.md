@@ -119,7 +119,7 @@ GET /t/<token>/source.json:
 
 ## 六、客户端接入
 
-产品打包目前隐藏了市场「添加标准来源」按钮（`build/assembly/overlays/
+产品打包目前隐藏了市场「添加标准来源」按钮（`build/overlays/
 market.mjs` 覆盖 3）。启用组织源需要二选一：
 
 - **恢复添加按钮**（推荐，改动最小）：企业客户拿到 URL 后在

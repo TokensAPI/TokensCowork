@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events'
 import { addMarketAuth } from './market-auth.mjs'
 import { allowMarketSourceSyntheticProxy } from './market-source.mjs'
 
-const base = new URL('../../../../desktop/dsh-community-market/src/', import.meta.url)
+const base = new URL('../../../desktop/dsh-community-market/src/', import.meta.url)
 const sources = Object.fromEntries(Object.entries({http:'network/restricted-http.ts',routes:'host/routes.ts',index:'index.ts'})
   .map(([k,p]) => [k,readFileSync(new URL(p,base),'utf8').replaceAll('\r\n','\n')]))
 const origin = 'https://tokenscowork-market.pages.dev'

@@ -27,8 +27,8 @@ const refreshEnvironment = {
   ...process.env,
   PRODUCT_REFRESH_LOCK: '1',
 }
-run(process.execPath, [resolve(root, 'build', 'plugins', 'fetch-artifacts.mjs')], root, refreshEnvironment)
-run(process.execPath, [resolve(root, 'build', 'assembly', 'prepare.mjs')], root, refreshEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'fetch-plugin-artifacts.mjs')], root, refreshEnvironment)
+run(process.execPath, [resolve(root, 'build', 'steps', 'prepare-staging.mjs')], root, refreshEnvironment)
 run('corepack', ['yarn', 'install', '--mode=update-lockfile'], stage)
 copyFileSync(resolve(stage, 'yarn.lock'), resolve(root, 'build', 'product.yarn.lock'))
 rmSync(stage, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })

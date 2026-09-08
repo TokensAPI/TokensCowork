@@ -6,15 +6,27 @@
 
 ## 目录
 
+每个目录只回答一个问题——这类文件被谁、在什么时机调用:
+
 ```text
 build/
-├─ build-desktop.mjs   # check、Windows、macOS 调度入口
+├─ build-desktop.mjs   # 总调度(唯一知道执行顺序的地方):check、Windows、macOS
 ├─ product.yarn.lock   # 产品固定依赖图
-├─ assembly/           # staging 与产品配置
-├─ plugins/            # 插件获取、编译和裁剪
-├─ verify/             # 布局、品牌和最终包验收
-└─ macos/              # macOS 签名与打包 hook
+├─ steps/              # 流程步骤:被调度器/脚本按序执行
+├─ overlays/           # 领域覆盖:被 steps 调用的纯函数改写模块(见其 README)
+├─ verify/             # 门禁:只读幂等校验,任意时点可跑
+├─ hooks/              # 被外部工具(electron-builder 等)回调的
+└─ assets/             # 静态输入素材,由 steps 复制/读取
 ```
+
+## 命名规则
+
+1. steps:`<动词>-<宾语>.mjs`,动词表:fetch / prepare / patch / compile /
+   prune / configure / build / refresh / resolve。
+2. verify:CI 门禁 `verify-<对象>.mjs`;手动诊断工具 `smoke-<对象>.mjs`。
+3. overlays:主题名词;多文件主题建 `<主题>/` 目录,内部 `<主题>-<切面>.mjs`。
+4. hooks:`<时机>-<变体>.ts`。
+5. 单测同名同目录 `<name>.test.mjs`;步骤消费的数据文件放 `assets/`。
 
 ## 构建流程
 

@@ -1,9 +1,9 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, relative, resolve, sep } from 'node:path'
 
-import { brandDesktopPatch } from './overlays/branding.mjs'
-import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './overlays/market/market-auth.mjs'
-import { separateInstalledSystemComponents } from './overlays/market/market-installed-ui.mjs'
+import { brandDesktopPatch } from '../overlays/branding.mjs'
+import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/market-auth.mjs'
+import { separateInstalledSystemComponents } from '../overlays/market/market-installed-ui.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
@@ -11,10 +11,10 @@ import {
   pinDesktopMarketProvider,
   protectDesktopStderr,
   skipDesktopSetupWizard,
-} from './overlays/desktop-runtime.mjs'
-import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market/market-source.mjs'
-import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
-import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
+} from '../overlays/desktop-runtime.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from '../overlays/market/market-source.mjs'
+import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../overlays/updates.mjs'
+import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../overlays/windows-acl.mjs'
 
 /* ====================================================================
  * 路径与产品清单
@@ -137,7 +137,7 @@ assertGeneratedPath(stage)
 clearStageKeepingModules()
 copySource(desktopSource, stage)
 cpSync(
-  resolve(root, 'build', 'macos', 'unsigned-after-pack.ts'),
+  resolve(root, 'build', 'hooks', 'after-pack-unsigned-mac.ts'),
   resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
 )
 for (const [sourceName, destinationParts] of [
@@ -146,7 +146,7 @@ for (const [sourceName, destinationParts] of [
   ['product.spec.ts', ['tests', 'windows-acl-product.spec.ts']],
 ]) {
   cpSync(
-    resolve(root, 'build', 'assembly', 'assets', 'windows', 'acl', sourceName),
+    resolve(root, 'build', 'assets', 'windows', 'acl', sourceName),
     resolve(stage, 'dsh-plugin-desktop', ...destinationParts),
   )
 }
