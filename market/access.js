@@ -1,7 +1,9 @@
 import { organizationAccess, organizationState, validOrganizationId, syncOrganizations } from './organizations.js'
+import { sealKey, openKey } from './key-vault.js'
+import { validSession, createSession, endSession } from './admin-session.js'
 const enc = new TextEncoder()
 export const reply = (body, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'vary': 'Authorization' },
+  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'vary': 'Authorization, Cookie' },
 })
 function bearer(request) {
   return /^Bearer ([^\s]{1,512})$/u.exec(request.headers.get('authorization') ?? '')?.[1] ?? ''
@@ -11,7 +13,6 @@ export async function fingerprint(key, secret) {
   return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(key))), b => b.toString(16).padStart(2, '0')).join('')
 }
 async function admin(request, env) {
-  if (env.MARKET_ADMIN_MODE === 'open') return true
   const token = bearer(request)
   return token && env.MARKET_ADMIN_TOKEN && env.MARKET_HMAC_SECRET
     && await fingerprint(token, env.MARKET_HMAC_SECRET) === await fingerprint(env.MARKET_ADMIN_TOKEN, env.MARKET_HMAC_SECRET)
@@ -94,7 +95,32 @@ export async function accessRoute(request, env) {
       if (!object) return reply({ error: '安装包不存在' }, 404)
       return new Response(object.body, { headers: { 'content-type': 'application/octet-stream', 'cache-control': 'no-store', 'vary': 'Authorization', 'content-disposition': `attachment; filename="${row.id}.tgz"` } })
     }
-    if (!await admin(request, env)) return reply({ error: '管理员凭证无效' }, 401)
+    if(url.pathname==='/api/admin/login'){
+      if(request.method!=='PUT')return reply({error:'method not allowed'},405)
+      if(request.headers.get('origin')!==url.origin)return reply({error:'跨站请求被拒绝'},403)
+      let data
+      try{data=await body(request)}catch{return reply({error:'请求格式无效'},400)}
+      if(!text(data.credential,512)||!env.MARKET_ADMIN_TOKEN||await fingerprint(data.credential,env.MARKET_HMAC_SECRET)!==await fingerprint(env.MARKET_ADMIN_TOKEN,env.MARKET_HMAC_SECRET))return reply({error:'管理凭证无效'},401)
+      const response=reply({ok:true})
+      response.headers.set('set-cookie',await createSession(request,env))
+      return response
+    }
+    if(url.pathname==='/api/admin/logout'){
+      if(request.method!=='PUT')return reply({error:'method not allowed'},405)
+      if(request.headers.get('origin')!==url.origin)return reply({error:'跨站请求被拒绝'},403)
+      const response=reply({ok:true})
+      response.headers.set('set-cookie',await endSession(request,env))
+      return response
+    }
+    const bearerAdmin=await admin(request,env)
+    if (!bearerAdmin && !await validSession(request,env)) return reply({ error: '管理员凭证无效' }, 401)
+    if(!bearerAdmin && request.method!=='GET' && request.headers.get('origin')!==url.origin)return reply({error:'跨站请求被拒绝'},403)
+    if(request.method==='GET' && url.pathname==='/api/admin/plugin-key-values'){
+      const id=url.searchParams.get('id')
+      if(!idOK(id))return reply({error:'插件 ID 无效'},400)
+      const {results}=await env.MARKET_DB.prepare('SELECT v.fingerprint,v.encrypted_value FROM market_plugin_key_values v JOIN market_plugin_key_grants g ON g.plugin_id=v.plugin_id AND g.fingerprint=v.fingerprint WHERE v.plugin_id=?').bind(id).all()
+      return reply({keys:await Promise.all(results.map(async row=>({fingerprint:row.fingerprint,apiKey:await openKey(row.encrypted_value,id,row.fingerprint,env)})))})
+    }
     if (request.method === 'GET' && url.pathname === '/api/admin/roster') {
       const response = await env.ASSETS.fetch(new URL('/roster.json', request.url).toString())
       if (!response.ok) throw new Error('roster unavailable')
@@ -148,7 +174,7 @@ export async function accessRoute(request, env) {
       }
       const mixedMode=url.pathname==='/api/admin/plugin-access'
       const orgMode = url.pathname === '/api/admin/plugin-organizations' || mixedMode
-      let directFingerprints=[],addedFingerprints=[]
+      let directFingerprints=[],addedFingerprints=[],encryptedKeys=[]
       if(mixedMode) {
         if(!Array.isArray(data.apiKeys) || !Array.isArray(data.keepFingerprints) || data.apiKeys.length+data.keepFingerprints.length>100
           || !data.apiKeys.every(k=>text(k,512) && /^sk-\S+$/u.test(k)) || !data.keepFingerprints.every(fp=>/^[a-f0-9]{64}$/u.test(fp))) return reply({error:'API Key 格式无效，每行一个，最多 100 个'},400)
@@ -160,6 +186,7 @@ export async function accessRoute(request, env) {
         }
         addedFingerprints=await Promise.all(data.apiKeys.map(k=>fingerprint(k,env.MARKET_HMAC_SECRET)))
         directFingerprints=[...new Set([...data.keepFingerprints,...addedFingerprints])]
+        encryptedKeys=await Promise.all([...new Map(data.apiKeys.map((key,i)=>[addedFingerprints[i],key]))].map(async([fp,key])=>({fp,value:await sealKey(key,data.id,fp,env)})))
       } else if(orgMode) {
         const {results}=await env.MARKET_DB.prepare('SELECT fingerprint FROM market_plugin_key_grants WHERE plugin_id=?').bind(data.id??'').all()
         directFingerprints=results.map(r=>r.fingerprint)
@@ -208,6 +235,10 @@ export async function accessRoute(request, env) {
           ...data.organizationIds.map(id => env.MARKET_DB.prepare('INSERT INTO market_org_grants(plugin_id,organization_id) VALUES(?,?)').bind(data.id, id)),
           ...(mixedMode ? [env.MARKET_DB.prepare('DELETE FROM market_plugin_key_grants WHERE plugin_id=?').bind(data.id),
             ...directFingerprints.map(fp=>env.MARKET_DB.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').bind(data.id,fp))]:[]),
+          ...(mixedMode ? [
+            env.MARKET_DB.prepare('DELETE FROM market_plugin_key_values WHERE plugin_id=? AND fingerprint NOT IN (SELECT fingerprint FROM market_plugin_key_grants WHERE plugin_id=?)').bind(data.id,data.id),
+            ...encryptedKeys.map(({fp,value})=>env.MARKET_DB.prepare('INSERT INTO market_plugin_key_values(plugin_id,fingerprint,encrypted_value) VALUES(?,?,?) ON CONFLICT(plugin_id,fingerprint) DO UPDATE SET encrypted_value=excluded.encrypted_value').bind(data.id,fp,value))
+          ]:[]),
         ])
       } else if (simple) {
         await env.MARKET_DB.batch([

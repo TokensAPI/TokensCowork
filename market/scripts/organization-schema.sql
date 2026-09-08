@@ -1,4 +1,15 @@
 -- Additive and idempotent. Existing restricted plugins remain on legacy policy until explicitly saved.
+CREATE TABLE IF NOT EXISTS market_admin_sessions (
+  token_hash TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL,
+  credential_version TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS market_plugin_key_values (
+  plugin_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  encrypted_value TEXT NOT NULL,
+  PRIMARY KEY(plugin_id, fingerprint)
+);
 CREATE TABLE IF NOT EXISTS market_organizations (
   id INTEGER PRIMARY KEY CHECK(id > 0 AND id <= 9007199254740991),
   name TEXT NOT NULL,

@@ -6,6 +6,80 @@ import worker from '../_worker.js'
 import { fingerprint } from '../access.js'
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
+test('session persists across requests, blocks CSRF and is revoked on logout',async t=>{
+  const {env,db}=fixture(t)
+  const call=(path,method='GET',cookie='',origin='https://market.example',data={})=>worker.fetch(new Request('https://market.example/api/admin/'+path,{method,headers:{Cookie:cookie,Origin:origin},...(method==='PUT'?{body:JSON.stringify(data)}:{})}),env,{})
+  assert.equal((await call('login','PUT','','https://evil.example',{credential:'admin-secret'})).status,403)
+  assert.equal((await call('login','PUT','','https://market.example',{credential:'wrong'})).status,401)
+  const login=await call('login','PUT','','https://market.example',{credential:'admin-secret'})
+  assert.equal(login.status,200)
+  const header=login.headers.get('set-cookie'),cookie=header.split(';')[0]
+  for(const flag of ['HttpOnly','Secure','SameSite=Strict','Max-Age=604800'])assert.ok(header.includes(flag))
+  assert.ok(!header.includes('admin-secret'))
+  assert.notEqual(db.prepare('SELECT token_hash FROM market_admin_sessions').get().token_hash,cookie.split('=')[1])
+  for(let i=0;i<2;i++)assert.equal((await call('access','GET',cookie)).status,200)
+  assert.equal((await call('organizations','PUT',cookie,'https://evil.example',{id:1,name:'Org',enabled:true})).status,403)
+  assert.equal((await call('organizations','PUT',cookie,'',{id:1,name:'Org',enabled:true})).status,403)
+  assert.equal((await call('organizations','PUT',cookie,'https://market.example',{id:1,name:'Org',enabled:true})).status,200)
+  const logout=await call('logout','PUT',cookie)
+  assert.ok(logout.headers.get('set-cookie').includes('Max-Age=0'))
+  assert.equal((await call('access','GET',cookie)).status,401)
+})
+test('expired and password-invalidated sessions fail closed',async t=>{
+  const {env,db}=fixture(t)
+  const login=()=>worker.fetch(new Request('https://market.example/api/admin/login',{method:'PUT',headers:{Origin:'https://market.example'},body:JSON.stringify({credential:env.MARKET_ADMIN_TOKEN})}),env,{})
+  const check=cookie=>worker.fetch(new Request('https://market.example/api/admin/access',{headers:{Cookie:cookie}}),env,{})
+  let cookie=(await login()).headers.get('set-cookie').split(';')[0]
+  db.exec('UPDATE market_admin_sessions SET expires_at=0')
+  assert.equal((await check(cookie)).status,401)
+  cookie=(await login()).headers.get('set-cookie').split(';')[0]
+  env.MARKET_ADMIN_TOKEN='new-password'
+  assert.equal((await check(cookie)).status,401)
+  assert.equal((await check('__Host-market_session='+'a'.repeat(64))).status,401)
+})
+test('complete Keys are encrypted at rest, admin-only, retained and erased with grants',async t=>{
+  const {call,db}=fixture(t)
+  const save=(apiKeys,keepFingerprints=[])=>call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys,keepFingerprints,confirmPublic:true})
+  assert.equal((await save(['sk-new-secret'])).status,200)
+  const endpoint='/api/admin/plugin-key-values?id='+metadata.id
+  for(const key of [undefined,'wrong-password','sk-new-secret']){
+    const response=await call(endpoint,key)
+    assert.equal(response.status,401);assert.ok(!(await response.text()).includes('sk-new-secret'))
+  }
+  const ciphertext=db.prepare('SELECT encrypted_value FROM market_plugin_key_values').get().encrypted_value
+  assert.ok(!ciphertext.includes('sk-new-secret'))
+  const response=await call(endpoint,'admin-secret')
+  assert.equal(response.headers.get('cache-control'),'no-store')
+  const values=(await response.json()).keys
+  assert.equal(values[0].apiKey,'sk-new-secret')
+  assert.ok(!(await (await call('/api/admin/access','admin-secret')).text()).includes('sk-new-secret'))
+  assert.ok(!(await (await call('/roster.json','sk-new-secret')).text()).includes('sk-new-secret'))
+  assert.equal((await save([],[values[0].fingerprint])).status,200)
+  assert.equal((await (await call(endpoint,'admin-secret')).json()).keys[0].apiKey,'sk-new-secret')
+  assert.equal((await save([])).status,200)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,0)
+})
+test('old fingerprint grants remain valid and re-entry backfills full Key without duplication',async t=>{
+  const {call,db}=fixture(t),fp=await fingerprint('sk-previous','separate-secret')
+  await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-previous'],keepFingerprints:[]})
+  db.exec('DELETE FROM market_plugin_key_values')
+  assert.equal((await (await call('/api/admin/plugin-key-values?id='+metadata.id,'admin-secret')).json()).keys.length,0)
+  assert.equal((await (await call('/roster.json','sk-previous')).json()).items.length,1)
+  assert.equal((await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-previous'],keepFingerprints:[fp]})).status,200)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,1)
+  assert.equal((await (await call('/api/admin/plugin-key-values?id='+metadata.id,'admin-secret')).json()).keys[0].apiKey,'sk-previous')
+})
+test('missing encryption secret or tampered ciphertext fails closed without leaking Keys',async t=>{
+  const {call,env,db}=fixture(t)
+  const data={id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-secret'],keepFingerprints:[]}
+  delete env.MARKET_KEY_ENCRYPTION_SECRET
+  assert.equal((await call('/api/admin/plugin-access','admin-secret',data)).status,503)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
+  env.MARKET_KEY_ENCRYPTION_SECRET='restored'
+  assert.equal((await call('/api/admin/plugin-access','admin-secret',data)).status,200)
+  db.exec("UPDATE market_plugin_key_values SET encrypted_value='00.00'")
+  assert.equal((await call('/api/admin/plugin-key-values?id='+metadata.id,'admin-secret')).status,503)
+})
 test('built-in classification cannot be bypassed by editing request metadata',async t=>{
   const {env,call,db}=fixture(t)
   env.ASSETS.fetch=async()=>Response.json({publisher:{name:'Example'},items:[{...metadata,category:'builtin'}]})
@@ -51,14 +125,14 @@ test('direct Key remains usable when another plugin requires unavailable organiz
   assert.deepEqual((await (await call('/roster.json','sk-direct')).json()).items.map(p=>p.id),[metadata.id])
   assert.equal((await call('/downloads/org-only','sk-direct')).status,503)
 })
-test('explicit open mode permits admin operations but still rejects cross-origin writes',async t=>{
+test('old open flag no longer bypasses login and cross-origin writes stay rejected',async t=>{
   const {call,env}=fixture(t)
   assert.equal((await call('/api/admin/roster')).status,401)
   env.MARKET_ADMIN_MODE='open'
-  assert.equal((await call('/api/admin/access')).status,200)
-  assert.equal((await call('/api/admin/roster')).status,200)
-  assert.equal((await call('/api/admin/organizations',undefined,{id:1,name:'Org',enabled:true})).status,200)
-  const response=await worker.fetch(new Request('https://market.example/api/admin/organizations',{method:'PUT',headers:{Origin:'https://evil.example'},body:JSON.stringify({id:2,name:'Other',enabled:true})}),env,{})
+  assert.equal((await call('/api/admin/access')).status,401)
+  assert.equal((await call('/api/admin/roster')).status,401)
+  assert.equal((await call('/api/admin/organizations',undefined,{id:1,name:'Org',enabled:true})).status,401)
+  const response=await worker.fetch(new Request('https://market.example/api/admin/organizations',{method:'PUT',headers:{Origin:'https://evil.example',Authorization:'Bearer admin-secret'},body:JSON.stringify({id:2,name:'Other',enabled:true})}),env,{})
   assert.equal(response.status,403)
 })
 test('legacy Key can be explicitly retained only before migration',async t=>{
@@ -75,7 +149,7 @@ function fixture(t) {
   db.exec(readFileSync(new URL('../scripts/organization-schema.sql', import.meta.url), 'utf8'))
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({ bind: (...v) => wrap(sql, v), first: async () => db.prepare(sql).get(...values), all: async () => ({ results: db.prepare(sql).all(...values) }), run: async () => db.prepare(sql).run(...values) })
-  const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret',
+  const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret', MARKET_KEY_ENCRYPTION_SECRET:'test-encryption-secret',
     MARKET_DB: { prepare: wrap, batch: async statements => { db.exec('BEGIN'); try { const r = []; for (const s of statements) r.push(await s.run()); db.exec('COMMIT'); return r } catch (e) { db.exec('ROLLBACK'); throw e } } },
     MARKET_PACKAGES: { get: async () => ({ body: 'private package' }) },
     ASSETS: { fetch: async () => Response.json({ publisher: { name: 'Example' }, items: [metadata] }) } }

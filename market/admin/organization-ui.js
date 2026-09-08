@@ -1,12 +1,14 @@
 const $ = id => document.getElementById(id)
 let state, plugins=[], selectedPlugin, busy=false, filter='all', retained=new Set()
 let category='all'
+let keyValues=new Map()
 const isBuiltin=p=>p.category==='builtin'
 const node=(tag,text,className='')=>{const el=document.createElement(tag);el.textContent=text;el.className=className;return el}
 async function json(path,data) {
-  const response=await fetch(path,{method:data?'PUT':'GET',cache:'no-store',redirect:'error',headers:data?{'content-type':'application/json'}:{},...(data?{body:JSON.stringify(data)}:{})})
+  const response=await fetch(path,{method:data?'PUT':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:data?{'content-type':'application/json'}:{},...(data?{body:JSON.stringify(data)}:{})})
   const value=await response.json()
-  if(!response.ok) throw new Error(response.status===401?'服务端仍要求管理凭证，请确认已启用免登录管理。':value.error||'请求失败')
+  if(response.status===401){lock();throw new Error('管理凭证无效，请重新登录。')}
+  if(!response.ok) throw new Error(value.error||'请求失败')
   return value
 }
 async function action(fn) {
@@ -40,7 +42,7 @@ function render(){
     else if(!restricted)grants.append(node('span','所有人可见','chip'))
     else{grants.append(node('span',ids.length+' 个组织','chip'),node('span',keys.length+' 个 Key','chip'));grants.title=ids.map(organizationName).join('、')}
     const bottom=node('div','','card-bottom'),edit=node('button','配置权限','secondary')
-    edit.setAttribute('aria-label',p.displayName+' 配置权限');edit.onclick=()=>{if(!busy)openPlugin(p)}
+    edit.setAttribute('aria-label',p.displayName+' 配置权限');edit.onclick=()=>action(()=>openPlugin(p))
     bottom.append(node('span','v'+p.version+' · '+(isBuiltin(p)?'随应用更新':p.npm?'npm 自动同步':'名册版本'),'version'))
     if(isBuiltin(p))bottom.append(node('span','应用内置','muted'))
     else bottom.append(edit)
@@ -74,10 +76,17 @@ function updateScope(){
 }
 function renderKeys(){
   $('saved-keys').replaceChildren()
-  for(const fp of retained){const remove=node('button','Key '+fp.slice(0,10)+' ×','secondary');remove.type='button';remove.title='移除此 Key 授权';remove.onclick=()=>{if(busy)return;retained.delete(fp);renderKeys();updateScope()};$('saved-keys').append(remove)}
+  for(const fp of retained){
+    const row=node('div','','saved-key-row'),value=keyValues.get(fp),remove=node('button','移除','secondary')
+    remove.type='button';remove.setAttribute('aria-label','移除 Key '+fp.slice(0,10))
+    remove.onclick=()=>{if(busy)return;retained.delete(fp);renderKeys();updateScope()}
+    row.append(node('code',value??'旧指纹 '+fp.slice(0,10)+'（重新录入后可显示完整 Key）'),remove);$('saved-keys').append(row)
+  }
 }
-function openPlugin(plugin){
+async function openPlugin(plugin){
   if(isBuiltin(plugin))return
+  const values=await json('/api/admin/plugin-key-values?id='+encodeURIComponent(plugin.id))
+  keyValues=new Map(values.keys.map(k=>[k.fingerprint,k.apiKey]))
   selectedPlugin=plugin;retained=new Set(keyGrants(plugin.id))
   $('plugin-title').textContent=plugin.displayName+' · 访问权限';$('plugin-error').textContent='';$('confirm-public').checked=false;$('api-keys').value='';$('organization-search').value=''
   const ids=new Set(orgIds(plugin.id));$('organization-options').replaceChildren()
@@ -91,6 +100,7 @@ $('plugin-search').oninput=()=>{if(state)render()}
 $('category-filter').onchange=()=>{category=$('category-filter').value;if(state)render()}
 for(const button of document.querySelectorAll('[data-filter]'))button.onclick=()=>{filter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));if(state)render()}
 $('cancel-plugin').onclick=()=>$('plugin-dialog').close()
+$('plugin-dialog').addEventListener('close',()=>{keyValues.clear();$('saved-keys').replaceChildren();$('api-keys').value=''})
 $('plugin-dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault()})
 $('organization-search').oninput=()=>{for(const label of $('organization-options').querySelectorAll('label'))label.hidden=!label.textContent.toLowerCase().includes($('organization-search').value.toLowerCase())}
 $('api-keys').oninput=updateScope
@@ -103,4 +113,21 @@ $('plugin-access-form').onsubmit=event=>{
 $('new-organization').onclick=()=>{$('organization-form').reset();$('organization-id').readOnly=false}
 $('organization-form').onsubmit=event=>{event.preventDefault();action(async()=>{await json('/api/admin/organizations',{id:Number($('organization-id').value),name:$('organization-name').value.trim(),enabled:$('organization-enabled').checked});$('organization-form').reset();$('organization-id').readOnly=false;await load()})}
 $('sync-organizations').onclick=()=>action(async()=>{await json('/api/admin/organizations/sync',{});await load()})
-action(load)
+function lock(){
+  document.body.classList.add('signed-out')
+  state=null;plugins=[];selectedPlugin=null;keyValues.clear();retained.clear()
+  $('plugin-dialog').close();$('saved-keys').replaceChildren();$('api-keys').value='';$('admin-token').value=''
+  $('plugin-grid').replaceChildren();$('organization-list').replaceChildren();$('organization-options').replaceChildren();$('organization-form').reset()
+  $('workspace').hidden=true;$('session-actions').hidden=true;$('login-panel').hidden=false
+}
+$('logout').onclick=()=>action(async()=>{await json('/api/admin/logout',{});lock();$('admin-token').focus()})
+$('login-form').onsubmit=event=>{
+  event.preventDefault()
+  const credential=$('admin-token').value.trim()
+  action(async()=>{$('admin-token').value='';await json('/api/admin/login',{credential});await restore()})
+}
+async function restore(){
+  try{await load();document.body.classList.remove('signed-out');$('workspace').hidden=false;$('session-actions').hidden=false;$('login-panel').hidden=true}
+  catch(error){lock();throw error}
+}
+action(restore)

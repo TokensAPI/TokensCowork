@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TokensCowork · 插件管理</title><link rel="stylesheet" href="/admin/market-admin.css"></head>
-<body>
+<body class="signed-out">
 <aside><div class="brand">T<span>TokensCowork<small>插件管理工作台</small></span></div><nav><a href="#plugins-panel">▦　插件与权限</a><a href="#organizations-panel">◉　组织名录</a></nav><p class="sidebar-note">一个市场，灵活分配。<br>按组织或单独 Key 管理访问。</p></aside>
 <main>
-<header><div><p class="eyebrow">MARKETPLACE / CONSOLE</p><h1>插件与访问权限</h1><p class="muted">组织与 API Key 独立授权，满足任意一项即可访问。</p></div><button id="refresh" class="secondary">刷新数据</button></header>
-<output id="message" role="status" aria-live="polite">正在加载…</output>
+<header><div><p class="eyebrow">MARKETPLACE / CONSOLE</p><h1>插件与访问权限</h1><p class="muted">组织与 API Key 独立授权，满足任意一项即可访问。</p></div><div id="session-actions" hidden><button id="refresh" class="secondary">刷新数据</button> <button id="logout" class="secondary">退出登录</button></div></header>
+<output id="message" role="status" aria-live="polite">请先登录管理后台。</output>
+<section id="login-panel" class="panel"><h2>管理登录</h2><p class="muted">登录后可配置插件权限、查看完整 API Key。</p><form id="login-form"><label for="admin-token">管理凭证</label><input id="admin-token" type="password" autocomplete="current-password" required placeholder="请输入管理凭证"><button type="submit">登录</button></form></section>
+<div id="workspace" hidden>
 <div class="stats"><div><span>全部插件</span><b id="stat-total">—</b></div><div><span>公开插件</span><b id="stat-public">—</b></div><div><span>受限插件</span><b id="stat-restricted">—</b></div><div><span>组织数量</span><b id="stat-orgs">—</b></div></div>
 <section id="plugins-panel"><div class="toolbar"><label class="category-label">组件分类 <select id="category-filter" aria-label="组件分类"><option value="all">全部分类</option><option value="builtin">内置组件</option><option value="optional">可选插件</option></select></label><div class="filters"><button data-filter="all" aria-pressed="true">全部权限</button><button data-filter="public" aria-pressed="false">公开</button><button data-filter="restricted" aria-pressed="false">受限</button></div><input id="plugin-search" type="search" placeholder="搜索插件名称或包名" aria-label="搜索插件"></div><p class="muted category-note">内置组件随应用提供和更新，不支持单独安装、卸载或配置市场权限。可选插件可独立管理访问范围。</p><div id="plugin-grid"></div><p id="empty" class="empty" hidden>没有匹配的插件</p></section>
 <section id="organizations-panel" class="panel"><div class="section-heading"><div><h2>组织名录</h2><p class="muted">登记 TokensAPI 组织 ID，再为插件选择可见组织。</p></div><button id="sync-organizations" class="secondary" hidden>同步组织</button></div><p id="provider-status" class="notice"></p>
 <form id="organization-form" class="org-form"><label>组织 ID<input id="organization-id" type="number" min="1" max="9007199254740991" step="1" required placeholder="例如 1001"></label><label>组织名称<input id="organization-name" maxlength="200" required placeholder="输入组织名称"></label><label class="check"><input id="organization-enabled" type="checkbox" checked>启用</label><button type="submit">保存组织</button><button id="new-organization" type="button" class="secondary">清空 / 新增</button></form><div id="organization-list"></div></section>
-<footer>当前为临时免登录管理，知道此地址的人均可修改权限。这里控制市场可见范围；公开 npm / GitHub 安装包仍可从原地址下载。</footer>
+</div><footer>管理操作与完整 API Key 查看均需登录。这里控制市场可见范围；公开 npm / GitHub 安装包仍可从原地址下载。</footer>
 </main>
 <dialog id="plugin-dialog" aria-labelledby="plugin-title"><form id="plugin-access-form"><div class="section-heading"><h2 id="plugin-title">配置权限</h2><button id="cancel-plugin" type="button" class="secondary">关闭</button></div><p class="notice">组织或单独 API Key 任一命中即可访问。两项都留空，表示所有人可见。</p>
 <h3>可见组织</h3><input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索组织"><div id="organization-options"></div>
-<h3>单独 API Key</h3><p class="muted">不依赖组织接口，保存后即可按 Key 授权。已保存的 Key 仅显示指纹，不回显明文。</p><div id="saved-keys"></div><textarea id="api-keys" rows="4" autocomplete="off" spellcheck="false" placeholder="粘贴 API Key，每行一个，以 sk- 开头" aria-label="新增 API Key"></textarea>
+<h3>单独 API Key</h3><p class="muted">新录入的 Key 加密保存，登录后完整显示。旧记录只有指纹，需要重新粘贴原 Key 并保存才能补全，不影响原授权。</p><div id="saved-keys"></div><textarea id="api-keys" rows="4" autocomplete="off" spellcheck="false" placeholder="粘贴 API Key，每行一个，以 sk- 开头" aria-label="新增 API Key"></textarea>
 <p id="legacy-note" class="notice" hidden>原有有效 Key 已保留。保存后统一使用此处的组织与 Key 配置。</p><p id="public-confirmation" hidden><label><input id="confirm-public" type="checkbox">确认将此受限插件改为所有人可见</label></p><output id="plugin-error" role="alert"></output><div class="dialog-footer"><span id="permission-summary"></span><button type="submit">保存权限</button></div></form></dialog>
 <script type="module" src="/admin/organization-ui.js"></script></body></html>
