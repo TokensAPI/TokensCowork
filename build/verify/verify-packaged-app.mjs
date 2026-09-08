@@ -87,7 +87,7 @@ const forbiddenForeignRuntime = [
   'node_modules/node-pty/prebuilds/win32-arm64',
   'node_modules/node-pty/prebuilds/win32-ia32',
 ]
-// 预设健康检查必须带 asar 感知补丁(patch-runtime.mjs):运行时进 asar 后,
+// 预设健康检查必须带 asar 感知补丁(patch-staging-runtime.mjs):运行时进 asar 后,
 // agent-presets 用裸 fs 遍历 node_modules 会把全部插件行误判为缺失,预设
 // 无法挂载(v0.4.0/v0.4.1 真机回归)。上游打包门禁禁止普通模块解包,故
 // 以补丁标记验收,缺失即构建失败。

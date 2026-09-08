@@ -10,10 +10,10 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "product:check": "node build/verify/verify-layout.mjs",
-    "market:check": "node build/verify/verify-market.mjs",
+    "product:check": "node build/verify/verify-repo-layout.mjs",
+    "market:check": "node build/verify/verify-market-catalog.mjs",
     "product:prepare": "node build/steps/fetch-plugin-artifacts.mjs && node build/steps/prepare-staging.mjs",
-    "product:refresh-lock": "node build/steps/refresh-lock.mjs",
+    "product:refresh-lock": "node build/steps/refresh-product-lock.mjs",
     "product:version-check": "bash scripts/set-version.sh --check",
     "test:release-notes": "node --test scripts/validate-release-notes.test.mjs",
     "product:check-desktop": "node build/build-desktop.mjs check",

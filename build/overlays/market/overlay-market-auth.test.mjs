@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import https from 'node:https'
 import { EventEmitter } from 'node:events'
-import { addMarketAuth } from './market-auth.mjs'
-import { allowMarketSourceSyntheticProxy } from './market-source.mjs'
+import { addMarketAuth } from './overlay-market-auth.mjs'
+import { allowMarketSourceSyntheticProxy } from './overlay-market-source.mjs'
 
 const base = new URL('../../../desktop/dsh-community-market/src/', import.meta.url)
 const sources = Object.fromEntries(Object.entries({http:'network/restricted-http.ts',routes:'host/routes.ts',index:'index.ts'})

@@ -123,7 +123,7 @@ if (-not $configureNeeded) {
   }
 }
 if ($configureNeeded) {
-  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\configure-product.mjs'
+  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\configure-staging-product.mjs'
   $Build = $true
 }
 

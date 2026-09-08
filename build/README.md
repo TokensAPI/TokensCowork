@@ -19,14 +19,20 @@ build/
 └─ assets/             # 静态输入素材,由 steps 复制/读取
 ```
 
-## 命名规则
+## 命名规则(全部可执行文件同一语法)
 
-1. steps:`<动词>-<宾语>.mjs`,动词表:fetch / prepare / patch / compile /
-   prune / configure / build / refresh / resolve。
-2. verify:CI 门禁 `verify-<对象>.mjs`;手动诊断工具 `smoke-<对象>.mjs`。
-3. overlays:主题名词;多文件主题建 `<主题>/` 目录,内部 `<主题>-<切面>.mjs`。
-4. hooks:`<时机>-<变体>.ts`。
-5. 单测同名同目录 `<name>.test.mjs`;步骤消费的数据文件放 `assets/`。
+`<动词>-<对象>[-<限定>].mjs` —— 文件名独立可读:第一段是动作,对象段
+点名作用位置。
+
+1. 动词封闭表:fetch / prepare / patch / compile / prune / configure /
+   refresh / build / resolve / verify / smoke / overlay / sign。
+2. 作用于 staging 的步骤与门禁,对象段显式带 `staging`
+   (如 patch-staging-runtime、verify-staging-branding)。
+3. 覆盖库统一以 `overlay-` 开头(如 overlay-branding、overlay-market-auth);
+   市场多文件主题在 `overlays/market/` 下仍以 `overlay-market-` 开头。
+4. `verify-` 为 CI 门禁,`smoke-` 为手动诊断,二者都在 verify/。
+5. 单测同名同目录 `<name>.test.mjs`;`assets/` 下的素材数据用名词,
+   是唯一不套动词语法的文件。
 
 ## 构建流程
 

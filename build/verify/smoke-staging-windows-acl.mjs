@@ -4,7 +4,7 @@
  * 不接入 CI。在完成 staging 构建后手动验证产品的 windows-acl-runner
  * 与上游 @deepseek-ai/dsh-sandbox-windows-acl 行为一致:
  *
- *   node build/verify/smoke-windows-acl.mjs <electron.exe 路径>
+ *   node build/verify/smoke-staging-windows-acl.mjs <electron.exe 路径>
  *
  * 排查 Windows 沙箱 ACL 启动链问题时使用(见 overlays/windows-acl.mjs)。
  * ============================================================ */
@@ -36,7 +36,7 @@ const powershell = resolve(
 const wscript = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'wscript.exe')
 
 if (electronExe === undefined || !existsSync(electronExe)) {
-  throw new Error('usage: node build/verify/smoke-windows-acl.mjs <electron-exe>')
+  throw new Error('usage: node build/verify/smoke-staging-windows-acl.mjs <electron-exe>')
 }
 for (const path of [runner, upstreamRunner, powershell, wscript]) {
   if (!existsSync(path)) throw new Error(`windows-acl-console-smoke: missing dependency: ${path}`)

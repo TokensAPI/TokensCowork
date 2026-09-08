@@ -7,7 +7,7 @@ on:
     paths:
       - "market/**"
       - "scripts/generate-market-catalog.mjs"
-      - "build/verify/verify-market.mjs"
+      - "build/verify/verify-market-catalog.mjs"
       - ".github/workflows/market.yml"
   workflow_dispatch:
 
@@ -37,7 +37,7 @@ jobs:
       # roster.json 是插件目录的唯一源数据。先校验名册和产品约束，
       # 再为本次部署生成不纳入 Git 的静态故障兜底。
       - name: Verify market data
-        run: node build/verify/verify-market.mjs
+        run: node build/verify/verify-market-catalog.mjs
 
       - name: Generate market deployment artifacts
         run: node scripts/generate-market-catalog.mjs
