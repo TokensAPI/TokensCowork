@@ -190,7 +190,13 @@ if ($Watch) {
 }
 
 if (-not $Sandbox) {
+  # 沙箱分支会设三个变量；真实数据模式必须把它们全部显式复位，不能假设"没人设过"。
+  # 若当前 shell 残留了上一次沙箱运行的值（例如在同一会话里直接调用过本脚本），
+  # 只清其中一个就会出现 userData 走真实目录、DSH home 却仍在沙箱的错配。
+  # APPDATA 直接问系统要真值，而不是信任可能已被改写的同名环境变量。
   Remove-Item Env:TOKENS_COWORK_DEV_APP_DATA -ErrorAction SilentlyContinue
+  Remove-Item Env:DSH_HOME -ErrorAction SilentlyContinue
+  $env:APPDATA = [Environment]::GetFolderPath('ApplicationData')
   # 构建期间用户可能又打开了已装应用；此时两者 userData 相同，Electron 单实例锁会让
   # 本次启动静默退出并把旧窗口拉到前台，看起来像“新代码没生效”。故启动前再查一次。
   if (Test-InstalledAppRunning) {
@@ -198,7 +204,9 @@ if (-not $Sandbox) {
     foreach ($w in $watchers) { try { Stop-Process -Id $w.Id -Force -ErrorAction Stop } catch {} }
     exit 1
   }
-  Write-Host '==> 真实数据模式：使用 ~/.dsh 与 %APPDATA%\TokensCowork' -ForegroundColor Yellow
+  Write-Host '==> 真实数据模式' -ForegroundColor Yellow
+  Write-Host "    APPDATA  = $env:APPDATA" -ForegroundColor DarkGray
+  Write-Host "    DSH home = $(Join-Path $HOME '.dsh')" -ForegroundColor DarkGray
 } else {
   $sandbox = Join-Path $root '.build\dev-sandbox'
   $sandboxAppData = Join-Path $sandbox 'AppData'
