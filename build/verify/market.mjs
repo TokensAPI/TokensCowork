@@ -1,12 +1,11 @@
 /* ============================================================
  * 插件市场数据一致性校验
  * ============================================================
- * 市场目录的唯一事实来源是 market/roster.json。围绕它有两处副本，
- * 历史上都飘过，这里各上一道闸：
+ * 市场目录的唯一事实来源是 market/roster.json。这里检查：
  *
- *   1. 生成快照 market/source.json 与 market/v1/plugins 必须与
- *      当前名册一致。改了名册不重新生成，线上（_worker.js 读名册）
- *      与兜底快照就会分叉。
+ *   1. source.json 必须与 source.config.json 一致，roster.json 必须能
+ *      生成合法的市场目录。静态 market/v1/plugins 由部署流程
+ *      现场生成，不纳入 Git。
  *   2. 名册里 npm: false 的内置插件版本是手写的——_worker.js 只对
  *      npm: true 的条目实时问 registry。同一个 id 若作为默认插件登记在
  *      product.json 里，两处版本必须相同。曾经 roster 停在 connect
@@ -29,18 +28,13 @@ const roster = readJson('market', 'roster.json')
 const config = readJson('market', 'source.config.json')
 const manifest = readJson('product.json')
 
-/* ------------------------- 1. 生成快照是否最新 ------------------------- */
+/* ------------------------ 1. 源数据能否正确生成 ------------------------ */
 
-const expected = {
-  'market/source.json': `${JSON.stringify(buildSourceManifest(config.origin), undefined, 2)}\n`,
-  'market/v1/plugins': `${JSON.stringify(buildCatalogPage(roster), undefined, 2)}\n`,
-}
-for (const [path, content] of Object.entries(expected)) {
-  // Windows CI 的 git autocrlf 会把检出内容转成 CRLF，比较前归一化，
-  // 否则与 LF 生成结果逐字节比较必然失配（同 v0.3.14 锚点事故）。
-  if (readFileSync(resolve(root, path), 'utf8').replaceAll('\r\n', '\n') !== content) {
-    fail(`${path} 与 market/roster.json 不一致；运行 node scripts/generate-market-catalog.mjs 重新生成`)
-  }
+const catalog = buildCatalogPage(roster)
+const expectedSource = `${JSON.stringify(buildSourceManifest(config.origin), undefined, 2)}\n`
+// Windows CI 的 git autocrlf 会把检出内容转成 CRLF，比较前归一化。
+if (readFileSync(resolve(root, 'market', 'source.json'), 'utf8').replaceAll('\r\n', '\n') !== expectedSource) {
+  fail('market/source.json 与 market/source.config.json 不一致；运行 node scripts/generate-market-catalog.mjs 重新生成')
 }
 
 /* ---------------------- 2. 内置插件版本是否两处一致 ---------------------- */
@@ -60,5 +54,5 @@ for (const item of roster.items) {
 }
 
 process.stdout.write(
-  `verify-market: ${roster.items.length} roster item(s), 快照最新，${productVersions.size} 个内置插件版本一致\n`,
+  `verify-market: ${catalog.items.length} roster item(s), 目录可生成，${productVersions.size} 个内置插件版本一致\n`,
 )

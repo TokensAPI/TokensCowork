@@ -1,18 +1,18 @@
 # TokensAPI 插件市场目录源
 
-本目录是 DSH Community Market「标准目录源」的静态实现，只收录 TokensCowork 产品自有插件（数据来自 `product.json`）。产品装配会预置并默认选中该官方源，无需用户手动登记。
+本目录是 DSH Community Market「标准目录源」的 Cloudflare Pages 实现，只收录 TokensCowork 产品自有插件。插件目录数据的唯一来源是 `roster.json`。产品装配会预置并默认选中该官方源，无需用户手动登记。
 
 ## 文件
 
 ```text
-source.config.json   部署 origin 配置（唯一手工维护的文件）
+source.config.json   部署 origin 配置
 source.json          目录源 manifest（生成产物，用户登记的就是它的 URL）
-roster.json          动态目录名册（Worker 运行时读取；npm 发布状态在这里登记）
-v1/plugins           目录端点响应（生成产物，市场 Host 拉取的插件列表）
+roster.json          插件目录的唯一源数据（手工维护）
+v1/plugins           目录端点的静态兜底（部署时生成，不纳入 Git）
 _headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 JSON）
 ```
 
-`source.json` 与 `v1/plugins` 由 `node scripts/generate-market-catalog.mjs` 从 `product.json` 生成，不要手工编辑；插件的展示名与介绍改 `product.json` 后重新生成。`roster.json` 是 Worker 的运行时名册，新增市场插件时必须同步登记；只有包已经发布并验证后才能把 `npm` 设为 `true`。
+插件包名、展示信息、名册版本和 npm 状态只修改 `roster.json`。只有包已经发布并验证后才能把 `npm` 设为 `true`。GitHub Actions 会在部署前运行 `node scripts/generate-market-catalog.mjs`，现场生成 `v1/plugins`；本地手工部署时也必须先运行该命令。
 
 ## 为什么不能部署到 GitHub Pages
 
@@ -20,9 +20,9 @@ _headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 
 
 ## 部署（Cloudflare Pages）
 
-1. Cloudflare Dashboard → Workers & Pages → Create → Pages → 连接本仓库（或用 Direct Upload 只传本目录）。
-2. 构建配置：无构建命令，输出目录填 `market`。
-3. 部署完成后得到正式域名（如 `https://<project>.pages.dev`），把它写进 `source.config.json` 的 `origin`，重新运行生成脚本并提交——manifest 的 `transport.endpoint` 必须与 manifest URL 同源，这是市场 Host 的强制校验。
+1. 提交市场相关变更到 `master`，`.github/workflows/market.yml` 会生成目录产物并部署到 Cloudflare Pages。
+2. 本地 Direct Upload 前，运行 `node scripts/generate-market-catalog.mjs`，再上传 `market` 目录。
+3. 部署 origin 由 `source.config.json` 声明；manifest 的 `transport.endpoint` 必须与 manifest URL 同源。
 4. 验证：`curl -sI https://<origin>/v1/plugins` 应返回 `200` 且 `Content-Type: application/json`。
 
 ## 用户使用方式

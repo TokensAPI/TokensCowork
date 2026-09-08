@@ -2,3 +2,4 @@
 .pnp.*
 .yarn/
 .wrangler/
+/market/v1/plugins

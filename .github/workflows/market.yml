@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - "market/**"
+      - "scripts/generate-market-catalog.mjs"
+      - "build/verify/market.mjs"
       - ".github/workflows/market.yml"
   workflow_dispatch:
 
@@ -28,14 +30,17 @@ jobs:
         with:
           persist-credentials: false
 
-      # 名册是市场目录的唯一来源，生成快照与 product.json 各有一份副本。
-      # 部署前先核对，避免把分叉的数据推上线。直接用 node 跑，不经 corepack。
-      - name: Verify market data
-        run: node build/verify/market.mjs
-
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      # roster.json 是插件目录的唯一源数据。先校验名册和产品约束，
+      # 再为本次部署生成不纳入 Git 的静态故障兜底。
+      - name: Verify market data
+        run: node build/verify/market.mjs
+
+      - name: Generate market deployment artifacts
+        run: node scripts/generate-market-catalog.mjs
 
       - name: Test market authorization
         run: node --test market/tests/access.test.mjs

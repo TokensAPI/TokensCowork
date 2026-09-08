@@ -5,11 +5,12 @@
  * （standard source）所需的两个静态文件：
  *
  *   market/source.json   目录源 manifest（用户在市场"源"里登记的 URL）
- *   market/v1/plugins    目录端点的静态快照
+ *   market/v1/plugins    目录端点的静态快照（仅在部署时生成）
  *
  * 线上 /v1/plugins 由 market/_worker.js 动态生成，同样以名册为输入，
  * 并对 npm 条目实时解析 dist-tags.latest；这里产出的快照只在名册
- * 读取失败时兜底。两侧共用同一份名册，快照与线上不会漂移。
+ * 读取失败时兜底。该快照不纳入 Git，部署流程每次从
+ * roster.json 重新生成，因此不会与线上名册漂移。
  *
  * 输出遵循 desktop/dsh-community-market/docs/schemas/ 下的
  * catalog-source 1.0.0 与 catalog-provider-page 1.0.0 契约。
