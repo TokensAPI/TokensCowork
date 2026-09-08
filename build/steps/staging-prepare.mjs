@@ -4,10 +4,10 @@ import { basename, relative, resolve, sep } from 'node:path'
 import { brandDesktopPatch } from '../overlays/branding-overlay.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/market-auth-overlay.mjs'
 import { separateInstalledSystemComponents } from '../overlays/market/market-installed-ui-overlay.mjs'
+import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from '../overlays/market/market-update-overlay.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
-  defaultDesktopMarketToCommunity,
   pinDesktopMarketProvider,
   protectDesktopStderr,
   skipDesktopSetupWizard,
@@ -332,6 +332,24 @@ const installedMarketUi = separateInstalledSystemComponents({
 writeFileSync(marketSettingsTabPath, installedMarketUi.settingsTab)
 writeFileSync(marketLocalesPath, installedMarketUi.locales)
 writeFileSync(marketSettingsTabTestsPath, installedMarketUi.tests)
+const marketUpdatePaths = {
+  service: resolve(stage, 'dsh-community-market', 'src', 'install', 'service.ts'),
+  routes: marketRoutesPath,
+  types: resolve(stage, 'dsh-community-market', 'src', 'api-types.ts'),
+  settingsTab: marketSettingsTabPath,
+  locales: marketLocalesPath,
+}
+const marketUpdates = addMarketUpdates(Object.fromEntries(
+  Object.entries(marketUpdatePaths).map(([key, path]) => [key, readFileSync(path, 'utf8')]),
+))
+for (const [key, path] of Object.entries(marketUpdatePaths)) writeFileSync(path, marketUpdates[key])
+const marketClientApiPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'api.ts')
+writeFileSync(marketClientApiPath, addMarketUpdateChecks(readFileSync(marketClientApiPath, 'utf8')))
+writeFileSync(marketSettingsTabTestsPath, addMarketUpdateUiTests(readFileSync(marketSettingsTabTestsPath, 'utf8')))
+const marketClientApiTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-api.spec.ts')
+writeFileSync(marketClientApiTestsPath, addMarketUpdateApiTests(readFileSync(marketClientApiTestsPath, 'utf8')))
+cpSync(resolve(root, 'build', 'overlays', 'market', 'market-update.spec.ts'),
+  resolve(stage, 'dsh-community-market', 'tests', 'market-update.spec.ts'))
 const marketSourceStoreTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'source-store.spec.ts')
 writeFileSync(
   marketSourceStoreTestsPath,
@@ -409,18 +427,6 @@ desktopMain = skipDesktopSetupWizard(desktopMain)
 
 /* -------------------- 市场提供方固定为社区市场 -------------------- */
 desktopMain = pinDesktopMarketProvider(desktopMain)
-
-/* -------------------- 市场默认启用社区实现 ----------------------- */
-// 向导被跳过后用户失去上游预期的市场选择机会，产品把无状态时的
-// fail-safe 默认从 disabled 改为 community-market；显式选择仍生效。
-const desktopMarketPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-market.ts')
-const desktopMarketTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'desktop-market.spec.ts')
-const defaultedMarket = defaultDesktopMarketToCommunity(
-  readFileSync(desktopMarketPath, 'utf8'),
-  readFileSync(desktopMarketTestsPath, 'utf8'),
-)
-writeFileSync(desktopMarketPath, defaultedMarket.source)
-writeFileSync(desktopMarketTestsPath, defaultedMarket.tests)
 
 /* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
 ;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))

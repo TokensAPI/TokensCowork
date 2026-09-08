@@ -38,62 +38,6 @@ export function removeManagedBundlesFromProfile(source, packages) {
 }
 
 /**
- * 上游 2026-08 引入市场提供方三态开关（ba59b93e38），把无状态时的默认
- * 定为 disabled，预期由首次设置向导让用户选择。产品跳过了该向导（见
- * skipDesktopSetupWizard），用户没有选择的机会，市场就此对新装用户消失。
- * 产品默认改为 community-market：仅改无状态/状态不可读时的 fail-safe
- * 快照，用户在设置里的显式选择（含 disabled）仍原样生效；Safe Mode 也
- * 仍显式选择 disabled，不受影响。
- * @param marketSource - staging 副本中 desktop-market.ts 的完整内容。
- * @param marketTests - staging 副本中 desktop-market.spec.ts 的完整内容。
- * @returns 默认值与对应用例改写后的 { source, tests }。
- * @throws 上游默认快照或用例锚点变化时抛出，中断打包待人工复查。
- */
-export function defaultDesktopMarketToCommunity(marketSource, marketTests) {
-  const snapshotAnchor = `const DEFAULT_SNAPSHOT: DesktopMarketSnapshot = Object.freeze({
-  requested: 'disabled',
-  effective: 'disabled',
-  legacyDefaulted: true,
-})`
-  const testTitleAnchor = "])('defaults %s to disabled without writing a migration', (_label, prepare) => {"
-  const testExpectationAnchor = `{
-      requested: 'disabled',
-      effective: 'disabled',
-      legacyDefaulted: true,
-    }`
-  if (marketSource.split(snapshotAnchor).length !== 2
-    || marketTests.split(testTitleAnchor).length !== 2
-    || marketTests.split(testExpectationAnchor).length !== 3) {
-    throw new Error('prepare-desktop: 未找到市场默认提供方锚点，请复查产品市场默认覆盖')
-  }
-  return {
-    source: marketSource.replace(
-      snapshotAnchor,
-      `// 产品覆盖：无显式选择时默认启用社区市场（产品跳过首次设置向导，
-// 用户没有上游预期的选择机会）。显式选择过的状态不经过这里。
-const DEFAULT_SNAPSHOT: DesktopMarketSnapshot = Object.freeze({
-  requested: 'community-market',
-  effective: 'community-market',
-  legacyDefaulted: true,
-})`,
-    ),
-    tests: marketTests
-      .replace(
-        testTitleAnchor,
-        "])('defaults %s to the community market without writing a migration', (_label, prepare) => {",
-      )
-      .replaceAll(
-        testExpectationAnchor,
-        `{
-      requested: 'community-market',
-      effective: 'community-market',
-      legacyDefaulted: true,
-    }`,
-      ),
-  }
-}
-
-/**
  * 产品固定市场提供方为社区市场,并在每次正常启动时纠正持久记录。
  *
  * 上游把提供方选择交给首次设置向导,产品跳过了向导(见
