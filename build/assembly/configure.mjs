@@ -104,6 +104,30 @@ const clientBranding = brandDesktopClient({
   locales: readFileSync(settingsLocalesPath, 'utf8'),
 }, product.name)
 
+/* --------------------- 原生界面可见文案品牌化 --------------------- */
+// 原生对话框、托盘菜单、恢复窗口、系统通知与原生页面标题的可见文案
+// 逐句携带上游品牌(重启确认框等直接示人)。这些文件只含显示字符串,
+// 整体替换;身份/迁移逻辑里对上游名称的引用(安装探测等)不在此列,
+// 不能盲替。上游不再携带品牌时锚定失败,中断装配待人工复查。
+const nativeCopyPaths = [
+  ['src', 'native-dialog-copy.ts'],
+  ['src', 'tray-locale.ts'],
+  ['src', 'recovery-copy.ts'],
+  ['src', 'notifications.ts'],
+  ['src', 'client', 'directory-picker.ts'],
+  ['src', 'native-ui', 'desktop-dialog.html'],
+  ['src', 'native-ui', 'recovery.html'],
+  ['src', 'native-ui', 'setup-wizard.html'],
+]
+for (const segments of nativeCopyPaths) {
+  const nativeCopyPath = resolve(desktopRoot, ...segments)
+  const nativeCopySource = readFileSync(nativeCopyPath, 'utf8')
+  if (!nativeCopySource.includes('DSH Desktop')) {
+    throw new Error(`configure-product: ${segments.join('/')} no longer carries upstream desktop branding`)
+  }
+  writeFileSync(nativeCopyPath, nativeCopySource.replaceAll('DSH Desktop', product.name))
+}
+
 /* ----------------------- electron-builder ----------------------- */
 desktopPackage.version = product.version
 desktopPackage.build.appId = product.appId

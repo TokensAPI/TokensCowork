@@ -80,6 +80,20 @@ requireText(indexSource, product.name, 'desktop shell source')
 rejectText(indexSource, 'DeepSeek Harness Desktop', 'desktop shell source')
 requireText(desktopRuntimeClosure, product.name, 'compiled desktop shell runtime closure')
 rejectText(read('src/client/ExtendedTitlebar.tsx'), 'DSH Desktop', 'desktop titlebar source')
+// 原生对话框/托盘/恢复/通知文案与原生页面标题:configure 阶段整体替换,
+// 这里兜底防止上游 pin 更新后新增的品牌串漏网。
+for (const nativeCopyPath of [
+  'src/native-dialog-copy.ts',
+  'src/tray-locale.ts',
+  'src/recovery-copy.ts',
+  'src/notifications.ts',
+  'src/client/directory-picker.ts',
+  'src/native-ui/desktop-dialog.html',
+  'src/native-ui/recovery.html',
+  'src/native-ui/setup-wizard.html',
+]) {
+  rejectText(read(nativeCopyPath), 'DSH Desktop', nativeCopyPath)
+}
 rejectText(read('src/client/desktop-settings-locales.ts'), 'DSH Desktop', 'desktop settings source')
 requireText(read('lib/client.js'), `${product.name} 设置`, 'compiled desktop settings')
 rejectText(read('lib/client.js'), 'DSH Desktop 设置', 'compiled desktop settings')
