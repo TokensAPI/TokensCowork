@@ -33,6 +33,13 @@ jobs:
       - name: Verify market data
         run: node build/verify/market.mjs
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Test market authorization
+        run: node --test market/tests/access.test.mjs
+
       # 直接 npx 调用 wrangler:仓库根 package.json 声明 yarn@4 的
       # packageManager,wrangler-action 的 yarn 安装路径会被 corepack
       # 拦下,npx 则不受包管理器声明影响。

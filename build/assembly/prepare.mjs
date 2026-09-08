@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
+import { addMarketAuth } from './overlays/market/market-auth.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
@@ -10,7 +11,7 @@ import {
   protectDesktopStderr,
   skipDesktopSetupWizard,
 } from './overlays/desktop-runtime.mjs'
-import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market.mjs'
+import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './overlays/market/market-source.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from './overlays/updates.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './overlays/windows-acl.mjs'
 
@@ -241,6 +242,14 @@ writeFileSync(marketSourceStorePath, pinnedMarket.sourceStore)
 writeFileSync(marketServicePath, pinnedMarket.service)
 writeFileSync(marketSettingsTabPath, pinnedMarket.settingsTab)
 writeFileSync(marketLocalesPath, pinnedMarket.locales)
+const authenticatedMarket = addMarketAuth({
+  index: readFileSync(marketIndexPath, 'utf8'),
+  http: readFileSync(marketHttpPath, 'utf8'),
+  routes: readFileSync(marketRoutesPath, 'utf8'),
+}, marketSourceConfig.origin)
+writeFileSync(marketHttpPath, authenticatedMarket.http)
+writeFileSync(marketRoutesPath, authenticatedMarket.routes)
+writeFileSync(marketIndexPath, authenticatedMarket.index)
 
 /* ----------------------- 适配固定市场源测试 ------------------------ */
 // 产品只暴露一个固定目录源；跳过上游多来源管理用例，并保留产品源迁移、

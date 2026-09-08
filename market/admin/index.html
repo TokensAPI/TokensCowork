@@ -58,6 +58,16 @@
   button:disabled { opacity: .5; cursor: default; }
   .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
   @media (max-width: 720px) { .hide-sm { display: none; } }
+  section { background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin:20px 0 }
+  section label { display:block;margin:12px 0 }
+  input:not([type=checkbox]),select,textarea { background:var(--card);color:var(--ink);width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box }
+  section input:not([type=checkbox]) { display:block }
+  .grid { display:grid;grid-template-columns:1fr 1fr;gap:20px }
+  fieldset { border:1px solid var(--line) }
+  [hidden] { display:none!important }
+  #message { display:block;margin-top:10px }
+  td button { margin:8px 0 0 }
+  @media(max-width:720px) { .grid { grid-template-columns:1fr } }
 </style>
 </head>
 <body>
@@ -67,6 +77,8 @@
     <span class="sub" id="origin"></span>
     <button id="refresh">刷新</button>
   </header>
+
+<section><label>管理员凭证<input id="admin" type="password" autocomplete="off"></label><button id="load">连接后台</button><button id="logout">退出</button><p>凭证仅保留在当前页面内存中。客户 Key 只在录入时发送，后台保存 HMAC 指纹。</p><output id="message" role="status" aria-live="polite">请连接后台。</output></section>
 
   <div class="stats">
     <div class="stat"><b id="stat-total">–</b><span>名册插件</span></div>
@@ -83,93 +95,28 @@
         <th>npm latest</th>
         <th>市场目录</th>
         <th class="hide-sm">状态</th>
+        <th>API Key（留空全部可见）</th>
       </tr>
     </thead>
-    <tbody id="rows"><tr><td colspan="5" style="color:var(--muted)">加载中…</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="6" style="color:var(--muted)">加载中…</td></tr></tbody>
   </table>
 
   <p class="foot">
     数据说明：<b>名册</b>读自 <code>roster.json</code>；<b>npm latest</b> 实时查询 registry.npmjs.org；
-    <b>市场目录</b>读自本源 <code>/v1/plugins</code>（边缘缓存约 5 分钟，客户端市场另有 5 分钟索引缓存）。
+    <b>市场目录</b>显示未登录客户可见的公开条目；授权目录不使用共享缓存，客户端仍可能保留本地缓存。
     npm 自动同步的插件（<span class="tag ok">npm</span>）由协作者 <code>npm publish</code> 后自动更新，无需任何操作；
     浏览版插件（<span class="tag dim">browse</span>）改版本需编辑 <code>roster.json</code> 并推送部署。
-    新增插件：向 <code>roster.json</code> 的 <code>items</code> 追加一条记录并推送。
+    登录后直接在插件右侧填写 API Key，每行一个，然后保存。不配置 Key 的插件对所有人可见；移除全部已保存 Key 并留空保存，即恢复公开。
   </p>
-</div>
-
-<script>
-const $ = id => document.getElementById(id)
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-
-async function fetchJson(url) {
-  const r = await fetch(url, { cache: 'no-store' })
-  if (!r.ok) throw new Error(url + ' -> ' + r.status)
-  return r.json()
-}
-
-async function npmLatest(pkg) {
-  // 走本源 Worker 代查,避免浏览器直连 registry 的 CORS 与网络问题。
-  try {
-    const data = await fetchJson('/api/latest?pkg=' + encodeURIComponent(pkg))
-    return typeof data.latest === 'string' ? data.latest : null
-  } catch { return null }
-}
-
-async function load() {
-  $('origin').textContent = location.origin
-  $('refresh').disabled = true
-  const rows = $('rows')
-  rows.innerHTML = '<tr><td colspan="5" style="color:var(--muted)">加载中…</td></tr>'
-  try {
-    const [roster, live] = await Promise.all([
-      fetchJson('/roster.json'),
-      fetchJson('/v1/plugins').catch(() => ({ items: [] })),
-    ])
-    const liveMap = new Map(live.items.map(it => [it.id, it]))
-    const npmItems = roster.items.filter(it => it.npm === true)
-    const npmVersions = new Map(await Promise.all(
-      npmItems.map(async it => [it.id, await npmLatest(it.package)]),
-    ))
-
-    let drift = 0
-    rows.innerHTML = roster.items.map(it => {
-      const liveItem = liveMap.get(it.id)
-      const liveVer = liveItem ? liveItem.latestVersion : null
-      const npmVer = npmVersions.get(it.id) ?? null
-      let state, cls
-      if (it.npm === true) {
-        if (npmVer === null) { state = 'npm 查询失败'; cls = 'warn' }
-        else if (liveVer === npmVer) { state = '已同步'; cls = 'ok' }
-        else { state = '目录缓存待刷新'; cls = 'warn'; drift++ }
-      } else {
-        state = liveVer === it.version ? '已同步' : (liveVer === null ? '目录中缺失' : '目录待部署')
-        cls = state === '已同步' ? 'ok' : 'bad'
-        if (state !== '已同步') drift++
-      }
-      return '<tr>'
-        + '<td><div>' + esc(it.displayName) + ' <span class="tag ' + (it.npm ? 'ok' : 'dim') + '">' + (it.npm ? 'npm' : 'browse') + '</span></div>'
-        + '<div class="pkg"><a href="' + esc(it.repository) + '" target="_blank" rel="noopener">' + esc(it.package) + '</a></div>'
-        + '<div class="sum hide-sm">' + esc(it.summary) + '</div></td>'
-        + '<td class="mono">' + esc(it.version) + '</td>'
-        + '<td class="mono">' + (it.npm ? esc(npmVer ?? '—') : '<span class="tag dim">不适用</span>') + '</td>'
-        + '<td class="mono">' + esc(liveVer ?? '—') + '</td>'
-        + '<td class="hide-sm"><span class="tag ' + cls + '">' + state + '</span></td>'
-        + '</tr>'
-    }).join('')
-
-    $('stat-total').textContent = roster.items.length
-    $('stat-npm').textContent = npmItems.length
-    $('stat-live').textContent = live.items.length
-    $('stat-drift').textContent = drift
-  } catch (error) {
-    rows.innerHTML = '<tr><td colspan="5" style="color:var(--bad)">加载失败：' + esc(error.message) + '</td></tr>'
-  } finally {
-    $('refresh').disabled = false
-  }
-}
-
-$('refresh').addEventListener('click', load)
-load()
-</script>
+<details id="editor" hidden><summary>高级管理（一般无需使用）</summary><div class="grid">
+<section><h2>客户 Key 授权</h2><label>选择授权<select id="key-select"><option value="">新增 Key</option></select></label>
+<form id="key-form"><label>客户 API Key（新增时填写）<input id="api-key" type="password" autocomplete="off"></label><label>企业或客户备注<input id="label" required maxlength="200"></label>
+<label><input id="enabled" type="checkbox" checked>启用授权</label><label>授权到期时间（留空表示长期）<input id="expires" type="datetime-local"></label><fieldset><legend>允许访问的插件</legend><div id="grants"></div></fieldset><button>保存授权</button></form><p>撤销访问：取消“启用授权”并保存。更换 Key：新增授权，再停用旧授权。公开插件始终对所有人可见。</p></section>
+<section><h2>插件可见范围</h2><label>选择插件<select id="plugin-select"><option value="">新增插件</option></select></label><form id="plugin-form">
+<label>插件 ID<input id="plugin-id" required pattern="[a-z0-9][a-z0-9-]{0,79}"></label><label>显示名称<input id="display-name" required></label><label>npm 包名<input id="package-name" required></label><label>简介<textarea id="summary" required></textarea></label><label>仓库地址<input id="repository" type="url" required></label><label>版本<input id="version" required placeholder="0.1.0"></label>
+<label>可见范围<select id="visibility"><option value="public">所有人可见</option><option value="restricted">仅授权 Key 可见</option></select></label><label><input id="npm" type="checkbox">使用公开 npm 自动更新</label><label>私有安装包对象名（可选）<input id="object-key" placeholder="plugins/example/0.1.0.tgz"></label><button>保存插件</button></form>
+<p>公开 npm / GitHub 上已发布的包仍可从原地址下载。真正私有的包需放入私有 R2，通过 /downloads/插件ID 携带客户 Key 下载。现有桌面安装器尚不支持该私有下载入口。</p></section></div>
+</details></div>
+<script type="module" src="/admin/access-ui.js"></script>
 </body>
 </html>

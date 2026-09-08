@@ -94,7 +94,7 @@ market.mjs` 覆盖 3）。启用组织源需要二选一：
 1. Pages 项目绑定 KV namespace；`roster:common` 用现 roster.json 灌入
 2. `_worker.js` 增加 `/t/<token>/*` 路由与名册合并
 3. `market.yml` CI 部署后自检增加一条带测试令牌的组织目录断言
-4. 恢复市场「添加来源」按钮（改 overlays/market.mjs，随下个产品发版生效）
+4. 恢复市场「添加来源」按钮（改 overlays/market/market-source.mjs，随下个产品发版生效）
 5. 管理面板增加按令牌查看组织目录的入口（只读即可）
 6. （后续）TokensAPI 后端自动签发令牌 + 面板可写化
 

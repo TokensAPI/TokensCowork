@@ -44,6 +44,16 @@ function assertPlainText(value, maxLength, label) {
   return value
 }
 
+function optionalInstallSource(value, label) {
+  if (value === undefined) return {}
+  if (typeof value !== 'object' || value === null || Array.isArray(value)
+    || value.kind !== 'github' || !/^[0-9a-f]{40}$/u.test(value.commit ?? '')
+    || Object.keys(value).some(key => key !== 'kind' && key !== 'commit')) {
+    throw new Error(`generate-market-catalog: ${label} 不是固定 Git commit 的 GitHub 安装源`)
+  }
+  return { installSource: { kind: 'github', commit: value.commit } }
+}
+
 /**
  * 由插件名册构造目录端点的 provider page。
  * @param {object} roster - 解析后的 market/roster.json 内容。
@@ -69,6 +79,7 @@ export function buildCatalogPage(roster) {
       homepage: repository,
       latestVersion: assertPlainText(item.version, 64, `${item.id}.version`),
       repository: { url: repository },
+      ...optionalInstallSource(item.installSource, `${item.id}.installSource`),
       // npm: true 的条目已发布到 npm 官方 registry：目录条目带上 package
       // 字段后，市场 Host 会将其识别为可托管安装的候选，并在预览与执行
       // 时对 npm 实时核验身份、仓库与完整性。这里的 latestVersion 是名册

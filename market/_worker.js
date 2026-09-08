@@ -15,6 +15,8 @@
  * 端点永远有合法响应。
  * ============================================================ */
 
+import { accessRoute, filterRoster, reply } from './access.js'
+
 /** 目录响应的边缘缓存时长（秒）。市场 Host 侧另有 5 分钟索引缓存。 */
 const CATALOG_TTL_SECONDS = 300
 
@@ -24,6 +26,24 @@ const STABLE_VERSION = /^\d+\.\d+\.\d+$/u
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
+    // Repository maintenance files are not public market assets.
+    let assetPath
+    try { assetPath = decodeURIComponent(url.pathname) } catch { return reply({ error: 'invalid path' }, 400) }
+    if (/^\/(?:scripts|tests)(?:\/|$)/u.test(assetPath)) return reply({ error: 'not found' }, 404)
+    if (env.MARKET_ACCESS_REQUIRED === 'true' && (!env.MARKET_DB || !env.MARKET_HMAC_SECRET)) {
+      if (!url.pathname.startsWith('/admin/')) return reply({ error: '授权服务未配置' }, 503)
+    }
+    const access = await accessRoute(request, env)
+    if (access) return access
+    if (env.MARKET_DB && ['/roster.json', '/v1/plugins', '/v1/plugins/'].includes(url.pathname)) {
+      if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405)
+      try {
+        const roster = await filterRoster(request, env, await readRoster(env, request.url))
+        if (url.pathname === '/roster.json') return reply(roster)
+        const items = await Promise.all(roster.items.map(item => catalogItem(item, roster.publisher)))
+        return reply({ schemaVersion: '1.0.0', items, page: {} })
+      } catch { return reply({ error: '授权目录暂时不可用' }, 503) }
+    }
     if (url.pathname === '/v1/plugins' && request.method === 'GET') {
       return catalogResponse(request, env, ctx)
     }
@@ -101,6 +121,7 @@ async function catalogItem(item, publisher) {
     homepage: item.repository,
     latestVersion: version,
     repository: { url: item.repository },
+    ...(item.installSource === undefined ? {} : { installSource: item.installSource }),
     ...(item.npm === true ? { package: { registry: 'npm', name: item.package } } : {}),
     publisher,
   }

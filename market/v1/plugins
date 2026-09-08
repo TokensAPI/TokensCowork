@@ -26,6 +26,10 @@
       "repository": {
         "url": "https://github.com/sobermh/tokens_DshConnect_code"
       },
+      "installSource": {
+        "kind": "github",
+        "commit": "12423763e9771dca437edb0e1620750757634c40"
+      },
       "publisher": {
         "name": "TokensAPI",
         "url": "https://github.com/TokensAPI"

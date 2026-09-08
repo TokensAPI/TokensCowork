@@ -8,7 +8,7 @@
  *      当前名册一致。改了名册不重新生成，线上（_worker.js 读名册）
  *      与兜底快照就会分叉。
  *   2. 名册里 npm: false 的内置插件版本是手写的——_worker.js 只对
- *      npm: true 的条目实时问 registry。同一个 id 若也登记在
+ *      npm: true 的条目实时问 registry。同一个 id 若作为默认插件登记在
  *      product.json 里，两处版本必须相同。曾经 roster 停在 connect
  *      2.4.4 而 product.json 已到 2.5.0，因为升插件和改市场是两条
  *      互不相干的工作流。
@@ -45,7 +45,11 @@ for (const [path, content] of Object.entries(expected)) {
 
 /* ---------------------- 2. 内置插件版本是否两处一致 ---------------------- */
 
-const productVersions = new Map(manifest.plugins.map(plugin => [plugin.id, plugin.version]))
+const productVersions = new Map(
+  manifest.plugins
+    .filter(plugin => plugin.enabledByDefault === true)
+    .map(plugin => [plugin.id, plugin.version]),
+)
 for (const item of roster.items) {
   const bundled = productVersions.get(item.id)
   // 只在两处都登记时比对：仅在名册里的条目（纯市场分发、或仅供浏览）
