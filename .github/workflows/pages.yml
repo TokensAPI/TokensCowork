@@ -31,9 +31,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # release 事件在 tag ref 上运行，而 github-pages 环境只允许从 master 部署，
+  # 直接部署必定被保护规则拒绝。这里改为回到 master 触发一次 workflow_dispatch，
+  # 由该 run 完成真正的部署（本 job 不声明 environment，因此不受保护规则限制）。
+  redispatch:
+    name: Re-dispatch on master
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+
+    steps:
+      - name: Trigger deploy on master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --ref master
+
   deploy:
     name: Deploy GitHub Pages
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name != 'release' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
