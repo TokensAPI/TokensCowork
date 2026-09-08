@@ -19,6 +19,16 @@ export function validateReleaseNotes({ content, version }) {
   const firstLine = content.split(/\r?\n/u, 1)[0]?.trim()
 
   if (firstLine !== expectedTitle) errors.push(`first line must be: ${expectedTitle}`)
+  // The opening paragraph also feeds the stable-to-stable upgrade summary.
+  // Release channel changes must not make that paragraph inaccurate.
+  const introduction = content.split(/\r?\n/u).slice(1).join('\n').trimStart()
+    .split(/\n\s*\n|\n(?=#{1,6}\s)/u, 1)[0].trim()
+  if (!introduction || /^#{1,6}\s/u.test(introduction)) {
+    errors.push('summary must contain a paragraph describing the changes')
+  } else if (/^(?:本次更新|本次发布|本版本|本次为|本(?:预发布|正式|稳定|测试|候选)(?:版|版本))/u.test(introduction)
+    || /(?:预发布(?:版|版本|候选)|正式版|稳定版|测试版|候选版|\bpre[- ]?release\b|\bstable release\b|\bofficial release\b)/iu.test(introduction)) {
+    errors.push('summary must describe changes directly without release-channel wording or 本次更新/本版本/本次为')
+  }
   for (const section of requiredReleaseSections) {
     if (!content.includes(`## ${section}`)) {
       errors.push(`missing required section: ## ${section}`)

@@ -1,6 +1,6 @@
 # TokensCowork v{{VERSION}}
 
-{{SUMMARY}}
+{{SUMMARY_直接描述功能与修复_不写本次更新或预发布正式版等发布状态}}
 
 ## 本次更新
 
