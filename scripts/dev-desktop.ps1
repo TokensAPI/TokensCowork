@@ -4,7 +4,7 @@
 #   powershell -File scripts\dev-desktop.ps1              # 自动判断是否需要装配/构建，然后启动
 #   powershell -File scripts\dev-desktop.ps1 -Watch       # 热加载：改代码自动重编，窗口内 Ctrl+R 生效
 #   powershell -File scripts\dev-desktop.ps1 -Build       # 改了代码、没开 -Watch 时，强制重建再启动
-#   powershell -File scripts\dev-desktop.ps1 -RealData    # 用真实数据（~/.dsh，需先退出已装应用）
+#   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
 #   powershell -File scripts\dev-desktop.ps1 -Prepare     # 改过 build/assembly/overlays/** 后先重新装配
 #
 # 热加载范围：
@@ -15,22 +15,43 @@
 #   在 staging 里直接改源码迭代最快，但最终务必落回 overlay，否则下次装配即丢失。
 #
 # 数据模式：
-# - 沙箱（默认）：数据在 .build/dev-sandbox/，首启使用产品默认 Profile，删目录即重置。
-# - -RealData：与已装应用共用 %APPDATA%\TokensCowork 和 ~/.dsh，必须先退出它。
+# - 真实数据（默认）：与已装应用共用 %APPDATA%\TokensCowork 和 ~/.dsh，验证的是真实
+#   Profile 与真实配置，因此必须先完全退出已装应用（含托盘）。
+# - -Sandbox：数据在 .build/dev-sandbox/，首启使用产品默认 Profile，删目录即重置；
+#   与已装应用数据隔离，两者可同时运行。
 #
 # 注意：.build/desktop 是共享工作区，别在另一会话装配/打包时同时跑本脚本。
 
 param(
   [switch]$Prepare,
-  [switch]$RealData,
+  [switch]$Sandbox,
   [switch]$Build,
-  [switch]$Watch
+  [switch]$Watch,
+  # 真实数据已是默认行为，保留本开关只为兼容旧用法，传了不报错。
+  [switch]$RealData
 )
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $stage = Join-Path $root '.build\desktop'
 $desktop = Join-Path $stage 'dsh-plugin-desktop'
+
+if ($Sandbox -and $RealData) {
+  Write-Host 'dev-desktop: -Sandbox 与 -RealData 互斥。' -ForegroundColor Red
+  exit 1
+}
+
+function Test-InstalledAppRunning {
+  return $null -ne (Get-Process TokensCowork -ErrorAction SilentlyContinue)
+}
+
+# 默认的真实数据模式与已装应用共用数据目录，必须独占运行。这里先拦一道，
+# 避免等装配/构建跑完数分钟后才发现需要退出应用；启动前还会再查一次。
+if (-not $Sandbox -and (Test-InstalledAppRunning)) {
+  Write-Host 'dev-desktop: 请先完全退出已安装的 TokensCowork（含托盘）—— 默认的真实数据模式与它共用数据目录。' -ForegroundColor Red
+  Write-Host '            若只想验证功能、不碰真实数据，改用：-Sandbox' -ForegroundColor Yellow
+  exit 1
+}
 
 function Invoke-Step {
   param([string]$Label, [string]$Dir, [string]$Cmd)
@@ -168,11 +189,12 @@ if ($Watch) {
   }
 }
 
-if ($RealData) {
+if (-not $Sandbox) {
   Remove-Item Env:TOKENS_COWORK_DEV_APP_DATA -ErrorAction SilentlyContinue
-  $running = Get-Process TokensCowork -ErrorAction SilentlyContinue
-  if ($null -ne $running) {
-    Write-Host 'dev-desktop: 请先完全退出已安装的 TokensCowork —— 真实数据模式与它共用数据目录。' -ForegroundColor Red
+  # 构建期间用户可能又打开了已装应用；此时两者 userData 相同，Electron 单实例锁会让
+  # 本次启动静默退出并把旧窗口拉到前台，看起来像“新代码没生效”。故启动前再查一次。
+  if (Test-InstalledAppRunning) {
+    Write-Host 'dev-desktop: 请先完全退出已安装的 TokensCowork（含托盘）—— 真实数据模式与它共用数据目录。' -ForegroundColor Red
     foreach ($w in $watchers) { try { Stop-Process -Id $w.Id -Force -ErrorAction Stop } catch {} }
     exit 1
   }
