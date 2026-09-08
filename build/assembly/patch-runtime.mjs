@@ -142,10 +142,13 @@ export interface ExternalComposerProps {
     value: string;
     onChange(value: string): void;
     onSubmit(): void;
+    onStop?(): void;
+    running?: boolean;
     disabled?: boolean;
     busy?: boolean;
     placeholder?: string;
     ariaLabel?: string;
+    modelControl?: import('react').ReactNode;
     className?: string;
 }
 export declare const ExternalComposer: import('react').MemoExoticComponent<(props: ExternalComposerProps) => import('react').ReactNode>;
