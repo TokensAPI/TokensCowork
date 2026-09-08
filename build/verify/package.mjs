@@ -87,6 +87,12 @@ const forbiddenForeignRuntime = [
   'node_modules/node-pty/prebuilds/win32-arm64',
   'node_modules/node-pty/prebuilds/win32-ia32',
 ]
+// DSH 运行时必须是 asar 外的真实文件:网关(独立 Node 进程)的预设健康
+// 检查用裸 fs 遍历 node_modules,asar 内的包一律不可见(v0.4.1 回归)。
+const requiredPlainRuntime = 'node_modules/@deepseek-ai/dsh-agent-presets/package.json'
+if (!unpackedRuntimeFiles.includes(requiredPlainRuntime)) {
+  throw new Error('packaged DSH runtime must ship as plain files outside app.asar (preset discovery walks the real filesystem)')
+}
 if (buildManifest.build?.appId !== product.appId
   || buildManifest.build?.productName !== product.name) {
   throw new Error('Windows build configuration branding differs from product.json')
