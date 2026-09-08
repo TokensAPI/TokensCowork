@@ -97,6 +97,21 @@ export function brandDesktopCertificate(certificate, productName) {
   )
 }
 
+/** 顶部栏和桌面设置中的可见名称使用产品品牌。 */
+export function brandDesktopClient({ titlebar, locales }, productName) {
+  const brand = '<span className="dshDesktopFrameProduct">DSH Desktop</span>'
+  if (titlebar.split(brand).length !== 2) {
+    throw new Error('configure-product: cannot locate Desktop titlebar branding')
+  }
+  if (!locales.includes("title: 'DSH Desktop 设置'")) {
+    throw new Error('configure-product: cannot locate Desktop settings branding')
+  }
+  return {
+    titlebar: titlebar.replace(brand, `<span className="dshDesktopFrameProduct">{${JSON.stringify(productName)}}</span>`),
+    locales: locales.replaceAll('DSH Desktop', productName),
+  }
+}
+
 /**
  * 改写 Electron 主进程：产品名、旧用户数据迁移与 App User Model ID。
  * 改名发布后旧目录仍在时按 legacyNames 顺序迁移（或降级沿用），保证
@@ -118,6 +133,9 @@ export function brandDesktopMain(main, legacyProductNames) {
     .replace(
       upstreamRunProductName,
       `function migrateLegacyUserData(): void {
+  // Electron reads Windows known folders independently of the APPDATA environment variable.
+  const devAppData = app.isPackaged ? undefined : process.env.TOKENS_COWORK_DEV_APP_DATA
+  if (devAppData) app.setPath('appData', devAppData)
   const appData = app.getPath('appData')
   const currentUserData = join(appData, PRODUCT_NAME)
   if (!existsSync(currentUserData)) {
@@ -135,6 +153,7 @@ export function brandDesktopMain(main, legacyProductNames) {
     }
   }
   app.setPath('userData', currentUserData)
+  if (devAppData) app.setPath('sessionData', currentUserData)
 }
 
 async function run(): Promise<void> {

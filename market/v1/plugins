@@ -62,21 +62,6 @@
       }
     },
     {
-      "id": "tokens-at-file",
-      "name": "@tokens/dsh-at-file",
-      "displayName": "本地文件引用",
-      "summary": "支持选择或拖入本地文件，并将文件路径交给 Harness 使用当前会话工具读取。",
-      "homepage": "https://github.com/TokensAPI/tokens_DshAtFile_code",
-      "latestVersion": "0.1.1",
-      "repository": {
-        "url": "https://github.com/TokensAPI/tokens_DshAtFile_code"
-      },
-      "publisher": {
-        "name": "TokensAPI",
-        "url": "https://github.com/TokensAPI"
-      }
-    },
-    {
       "id": "tokens-dsh-web-search",
       "name": "tokens-dsh-web-search",
       "displayName": "联网搜索",

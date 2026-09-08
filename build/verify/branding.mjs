@@ -79,6 +79,10 @@ rejectText(mainRuntime, 'DeepSeek Harness Desktop Local CA', 'compiled main runt
 requireText(indexSource, product.name, 'desktop shell source')
 rejectText(indexSource, 'DeepSeek Harness Desktop', 'desktop shell source')
 requireText(desktopRuntimeClosure, product.name, 'compiled desktop shell runtime closure')
+rejectText(read('src/client/ExtendedTitlebar.tsx'), 'DSH Desktop', 'desktop titlebar source')
+rejectText(read('src/client/desktop-settings-locales.ts'), 'DSH Desktop', 'desktop settings source')
+requireText(read('lib/client.js'), `${product.name} 设置`, 'compiled desktop settings')
+rejectText(read('lib/client.js'), 'DSH Desktop 设置', 'compiled desktop settings')
 
 requireText(assistedMessages, product.name, 'assisted installer messages')
 rejectText(assistedMessages, 'DSH Desktop', 'assisted installer messages')

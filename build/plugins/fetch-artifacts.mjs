@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -14,6 +15,8 @@ const root = resolve(import.meta.dirname, '..', '..')
 const buildRoot = resolve(root, '.build')
 const artifactsRoot = resolve(buildRoot, 'product-plugin-artifacts')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+const artifactMarker = '.artifact-sha256'
+const transientRenameCodes = new Set(['EBUSY', 'EACCES', 'EPERM'])
 
 function fail(message) {
   throw new Error(`fetch-product-plugin-artifacts: ${message}`)
@@ -45,6 +48,78 @@ function validateArchive(path, pluginId) {
   }
 }
 
+function directorySha256(directory) {
+  const hash = createHash('sha256')
+  const visit = (current, prefix) => {
+    const entries = readdirSync(current, { withFileTypes: true })
+      .sort((left, right) => left.name.localeCompare(right.name, 'en'))
+    for (const entry of entries) {
+      const relativePath = `${prefix}${entry.name}`
+      const path = resolve(current, entry.name)
+      if (entry.isDirectory()) {
+        hash.update(`directory\0${relativePath}\0`)
+        visit(path, `${relativePath}/`)
+      } else if (entry.isFile()) {
+        hash.update(`file\0${relativePath}\0`)
+        hash.update(readFileSync(path))
+      } else {
+        throw new Error(`unsupported cached artifact entry: ${relativePath}`)
+      }
+    }
+  }
+  visit(directory, '')
+  return hash.digest('hex')
+}
+
+function validateExtractedArtifact(directory, plugin, expectedSha256) {
+  const markerPath = resolve(directory, artifactMarker)
+  if (!existsSync(markerPath)) return false
+  const packagePath = resolve(directory, 'package', 'package.json')
+  if (!existsSync(packagePath)) return false
+  let marker
+  let packageManifest
+  let packageSha256
+  try {
+    marker = JSON.parse(readFileSync(markerPath, 'utf8'))
+    packageManifest = JSON.parse(readFileSync(packagePath, 'utf8'))
+    packageSha256 = directorySha256(resolve(directory, 'package'))
+  } catch {
+    return false
+  }
+  return marker.archiveSha256 === expectedSha256
+    && marker.packageSha256 === packageSha256
+    && packageManifest.name === (plugin.sourcePackage ?? plugin.package)
+    && packageManifest.version === plugin.version
+    && existsSync(resolve(directory, 'package', plugin.patch))
+}
+
+async function renameArtifactDirectory(source, destination) {
+  const delays = [50, 100, 200, 400, 800, 1600, 3200]
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(source, destination)
+      return
+    } catch (cause) {
+      const retry = cause !== null
+        && typeof cause === 'object'
+        && 'code' in cause
+        && transientRenameCodes.has(cause.code)
+        && attempt < delays.length
+      if (!retry) throw cause
+      await new Promise(resolveDelay => setTimeout(resolveDelay, delays[attempt]))
+    }
+  }
+}
+
+function removeGeneratedDirectory(path) {
+  rmSync(path, {
+    recursive: true,
+    force: true,
+    maxRetries: 6,
+    retryDelay: 100,
+  })
+}
+
 async function downloadArtifact(plugin) {
   const artifact = plugin.artifact
   if (artifact.type !== 'npm-tgz') fail(`${plugin.id} artifact type must be npm-tgz`)
@@ -69,24 +144,36 @@ async function downloadArtifact(plugin) {
   validateArchive(archivePath, plugin.id)
 
   const destination = resolve(artifactsRoot, plugin.id)
+  if (validateExtractedArtifact(destination, plugin, actualSha256)) {
+    process.stdout.write(`fetch-product-plugin-artifacts: ${plugin.id}@${plugin.version} ${actualSha256}\n`)
+    return
+  }
   const temporary = resolve(artifactsRoot, `.${plugin.id}-${process.pid}`)
-  rmSync(temporary, { recursive: true, force: true })
-  mkdirSync(temporary, { recursive: true })
-  runTar(['-xzf', archivePath, '-C', temporary])
+  removeGeneratedDirectory(temporary)
+  try {
+    mkdirSync(temporary, { recursive: true })
+    runTar(['-xzf', archivePath, '-C', temporary])
 
-  const packagePath = resolve(temporary, 'package', 'package.json')
-  if (!existsSync(packagePath)) fail(`${plugin.id} artifact does not contain package/package.json`)
-  const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8'))
-  if (packageManifest.name !== (plugin.sourcePackage ?? plugin.package)
-    || packageManifest.version !== plugin.version) {
-    fail(`${plugin.id} artifact package identity differs from product.json`)
-  }
-  if (!existsSync(resolve(temporary, 'package', plugin.patch))) {
-    fail(`${plugin.id} artifact is missing ${plugin.patch}`)
-  }
+    const packagePath = resolve(temporary, 'package', 'package.json')
+    if (!existsSync(packagePath)) fail(`${plugin.id} artifact does not contain package/package.json`)
+    const packageManifest = JSON.parse(readFileSync(packagePath, 'utf8'))
+    if (packageManifest.name !== (plugin.sourcePackage ?? plugin.package)
+      || packageManifest.version !== plugin.version) {
+      fail(`${plugin.id} artifact package identity differs from product.json`)
+    }
+    if (!existsSync(resolve(temporary, 'package', plugin.patch))) {
+      fail(`${plugin.id} artifact is missing ${plugin.patch}`)
+    }
+    writeFileSync(resolve(temporary, artifactMarker), `${JSON.stringify({
+      archiveSha256: actualSha256,
+      packageSha256: directorySha256(resolve(temporary, 'package')),
+    }, undefined, 2)}\n`)
 
-  rmSync(destination, { recursive: true, force: true })
-  renameSync(temporary, destination)
+    removeGeneratedDirectory(destination)
+    await renameArtifactDirectory(temporary, destination)
+  } finally {
+    removeGeneratedDirectory(temporary)
+  }
   process.stdout.write(`fetch-product-plugin-artifacts: ${plugin.id}@${plugin.version} ${actualSha256}\n`)
 }
 

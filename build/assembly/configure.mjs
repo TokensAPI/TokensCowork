@@ -11,6 +11,7 @@ import {
   applyProductLogo,
   assertBrandingAnchors,
   brandDesktopCertificate,
+  brandDesktopClient,
   brandDesktopMain,
   brandDesktopProductIdentity,
   brandInstalledRuntimePrompts,
@@ -56,6 +57,8 @@ const certificatePath = resolve(desktopRoot, 'src', 'lan-https-certificate.ts')
 const assistedMessagesPath = resolve(desktopRoot, 'build', 'assistedMessages.yml')
 const windowsInstallerIncludePath = resolve(desktopRoot, 'build', 'tokenscowork-upgrade-guard.nsh')
 const desktopPatchPath = resolve(desktopRoot, 'cordis.patch.yml')
+const titlebarPath = resolve(desktopRoot, 'src', 'client', 'ExtendedTitlebar.tsx')
+const settingsLocalesPath = resolve(desktopRoot, 'src', 'client', 'desktop-settings-locales.ts')
 
 /* ----------------------- 读入待改写的副本 ----------------------- */
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
@@ -96,6 +99,10 @@ assertBrandingAnchors({ verifyMacRelease, productIdentity, main, index, certific
 if (!releaseMac.includes(upstreamReleaseCheck)) {
   throw new Error('configure-product: cannot locate redundant macOS release check')
 }
+const clientBranding = brandDesktopClient({
+  titlebar: readFileSync(titlebarPath, 'utf8'),
+  locales: readFileSync(settingsLocalesPath, 'utf8'),
+}, product.name)
 
 /* ----------------------- electron-builder ----------------------- */
 desktopPackage.version = product.version
@@ -131,6 +138,8 @@ writeFileSync(
 writeFileSync(productIdentityPath, brandDesktopProductIdentity(productIdentity, product))
 writeFileSync(mainPath, brandDesktopMain(main, legacyProductNames))
 writeFileSync(certificatePath, brandDesktopCertificate(certificate, product.name))
+writeFileSync(titlebarPath, clientBranding.titlebar)
+writeFileSync(settingsLocalesPath, clientBranding.locales)
 writeFileSync(
   indexPath,
   index

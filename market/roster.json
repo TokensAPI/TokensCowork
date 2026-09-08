@@ -39,15 +39,6 @@
       "npm": false
     },
     {
-      "id": "tokens-at-file",
-      "package": "@tokens/dsh-at-file",
-      "displayName": "本地文件引用",
-      "summary": "支持选择或拖入本地文件，并将文件路径交给 Harness 使用当前会话工具读取。",
-      "repository": "https://github.com/TokensAPI/tokens_DshAtFile_code",
-      "version": "0.1.1",
-      "npm": false
-    },
-    {
       "id": "tokens-dsh-web-search",
       "package": "tokens-dsh-web-search",
       "displayName": "联网搜索",

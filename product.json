@@ -82,21 +82,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "3e16f61af14540fc0aebc0faa5070e8c07b16589",
+      "commit": "4cb8d2d54bd252ce4a2c94fc39b02d9a2b3f9681",
       "package": "@tokens/dsh-model-manager",
       "version": "0.2.15",
-      "enabledByDefault": true,
-      "patch": "cordis.patch.yml"
-    },
-    {
-      "id": "tokens-at-file",
-      "displayName": "本地文件引用",
-      "description": "支持选择或拖入本地文件，并将文件路径交给 Harness 使用当前会话工具读取。",
-      "path": "plugins/tokens_DshAtFile_code",
-      "repository": "https://github.com/TokensAPI/tokens_DshAtFile_code.git",
-      "commit": "f068fb9a043188c92f9868f1d8643cee486cd123",
-      "package": "@tokens/dsh-at-file",
-      "version": "0.1.1",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
