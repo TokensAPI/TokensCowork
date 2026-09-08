@@ -732,9 +732,9 @@
 
     var badges = document.createElement("span");
     badges.className = "release-option__badges";
+    if (isRecommended) appendReleaseBadge(badges, translate("recommendedBadge"), "recommended");
     if (isPure) appendReleaseBadge(badges, translate("pureBadge"), "pure");
     else if (isStable) appendReleaseBadge(badges, translate("stableBadge"), "stable");
-    if (isRecommended) appendReleaseBadge(badges, translate("recommendedBadge"), "recommended");
     if (isLatest) appendReleaseBadge(badges, translate("latestBadge"), "latest");
     option.appendChild(badges);
     return option;
