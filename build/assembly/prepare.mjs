@@ -23,7 +23,8 @@ import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './ove
 
 const root = resolve(import.meta.dirname, '..', '..')
 const stageRoot = resolve(root, '.build')
-const stage = resolve(stageRoot, process.env.PRODUCT_REFRESH_LOCK === '1' ? 'refresh-lock' : 'desktop')
+const refreshingLock = process.env.PRODUCT_REFRESH_LOCK === '1'
+const stage = resolve(stageRoot, refreshingLock ? 'refresh-lock' : 'desktop')
 const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
@@ -72,6 +73,11 @@ function listStagedModules(base, relativeBase = '') {
 /** 清空 staging，但保留其中已装好的 node_modules 及其各级父目录。 */
 function clearStageKeepingModules() {
   if (!existsSync(stage)) return
+  // 刷新 lock 要的是纯净解析，残留的依赖树一律不留。
+  if (refreshingLock) {
+    rmSync(stage, { recursive: true, force: true })
+    return
+  }
   const preserved = new Set(listStagedModules(stage))
   // 依赖树的父目录必须留着当容器，只能逐层进去删同级的其它内容。
   const containers = new Set()
