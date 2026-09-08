@@ -1,4 +1,49 @@
-# 插件市场组织可见域设计（基础版）
+# 插件市场组织可见域设计
+
+## 当前实施约定（2026-09-08）
+
+用户确认保留权限，改为按 TokensAPI 组织管理。以下约定取代后文的旧市场令牌与独立来源方案；后文仅保留为历史参考。
+
+- 桌面通过 `Authorization: Bearer <API Key>` 请求同一个产品市场。沿用已有构建覆盖的凭证透传，不在客户端读取组织列表或决定组织权限。
+- 市场后端调用 TokensAPI 的 Key 查询组织接口，获取数字组织 ID 和名称。组织 ID 是授权依据，名称仅用于展示；不信任客户端提交的组织 ID。
+- 管理后台每个插件选择允许的组织。未配置组织表示公开；配置一个或多个组织表示仅这些组织可见。同组织所有有效 Key 共享权限，无需逐 Key 录入。
+- 所有组织列表由市场后端使用专用后台凭证查询，只向已通过管理员鉴权的管理页面提供。专用凭证保存在服务端，不分发给桌面或浏览器。
+- 组织查询失败、Key 无效或组织不匹配时不得返回受限插件。组织接口异常与正常的无权限状态需区分，不回退到包含受限插件的静态目录。
+- 每次市场请求最多解析一次组织，供该次目录过滤使用。初版不引入跨请求身份缓存，避免 Key 撤销或组织变化后仍沿用旧权限。
+- 下载入口复用同一组织权限判断。当前公开 npm/GitHub 包仍可从原地址下载；严格限制包下载需要私有分发和桌面安装适配，不能仅靠隐藏目录实现。
+- 保留现有 Key 授权数据，明确迁移后再切换；不得在迁移过程中把原受限插件因没有组织配置而自动公开，也不得将旧 Key 授权作为组织鉴权失败后的兜底。
+
+### 尚待 TokensAPI 提供的实际接口定义
+
+聊天记录确认接口将提供，但尚未包含接口地址或完整契约；仓库内亦未找到对应文档。接入前需要：
+
+1. Key 查询组织：URL、HTTP 方法、Key 传递方式、成功返回示例、无效 Key/无组织/多组织时的返回约定。
+2. 后台组织列表：URL、HTTP 方法、专用鉴权方式、分页参数及返回示例。
+3. 数字组织 ID 的取值范围；如可能超过 JavaScript 安全整数范围，需要约定无损传输形式。
+
+### 我方功能已实现（外部接口独立待接）
+
+- `/admin/`：管理登录、组织名录、登记/编辑/停用组织、每个插件配置允许的组织、受限改公开时明确确认。
+- `PUT /api/admin/organizations`：`{id: 数字, name: 字符串, enabled: 布尔}`。
+- `PUT /api/admin/plugin-organizations`：`{id, metadata, objectKey, organizationIds: 数字数组, confirmPublic?: true}`。组织必须先登记，空数组表示公开；受限插件改公开必须明确确认。一次事务替换该插件的组织策略。
+- `GET /api/admin/access`：额外返回 organizations、organizationPolicies、organizationGrants、organizationProviderReady、organizationListReady，仅管理员可读。
+- `PUT /api/admin/organizations/sync`：后台组织列表接入后可同步。同步保留本地停用状态，不因列表遗漏删除已有授权；未接入返回 503。
+- `market/scripts/organization-schema.sql` 是可重复运行的新增表迁移，发布流程先迁移再部署。不会更改旧插件可见范围或清除旧 Key 数据；只有管理员保存某插件时，该插件才改用组织策略。
+- 目录每个请求只查询一次身份；下载逐次复用组织判断。查询失败返回 503、无效身份无受限权限、不允许旧 Key 规则绕过组织策略。
+
+`market/organizations.js` 是唯一的外部组织适配入口。目前定义的是**我方内部契约**，并非猜测 TokensAPI URL：
+
+```js
+// 私有后端依赖，测试时注入；线上尚未连接实际提供方。
+MARKET_ORGANIZATIONS.resolveOrganization(apiKey) // -> { id: number, name: string } 或 null
+MARKET_ORGANIZATIONS.listOrganizations() // -> [{ id: number, name: string }]
+```
+
+收到实际文档后在适配模块内实现 HTTP、鉴权和响应转换，列表接口需聚合其分页。其他权限代码及管理 UI 不依赖 TokensAPI 的原始字段。外部接口调用当前限制 8 秒；测试身份仅在内存测试中注入，线上没有测试 Key 映射入口。
+
+运行 `node --test market/tests/access.test.mjs` 验证组织隔离、多个 Key 共用组织、迁移保护、撤销、下载鉴权、未接入状态、组织同步和旧 Key 兼容。当前可先保存后台组织配置；真实客户组织的自动识别仍需接入外部接口。
+
+## 历史方案（已被上述约定取代）
 
 目标：同一个市场服务，不同组织的客户看到「通用插件 + 本组织专属插件」。
 组织身份由 TokensAPI 后端从 API Key 解析（apikey → orgId），市场侧不直接

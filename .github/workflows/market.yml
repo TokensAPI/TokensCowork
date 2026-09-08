@@ -52,7 +52,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4 pages deploy market --project-name tokenscowork-market --branch master
+        run: |
+          npx --yes wrangler@4 d1 execute tokenscowork-market-access --remote --file market/scripts/organization-schema.sql
+          npx --yes wrangler@4 pages deploy market --project-name tokenscowork-market --branch master
 
       - name: Verify deployment
         run: |

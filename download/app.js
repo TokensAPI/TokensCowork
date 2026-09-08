@@ -445,7 +445,36 @@
       content.innerHTML = "";
       return;
     }
-    var body = visibleReleaseBody(release.body);
+    var releases = [release];
+    if (isStableRelease(release)) {
+      var selectedIndex = cachedReleases.findIndex(function (item) {
+        return item.tag_name === release.tag_name;
+      });
+      if (selectedIndex >= 0) {
+        releases = [];
+        for (var index = selectedIndex; index < cachedReleases.length; index += 1) {
+          var candidate = cachedReleases[index];
+          if (index > selectedIndex && isStableRelease(candidate)) break;
+          releases.push(candidate);
+        }
+      }
+    }
+    var aggregated = releases.length > 1;
+    var body = releases.map(function (item) {
+      var visibleBody = visibleReleaseBody(item.body);
+      if (!aggregated || !visibleBody) return visibleBody;
+      var lines = visibleBody.split(/\r?\n/);
+      if (/^\s{0,3}#\s+/.test(lines[0]) && lines[0].toLowerCase().includes(String(item.tag_name || "").toLowerCase())) {
+        lines.shift();
+      }
+      lines = lines.filter(function (line) {
+        var heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+        if (!heading) return true;
+        var title = heading[1].replace(/[`*_~]/g, "").trim().toLowerCase();
+        return title !== "本次更新" && title !== "what's changed" && title !== "what’s changed";
+      });
+      return "## " + item.tag_name + "\n\n" + lines.join("\n").trim();
+    }).filter(Boolean).join("\n\n");
     section.hidden = false;
     if (body) {
       renderReleaseMarkdown(content, body);

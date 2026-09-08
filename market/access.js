@@ -1,3 +1,4 @@
+import { organizationAccess, organizationState, validOrganizationId, syncOrganizations } from './organizations.js'
 const enc = new TextEncoder()
 export const reply = (body, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'vary': 'Authorization' },
@@ -34,6 +35,9 @@ async function body(request) {
   return JSON.parse(new TextDecoder().decode(bytes))
 }
 export async function allowed(request, env, pluginId) {
+  if (await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(pluginId).first()) {
+    return (await organizationAccess(request, env)).has(pluginId)
+  }
   const key = bearer(request)
   if (!key || !env.MARKET_HMAC_SECRET) return false
   const fp = await fingerprint(key, env.MARKET_HMAC_SECRET)
@@ -45,9 +49,13 @@ export async function filterRoster(request, env, roster) {
   if (!env.MARKET_DB) return roster
   const { results } = await env.MARKET_DB.prepare('SELECT * FROM market_plugins').all()
   const merged = new Map(roster.items.map(item => [item.id, item]))
+  const { results: policies } = await env.MARKET_DB.prepare('SELECT plugin_id FROM market_org_policies').all()
+  const orgPolicies = new Set(policies.map(p => p.plugin_id))
+  const needsOrg = results.some(row => row.visibility !== 'public' && orgPolicies.has(row.id))
+  const orgAllowed = needsOrg ? await organizationAccess(request, env) : new Set()
   for (const row of results) {
     merged.delete(row.id)
-    if (row.visibility === 'public' || await allowed(request, env, row.id)) {
+    if (row.visibility === 'public' || (orgPolicies.has(row.id) ? orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
       merged.set(row.id, JSON.parse(row.metadata))
     }
   }
@@ -77,11 +85,18 @@ export async function accessRoute(request, env) {
         env.MARKET_DB.prepare('SELECT fingerprint,plugin_id FROM market_grants').all(),
         env.MARKET_DB.prepare('SELECT * FROM market_plugins ORDER BY id').all(),
       ])
-      return reply({ keys: keys.results, grants: grants.results, plugins: plugins.results.map(p => ({ ...p, metadata: JSON.parse(p.metadata) })) })
+      return reply({ keys: keys.results, grants: grants.results, plugins: plugins.results.map(p => ({ ...p, metadata: JSON.parse(p.metadata) })), ...await organizationState(env) })
     }
     if (request.method !== 'PUT') return reply({ error: 'method not allowed' }, 405)
     let data
     try { data = await body(request) } catch { return reply({ error: '请求格式无效或超过 16 KB' }, 400) }
+    if (url.pathname === '/api/admin/organizations/sync') return reply({ count:await syncOrganizations(env) })
+    if (url.pathname === '/api/admin/organizations') {
+      if (!validOrganizationId(data.id) || !text(data.name) || typeof data.enabled !== 'boolean') return reply({ error: '请填写有效的组织 ID、名称和启用状态' }, 400)
+      await env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name,enabled=excluded.enabled`).bind(data.id, data.name.trim(), Number(data.enabled)).run()
+      return reply({ ok: true })
+    }
     if (url.pathname === '/api/admin/keys') {
       if (!text(data.label) || typeof data.enabled !== 'boolean' || !Array.isArray(data.plugins) || data.plugins.length > 200 || !data.plugins.every(idOK)
         || (data.expiresAt != null && (!Number.isSafeInteger(data.expiresAt) || data.expiresAt <= 0))) return reply({ error: '授权字段无效' }, 400)
@@ -100,7 +115,21 @@ export async function accessRoute(request, env) {
       ])
       return reply({ fingerprint: fp })
     }
-    if (url.pathname === '/api/admin/plugins' || url.pathname === '/api/admin/plugin-keys') {
+    if (['/api/admin/plugins', '/api/admin/plugin-keys', '/api/admin/plugin-organizations'].includes(url.pathname)) {
+      const orgMode = url.pathname === '/api/admin/plugin-organizations'
+      if (!orgMode && await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(data.id ?? '').first()) {
+        return reply({ error: '此插件已按组织管理，请使用组织配置入口' }, 409)
+      }
+      if (orgMode) {
+        if (!Array.isArray(data.organizationIds) || data.organizationIds.length > 100 || !data.organizationIds.every(validOrganizationId)) return reply({ error: '组织列表无效，最多 100 个组织' }, 400)
+        data.organizationIds = [...new Set(data.organizationIds)]
+        for (const id of data.organizationIds) {
+          if (!await env.MARKET_DB.prepare('SELECT 1 FROM market_organizations WHERE id=?').bind(id).first()) return reply({ error: '请先登记所选组织' }, 400)
+        }
+        const previous = await env.MARKET_DB.prepare('SELECT visibility FROM market_plugins WHERE id=?').bind(data.id ?? '').first()
+        if (previous?.visibility === 'restricted' && !data.organizationIds.length && data.confirmPublic !== true) return reply({ error: '此操作将公开插件，请明确确认' }, 409)
+        data.visibility = data.organizationIds.length ? 'restricted' : 'public'
+      }
       const simple = url.pathname === '/api/admin/plugin-keys'
       let fingerprints = [], newKeys = []
       if (simple) {
@@ -124,7 +153,14 @@ export async function accessRoute(request, env) {
       const savePlugin = env.MARKET_DB.prepare(`INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET visibility=excluded.visibility,metadata=excluded.metadata,object_key=excluded.object_key`)
         .bind(data.id, data.visibility, JSON.stringify(metadata), data.objectKey || null)
-      if (simple) {
+      if (orgMode) {
+        await env.MARKET_DB.batch([
+          savePlugin,
+          env.MARKET_DB.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?) ON CONFLICT(plugin_id) DO NOTHING').bind(data.id),
+          env.MARKET_DB.prepare('DELETE FROM market_org_grants WHERE plugin_id=?').bind(data.id),
+          ...data.organizationIds.map(id => env.MARKET_DB.prepare('INSERT INTO market_org_grants(plugin_id,organization_id) VALUES(?,?)').bind(data.id, id)),
+        ])
+      } else if (simple) {
         await env.MARKET_DB.batch([
           savePlugin,
           ...[...new Set(newKeys)].map(fp => env.MARKET_DB.prepare(`INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL) ON CONFLICT(fingerprint) DO NOTHING`).bind(fp, 'Key '+fp.slice(0, 8))),

@@ -15,6 +15,9 @@ function Cf($method, $path, $body = $null) {
 }
 $current = Cf GET "pages/projects/$project"
 $production = $current.deployment_configs.production
+if ($production.d1_databases.MARKET_DB.id) {
+  $null = Cf POST "d1/database/$($production.d1_databases.MARKET_DB.id)/query" @{ sql=(Get-Content (Join-Path $PSScriptRoot 'organization-schema.sql') -Raw) }
+}
 if ($production.env_vars.MARKET_ADMIN_TOKEN -and $production.env_vars.MARKET_HMAC_SECRET -and $production.d1_databases.MARKET_DB) {
   Write-Output 'Authorization configuration already exists; secrets were not changed.'
   return
@@ -26,6 +29,7 @@ $db = @(Cf GET 'd1/database?per_page=100') | Where-Object name -EQ 'tokenscowork
 if ($db.Count -gt 1) { throw 'Ambiguous database name' }
 if (-not $db) { $db = Cf POST 'd1/database' @{name='tokenscowork-market-access'} }
 $null = Cf POST "d1/database/$($db.uuid)/query" @{ sql=(Get-Content (Join-Path $PSScriptRoot 'schema.sql') -Raw) }
+$null = Cf POST "d1/database/$($db.uuid)/query" @{ sql=(Get-Content (Join-Path $PSScriptRoot 'organization-schema.sql') -Raw) }
 $vars = @{}
 if ($production.env_vars) { foreach ($p in $production.env_vars.PSObject.Properties) { $vars[$p.Name]=$p.Value } }
 if ($vars.ContainsKey('MARKET_ADMIN_TOKEN') -and -not (Test-Path $credentialFile)) { throw 'Existing admin secret found: recover it instead of rotating automatically' }

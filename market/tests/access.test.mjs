@@ -9,6 +9,7 @@ const metadata = { id: 'private-tool', package: '@example/tool', displayName: 'å
 function fixture(t) {
   const db = new DatabaseSync(':memory:')
   db.exec(readFileSync(new URL('../scripts/schema.sql', import.meta.url), 'utf8'))
+  db.exec(readFileSync(new URL('../scripts/organization-schema.sql', import.meta.url), 'utf8'))
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({ bind: (...v) => wrap(sql, v), first: async () => db.prepare(sql).get(...values), all: async () => ({ results: db.prepare(sql).all(...values) }), run: async () => db.prepare(sql).run(...values) })
   const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret',
@@ -73,6 +74,72 @@ test('malformed fields and unknown fingerprints cannot overwrite authorization',
 })
 test('HMAC fingerprint depends on server secret', async () => {
   assert.notEqual(await fingerprint('sk-test','one'), await fingerprint('sk-test','two'))
+})
+
+test('organization policy shares access across Keys, isolates organizations and uses the same download gate', async t => {
+  const { call, env, db } = fixture(t)
+  for (const id of [1,2]) assert.equal((await call('/api/admin/organizations','admin-secret',{id,name:'Org '+id,enabled:true})).status,200)
+  let lookups = 0
+  env.MARKET_ORGANIZATIONS = {resolveOrganization: async key => { lookups++; return key==='sk-revoked'?null:{id:key==='sk-other'?2:1,name:'Org'} }}
+  const configure = (organizationIds, confirmPublic=false) => call('/api/admin/plugin-organizations','admin-secret',{id:metadata.id,metadata,organizationIds,confirmPublic,objectKey:'private/tool.tgz'})
+  assert.equal((await configure([1])).status,200)
+  for (const key of [undefined,'sk-first','sk-second','sk-other','sk-revoked']) {
+    const authorized = ['sk-first','sk-second'].includes(key)
+    assert.equal((await (await call('/roster.json',key)).json()).items.length,authorized?1:0)
+    assert.equal((await call('/downloads/private-tool',key)).status,authorized?200:403)
+  }
+  // An untrusted client-supplied organization never overrides the provider.
+  assert.equal((await (await call('/roster.json?organizationId=1','sk-other')).json()).items.length,0)
+  // Multiple restricted plugins cause only one identity lookup per catalog request.
+  const second={...metadata,id:'another-tool'}
+  await call('/api/admin/plugin-organizations','admin-secret',{id:second.id,metadata:second,organizationIds:[1]})
+  lookups=0; await call('/roster.json','sk-first'); assert.equal(lookups,1)
+  await call('/api/admin/organizations','admin-secret',{id:1,name:'Renamed',enabled:false})
+  assert.equal((await (await call('/roster.json','sk-first')).json()).items.length,0)
+  assert.equal((await configure([])).status,409)
+  assert.equal((await configure([],true)).status,200)
+  assert.equal(db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(metadata.id).visibility,'public')
+})
+
+test('organization migration keeps legacy restrictions until saved and never falls back to old Key grants', async t => {
+  const { call, env, restrict, grant }=fixture(t)
+  await restrict(); await grant()
+  await call('/api/admin/organizations','admin-secret',{id:7,name:'Org',enabled:true})
+  assert.equal((await (await call('/roster.json','sk-customer-a')).json()).items.length,1)
+  await call('/api/admin/plugin-organizations','admin-secret',{id:metadata.id,metadata,organizationIds:[7]})
+  assert.equal((await call('/roster.json','sk-customer-a')).status,503)
+  assert.equal((await call('/downloads/private-tool','sk-customer-a')).status,503)
+  assert.equal((await (await call('/roster.json')).json()).items.length,0)
+  assert.equal((await restrict()).status,409)
+  env.MARKET_ORGANIZATIONS={resolveOrganization:async()=>({id:8,name:'Different'})}
+  assert.equal((await (await call('/roster.json','sk-customer-a')).json()).items.length,0)
+  env.MARKET_ORGANIZATIONS.resolveOrganization=async()=>{throw new Error('upstream failed')}
+  assert.equal((await call('/roster.json','sk-customer-a')).status,503)
+  env.MARKET_ORGANIZATIONS.resolveOrganization=async()=>({id:'7',name:'Invalid'})
+  assert.equal((await call('/roster.json','sk-customer-a')).status,503)
+})
+
+test('organization administration rejects invalid input and never exposes organization lists to customers', async t => {
+  const {call}=fixture(t)
+  for(const id of [0,-1,1.1,'1',9007199254740992]) assert.equal((await call('/api/admin/organizations','admin-secret',{id,name:'Org',enabled:true})).status,400)
+  assert.equal((await call('/api/admin/organizations','sk-customer',{id:1,name:'Org',enabled:true})).status,401)
+  assert.equal((await call('/api/admin/plugin-organizations','admin-secret',{id:metadata.id,metadata,organizationIds:[999]})).status,400)
+  const state=await (await call('/api/admin/access','admin-secret')).json()
+  assert.equal(state.organizationProviderReady,false)
+  assert.deepEqual(state.organizations,[])
+})
+
+test('organization sync is admin-only, atomic and preserves locally disabled organizations', async t => {
+  const {call,env,db}=fixture(t)
+  assert.equal((await call('/api/admin/organizations/sync','sk-customer',{})).status,401)
+  assert.equal((await call('/api/admin/organizations/sync','admin-secret',{})).status,503)
+  await call('/api/admin/organizations','admin-secret',{id:1,name:'Old',enabled:false})
+  env.MARKET_ORGANIZATIONS={listOrganizations:async()=>[{id:1,name:'New'},{id:2,name:'Second'}]}
+  assert.equal((await call('/api/admin/organizations/sync','admin-secret',{})).status,200)
+  assert.equal(db.prepare('SELECT enabled FROM market_organizations WHERE id=1').get().enabled,0)
+  env.MARKET_ORGANIZATIONS.listOrganizations=async()=>[{id:3,name:'Third'},{id:2,name:123}]
+  assert.equal((await call('/api/admin/organizations/sync','admin-secret',{})).status,503)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_organizations').get().n,2)
 })
 
 test('per-plugin Key editor restricts, retains, replaces and clears without changing other plugins', async t => {

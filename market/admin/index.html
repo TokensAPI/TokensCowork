@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TokensAPI 插件市场 · 管理面板</title>
+<title>TokensAPI 插件市场 · 组织权限</title>
 <style>
   :root {
     --bg: #f6f7f9; --card: #ffffff; --ink: #1c2330; --muted: #667085;
@@ -58,27 +58,32 @@
   button:disabled { opacity: .5; cursor: default; }
   .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
   @media (max-width: 720px) { .hide-sm { display: none; } }
-  section { background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin:20px 0 }
-  section label { display:block;margin:12px 0 }
-  input:not([type=checkbox]),select,textarea { background:var(--card);color:var(--ink);width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;box-sizing:border-box }
-  section input:not([type=checkbox]) { display:block }
-  .grid { display:grid;grid-template-columns:1fr 1fr;gap:20px }
-  fieldset { border:1px solid var(--line) }
   [hidden] { display:none!important }
-  #message { display:block;margin-top:10px }
-  td button { margin:8px 0 0 }
-  @media(max-width:720px) { .grid { grid-template-columns:1fr } }
+  .panel { margin:20px 0; padding:18px; background:var(--card); border:1px solid var(--line); border-radius:10px }
+  input:not([type=checkbox]),select { padding:9px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); max-width:100% }
+  #message { display:block; margin:10px 0 }
+  .table-scroll { overflow:auto }
+  #organization-options label { display:block; margin:10px 0 }
+  .panel button { margin:6px }
+  .panel label { margin:8px; display:inline-block }
+  #organization-options { max-height:260px; overflow:auto; margin:12px 0 }
+  dialog { color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:12px; width:520px; max-width:90vw }
+  dialog::backdrop { background:#0006 }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>插件市场管理面板</h1>
+    <h1>插件市场管理</h1>
     <span class="sub" id="origin"></span>
     <button id="refresh">刷新</button>
   </header>
-
-<section><label>管理员凭证<input id="admin" type="password" autocomplete="off"></label><button id="load">连接后台</button><button id="logout">退出</button><p>凭证仅保留在当前页面内存中。客户 Key 只在录入时发送，后台保存 HMAC 指纹。</p><output id="message" role="status" aria-live="polite">请连接后台。</output></section>
+  <section class="panel" aria-label="管理登录">
+    <label>管理凭证 <input id="admin-token" type="password" autocomplete="off"></label>
+    <button id="connect">进入管理</button><button id="logout" hidden>退出</button>
+    <output id="message" role="status" aria-live="polite">可直接查看公开目录，登录后配置组织权限。</output>
+    <p id="provider-status" class="sub" hidden></p>
+  </section>
 
   <div class="stats">
     <div class="stat"><b id="stat-total">–</b><span>名册插件</span></div>
@@ -87,7 +92,7 @@
     <div class="stat"><b id="stat-drift">–</b><span>版本待同步</span></div>
   </div>
 
-  <table>
+  <div class="table-scroll"><table>
     <thead>
       <tr>
         <th>插件</th>
@@ -95,28 +100,45 @@
         <th>npm latest</th>
         <th>市场目录</th>
         <th class="hide-sm">状态</th>
-        <th>API Key（留空全部可见）</th>
+        <th>可见组织</th>
       </tr>
     </thead>
     <tbody id="rows"><tr><td colspan="6" style="color:var(--muted)">加载中…</td></tr></tbody>
-  </table>
+  </table></div>
+
+  <details id="organizations-panel" class="panel" hidden>
+    <summary>组织名录</summary>
+    <button id="sync-organizations" type="button" hidden>同步组织列表</button>
+    <p class="sub">登记组织后即可给插件分配权限。这里的 ID 应与 TokensAPI 组织 ID 一致。</p>
+    <form id="organization-form">
+      <label>组织 ID <input id="organization-id" type="number" min="1" max="9007199254740991" step="1" required></label>
+      <label>组织名称 <input id="organization-name" maxlength="200" required></label>
+      <label><input id="organization-enabled" type="checkbox" checked>启用</label>
+      <button type="submit">保存组织</button><button id="new-organization" type="button">新增组织</button>
+    </form>
+    <div id="organization-list"></div>
+  </details>
+  <dialog id="plugin-dialog" aria-labelledby="plugin-title">
+    <form id="plugin-organizations-form">
+      <h2 id="plugin-title">配置可见组织</h2>
+      <p>勾选允许访问的组织；不选任何组织并保存，则所有人可见。</p>
+      <input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索组织">
+      <div id="organization-options"></div>
+      <p id="legacy-note" class="sub" hidden>此插件仍使用旧 Key 权限。保存后切换为组织权限。</p>
+      <p id="public-confirmation" hidden><label><input id="confirm-public" type="checkbox">确认将此受限插件改为所有人可见</label></p>
+      <output id="plugin-error" role="alert"></output>
+      <button type="submit">保存范围</button><button id="cancel-plugin" type="button">取消</button>
+    </form>
+  </dialog>
 
   <p class="foot">
     数据说明：<b>名册</b>读自 <code>roster.json</code>；<b>npm latest</b> 实时查询 registry.npmjs.org；
-    <b>市场目录</b>显示未登录客户可见的公开条目；授权目录不使用共享缓存，客户端仍可能保留本地缓存。
+    <b>市场目录</b>读自本源 <code>/v1/plugins</code>。
     npm 自动同步的插件（<span class="tag ok">npm</span>）由协作者 <code>npm publish</code> 后自动更新，无需任何操作；
     浏览版插件（<span class="tag dim">browse</span>）改版本需编辑 <code>roster.json</code> 并推送部署。
-    登录后直接在插件右侧填写 API Key，每行一个，然后保存。不配置 Key 的插件对所有人可见；移除全部已保存 Key 并留空保存，即恢复公开。
+    插件可见范围在本页按组织配置。公开 npm / GitHub 包仍可从原地址下载。
   </p>
-<details id="editor" hidden><summary>高级管理（一般无需使用）</summary><div class="grid">
-<section><h2>客户 Key 授权</h2><label>选择授权<select id="key-select"><option value="">新增 Key</option></select></label>
-<form id="key-form"><label>客户 API Key（新增时填写）<input id="api-key" type="password" autocomplete="off"></label><label>企业或客户备注<input id="label" required maxlength="200"></label>
-<label><input id="enabled" type="checkbox" checked>启用授权</label><label>授权到期时间（留空表示长期）<input id="expires" type="datetime-local"></label><fieldset><legend>允许访问的插件</legend><div id="grants"></div></fieldset><button>保存授权</button></form><p>撤销访问：取消“启用授权”并保存。更换 Key：新增授权，再停用旧授权。公开插件始终对所有人可见。</p></section>
-<section><h2>插件可见范围</h2><label>选择插件<select id="plugin-select"><option value="">新增插件</option></select></label><form id="plugin-form">
-<label>插件 ID<input id="plugin-id" required pattern="[a-z0-9][a-z0-9-]{0,79}"></label><label>显示名称<input id="display-name" required></label><label>npm 包名<input id="package-name" required></label><label>简介<textarea id="summary" required></textarea></label><label>仓库地址<input id="repository" type="url" required></label><label>版本<input id="version" required placeholder="0.1.0"></label>
-<label>可见范围<select id="visibility"><option value="public">所有人可见</option><option value="restricted">仅授权 Key 可见</option></select></label><label><input id="npm" type="checkbox">使用公开 npm 自动更新</label><label>私有安装包对象名（可选）<input id="object-key" placeholder="plugins/example/0.1.0.tgz"></label><button>保存插件</button></form>
-<p>公开 npm / GitHub 上已发布的包仍可从原地址下载。真正私有的包需放入私有 R2，通过 /downloads/插件ID 携带客户 Key 下载。现有桌面安装器尚不支持该私有下载入口。</p></section></div>
-</details></div>
-<script type="module" src="/admin/access-ui.js"></script>
+</div>
+<script type="module" src="/admin/organization-ui.js"></script>
 </body>
 </html>

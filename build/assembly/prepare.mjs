@@ -3,6 +3,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from './overlays/branding.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './overlays/market/market-auth.mjs'
+import { separateInstalledSystemComponents } from './overlays/market/market-installed-ui.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
@@ -323,6 +324,14 @@ writeFileSync(
   marketSettingsTabTestsPath,
   skipUpstreamSourceDescriptionTests(readFileSync(marketSettingsTabTestsPath, 'utf8')),
 )
+const installedMarketUi = separateInstalledSystemComponents({
+  settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
+  locales: readFileSync(marketLocalesPath, 'utf8'),
+  tests: readFileSync(marketSettingsTabTestsPath, 'utf8'),
+})
+writeFileSync(marketSettingsTabPath, installedMarketUi.settingsTab)
+writeFileSync(marketLocalesPath, installedMarketUi.locales)
+writeFileSync(marketSettingsTabTestsPath, installedMarketUi.tests)
 const marketSourceStoreTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'source-store.spec.ts')
 writeFileSync(
   marketSourceStoreTestsPath,
