@@ -1,3 +1,13 @@
+/* ============================================================
+ * 手动 smoke:Windows ACL 宿主控制台
+ * ============================================================
+ * 不接入 CI。在完成 staging 构建后手动验证产品的 windows-acl-runner
+ * 与上游 @deepseek-ai/dsh-sandbox-windows-acl 行为一致:
+ *
+ *   node build/verify/windows-acl-console-smoke.mjs <electron.exe 路径>
+ *
+ * 排查 Windows 沙箱 ACL 启动链问题时使用(见 overlays/windows-acl.mjs)。
+ * ============================================================ */
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { resolve, sep } from 'node:path'

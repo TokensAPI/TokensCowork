@@ -72,7 +72,8 @@ const assistedMessages = readFileSync(assistedMessagesPath, 'utf8')
 
 /* ----------------------- 打包参数（非覆盖） ----------------------- */
 // Windows x64 只排除不可能参与该目标运行的原生架构，以及 Node 运行时不会读取的
-// 调试/类型元数据。完整 JavaScript 运行时仍由现有 asarUnpack 和 afterPack 门禁保护。
+// 调试/类型元数据。完整 JavaScript 运行时收在 app.asar 内，由 afterPack 镜像门禁
+// 与 verify-package 的运行时补丁验收保护（asarUnpack 全量解包已随 smartUnpack 移除）。
 const windowsX64RuntimeExclusions = [
   '!node_modules/@img/sharp-win32-{arm64,ia32}/**',
   '!node_modules/@koromix/koffi-win32-{arm64,ia32}/**',

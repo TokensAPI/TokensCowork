@@ -69,6 +69,8 @@ product:dist:mac:auto     生成当前架构的 macOS 安装包
 1. 版本、品牌、Desktop pin 和默认插件写入顶层 `product.json`。
 2. 产品加工只修改 staging；子模块保持只读并固定到 Git commit。
 3. 插件进入产品前必须通过完整生产依赖许可证检查。
-4. 不通过缩小 `asarUnpack` 破坏 CLI、Loader、Worker 或插件物理运行时。
+4. 运行时收在 app.asar 内（smartUnpack 只解原生模块）：不得让普通模块以真实
+   文件镜像解包（afterPack 门禁拒绝），需要真实文件语义的健康检查一律走
+   patch-runtime 补丁并由 verify-package 验收。
 5. 构建产物、凭据、证书、API Key 和本地运行数据不得提交。
 6. 流程或路径变化必须同步更新顶层命令、GitHub workflow 和本文档。
