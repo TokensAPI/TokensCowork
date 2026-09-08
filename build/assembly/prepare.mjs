@@ -6,6 +6,7 @@ import {
   alignCliRuntimeSmokeWithPlatform,
   alignStablePackageRuntimeTests,
   defaultDesktopMarketToCommunity,
+  pinDesktopMarketProvider,
   protectDesktopStderr,
   skipDesktopSetupWizard,
 } from './overlays/desktop-runtime.mjs'
@@ -329,6 +330,9 @@ for (const plugin of enabledPlugins) {
 
 /* ---------------------- 关闭首次设置向导 ------------------------- */
 desktopMain = skipDesktopSetupWizard(desktopMain)
+
+/* -------------------- 市场提供方固定为社区市场 -------------------- */
+desktopMain = pinDesktopMarketProvider(desktopMain)
 
 /* -------------------- 市场默认启用社区实现 ----------------------- */
 // 向导被跳过后用户失去上游预期的市场选择机会，产品把无状态时的
