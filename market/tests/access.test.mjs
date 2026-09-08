@@ -6,6 +6,69 @@ import worker from '../_worker.js'
 import { fingerprint } from '../access.js'
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
+test('built-in classification cannot be bypassed by editing request metadata',async t=>{
+  const {env,call,db}=fixture(t)
+  env.ASSETS.fetch=async()=>Response.json({publisher:{name:'Example'},items:[{...metadata,category:'builtin'}]})
+  for(const path of ['/api/admin/plugins','/api/admin/plugin-keys','/api/admin/plugin-organizations','/api/admin/plugin-access']) {
+    assert.equal((await call(path,'admin-secret',{id:metadata.id,metadata:{...metadata,category:'optional'},visibility:'restricted',organizationIds:[],apiKeys:['sk-direct'],keepFingerprints:[]})).status,409)
+  }
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
+})
+test('roster built-ins match components assembled into the desktop patch',()=>{
+  const roster=JSON.parse(readFileSync(new URL('../roster.json',import.meta.url),'utf8'))
+  const product=JSON.parse(readFileSync(new URL('../../product.json',import.meta.url),'utf8'))
+  assert.ok(roster.items.every(p=>['builtin','optional'].includes(p.category)))
+  assert.deepEqual(roster.items.filter(p=>p.category==='builtin').map(p=>p.id).sort(),product.plugins.filter(p=>p.enabledByDefault&&p.patch).map(p=>p.id).sort())
+})
+test('mixed grants allow organization OR direct Key and revoke independently', async t => {
+  const {call,env}=fixture(t)
+  await call('/api/admin/organizations','admin-secret',{id:1,name:'Org',enabled:true})
+  env.MARKET_ORGANIZATIONS={resolveOrganization:async key=>({id:key==='sk-org'?1:2,name:'Org'})}
+  const save=(organizationIds,apiKeys=[],keepFingerprints=[],confirmPublic=false)=>call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds,apiKeys,keepFingerprints,confirmPublic,objectKey:'private/tool.tgz'})
+  assert.equal((await save([1],['sk-direct'])).status,200)
+  for(const key of ['sk-org','sk-direct','sk-other']) {
+    assert.equal((await call('/downloads/private-tool',key)).status,key==='sk-other'?403:200)
+  }
+  const state=await (await call('/api/admin/access','admin-secret')).json()
+  assert.ok(!JSON.stringify(state).includes('sk-direct'))
+  const fp=state.directKeyGrants[0].fingerprint
+  assert.equal((await save([],[],[fp])).status,200)
+  delete env.MARKET_ORGANIZATIONS
+  assert.equal((await call('/downloads/private-tool','sk-direct')).status,200)
+  assert.equal((await (await call('/roster.json','sk-direct')).json()).items.length,1)
+  assert.equal((await save([])).status,409)
+  assert.equal((await save([1])).status,200)
+  assert.equal((await save([],[],[fp])).status,400)
+  assert.equal((await save([],[],[],true)).status,200)
+  assert.equal((await call('/downloads/private-tool')).status,200)
+})
+test('direct Key remains usable when another plugin requires unavailable organization provider',async t=>{
+  const {call}=fixture(t)
+  await call('/api/admin/organizations','admin-secret',{id:1,name:'Org',enabled:true})
+  await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-direct'],keepFingerprints:[]})
+  const second={...metadata,id:'org-only'}
+  await call('/api/admin/plugin-access','admin-secret',{id:second.id,metadata:second,organizationIds:[1],apiKeys:[],keepFingerprints:[]})
+  assert.deepEqual((await (await call('/roster.json','sk-direct')).json()).items.map(p=>p.id),[metadata.id])
+  assert.equal((await call('/downloads/org-only','sk-direct')).status,503)
+})
+test('explicit open mode permits admin operations but still rejects cross-origin writes',async t=>{
+  const {call,env}=fixture(t)
+  assert.equal((await call('/api/admin/roster')).status,401)
+  env.MARKET_ADMIN_MODE='open'
+  assert.equal((await call('/api/admin/access')).status,200)
+  assert.equal((await call('/api/admin/roster')).status,200)
+  assert.equal((await call('/api/admin/organizations',undefined,{id:1,name:'Org',enabled:true})).status,200)
+  const response=await worker.fetch(new Request('https://market.example/api/admin/organizations',{method:'PUT',headers:{Origin:'https://evil.example'},body:JSON.stringify({id:2,name:'Other',enabled:true})}),env,{})
+  assert.equal(response.status,403)
+})
+test('legacy Key can be explicitly retained only before migration',async t=>{
+  const {call,restrict,grant}=fixture(t);await restrict();await grant()
+  const fp=await fingerprint('sk-customer-a','separate-secret')
+  const save=keepFingerprints=>call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:[],keepFingerprints,confirmPublic:true})
+  assert.equal((await save([fp])).status,200)
+  assert.equal((await save([])).status,200)
+  assert.equal((await save([fp])).status,400)
+})
 function fixture(t) {
   const db = new DatabaseSync(':memory:')
   db.exec(readFileSync(new URL('../scripts/schema.sql', import.meta.url), 'utf8'))

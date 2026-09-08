@@ -42,12 +42,13 @@ export async function organizationAccess(request, env) {
 }
 
 export async function organizationState(env) {
-  const [organizations, policies, grants] = await Promise.all([
+  const [organizations, policies, grants, directKeys] = await Promise.all([
     env.MARKET_DB.prepare('SELECT id,name,enabled FROM market_organizations ORDER BY name,id').all(),
     env.MARKET_DB.prepare('SELECT plugin_id FROM market_org_policies').all(),
     env.MARKET_DB.prepare('SELECT plugin_id,organization_id FROM market_org_grants').all(),
+    env.MARKET_DB.prepare('SELECT plugin_id,fingerprint FROM market_plugin_key_grants').all(),
   ])
   return { organizations: organizations.results, organizationPolicies: policies.results,
-    organizationGrants: grants.results, organizationProviderReady: organizationProviderReady(env),
+    organizationGrants: grants.results, directKeyGrants: directKeys.results, organizationProviderReady: organizationProviderReady(env),
     organizationListReady: typeof env.MARKET_ORGANIZATIONS?.listOrganizations==='function' }
 }

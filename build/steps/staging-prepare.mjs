@@ -4,6 +4,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 import { brandDesktopPatch } from '../overlays/branding-overlay.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/market-auth-overlay.mjs'
 import { separateInstalledSystemComponents } from '../overlays/market/market-installed-ui-overlay.mjs'
+import { preserveNativeDialogPosition } from '../overlays/market/market-dialog-position-overlay.mjs'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from '../overlays/market/market-update-overlay.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
@@ -389,6 +390,10 @@ for (const plugin of enabledPlugins) {
   assertGeneratedPath(destination)
   mkdirSync(resolve(destination, '..'), { recursive: true })
   copySource(source, destination, { includeDist: true })
+  if (plugin.id === 'dsh-tokensapi-ui') {
+    const themeClientPath = resolve(destination, 'lib', 'client.js')
+    writeFileSync(themeClientPath, preserveNativeDialogPosition(readFileSync(themeClientPath, 'utf8')))
+  }
 
   // A script-built plugin keeps its declared toolchain only in staging. Pruning
   // removes it after the plugin has produced its runtime files; prebuilt and

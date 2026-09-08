@@ -11,6 +11,7 @@ export async function fingerprint(key, secret) {
   return Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', k, enc.encode(key))), b => b.toString(16).padStart(2, '0')).join('')
 }
 async function admin(request, env) {
+  if (env.MARKET_ADMIN_MODE === 'open') return true
   const token = bearer(request)
   return token && env.MARKET_ADMIN_TOKEN && env.MARKET_HMAC_SECRET
     && await fingerprint(token, env.MARKET_HMAC_SECRET) === await fingerprint(env.MARKET_ADMIN_TOKEN, env.MARKET_HMAC_SECRET)
@@ -36,6 +37,8 @@ async function body(request) {
 }
 export async function allowed(request, env, pluginId) {
   if (await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(pluginId).first()) {
+    if ((await directKeyAccess(request,env)).has(pluginId)) return true
+    if (!await env.MARKET_DB.prepare('SELECT 1 FROM market_org_grants WHERE plugin_id=?').bind(pluginId).first()) return false
     return (await organizationAccess(request, env)).has(pluginId)
   }
   const key = bearer(request)
@@ -45,17 +48,31 @@ export async function allowed(request, env, pluginId) {
     WHERE k.fingerprint=? AND k.enabled=1 AND (k.expires_at IS NULL OR k.expires_at>?) AND g.plugin_id=?`)
     .bind(fp, Date.now(), pluginId).first()
 }
+async function directKeyAccess(request,env) {
+  const key=bearer(request)
+  if(!key) return new Set()
+  const fp=await fingerprint(key,env.MARKET_HMAC_SECRET)
+  const {results}=await env.MARKET_DB.prepare('SELECT plugin_id FROM market_plugin_key_grants WHERE fingerprint=?').bind(fp).all()
+  return new Set(results.map(row=>row.plugin_id))
+}
 export async function filterRoster(request, env, roster) {
   if (!env.MARKET_DB) return roster
   const { results } = await env.MARKET_DB.prepare('SELECT * FROM market_plugins').all()
   const merged = new Map(roster.items.map(item => [item.id, item]))
   const { results: policies } = await env.MARKET_DB.prepare('SELECT plugin_id FROM market_org_policies').all()
   const orgPolicies = new Set(policies.map(p => p.plugin_id))
-  const needsOrg = results.some(row => row.visibility !== 'public' && orgPolicies.has(row.id))
-  const orgAllowed = needsOrg ? await organizationAccess(request, env) : new Set()
+  const directAllowed=await directKeyAccess(request,env)
+  const {results: orgGrants}=await env.MARKET_DB.prepare('SELECT DISTINCT plugin_id FROM market_org_grants').all()
+  const orgIds=new Set(orgGrants.map(g=>g.plugin_id))
+  const needsOrg = results.some(row => row.visibility !== 'public' && orgIds.has(row.id) && !directAllowed.has(row.id))
+  let orgAllowed=new Set()
+  if(needsOrg) {
+    try {orgAllowed=await organizationAccess(request,env)}
+    catch(error) {if(!directAllowed.size) throw error} // Explicit Key grants remain usable independently.
+  }
   for (const row of results) {
     merged.delete(row.id)
-    if (row.visibility === 'public' || (orgPolicies.has(row.id) ? orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
+    if (row.visibility === 'public' || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
       merged.set(row.id, JSON.parse(row.metadata))
     }
   }
@@ -78,6 +95,11 @@ export async function accessRoute(request, env) {
       return new Response(object.body, { headers: { 'content-type': 'application/octet-stream', 'cache-control': 'no-store', 'vary': 'Authorization', 'content-disposition': `attachment; filename="${row.id}.tgz"` } })
     }
     if (!await admin(request, env)) return reply({ error: '管理员凭证无效' }, 401)
+    if (request.method === 'GET' && url.pathname === '/api/admin/roster') {
+      const response = await env.ASSETS.fetch(new URL('/roster.json', request.url).toString())
+      if (!response.ok) throw new Error('roster unavailable')
+      return reply(await response.json())
+    }
     if (request.method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) return reply({ error: '跨站请求被拒绝' }, 403)
     if (request.method === 'GET' && url.pathname === '/api/admin/access') {
       const [keys, grants, plugins] = await Promise.all([
@@ -115,8 +137,33 @@ export async function accessRoute(request, env) {
       ])
       return reply({ fingerprint: fp })
     }
-    if (['/api/admin/plugins', '/api/admin/plugin-keys', '/api/admin/plugin-organizations'].includes(url.pathname)) {
-      const orgMode = url.pathname === '/api/admin/plugin-organizations'
+    if (['/api/admin/plugins', '/api/admin/plugin-keys', '/api/admin/plugin-organizations','/api/admin/plugin-access'].includes(url.pathname)) {
+      // Classification is maintained in the release roster, never trusted from request metadata.
+      const rosterResponse=await env.ASSETS.fetch(new URL('/roster.json',request.url).toString())
+      if(!rosterResponse.ok) throw new Error('roster unavailable')
+      const roster=await rosterResponse.json()
+      if(!Array.isArray(roster.items)) throw new Error('invalid roster')
+      if(roster.items.some(p=>p.id===data.id && p.category==='builtin')) {
+        return reply({error:'内置组件随应用更新，不支持配置市场权限'},409)
+      }
+      const mixedMode=url.pathname==='/api/admin/plugin-access'
+      const orgMode = url.pathname === '/api/admin/plugin-organizations' || mixedMode
+      let directFingerprints=[],addedFingerprints=[]
+      if(mixedMode) {
+        if(!Array.isArray(data.apiKeys) || !Array.isArray(data.keepFingerprints) || data.apiKeys.length+data.keepFingerprints.length>100
+          || !data.apiKeys.every(k=>text(k,512) && /^sk-\S+$/u.test(k)) || !data.keepFingerprints.every(fp=>/^[a-f0-9]{64}$/u.test(fp))) return reply({error:'API Key 格式无效，每行一个，最多 100 个'},400)
+        const migrated=await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(data.id??'').first()
+        for(const fp of data.keepFingerprints) {
+          const existing=await env.MARKET_DB.prepare('SELECT 1 FROM market_plugin_key_grants WHERE plugin_id=? AND fingerprint=?').bind(data.id,fp).first()
+          const legacy=!migrated && await env.MARKET_DB.prepare(`SELECT 1 FROM market_grants g JOIN market_keys k ON g.fingerprint=k.fingerprint WHERE g.plugin_id=? AND g.fingerprint=? AND k.enabled=1 AND (k.expires_at IS NULL OR k.expires_at>?)`).bind(data.id,fp,Date.now()).first()
+          if(!existing && !legacy) return reply({error:'已保存的 Key 已变化，请刷新后重试'},400)
+        }
+        addedFingerprints=await Promise.all(data.apiKeys.map(k=>fingerprint(k,env.MARKET_HMAC_SECRET)))
+        directFingerprints=[...new Set([...data.keepFingerprints,...addedFingerprints])]
+      } else if(orgMode) {
+        const {results}=await env.MARKET_DB.prepare('SELECT fingerprint FROM market_plugin_key_grants WHERE plugin_id=?').bind(data.id??'').all()
+        directFingerprints=results.map(r=>r.fingerprint)
+      }
       if (!orgMode && await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(data.id ?? '').first()) {
         return reply({ error: '此插件已按组织管理，请使用组织配置入口' }, 409)
       }
@@ -127,8 +174,8 @@ export async function accessRoute(request, env) {
           if (!await env.MARKET_DB.prepare('SELECT 1 FROM market_organizations WHERE id=?').bind(id).first()) return reply({ error: '请先登记所选组织' }, 400)
         }
         const previous = await env.MARKET_DB.prepare('SELECT visibility FROM market_plugins WHERE id=?').bind(data.id ?? '').first()
-        if (previous?.visibility === 'restricted' && !data.organizationIds.length && data.confirmPublic !== true) return reply({ error: '此操作将公开插件，请明确确认' }, 409)
-        data.visibility = data.organizationIds.length ? 'restricted' : 'public'
+        if (previous?.visibility === 'restricted' && !data.organizationIds.length && !directFingerprints.length && data.confirmPublic !== true) return reply({ error: '此操作将公开插件，请明确确认' }, 409)
+        data.visibility = data.organizationIds.length || directFingerprints.length ? 'restricted' : 'public'
       }
       const simple = url.pathname === '/api/admin/plugin-keys'
       let fingerprints = [], newKeys = []
@@ -159,6 +206,8 @@ export async function accessRoute(request, env) {
           env.MARKET_DB.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?) ON CONFLICT(plugin_id) DO NOTHING').bind(data.id),
           env.MARKET_DB.prepare('DELETE FROM market_org_grants WHERE plugin_id=?').bind(data.id),
           ...data.organizationIds.map(id => env.MARKET_DB.prepare('INSERT INTO market_org_grants(plugin_id,organization_id) VALUES(?,?)').bind(data.id, id)),
+          ...(mixedMode ? [env.MARKET_DB.prepare('DELETE FROM market_plugin_key_grants WHERE plugin_id=?').bind(data.id),
+            ...directFingerprints.map(fp=>env.MARKET_DB.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').bind(data.id,fp))]:[]),
         ])
       } else if (simple) {
         await env.MARKET_DB.batch([

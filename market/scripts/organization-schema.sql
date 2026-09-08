@@ -12,3 +12,8 @@ CREATE TABLE IF NOT EXISTS market_org_grants (
   organization_id INTEGER NOT NULL REFERENCES market_organizations(id),
   PRIMARY KEY(plugin_id, organization_id)
 );
+CREATE TABLE IF NOT EXISTS market_plugin_key_grants (
+  plugin_id TEXT NOT NULL REFERENCES market_org_policies(plugin_id),
+  fingerprint TEXT NOT NULL,
+  PRIMARY KEY(plugin_id, fingerprint)
+);

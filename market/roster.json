@@ -4,6 +4,7 @@
   "items": [
     {
       "id": "tokens-version-updates",
+      "category": "builtin",
       "package": "@tokens/dsh-version-updates",
       "displayName": "TokensCowork 更新",
       "summary": "从 TokensCowork GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
@@ -13,6 +14,7 @@
     },
     {
       "id": "tokens-connect",
+      "category": "optional",
       "package": "@tokensapi/dsh-connect",
       "displayName": "连接中心",
       "summary": "统一管理九种 IM 机器人及飞书、钉钉个人账号授权，并接入本机 TokensCowork。",
@@ -22,6 +24,7 @@
     },
     {
       "id": "dsh-tokensapi-ui",
+      "category": "builtin",
       "package": "dsh-tokensapi-ui",
       "displayName": "Tokens Cowork UI",
       "summary": "为 Tokens Cowork 提供品牌视觉、主题皮肤、技能入口和侧栏界面扩展。",
@@ -31,6 +34,7 @@
     },
     {
       "id": "tokens-model-manager",
+      "category": "builtin",
       "package": "@tokens/dsh-model-manager",
       "displayName": "TokensAPI 模型",
       "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
@@ -40,6 +44,7 @@
     },
     {
       "id": "tokens-dsh-web-search",
+      "category": "builtin",
       "package": "tokens-dsh-web-search",
       "displayName": "联网搜索",
       "summary": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
@@ -49,6 +54,7 @@
     },
     {
       "id": "tokens-progressive-tools",
+      "category": "optional",
       "package": "@tokensapi/dsh-progressive-tools",
       "displayName": "渐进式工具",
       "summary": "只让高频工具常驻模型上下文，其余工具按需搜索并通过原有 DSH 安全执行链分发。",
@@ -58,6 +64,7 @@
     },
     {
       "id": "tokens-browser-use",
+      "category": "optional",
       "package": "@tokensapi/dsh-browser-use",
       "displayName": "浏览器操作",
       "summary": "桥接 Playwright MCP，让模型驱动可见浏览器完成网页操作，带可视光标与坐标模式。",
@@ -67,6 +74,7 @@
     },
     {
       "id": "tokens-media-gen",
+      "category": "optional",
       "package": "@tokensapi/dsh-media-gen",
       "displayName": "媒体生成",
       "summary": "接入 TokensAPI 图像与视频生成能力，让模型在会话中按上下文生成图片和视频。",
