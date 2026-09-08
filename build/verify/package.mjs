@@ -87,11 +87,16 @@ const forbiddenForeignRuntime = [
   'node_modules/node-pty/prebuilds/win32-arm64',
   'node_modules/node-pty/prebuilds/win32-ia32',
 ]
-// DSH 运行时必须是 asar 外的真实文件:网关(独立 Node 进程)的预设健康
-// 检查用裸 fs 遍历 node_modules,asar 内的包一律不可见(v0.4.1 回归)。
-const requiredPlainRuntime = 'node_modules/@deepseek-ai/dsh-agent-presets/package.json'
-if (!unpackedRuntimeFiles.includes(requiredPlainRuntime)) {
-  throw new Error('packaged DSH runtime must ship as plain files outside app.asar (preset discovery walks the real filesystem)')
+// 预设健康检查必须带 asar 感知补丁(patch-runtime.mjs):运行时进 asar 后,
+// agent-presets 用裸 fs 遍历 node_modules 会把全部插件行误判为缺失,预设
+// 无法挂载(v0.4.0/v0.4.1 真机回归)。上游打包门禁禁止普通模块解包,故
+// 以补丁标记验收,缺失即构建失败。
+const packagedAgentPresets = extractFile(
+  packagedAsar,
+  'node_modules/@deepseek-ai/dsh-agent-presets/lib/index.js'.replaceAll('/', sep),
+).toString('utf8')
+if (!packagedAgentPresets.includes('packaged-runtime health parity')) {
+  throw new Error('packaged agent-presets discovery lacks the asar-aware patch; preset mounting would fail on installed machines')
 }
 if (buildManifest.build?.appId !== product.appId
   || buildManifest.build?.productName !== product.name) {

@@ -108,13 +108,6 @@ const clientBranding = brandDesktopClient({
 desktopPackage.version = product.version
 desktopPackage.build.appId = product.appId
 desktopPackage.build.productName = product.name
-// 产品覆盖:node_modules 以真实文件落盘,不进 asar。上游 smartUnpack 只
-// 解出原生模块;而网关是独立 Node 进程,agent-presets 的健康检查用裸 fs
-// 向上遍历 node_modules 判定插件行是否可解析——打进 asar 后 232 个运行时
-// 包全部误判为缺失,预设无法挂载,新会话/项目选择/续聊全部失效
-// (v0.4.0/v0.4.1 真机回归)。导入钩子对 unpacked 条目本就映射到真实路径,
-// 解包不改运行语义;verify-package 按 asar 内外并集校验,门禁不受影响。
-desktopPackage.build.asarUnpack = ['node_modules/**']
 desktopPackage.build.win.artifactName = `${product.name}-\${version}-\${arch}-Portable.\${ext}`
 desktopPackage.build.nsis.guid = product.windowsInstallerGuid
 desktopPackage.build.nsis.shortcutName = product.name

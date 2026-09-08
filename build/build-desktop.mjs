@@ -123,6 +123,9 @@ run(process.execPath, [resolve(root, 'build', 'assembly', 'prepare.mjs')], root,
 
 // staging 必须严格复用已提交的产品锁文件；插件仅在 staging 中编译和裁剪。
 run('corepack', ['yarn', 'install', '--immutable'], stage, buildEnvironment)
+// 预设健康检查的 asar 感知补丁必须在打包前落进已安装的运行时,
+// verify-package 会按补丁标记验收(v0.4.x 真机回归的防线)。
+run(process.execPath, [resolve(root, 'build', 'assembly', 'patch-runtime.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'plugins', 'compile.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'plugins', 'prune.mjs')], root, buildEnvironment)
 
