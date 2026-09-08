@@ -15,7 +15,6 @@ overlays/
 │  ├─ market-source-overlay.mjs  来源、fake-IP、界面与上游测试适配（保留旧更新实现）
 │  ├─ market-auth-overlay.mjs    产品市场 API Key 透传与目录缓存隔离
 │  ├─ market-auth-overlay.test.mjs        透传安全边界与覆盖锚点测试
-│  ├─ market-installed-ui-overlay.mjs     已安装插件与系统组件分组展示
 │  ├─ market-dialog-position-overlay.mjs  去掉主题对原生弹窗定位的全局覆盖
 │  ├─ market-update-overlay.mjs           npm 插件检查更新、确认、执行与界面覆盖
 │  ├─ market-update-overlay.test.mjs      覆盖组合与实际装配入口守护

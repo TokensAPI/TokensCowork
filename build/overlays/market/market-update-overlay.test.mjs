@@ -3,7 +3,6 @@ import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from './market-update-overlay.mjs'
-import { separateInstalledSystemComponents } from './market-installed-ui-overlay.mjs'
 import { pinProductMarketSource, skipUpstreamSourceDescriptionTests, allowMarketSourceSyntheticProxy } from './market-source-overlay.mjs'
 import { addMarketAuth } from './market-auth-overlay.mjs'
 
@@ -15,18 +14,19 @@ const sourceManifest = JSON.parse(readFileSync(resolve(root, 'market/source.json
 const sources = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, read(path)]))
 const pinned = pinProductMarketSource({ index: read('src/index.ts'), sourceStore: read('src/catalog/source-store.ts'), service: read('src/catalog/service.ts'), routes: sources.routes, settingsTab: sources.settingsTab, locales: sources.locales }, config.origin, sourceManifest)
 const auth = addMarketAuth({ index: pinned.index, routes: pinned.routes, http: allowMarketSourceSyntheticProxy(read('src/network/restricted-http.ts'), new URL(config.origin).hostname) }, config.origin)
-const installed = separateInstalledSystemComponents({ settingsTab: pinned.settingsTab, locales: pinned.locales, tests: skipUpstreamSourceDescriptionTests(read('tests/market-settings-tab.spec.tsx')) })
-const input = { ...sources, routes: auth.routes, settingsTab: installed.settingsTab, locales: installed.locales }
+const installedTests = skipUpstreamSourceDescriptionTests(read('tests/market-settings-tab.spec.tsx'))
+const input = { ...sources, routes: auth.routes, settingsTab: pinned.settingsTab, locales: pinned.locales }
 const output = addMarketUpdates(input)
 
-test('composes with current source, authorization, and system-component overlays', () => {
+test('composes with source and authorization while preserving the native installed list', () => {
   assert.match(output.routes, /previewUpdate/)
   assert.match(output.routes, /force: true/)
   assert.match(output.settingsTab, /props.onUpdate/)
-  assert.match(output.settingsTab, /systemComponents/)
+  assert.doesNotMatch(output.settingsTab, /systemComponents/)
+  assert.match(output.settingsTab, /props.installations.map\(installation =>/)
   assert.match(output.service, /async executeUpdate/)
   assert.match(addMarketUpdateChecks(read('src/client/api.ts')), /installations\?updates=1/)
-  assert.match(addMarketUpdateUiTests(installed.tests), /product market update UI/)
+  assert.match(addMarketUpdateUiTests(installedTests), /product market update UI/)
 })
 test('fails closed on upstream drift and duplicate application', () => {
   assert.throws(() => addMarketUpdates({ ...input, service: '' }), /upstream anchor changed/)
@@ -38,6 +38,7 @@ test('the actual staging entry point invokes update assembly and tests', () => {
   assert.match(entry, /addMarketUpdateChecks\(readFileSync/)
   assert.match(entry, /addMarketUpdateUiTests\(readFileSync/)
   assert.match(entry, /market-update\.spec\.ts/)
+  assert.doesNotMatch(entry, /separateInstalledSystemComponents|market-installed-ui-overlay/)
 })
 
 // Focused verification assembly: no whole-tree rebuild, dependency install, or installer packaging.
@@ -45,7 +46,7 @@ if (process.argv.includes('--stage')) {
   const stage = resolve(root, '.build/desktop/dsh-community-market')
   for (const [key, path] of Object.entries(paths)) writeFileSync(resolve(stage, path), output[key])
   writeFileSync(resolve(stage, 'src/client/api.ts'), addMarketUpdateChecks(read('src/client/api.ts')))
-  writeFileSync(resolve(stage, 'tests/market-settings-tab.spec.tsx'), addMarketUpdateUiTests(installed.tests))
+  writeFileSync(resolve(stage, 'tests/market-settings-tab.spec.tsx'), addMarketUpdateUiTests(installedTests))
   writeFileSync(resolve(stage, 'tests/client-api.spec.ts'), addMarketUpdateApiTests(read('tests/client-api.spec.ts')))
   copyFileSync(resolve(root, 'build/overlays/market/market-update.spec.ts'), resolve(stage, 'tests/market-update.spec.ts'))
 }
