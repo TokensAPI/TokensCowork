@@ -1,3 +1,0 @@
-- insert:
-    - id: tokens-plugin-check
-      name: '@tokensapi/dsh-plugin-check'
