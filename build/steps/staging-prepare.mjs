@@ -3,6 +3,7 @@ import { basename, relative, resolve, sep } from 'node:path'
 
 import { brandDesktopPatch } from '../overlays/branding-overlay.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from '../overlays/market/market-auth-overlay.mjs'
+import { addPrivateRegistrySupport } from '../overlays/market/market-registry-overlay.mjs'
 import { preserveNativeDialogPosition } from '../overlays/market/market-dialog-position-overlay.mjs'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from '../overlays/market/market-update-overlay.mjs'
 import {
@@ -335,6 +336,31 @@ const marketUpdates = addMarketUpdates(Object.fromEntries(
   Object.entries(marketUpdatePaths).map(([key, path]) => [key, readFileSync(path, 'utf8')]),
 ))
 for (const [key, path] of Object.entries(marketUpdatePaths)) writeFileSync(path, marketUpdates[key])
+
+/* ----------------------- 可选私有 Registry 适配 -------------------- */
+// 只在 staging 中扩展上游的 npm identity/安装验证契约。公开 npm 仍使用
+// 上游固定 registry；私有来源经由产品市场的授权代理，Registry Secret
+// 永远只存在 Worker 环境变量中。
+const marketPrivateRegistry = addPrivateRegistrySupport({
+  index: readFileSync(marketIndexPath, 'utf8'),
+  service: readFileSync(marketUpdatePaths.service, 'utf8'),
+  routes: readFileSync(marketUpdatePaths.routes, 'utf8'),
+  identity: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'identity.ts'), 'utf8'),
+  types: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'types.ts'), 'utf8'),
+  providerSchema: readFileSync(resolve(stage, 'dsh-community-market', 'docs', 'schemas', 'catalog-provider-page.schema.json'), 'utf8'),
+  snapshotSchema: readFileSync(resolve(stage, 'dsh-community-market', 'docs', 'schemas', 'catalog-snapshot.schema.json'), 'utf8'),
+  providerTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-provider-page.ts'), 'utf8'),
+  snapshotTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-snapshot.ts'), 'utf8'),
+}, marketSourceConfig.origin)
+writeFileSync(marketIndexPath, marketPrivateRegistry.index)
+writeFileSync(marketUpdatePaths.service, marketPrivateRegistry.service)
+writeFileSync(marketUpdatePaths.routes, marketPrivateRegistry.routes)
+writeFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'identity.ts'), marketPrivateRegistry.identity)
+writeFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'types.ts'), marketPrivateRegistry.types)
+writeFileSync(resolve(stage, 'dsh-community-market', 'docs', 'schemas', 'catalog-provider-page.schema.json'), marketPrivateRegistry.providerSchema)
+writeFileSync(resolve(stage, 'dsh-community-market', 'docs', 'schemas', 'catalog-snapshot.schema.json'), marketPrivateRegistry.snapshotSchema)
+writeFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-provider-page.ts'), marketPrivateRegistry.providerTypes)
+writeFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-snapshot.ts'), marketPrivateRegistry.snapshotTypes)
 const marketClientApiPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'api.ts')
 writeFileSync(marketClientApiPath, addMarketUpdateChecks(readFileSync(marketClientApiPath, 'utf8')))
 writeFileSync(marketSettingsTabTestsPath, addMarketUpdateUiTests(readFileSync(marketSettingsTabTestsPath, 'utf8')))
