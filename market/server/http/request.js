@@ -18,5 +18,7 @@ export async function body(request) {
   const bytes = new Uint8Array(size)
   let offset = 0
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
-  return JSON.parse(new TextDecoder().decode(bytes))
+  const value = JSON.parse(new TextDecoder().decode(bytes))
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('JSON object required')
+  return value
 }

@@ -1,21 +1,403 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TokensCowork · 插件管理</title><link rel="stylesheet" href="/admin/assets/market-admin.css"></head>
-<body class="signed-out">
-<aside><div class="brand">T<span>TokensCowork<small>插件管理工作台</small></span></div><nav><a href="#plugins-panel">▦　插件与权限</a><a href="#organizations-panel">◉　组织名录</a></nav><p class="sidebar-note">一个市场，灵活分配。<br>按组织或单独 Key 管理访问。</p></aside>
-<main>
-<header><div><p class="eyebrow">MARKETPLACE / CONSOLE</p><h1>插件与访问权限</h1><p class="muted">组织与 API Key 独立授权，满足任意一项即可访问。</p></div><div id="session-actions" hidden><button id="refresh" class="secondary">刷新数据</button> <button id="logout" class="secondary">退出登录</button></div></header>
-<output id="message" role="status" aria-live="polite">请先登录管理后台。</output>
-<section id="login-panel" class="panel"><h2>管理登录</h2><p class="muted">登录后可配置插件权限、查看完整 API Key。</p><form id="login-form"><label for="admin-token">管理凭证</label><input id="admin-token" type="password" autocomplete="current-password" required placeholder="请输入管理凭证"><button type="submit">登录</button></form></section>
-<div id="workspace" hidden>
-<div class="stats"><div><span>全部插件</span><b id="stat-total">—</b></div><div><span>公开插件</span><b id="stat-public">—</b></div><div><span>受限插件</span><b id="stat-restricted">—</b></div><div><span>组织数量</span><b id="stat-orgs">—</b></div></div>
-<section id="plugins-panel"><div class="toolbar"><label class="category-label">组件分类 <select id="category-filter" aria-label="组件分类"><option value="all">全部分类</option><option value="builtin">内置组件</option><option value="optional">可选插件</option></select></label><div class="filters"><button data-filter="all" aria-pressed="true">全部权限</button><button data-filter="public" aria-pressed="false">公开</button><button data-filter="restricted" aria-pressed="false">受限</button></div><input id="plugin-search" type="search" placeholder="搜索插件名称或包名" aria-label="搜索插件"></div><p class="muted category-note">内置组件随应用提供和更新，不支持单独安装、卸载或配置市场权限。可选插件可独立管理访问范围。</p><div id="plugin-grid"></div><p id="empty" class="empty" hidden>没有匹配的插件</p></section>
-<section id="organizations-panel" class="panel"><div class="section-heading"><div><h2>组织名录</h2><p class="muted">登记 TokensAPI 组织 ID，再为插件选择可见组织。</p></div><button id="sync-organizations" class="secondary" hidden>同步组织</button></div><p id="provider-status" class="notice"></p>
-<form id="organization-form" class="org-form"><label>组织 ID<input id="organization-id" type="number" min="1" max="9007199254740991" step="1" required placeholder="例如 1001"></label><label>组织名称<input id="organization-name" maxlength="200" required placeholder="输入组织名称"></label><label class="check"><input id="organization-enabled" type="checkbox" checked>启用</label><button type="submit">保存组织</button><button id="new-organization" type="button" class="secondary">清空 / 新增</button></form><div id="organization-list"></div></section>
-</div><footer>管理操作与完整 API Key 查看均需登录。这里控制市场可见范围；公开 npm / GitHub 安装包仍可从原地址下载。</footer>
-</main>
-<dialog id="plugin-dialog" aria-labelledby="plugin-title"><form id="plugin-access-form"><div class="section-heading"><h2 id="plugin-title">配置权限</h2><button id="cancel-plugin" type="button" class="secondary">关闭</button></div><p class="notice">组织或单独 API Key 任一命中即可访问。两项都留空，表示所有人可见。</p>
-<h3>可见组织</h3><input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索组织"><div id="organization-options"></div>
-<h3>单独 API Key</h3><p class="muted">新录入的 Key 加密保存，登录后完整显示。旧记录只有指纹，需要重新粘贴原 Key 并保存才能补全，不影响原授权。</p><div id="saved-keys"></div><textarea id="api-keys" rows="4" autocomplete="off" spellcheck="false" placeholder="粘贴 API Key，每行一个，以 sk- 开头" aria-label="新增 API Key"></textarea>
-<p id="legacy-note" class="notice" hidden>原有有效 Key 已保留。保存后统一使用此处的组织与 Key 配置。</p><p id="public-confirmation" hidden><label><input id="confirm-public" type="checkbox">确认将此受限插件改为所有人可见</label></p><output id="plugin-error" role="alert"></output><div class="dialog-footer"><span id="permission-summary"></span><button type="submit">保存权限</button></div></form></dialog>
-<script type="module" src="/admin/assets/market-admin.js"></script></body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TokensCowork · 插件管理</title>
+    <link rel="stylesheet" href="/admin/assets/market-admin.css" />
+  </head>
+  <body class="signed-out session-pending">
+    <aside class="sidebar">
+      <a class="brand" href="#plugins"
+        ><span class="brand-mark" aria-hidden="true">T</span
+        ><span>TokensCowork<small>MARKET CONSOLE</small></span></a
+      >
+      <div class="nav-label">工作空间</div>
+      <nav aria-label="后台导航">
+        <a href="#plugins" data-view="plugins"
+          ><span aria-hidden="true">▦</span>插件与权限<b id="nav-plugins"
+            >—</b
+          ></a
+        >
+        <a href="#organizations" data-view="organizations"
+          ><span aria-hidden="true">◎</span>组织名录<b id="nav-orgs">—</b></a
+        >
+        <a href="#verify" data-view="verify"
+          ><span aria-hidden="true">✓</span>授权验证</a
+        >
+        <a href="#activity" data-view="activity"
+          ><span aria-hidden="true">≡</span>操作记录</a
+        >
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="live-dot"></span
+        ><span id="sidebar-environment">服务配置</span>
+        <p>组织与 Key 独立授权</p>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">工作空间 / 插件市场</p>
+          <h1 id="page-title">插件与权限</h1>
+          <p id="page-description" class="muted">
+            统一管理可选插件的访问范围。
+          </p>
+        </div>
+        <div id="session-actions" class="header-actions" hidden>
+          <span id="environment-badge" class="badge">—</span
+          ><button id="refresh" class="secondary">刷新</button
+          ><button id="logout" class="quiet">退出登录</button>
+        </div>
+      </header>
+      <output
+        id="message"
+        class="feedback"
+        role="status"
+        aria-live="polite"
+      ></output>
+
+      <section id="login-panel" class="login-card">
+        <div class="login-brand">
+          <span class="brand-mark" aria-hidden="true">T</span>TokensCowork
+        </div>
+        <p class="eyebrow">插件市场 · 管理控制台</p>
+        <h1>欢迎回来</h1>
+        <p class="muted">登录后管理插件、组织与访问权限。</p>
+        <p id="session-loading" class="notice">正在恢复登录状态…</p>
+        <form id="login-form">
+          <label for="admin-token">管理凭证</label
+          ><input
+            id="admin-token"
+            type="password"
+            autocomplete="current-password"
+            maxlength="512"
+            required
+            placeholder="输入管理凭证"
+          /><button type="submit">
+            登录管理后台 <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <p class="login-foot">登录保持 7 天 · 凭证不保存在本地存储</p>
+      </section>
+
+      <div id="workspace" hidden>
+        <section id="plugins-panel" data-panel="plugins">
+          <div class="stats">
+            <div>
+              <span>全部插件</span><b id="stat-total">—</b
+              ><small>当前市场名册</small>
+            </div>
+            <div>
+              <span>可选插件</span><b id="stat-optional">—</b
+              ><small>独立配置访问范围</small>
+            </div>
+            <div>
+              <span>受限插件</span><b id="stat-restricted">—</b
+              ><small>按组织或 Key 授权</small>
+            </div>
+            <div>
+              <span>内置组件</span><b id="stat-builtin">—</b
+              ><small>随应用提供与更新</small>
+            </div>
+          </div>
+          <div class="toolbar">
+            <div class="tabs" role="group" aria-label="组件分类">
+              <button data-category="all" aria-pressed="true">全部</button
+              ><button data-category="optional" aria-pressed="false">
+                可选插件</button
+              ><button data-category="builtin" aria-pressed="false">
+                内置组件
+              </button>
+            </div>
+            <div class="filter-controls">
+              <input
+                id="plugin-search"
+                type="search"
+                placeholder="搜索插件名称或包名"
+                aria-label="搜索插件"
+              /><select id="visibility-filter" aria-label="访问范围筛选">
+                <option value="all">全部访问范围</option>
+                <option value="public">公开</option>
+                <option value="restricted">受限</option>
+              </select>
+            </div>
+          </div>
+          <div class="result-line">
+            <span id="plugin-result-count"></span
+            ><span>内置组件不支持单独安装、卸载或权限配置</span>
+          </div>
+          <div id="plugin-grid"></div>
+          <div id="empty" class="empty panel" hidden>
+            <h3>没有匹配的插件</h3>
+            <p>试试其他关键词，或重置筛选条件。</p>
+            <button id="reset-filters" class="secondary">重置筛选</button>
+          </div>
+          <p class="footnote">
+            访问范围控制本市场的展示与私有下载入口。公开 npm / GitHub
+            包仍可从原地址下载。
+          </p>
+        </section>
+
+        <section id="organizations-panel" data-panel="organizations" hidden>
+          <div class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>组织名录</h2>
+                <p class="muted">
+                  同步 TokensAPI 组织，在插件配置中分配访问范围。
+                </p>
+              </div>
+              <div class="button-row">
+                <button id="new-organization" class="secondary">手动登记</button
+                ><button id="sync-organizations">同步组织</button>
+              </div>
+            </div>
+            <div class="connection-strip">
+              <span class="live-dot"></span>
+              <p id="provider-status"></p>
+            </div>
+            <div class="toolbar">
+              <input
+                id="org-search"
+                type="search"
+                placeholder="搜索组织名称或 ID"
+                aria-label="搜索组织名录"
+              /><select id="org-status-filter" aria-label="组织状态筛选">
+                <option value="all">全部状态</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </div>
+            <div
+              class="table-scroll"
+              tabindex="0"
+              role="region"
+              aria-label="组织名录表格"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">组织</th>
+                    <th scope="col">组织 ID</th>
+                    <th scope="col">授权插件</th>
+                    <th scope="col">状态</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="organization-list"></tbody>
+              </table>
+            </div>
+            <p id="org-empty" class="empty" hidden>
+              暂无匹配组织。可同步 TokensAPI 名录或手动登记。
+            </p>
+          </div>
+        </section>
+
+        <section id="verify-panel" data-panel="verify" hidden>
+          <div class="panel verify-panel">
+            <p class="eyebrow">只读自测</p>
+            <h2>验证一个 Key 能看到什么</h2>
+            <p class="muted">
+              使用当前环境的 API Key
+              查询组织，并检查已保存的授权规则。不会保存测试
+              Key，也不会修改权限。
+            </p>
+            <form id="verify-form">
+              <label for="verify-key">待验证 API Key</label>
+              <div class="verify-input">
+                <input
+                  id="verify-key"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="512"
+                  placeholder="sk-…"
+                  required
+                /><button type="submit">验证访问范围</button>
+              </div>
+            </form>
+            <output id="verify-error" class="error" role="alert"></output>
+            <div id="verify-result" hidden>
+              <div
+                id="verify-summary"
+                class="notice"
+                role="status"
+                aria-live="polite"
+              ></div>
+              <div
+                class="table-scroll"
+                tabindex="0"
+                role="region"
+                aria-label="授权验证结果表格"
+              >
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">插件</th>
+                      <th scope="col">结果</th>
+                      <th scope="col">匹配依据</th>
+                    </tr>
+                  </thead>
+                  <tbody id="verify-plugins"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="activity-panel" data-panel="activity" hidden>
+          <div class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>最近操作</h2>
+                <p class="muted">
+                  显示最近 50 条管理变更，服务端最多保留 1000 条，不记录 API Key
+                  明文。
+                </p>
+              </div>
+            </div>
+            <div id="activity-list"></div>
+            <p id="activity-empty" class="empty" hidden>
+              暂无操作记录。此功能启用后的管理变更会出现在这里。
+            </p>
+          </div>
+        </section>
+      </div>
+      <footer id="footer">
+        <span>TokensCowork / 插件市场</span><span id="last-refresh"></span>
+      </footer>
+    </main>
+
+    <dialog id="plugin-dialog" aria-labelledby="plugin-title">
+      <form id="plugin-access-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">插件访问范围</p>
+            <h2 id="plugin-title">配置权限</h2>
+            <p id="plugin-package" class="package"></p>
+          </div>
+          <button
+            id="cancel-plugin"
+            class="quiet"
+            type="button"
+            aria-label="关闭权限配置"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="notice">
+          <b>组织或单独 Key 任一命中即可访问。</b
+          ><br />两项都留空表示公开；修改只在点击保存后生效。
+        </div>
+        <section class="grant-section">
+          <div class="section-heading">
+            <h3>01 / 可见组织</h3>
+            <span id="selected-org-count" class="muted"></span>
+          </div>
+          <input
+            id="organization-search"
+            type="search"
+            placeholder="搜索组织名称或 ID"
+            aria-label="搜索可选组织"
+          />
+          <div id="organization-options"></div>
+          <p class="muted">
+            已停用的组织暂不获得访问权限，重新启用后原授权恢复。
+          </p>
+        </section>
+        <section class="grant-section">
+          <div class="section-heading">
+            <h3>02 / 单独 API Key</h3>
+            <span id="saved-key-count" class="muted"></span>
+          </div>
+          <p class="muted">
+            Key 加密存储，登录后完整显示。旧指纹需重新录入原 Key 才能补全。
+          </p>
+          <div id="saved-keys"></div>
+          <label for="api-keys">新增 Key</label
+          ><textarea
+            id="api-keys"
+            rows="3"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="key-input-help plugin-error"
+            placeholder="每行一个 sk- 开头的 API Key"
+          ></textarea>
+          <p id="key-input-help" class="muted"></p>
+        </section>
+        <p id="legacy-note" class="notice" hidden>
+          已保留原有效 Key，保存后统一使用此处的组织与 Key 规则。
+        </p>
+        <p id="public-confirmation" class="warning" hidden>
+          <label
+            ><input
+              id="confirm-public"
+              type="checkbox"
+            />确认清空授权并将此插件改为所有人可见</label
+          >
+        </p>
+        <output id="plugin-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <div>
+            <small>保存后的访问范围</small>
+            <p id="permission-summary"></p>
+          </div>
+          <button type="submit" id="save-plugin">保存权限</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="org-dialog" aria-labelledby="org-dialog-title">
+      <form id="organization-form">
+        <div class="dialog-heading">
+          <h2 id="org-dialog-title">登记组织</h2>
+          <button
+            id="cancel-org"
+            class="quiet"
+            type="button"
+            aria-label="关闭组织编辑"
+          >
+            ✕
+          </button>
+        </div>
+        <label for="organization-id">TokensAPI 组织 ID</label
+        ><input
+          id="organization-id"
+          type="number"
+          min="1"
+          max="9007199254740991"
+          step="1"
+          required
+        />
+        <label for="organization-name">组织名称</label
+        ><input id="organization-name" maxlength="200" required />
+        <label class="check-row"
+          ><input
+            id="organization-enabled"
+            type="checkbox"
+            checked
+          />启用此组织的插件授权</label
+        >
+        <p id="organization-impact" class="notice"></p>
+        <output id="org-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span class="muted">组织 ID 保存后不可修改</span
+          ><button type="submit">保存组织</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="discard-dialog" aria-labelledby="discard-title">
+      <h2 id="discard-title">放弃未保存的修改？</h2>
+      <p class="notice">修改尚未生效。可以返回继续编辑，或放弃本次草稿。</p>
+      <div class="button-row">
+        <button id="keep-editing" type="button">继续编辑</button
+        ><button id="discard-changes" type="button" class="secondary danger">
+          放弃修改
+        </button>
+      </div>
+    </dialog>
+    <script type="module" src="/admin/assets/market-admin.js"></script>
+  </body>
+</html>

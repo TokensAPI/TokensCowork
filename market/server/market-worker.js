@@ -52,7 +52,7 @@ export default {
     if (url.pathname === '/api/latest' && request.method === 'GET') {
       return latestResponse(url)
     }
-    const publicAssets=new Set(['/admin/', '/admin/index.html', '/admin/access.html', '/admin/assets/market-admin.js', '/admin/assets/market-api.js', '/admin/assets/market-admin.css', '/source.json', '/roster.json', '/v1/plugins/'])
+    const publicAssets=new Set(['/admin/', '/admin/index.html', '/admin/access.html', '/admin/assets/market-admin.js', '/admin/assets/market-api.js', '/admin/assets/market-model.js', '/admin/assets/market-admin.css', '/source.json', '/roster.json', '/v1/plugins/'])
     if(!publicAssets.has(url.pathname))return reply({error:'not found'},404)
     return env.ASSETS.fetch(request)
   },
@@ -140,17 +140,26 @@ async function catalogItem(item, publisher) {
  */
 async function latestStableVersion(packageName, fallback) {
   try {
-    const response = await fetch(
-      `https://registry.npmjs.org/-/package/${packageName}/dist-tags`,
-      { headers: { accept: 'application/json' }, cf: { cacheTtl: 120, cacheEverything: true } },
-    )
-    if (!response.ok) return fallback
-    const tags = await response.json()
+    const tags = await npmTags(packageName)
     const latest = typeof tags.latest === 'string' ? tags.latest : ''
     return STABLE_VERSION.test(latest) ? latest : fallback
   } catch {
     return fallback
   }
+}
+
+/** Bound both network and response-body time; registry failures use roster versions. */
+async function npmTags(packageName) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 4000)
+  try {
+    const response = await fetch(`https://registry.npmjs.org/-/package/${packageName}/dist-tags`, {
+      headers: { accept: 'application/json' }, signal: controller.signal,
+      cf: { cacheTtl: 120, cacheEverything: true },
+    })
+    if (!response.ok) throw new Error('npm unavailable')
+    return await response.json()
+  } finally { clearTimeout(timer) }
 }
 
 /**
@@ -166,12 +175,7 @@ async function latestResponse(url) {
     return jsonResponse({ error: 'invalid pkg' }, 400)
   }
   try {
-    const response = await fetch(
-      `https://registry.npmjs.org/-/package/${pkg}/dist-tags`,
-      { headers: { accept: 'application/json' }, cf: { cacheTtl: 120, cacheEverything: true } },
-    )
-    if (!response.ok) return jsonResponse({ pkg, latest: null }, 200)
-    const tags = await response.json()
+    const tags = await npmTags(pkg)
     return jsonResponse({ pkg, latest: typeof tags.latest === 'string' ? tags.latest : null })
   } catch {
     return jsonResponse({ pkg, latest: null })

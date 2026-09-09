@@ -1,5 +1,22 @@
 # TokensCowork 插件市场与管理后台
 
+TokensAPI 生产组织接口与上线配置见 [TOKENSAPI.md](TOKENSAPI.md)；外部 HTTP 适配位于 `server/integrations/`，业务权限不依赖上游原始字段。
+
+## 管理工作台
+
+入口仍为 `/admin/`，登录成功才加载管理数据，服务端 Cookie 会话保持 7 天。四个工作区：
+
+- **插件与权限**：区分内置组件与可选插件；支持名称、包名、分类、访问范围筛选。组织和单独 Key 任一命中即可访问，两项都为空时公开。受限改公开须确认。
+- **组织名录**：从 TokensAPI 同步、搜索和启停组织，显示关联受限插件数。同步不会重新启用本地停用组织，也不会因一次上游缺失删除原授权。
+- **授权验证**：只读输入一个 Key，调用真实市场权限逻辑，显示组织和每项插件的判断依据。输入不存入数据库、日志或本地存储；结果不是模型 API Key 有效性的独立证明。
+- **操作记录**：显示最新 50 条权限和组织变更，服务端最多保留 1000 条；日志与配置同一事务保存，不包含 Key 明文。
+
+权限编辑保留完整 Key 展示和单独复制/移除，自动合并重复项；关闭或离开未保存的表单会提醒。请求有超时和明确错误提示，保存后刷新失败会区分“已保存”与“未保存”。登录失败每个来源 15 分钟最多 8 次，已有有效会话不受限流影响。
+
+页面显示组织服务的实际环境和配置状态；“已配置”不等于已验证连通。同步成功才显示此次同步结果。**不同环境的组织 ID 可能相同但代表不同组织，切换 TokensAPI 环境前必须核对授权，生产与测试宜使用独立数据库。**
+
+市场权限仅控制本市场展示和私有下载入口，公开 npm/GitHub 包本身不是私有分发。管理凭证与所有服务秘密仅在服务端配置，不写入页面、示例或仓库。
+
 ## 工程结构与边界
 
 ```text
@@ -15,7 +32,7 @@ market/
 ├── admin/
 │   ├── index.html              管理页面结构，URL 保持 /admin/
 │   ├── access.html             旧入口兼容跳转
-│   └── assets/                 market-admin.js / market-api.js / market-admin.css
+│   └── assets/                 market-admin.js / market-model.js / market-api.js / market-admin.css
 ├── database/migrations/        按编号执行的幂等 SQL
 ├── ops/                        运维脚本与检查工具，不对公网开放
 ├── tests/                      权限、会话、加密、目录与静态隔离测试
@@ -28,7 +45,7 @@ market/
 ### 分层约定
 
 - HTTP 路由负责鉴权、输入校验与响应；访问规则在 services，密码学操作在 security。页面不直接调用数据库或组织提供方。
-- 浏览器请求统一走 `admin/assets/market-api.js`；该模块不操作 DOM。页面状态与交互在 `market-admin.js`，后续再按功能拆分，不为目录重排引入框架。
+- 浏览器请求统一走 `admin/assets/market-api.js`；该模块不操作 DOM。纯数据合并、筛选、Key 去重在 `market-model.js` 并单独测试；页面状态与交互在 `market-admin.js`，不为目录重排引入框架。
 - 文件采用小写 kebab-case；前端资源和运维入口保留 `market-` 前缀。Cloudflare 强制的 `_worker.js` / `_headers` 不改名。
 - 静态资源采用显式白名单，新增前端资源须同步 `server/market-worker.js`。源码、数据库、运维、测试、历史文件不公开提供。
 - 桌面产品覆盖仍在父仓库 `build/overlays/market/`，不混入市场后台，不修改只读子模块。
@@ -40,7 +57,11 @@ market/
 npm --prefix market run verify  # 语法、相对引用、测试、名册一致性
 npm --prefix market test        # 后端回归
 npm --prefix market run build   # 生成现有部署产物
+npm --prefix market run dev     # 隔离的本地演示与 UI 验收
+npm --prefix market run dev:check # 本地服务 HTTP 自测
 ```
+
+本地演示仅监听 `127.0.0.1:8788`，使用内存数据库和虚构组织，重启自动重置，不读取生产秘密、不会访问真实 TokensAPI/npm。测试凭证与模拟 Key 由启动提示给出；切勿将真实凭证填入演示环境。开发入口、测试文件与数据库脚本都不在 Worker 静态白名单内。
 
 部署仍使用 Cloudflare Pages 的现有项目，CI 已同步新路径。部署前按序执行 database/migrations 中的 SQL，再生成目录并上传 market。
 生成产物 `source.json` 和 `v1/plugins` 不手改；不要将凭证、会话令牌或安装包加入版本库。

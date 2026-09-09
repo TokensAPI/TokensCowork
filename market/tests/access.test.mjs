@@ -1,14 +1,33 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import worker from '../_worker.js'
 import { fingerprint } from '../server/security/key-fingerprint.js'
+import { createTokensApiOrganizations } from '../server/integrations/tokensapi-organizations.js'
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
+test('HTTP adapter integrates with admin sync, organization policies and private downloads',async t=>{
+  const {env,call}=fixture(t)
+  env.MARKET_ORGANIZATIONS=createTokensApiOrganizations({MARKET_ORGANIZATIONS_BASE_URL:'https://tokensapi.ai',MARKET_ORGANIZATIONS_TOKEN:'fixture-list'},async(url,options)=>{
+    if(url.endsWith('/all')){
+      assert.equal(options.headers.Authorization,'Bearer fixture-list')
+      return Response.json({success:true,data:[{id:7,name:'Seven'}]})
+    }
+    const organization=options.headers.Authorization==='Bearer sk-seven'?{id:7,name:'Seven',status:1}:null
+    return Response.json({success:true,data:{organization}})
+  })
+  assert.equal((await call('/api/admin/organizations/sync',undefined,{})).status,401)
+  assert.equal((await call('/api/admin/organizations/sync','admin-secret',{})).status,200)
+  assert.equal((await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[7],apiKeys:[],keepFingerprints:[],objectKey:'private/tool.tgz'})).status,200)
+  assert.equal((await (await call('/roster.json','sk-seven')).json()).items.length,1)
+  assert.equal((await (await call('/roster.json','sk-personal')).json()).items.length,0)
+  assert.equal((await call('/downloads/private-tool','sk-seven')).status,200)
+  assert.equal((await call('/downloads/private-tool','sk-personal')).status,403)
+})
 test('public admin entry and split assets remain reachable after directory refactor',async t=>{
   const {call}=fixture(t)
-  for(const path of ['/admin/','/admin/index.html','/admin/access.html','/admin/assets/market-admin.js','/admin/assets/market-api.js','/admin/assets/market-admin.css','/source.json']){
+  for(const path of ['/admin/','/admin/index.html','/admin/access.html','/admin/assets/market-admin.js','/admin/assets/market-api.js','/admin/assets/market-model.js','/admin/assets/market-admin.css','/source.json']){
     assert.equal((await call(path)).status,200,path)
   }
   for(const path of ['/admin/organization-ui.js','/admin/status-ui.js','/admin/assets/unknown.js','/%73erver/security/admin-session.js']){
@@ -78,6 +97,52 @@ test('old fingerprint grants remain valid and re-entry backfills full Key withou
   assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,1)
   assert.equal((await (await call('/api/admin/plugin-key-values?id='+metadata.id,'admin-secret')).json()).keys[0].apiKey,'sk-previous')
 })
+test('100 migrated fingerprint grants can all backfill plaintext without exceeding the unique Key limit',async t=>{
+  const {call,db,env}=fixture(t)
+  const keys=Array.from({length:100},(_,index)=>'sk-backfill-'+index)
+  const fingerprints=await Promise.all(keys.map(key=>fingerprint(key,env.MARKET_HMAC_SECRET)))
+  const save=(apiKeys,keepFingerprints=[])=>call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys,keepFingerprints})
+  assert.equal((await save(keys)).status,200)
+  db.exec('DELETE FROM market_plugin_key_values')
+  assert.equal((await save(keys,fingerprints)).status,200)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,100)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,100)
+  const values=(await (await call('/api/admin/plugin-key-values?id='+metadata.id,'admin-secret')).json()).keys
+  assert.deepEqual(values.map(item=>item.apiKey).sort(),keys.toSorted())
+  const rejected=await save(['sk-brand-new-101'],fingerprints)
+  assert.equal(rejected.status,400)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,100)
+  assert.deepEqual(db.prepare('SELECT fingerprint FROM market_plugin_key_grants ORDER BY fingerprint').all().map(row=>row.fingerprint),fingerprints.toSorted())
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,100)
+  assert.equal(db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(metadata.id).visibility,'restricted')
+})
+
+test('100 active legacy grants can migrate and backfill the same keys in one save',async t=>{
+  const {call,db,env,restrict}=fixture(t)
+  assert.equal((await restrict()).status,200)
+  const keys=Array.from({length:100},(_,index)=>'sk-legacy-full-'+index)
+  const fingerprints=await Promise.all(keys.map(key=>fingerprint(key,env.MARKET_HMAC_SECRET)))
+  for(const fp of fingerprints){
+    db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').run(fp,'Fixture legacy')
+    db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').run(fp,metadata.id)
+  }
+  assert.equal((await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:keys,keepFingerprints:fingerprints})).status,200)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_org_policies').get().n,1)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,100)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,100)
+})
+
+test('mixed access retains bounded input arrays even when repeated values would deduplicate',async t=>{
+  const {call,db,env}=fixture(t)
+  const fp=await fingerprint('sk-repeated-fixture',env.MARKET_HMAC_SECRET)
+  for(const [apiKeys,keepFingerprints] of [[Array(101).fill('sk-repeated-fixture'),[]],[[],Array(101).fill(fp)]]){
+    const response=await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys,keepFingerprints})
+    assert.equal(response.status,400)
+  }
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,0)
+})
+
 test('missing encryption secret or tampered ciphertext fails closed without leaking Keys',async t=>{
   const {call,env,db}=fixture(t)
   const data={id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-secret'],keepFingerprints:[]}
@@ -154,8 +219,10 @@ test('legacy Key can be explicitly retained only before migration',async t=>{
 })
 function fixture(t) {
   const db = new DatabaseSync(':memory:')
-  db.exec(readFileSync(new URL('../database/migrations/001-market-access.sql', import.meta.url), 'utf8'))
-  db.exec(readFileSync(new URL('../database/migrations/002-organizations-keys-sessions.sql', import.meta.url), 'utf8'))
+  const migrations = new URL('../database/migrations/', import.meta.url)
+  for (const file of readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()) {
+    db.exec(readFileSync(new URL(file, migrations), 'utf8'))
+  }
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({ bind: (...v) => wrap(sql, v), first: async () => db.prepare(sql).get(...values), all: async () => ({ results: db.prepare(sql).all(...values) }), run: async () => db.prepare(sql).run(...values) })
   const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret', MARKET_KEY_ENCRYPTION_SECRET:'test-encryption-secret',

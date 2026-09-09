@@ -30,16 +30,20 @@ export async function filterRoster(request, env, roster) {
   const directAllowed=await directKeyAccess(request,env)
   const {results: orgGrants}=await env.MARKET_DB.prepare('SELECT DISTINCT plugin_id FROM market_org_grants').all()
   const orgIds=new Set(orgGrants.map(g=>g.plugin_id))
-  const needsOrg = results.some(row => row.visibility !== 'public' && orgIds.has(row.id) && !directAllowed.has(row.id))
+  const needsOrg = results.some(row => row.visibility !== 'public' && merged.get(row.id)?.category !== 'builtin' && orgIds.has(row.id) && !directAllowed.has(row.id))
   let orgAllowed=new Set()
   if(needsOrg) {
     try {orgAllowed=await organizationAccess(request,env)}
     catch(error) {if(!directAllowed.size) throw error} // Explicit Key grants remain usable independently.
   }
   for (const row of results) {
+    const releaseItem = merged.get(row.id)
+    // A component promoted into the application cannot inherit stale market restrictions.
+    if (releaseItem?.category === 'builtin') continue
     merged.delete(row.id)
     if (row.visibility === 'public' || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
-      merged.set(row.id, JSON.parse(row.metadata))
+      // Release updates own package metadata; the database owns only access policy.
+      merged.set(row.id, { ...JSON.parse(row.metadata), ...releaseItem })
     }
   }
   return { ...roster, items: [...merged.values()] }

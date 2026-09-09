@@ -4,6 +4,8 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
+    "dev": "node ops/market-dev.mjs",
+    "dev:check": "node ops/market-dev.mjs --smoke",
     "test": "node --test tests/*.test.mjs",
     "check": "node ops/market-check.mjs",
     "build": "node ../scripts/generate-market-catalog.mjs",

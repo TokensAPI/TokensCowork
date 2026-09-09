@@ -1,8 +1,13 @@
-// Internal adapter contract, not a TokensAPI HTTP contract. No test identities in production.
-// Replace this adapter's provider calls when the real TokensAPI documentation arrives.
+import { createTokensApiOrganizations } from '../integrations/tokensapi-organizations.js'
+import { auditStatements } from './admin-audit-service.js'
+// Dependency injection is retained for isolated tests. HTTP configuration is server-only.
+const provider=env=>env.MARKET_ORGANIZATIONS??createTokensApiOrganizations(env)
 export const validOrganizationId = value => Number.isSafeInteger(value) && value > 0
 export function organizationProviderReady(env) {
-  return typeof env.MARKET_ORGANIZATIONS?.resolveOrganization === 'function'
+  return typeof provider(env)?.resolveOrganization === 'function'
+}
+export function organizationListReady(env) {
+  return typeof provider(env)?.listOrganizations === 'function'
 }
 async function bounded(operation) {
   let timer
@@ -14,18 +19,22 @@ function validOrganization(org) {
   return org && validOrganizationId(org.id) && typeof org.name === 'string' && org.name.trim() && org.name.length<=200
 }
 export async function syncOrganizations(env) {
-  if(typeof env.MARKET_ORGANIZATIONS?.listOrganizations!=='function') throw new Error('organization listing unavailable')
-  const organizations=await bounded(()=>env.MARKET_ORGANIZATIONS.listOrganizations())
+  const source=provider(env)
+  if(typeof source?.listOrganizations!=='function') throw new Error('organization listing unavailable')
+  const organizations=await bounded(()=>source.listOrganizations())
   if(!Array.isArray(organizations) || organizations.length>10000 || !organizations.every(validOrganization)
     || new Set(organizations.map(o=>o.id)).size!==organizations.length) throw new Error('invalid organization list')
   // Do not reactivate locally disabled organizations or delete grants absent from one sync.
-  if(organizations.length) await env.MARKET_DB.batch(organizations.map(org=>env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,1)
-    ON CONFLICT(id) DO UPDATE SET name=excluded.name`).bind(org.id,org.name.trim())))
+  await env.MARKET_DB.batch([
+    ...organizations.map(org=>env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,1)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name`).bind(org.id,org.name.trim())),
+    ...auditStatements(env, 'organizations.synced', '', { count: organizations.length }),
+  ])
   return organizations.length
 }
 export async function resolveOrganization(apiKey, env) {
   if (!organizationProviderReady(env)) throw new Error('organization provider unavailable')
-  const organization = await bounded(()=>env.MARKET_ORGANIZATIONS.resolveOrganization(apiKey))
+  const organization = await bounded(()=>provider(env).resolveOrganization(apiKey))
   if (organization === null) return null // Invalid/revoked Key or no organization.
   if (!validOrganization(organization)) throw new Error('invalid organization response')
   return { id: organization.id, name: organization.name }
@@ -50,5 +59,5 @@ export async function organizationState(env) {
   ])
   return { organizations: organizations.results, organizationPolicies: policies.results,
     organizationGrants: grants.results, directKeyGrants: directKeys.results, organizationProviderReady: organizationProviderReady(env),
-    organizationListReady: typeof env.MARKET_ORGANIZATIONS?.listOrganizations==='function' }
+    organizationListReady: organizationListReady(env) }
 }

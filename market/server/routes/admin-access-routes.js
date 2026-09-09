@@ -5,6 +5,15 @@ import { fingerprint } from '../security/key-fingerprint.js'
 import { bearer, text, idOK, body } from '../http/request.js'
 import { reply } from '../http/response.js'
 import { allowed } from '../services/plugin-access-service.js'
+import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from '../security/admin-login-limit.js'
+import { adminOperations } from '../services/admin-operations-service.js'
+import { auditStatements } from '../services/admin-audit-service.js'
+import { accessPreview } from '../services/access-preview-service.js'
+function loginLimited(wait) {
+  const response = reply({ error: '尝试次数过多，请稍后再试', retryAfter: wait }, 429)
+  response.headers.set('retry-after', String(wait))
+  return response
+}
 async function admin(request, env) {
   const token = bearer(request)
   return token && env.MARKET_ADMIN_TOKEN && env.MARKET_HMAC_SECRET
@@ -29,9 +38,15 @@ export async function accessRoute(request, env) {
     if(url.pathname==='/api/admin/login'){
       if(request.method!=='PUT')return reply({error:'method not allowed'},405)
       if(request.headers.get('origin')!==url.origin)return reply({error:'跨站请求被拒绝'},403)
+      const wait = await adminLoginWait(request, env)
+      if (wait) return loginLimited(wait)
       let data
       try{data=await body(request)}catch{return reply({error:'请求格式无效'},400)}
-      if(!text(data.credential,512)||!env.MARKET_ADMIN_TOKEN||await fingerprint(data.credential,env.MARKET_HMAC_SECRET)!==await fingerprint(env.MARKET_ADMIN_TOKEN,env.MARKET_HMAC_SECRET))return reply({error:'管理凭证无效'},401)
+      if(!text(data?.credential,512)||!env.MARKET_ADMIN_TOKEN||await fingerprint(data.credential,env.MARKET_HMAC_SECRET)!==await fingerprint(env.MARKET_ADMIN_TOKEN,env.MARKET_HMAC_SECRET)) {
+        const blocked = await recordAdminLoginFailure(request, env)
+        return blocked ? loginLimited(blocked) : reply({error:'管理凭证无效'},401)
+      }
+      await clearAdminLoginFailures(request, env)
       const response=reply({ok:true})
       response.headers.set('set-cookie',await createSession(request,env))
       return response
@@ -43,8 +58,18 @@ export async function accessRoute(request, env) {
       response.headers.set('set-cookie',await endSession(request,env))
       return response
     }
+    const sessionAdmin = await validSession(request, env)
+    const bearerToken = bearer(request)
+    if (!sessionAdmin && bearerToken) {
+      const wait = await adminLoginWait(request, env)
+      if (wait) return loginLimited(wait)
+    }
     const bearerAdmin=await admin(request,env)
-    if (!bearerAdmin && !await validSession(request,env)) return reply({ error: '管理员凭证无效' }, 401)
+    if (!bearerAdmin && !sessionAdmin) {
+      const wait = bearerToken ? await recordAdminLoginFailure(request, env) : 0
+      return wait ? loginLimited(wait) : reply({ error: '管理员凭证无效' }, 401)
+    }
+    if (bearerAdmin && !sessionAdmin) await clearAdminLoginFailures(request, env)
     if(!bearerAdmin && request.method!=='GET' && request.headers.get('origin')!==url.origin)return reply({error:'跨站请求被拒绝'},403)
     if(request.method==='GET' && url.pathname==='/api/admin/plugin-key-values'){
       const id=url.searchParams.get('id')
@@ -66,14 +91,29 @@ export async function accessRoute(request, env) {
       ])
       return reply({ keys: keys.results, grants: grants.results, plugins: plugins.results.map(p => ({ ...p, metadata: JSON.parse(p.metadata) })), ...await organizationState(env) })
     }
+    if (request.method === 'GET' && url.pathname === '/api/admin/operations') return reply(await adminOperations(env))
     if (request.method !== 'PUT') return reply({ error: 'method not allowed' }, 405)
     let data
     try { data = await body(request) } catch { return reply({ error: '请求格式无效或超过 16 KB' }, 400) }
-    if (url.pathname === '/api/admin/organizations/sync') return reply({ count:await syncOrganizations(env) })
+    if (url.pathname === '/api/admin/access-preview') {
+      if (!text(data.apiKey, 512) || !/^sk-\S+$/u.test(data.apiKey)) return reply({ error: '请输入有效的 API Key' }, 400)
+      return reply(await accessPreview(request, env, data.apiKey))
+    }
+    if (url.pathname === '/api/admin/organizations/sync') {
+      try{return reply({count:await syncOrganizations(env)})}
+      catch(error){
+        const code=error?.providerCode
+        if(typeof code==='string' && /^(HTTP_[0-9]{3}|TIMEOUT|INVALID_JSON|TRANSPORT_TYPE_ERROR|FETCH_BINDING|CACHE_OPTION|REDIRECT|HEADER|INVALID_RESPONSE)$/u.test(code))return reply({error:'组织服务请求失败（'+code+'），请核对上游连接与配置'},503)
+        throw error
+      }
+    }
     if (url.pathname === '/api/admin/organizations') {
       if (!validOrganizationId(data.id) || !text(data.name) || typeof data.enabled !== 'boolean') return reply({ error: '请填写有效的组织 ID、名称和启用状态' }, 400)
-      await env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)
-        ON CONFLICT(id) DO UPDATE SET name=excluded.name,enabled=excluded.enabled`).bind(data.id, data.name.trim(), Number(data.enabled)).run()
+      await env.MARKET_DB.batch([
+        env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)
+          ON CONFLICT(id) DO UPDATE SET name=excluded.name,enabled=excluded.enabled`).bind(data.id, data.name.trim(), Number(data.enabled)),
+        ...auditStatements(env, 'organization.updated', data.id, { enabled: data.enabled }),
+      ])
       return reply({ ok: true })
     }
     if (url.pathname === '/api/admin/keys') {
@@ -107,7 +147,7 @@ export async function accessRoute(request, env) {
       const orgMode = url.pathname === '/api/admin/plugin-organizations' || mixedMode
       let directFingerprints=[],addedFingerprints=[],encryptedKeys=[]
       if(mixedMode) {
-        if(!Array.isArray(data.apiKeys) || !Array.isArray(data.keepFingerprints) || data.apiKeys.length+data.keepFingerprints.length>100
+        if(!Array.isArray(data.apiKeys) || !Array.isArray(data.keepFingerprints) || data.apiKeys.length>100 || data.keepFingerprints.length>100
           || !data.apiKeys.every(k=>text(k,512) && /^sk-\S+$/u.test(k)) || !data.keepFingerprints.every(fp=>/^[a-f0-9]{64}$/u.test(fp))) return reply({error:'API Key 格式无效，每行一个，最多 100 个'},400)
         const migrated=await env.MARKET_DB.prepare('SELECT 1 FROM market_org_policies WHERE plugin_id=?').bind(data.id??'').first()
         for(const fp of data.keepFingerprints) {
@@ -117,6 +157,7 @@ export async function accessRoute(request, env) {
         }
         addedFingerprints=await Promise.all(data.apiKeys.map(k=>fingerprint(k,env.MARKET_HMAC_SECRET)))
         directFingerprints=[...new Set([...data.keepFingerprints,...addedFingerprints])]
+        if(directFingerprints.length>100) return reply({error:'每个插件最多授权 100 个不同 API Key'},400)
         encryptedKeys=await Promise.all([...new Map(data.apiKeys.map((key,i)=>[addedFingerprints[i],key]))].map(async([fp,key])=>({fp,value:await sealKey(key,data.id,fp,env)})))
       } else if(orgMode) {
         const {results}=await env.MARKET_DB.prepare('SELECT fingerprint FROM market_plugin_key_grants WHERE plugin_id=?').bind(data.id??'').all()
@@ -154,7 +195,10 @@ export async function accessRoute(request, env) {
         || typeof m.npm !== 'boolean') return reply({ error: '插件字段无效' }, 400)
       try { if (new URL(m.repository).protocol !== 'https:') throw new Error() } catch { return reply({ error: '仓库地址必须为 HTTPS' }, 400) }
       if (data.objectKey != null && !/^[a-zA-Z0-9/_.-]{1,240}$/u.test(data.objectKey)) return reply({ error: '安装包对象名无效' }, 400)
-      const metadata = { id: m.id, package: m.package, displayName: m.displayName, summary: m.summary, repository: m.repository, version: m.version, npm: m.npm }
+      // Permission edits must not pin an old release or replace its installation source.
+      // Only server-owned roster metadata is authoritative for released plugins.
+      const metadata = roster.items.find(item => item.id === data.id)
+        ?? { id: m.id, package: m.package, displayName: m.displayName, summary: m.summary, repository: m.repository, version: m.version, npm: m.npm }
       const savePlugin = env.MARKET_DB.prepare(`INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET visibility=excluded.visibility,metadata=excluded.metadata,object_key=excluded.object_key`)
         .bind(data.id, data.visibility, JSON.stringify(metadata), data.objectKey || null)
@@ -170,6 +214,7 @@ export async function accessRoute(request, env) {
             env.MARKET_DB.prepare('DELETE FROM market_plugin_key_values WHERE plugin_id=? AND fingerprint NOT IN (SELECT fingerprint FROM market_plugin_key_grants WHERE plugin_id=?)').bind(data.id,data.id),
             ...encryptedKeys.map(({fp,value})=>env.MARKET_DB.prepare('INSERT INTO market_plugin_key_values(plugin_id,fingerprint,encrypted_value) VALUES(?,?,?) ON CONFLICT(plugin_id,fingerprint) DO UPDATE SET encrypted_value=excluded.encrypted_value').bind(data.id,fp,value))
           ]:[]),
+          ...auditStatements(env, 'plugin.access.updated', data.id, { visibility: data.visibility, organizationCount: data.organizationIds.length, keyCount: directFingerprints.length }),
         ])
       } else if (simple) {
         await env.MARKET_DB.batch([
