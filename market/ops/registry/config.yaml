@@ -9,7 +9,8 @@ web:
 auth:
   htpasswd:
     file: /verdaccio/storage/htpasswd
-    max_users: -1
+    # Allow controlled account creation through npm adduser/npm login.
+    max_users: 100
     algorithm: bcrypt
     rounds: 10
 
