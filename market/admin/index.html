@@ -500,6 +500,12 @@
               </select></label
             >
           </div>
+          <label id="catalog-registry-label"
+            >npm 来源<select id="catalog-registry">
+              <option value="npm">公开 npm Registry</option>
+              <option value="tokenscowork">TokensCowork 私有 Registry（需服务器配置）</option>
+            </select><small>未配置私有 Registry 时，私有来源不能上架；公开 npm 插件流程不受影响。</small></label
+          >
           <label id="catalog-commit-label" hidden
             >Git commit<input
               id="catalog-commit"
@@ -514,7 +520,7 @@
             </select></label
           >
           <p class="muted">
-            npm 插件首次上架后自动跟随稳定版 latest，不需要重复保存或上架。名称、简介与权限保持不变；下架和草稿不会自动上架。依赖许可证检查应在 npm 发布前完成。npm 查询失败或 latest 为预发布版时，暂不向应用提供该条目。
+            npm 插件首次上架后自动跟随所选 Registry 的稳定版 latest，不需要重复保存或上架。名称、简介与权限保持不变；下架和草稿不会自动上架。依赖许可证检查应在发布前完成。Registry 查询失败或 latest 为预发布版时，暂不向应用提供该条目。
           </p>
         </div>
         <output id="catalog-error" class="error" role="alert"></output>

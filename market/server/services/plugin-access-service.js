@@ -41,7 +41,8 @@ export async function filterRoster(request, env, roster) {
     // A component promoted into the application cannot inherit stale market restrictions.
     if (!releaseItem || releaseItem.category === 'builtin') continue
     merged.delete(row.id)
-    if (row.visibility === 'public' || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
+    const privateRegistry = JSON.parse(row.metadata).registry === 'tokenscowork'
+    if ((!privateRegistry && row.visibility === 'public') || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
       // Release updates own package metadata; the database owns only access policy.
       merged.set(row.id, { ...JSON.parse(row.metadata), ...releaseItem })
     }

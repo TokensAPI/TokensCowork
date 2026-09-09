@@ -1,6 +1,7 @@
 import { idOK, text } from '../http/request.js'
 import { auditStatements } from './admin-audit-service.js'
 import { latestVersion } from '../integrations/npm-registry.js'
+import { createRegistryClient } from '../registry/client.mjs'
 
 export const publisher = {
   name: 'TokensAPI',
@@ -52,6 +53,11 @@ export async function catalogEntry(env, id) {
     .bind(id)
     .first()
 }
+
+export async function catalogLatestVersion(env, item) {
+  if (item.registry === 'tokenscowork') return await createRegistryClient(env).latestVersion(item.package)
+  return await latestVersion(item.package, '')
+}
 export async function productComponents(request, env) {
   const response = await env.ASSETS.fetch(
     new URL('/product-components.json', request.url).toString(),
@@ -77,6 +83,9 @@ function metadata(value) {
     throw invalid(
       '请填写有效的 ID、npm 包名、名称、简介及版本（例如 1.0.0 或 0.1.0-beta.1）',
     )
+  const registry = value.npm ? (value.registry ?? 'npm') : 'github'
+  if (value.npm && !['npm', 'tokenscowork'].includes(registry)) throw invalid('npm 来源只能选择公开 npm 或 TokensCowork 私有 Registry')
+  if (!value.npm && value.registry !== undefined) throw invalid('GitHub 插件不能设置 npm Registry 来源')
   const repository = value.repository ?? ''
   if (!(value.npm && repository === '') && (
     typeof repository !== 'string' ||
@@ -97,6 +106,7 @@ function metadata(value) {
     repository,
     version: value.version,
     npm: value.npm,
+    ...(value.npm ? { registry } : {}),
     ...(!value.npm
       ? {
           installSource: { kind: 'github', commit: value.installSource.commit },
@@ -111,6 +121,7 @@ const sourceIdentity = (m) =>
     m.npm,
     m.version,
     m.installSource?.commit,
+    m.registry,
   ])
 export function revisionStatement(env, entry, expected = entry.revision) {
   if (!Number.isSafeInteger(expected) || expected !== entry.revision)
@@ -201,7 +212,7 @@ export async function catalogMutation(request, env, data) {
     if (!['draft', 'archived'].includes(entry.state))
       throw invalid('只能上架草稿或已下架插件', 409)
     if (m.npm) {
-      const latest = await latestVersion(m.package, '')
+      const latest = await catalogLatestVersion(env, m)
       if (!latest) throw invalid('npm latest 暂无可用稳定版本或查询失败，请发布稳定版后重试上架')
       m = {...m, version: latest}
       mode = 'latest'
@@ -221,6 +232,8 @@ export async function catalogMutation(request, env, data) {
       if (!validReference) throw invalid('检查记录链接须为有效的 HTTPS 地址，也可留空')
     }
     metadata(m)
+    if (m.registry === 'tokenscowork' && entry.visibility !== 'restricted')
+      throw invalid('私有 Registry 插件必须先配置组织或 API Key 权限', 409)
     if (entry.visibility === 'public' && data.confirmPublic !== true)
       throw invalid('此插件未限制访问范围，请明确确认公开上架', 409)
     reference = suppliedReference

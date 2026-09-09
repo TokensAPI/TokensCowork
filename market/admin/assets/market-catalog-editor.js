@@ -15,6 +15,7 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
         'catalog-repository',
         'catalog-version',
         'catalog-kind',
+        'catalog-registry',
         'catalog-commit',
         'catalog-mode',
       ].map((id) => $(id).value),
@@ -25,6 +26,7 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
     $('catalog-repository').required = $('catalog-kind').value !== 'npm'
     $('catalog-commit-label').hidden = $('catalog-kind').value === 'npm'
     $('catalog-commit').required = $('catalog-kind').value !== 'npm'
+    $('catalog-registry-label').hidden = $('catalog-kind').value !== 'npm'
   }
   function open(plugin = null) {
     if (isBusy()) return
@@ -44,6 +46,7 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
     $('catalog-version').value = plugin?.version ?? '1.0.0'
     $('catalog-mode').value = plugin?.versionMode ?? 'pinned'
     $('catalog-kind').value = plugin?.npm === false ? 'github' : 'npm'
+    $('catalog-registry').value = plugin?.registry ?? 'npm'
     $('catalog-commit').value = plugin?.installSource?.commit ?? ''
     sourceFields()
     baseline = draft()
@@ -107,6 +110,7 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
       repository: $('catalog-repository').value.trim(),
       version: $('catalog-version').value.trim(),
       npm,
+      ...(npm ? { registry: $('catalog-registry').value } : {}),
       ...(!npm
         ? {
             installSource: {

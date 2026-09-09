@@ -3,12 +3,14 @@ import { filterRoster } from './services/plugin-access-service.js'
 import { catalogRoster } from './services/catalog-service.js'
 import { liveCatalog } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
+import { registryRoute } from './registry/routes.js'
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const admin = await accessRoute(request, env)
     if (admin) return admin
+    if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
     ) {
@@ -22,7 +24,7 @@ export default {
           env,
           await catalogRoster(env),
         )
-        roster.items = await liveCatalog(roster.items)
+        roster.items = await liveCatalog(roster.items, env)
         if (url.pathname === '/roster.json')
           return reply({
             publisher: roster.publisher,
@@ -40,7 +42,7 @@ export default {
               ...(item.repository ? { repository: { url: item.repository } } : {}),
               publisher: roster.publisher,
               ...(item.npm
-                ? { package: { registry: 'npm', name: item.package } }
+                ? { package: { registry: item.registry === 'tokenscowork' ? 'tokenscowork' : 'npm', name: item.package } }
                 : {}),
               ...(item.installSource
                 ? { installSource: item.installSource }
@@ -81,6 +83,7 @@ function publicMetadata(item) {
     repository: item.repository,
     version: item.version,
     npm: item.npm,
+    ...(item.registry ? { registry: item.registry } : {}),
     ...(item.installSource ? { installSource: item.installSource } : {}),
   }
 }

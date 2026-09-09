@@ -151,6 +151,7 @@ test('operations exposes safe configuration and bounded recent actions only to a
   assert.deepEqual(value.environment, {
     origin: 'https://tokensapi.ai', name: 'production', organizationReady: true,
     organizationListReady: true, keyDisplayReady: true, privatePackagesReady: false,
+    privateRegistryReady: false,
   })
   assert.equal(value.recentActions.length, 50)
   assert.equal(value.recentActions[0].target, '60')

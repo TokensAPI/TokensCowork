@@ -1,4 +1,5 @@
 import { organizationProviderReady, organizationListReady } from './organization-service.js'
+import { registryConfig } from '../registry/config.mjs'
 
 export function organizationEnvironment(env) {
   const origin = env.MARKET_ORGANIZATIONS_BASE_URL
@@ -8,6 +9,7 @@ export function organizationEnvironment(env) {
 }
 
 export async function adminOperations(env) {
+  const privateRegistry = registryConfig(env)
   const { results } = await env.MARKET_DB.prepare(
     'SELECT id,action,target,details,created_at FROM market_admin_audit ORDER BY id DESC LIMIT 50',
   ).all()
@@ -18,6 +20,7 @@ export async function adminOperations(env) {
       organizationListReady: organizationListReady(env),
       keyDisplayReady: Boolean(env.MARKET_KEY_ENCRYPTION_SECRET),
       privatePackagesReady: Boolean(env.MARKET_PACKAGES),
+      privateRegistryReady: privateRegistry.ready === true,
     },
     recentActions: results.map(row => ({
       id: row.id, action: row.action, target: row.target,

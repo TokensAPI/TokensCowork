@@ -1,0 +1,19 @@
+services:
+  registry:
+    image: verdaccio/verdaccio:6.1.6
+    container_name: tokenscowork-registry
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4873:4873"
+    volumes:
+      - registry-storage:/verdaccio/storage
+      - registry-plugins:/verdaccio/plugins
+      - ./config.yaml:/verdaccio/conf/config.yaml:ro
+
+volumes:
+  registry-storage:
+    name: tokenscowork-registry-storage
+    external: true
+  registry-plugins:
+    name: tokenscowork-registry-plugins
+    external: true

@@ -82,7 +82,7 @@ export async function accessRoute(request, env) {
     }
     if (request.method === 'GET' && ['/api/admin/roster','/api/admin/catalog'].includes(url.pathname)) {
       const roster = await catalogRoster(env,true)
-      return reply({...roster, items: await resolveNpmVersions(roster.items)})
+      return reply({...roster, items: await resolveNpmVersions(roster.items, env)})
     }
     if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') return reply(await npmPackage(url.searchParams.get('package'),url.searchParams.get('version') || 'latest'))
     if (request.method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) return reply({ error: '跨站请求被拒绝' }, 403)

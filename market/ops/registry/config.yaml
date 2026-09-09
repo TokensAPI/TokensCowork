@@ -1,0 +1,35 @@
+# TokensCowork private npm Registry.
+# Nginx should proxy to http://127.0.0.1:4873.
+storage: /verdaccio/storage
+plugins: /verdaccio/plugins
+
+web:
+  enable: false
+
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: -1
+    algorithm: bcrypt
+    rounds: 10
+
+# Private-only registry. No public npm proxy and no anonymous reads.
+packages:
+  '@tokensapi/*':
+    access: $authenticated
+    publish: $authenticated
+    unpublish: $authenticated
+  '**':
+    access: $authenticated
+    publish: $authenticated
+    unpublish: $authenticated
+
+server:
+  keepAliveTimeout: 60
+
+max_body_size: 200mb
+
+log:
+  type: stdout
+  format: pretty
+  level: http

@@ -35,6 +35,7 @@ market/
 ├── server/services/catalog-service.js  插件生命周期与乐观并发控制
 ├── server/services/plugin-access-service.js  统一授权规则
 ├── server/integrations/             npm / TokensAPI 服务适配
+├── server/registry/                 可选私有 npm Registry 代理（仅服务端）
 ├── server/security/                 会话、限流、Key 加密与指纹
 ├── admin/assets/market-admin.js     工作台与权限编辑交互
 ├── admin/assets/market-catalog-editor.js  插件资料与状态表单
@@ -75,3 +76,17 @@ npm --prefix market run dev
 首次上线前应备份 D1，并核对既有插件和授权数量。应用 004 后继续使用旧 Worker 会忽略生命周期状态，因此开始后台管理后不能简单回滚到旧静态目录版本；修复应前向发布，或在维护窗口配合数据库备份恢复。
 
 `npm run build` 仅生成 `source.json` 与产品组件身份清单，不生成插件目录。新增可选插件无须更新桌面安装包。源码、数据库脚本、组件身份文件和运维工具不在 Worker 公共静态资源白名单内。所有真实凭证只在服务端秘密配置中保存。
+
+## 可选私有 npm Registry
+
+公开 npm 插件无需任何额外配置。需要受控分发的包可在后台把「npm 来源」选为「TokensCowork 私有 Registry」；市场会在上架和每次目录刷新时读取私有 Registry 的稳定 `latest`，并通过 `/registry/` 代理元数据和 tarball。代理先检查市场的组织/Key 权限，再使用服务端 Secret 访问上游 Registry；桌面端只会拿到当前用户自己的 API Key，不会拿到 Registry Token。
+
+服务器还未准备好时保持 `MARKET_PRIVATE_REGISTRY_ENABLED` 未设置（或不是 `true`），私有来源不会显示为可安装条目，公开 npm 完全不受影响。服务器准备好后只需配置以下 Worker Secret/变量并重新部署市场，不需要修改插件目录代码，也不需要为了每次 npm 发版重打桌面包：
+
+```text
+MARKET_PRIVATE_REGISTRY_ENABLED=true
+MARKET_PRIVATE_REGISTRY_URL=https://你的-registry.example/npm/
+MARKET_PRIVATE_REGISTRY_TOKEN=<只放在 Worker Secret 中>
+```
+
+Registry 必须是 HTTPS、无用户名密码/query/fragment 的标准 npm Registry；市场会拒绝重定向、无效包元数据和超过大小上限的响应。私有包仍需先在后台登记、配置组织或单独 Key 权限并上架。没有权限、上游不可用或配置缺失时均 fail-closed，不会静默回退到公开 npm。

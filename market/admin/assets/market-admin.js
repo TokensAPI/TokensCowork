@@ -361,6 +361,11 @@ async function load() {
   state = next
   plugins = mergePlugins(roster, next)
   operations = ops
+  const privateRegistryOption = $('catalog-registry').querySelector('option[value="tokenscowork"]')
+  if (privateRegistryOption) {
+    privateRegistryOption.disabled = !ops.environment.privateRegistryReady
+    privateRegistryOption.hidden = !ops.environment.privateRegistryReady
+  }
   renderPlugins()
   renderOrganizations()
   renderOperations()
