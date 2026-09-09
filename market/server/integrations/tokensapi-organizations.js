@@ -18,7 +18,7 @@ export function createTokensApiOrganizations(env,fetchImpl=globalThis.fetch.bind
       // Workers supports manual/follow, but may reject the browser's "error" mode.
       // Manual keeps all redirects unfollowed; the non-2xx guard rejects them.
       const response=await fetchImpl(base+path,{method:'GET',headers:{Authorization:'Bearer '+token,Accept:'application/json','Cache-Control':'no-store',Pragma:'no-cache'},redirect:'manual',signal:controller.signal})
-      if(identity && [401,403].includes(response.status)){await response.body?.cancel();return null}
+      if(identity && [401,403].includes(response.status)){await response.body?.cancel();throw new ProviderError(response.status===401?'KEY_INVALID':'KEY_DISABLED')}
       if(!response.ok)throw new ProviderError('HTTP_'+response.status)
       const reader=response.body?.getReader()
       if(!reader)throw new Error('Empty organization response')
@@ -43,14 +43,22 @@ export function createTokensApiOrganizations(env,fetchImpl=globalThis.fetch.bind
     finally{clearTimeout(timer)}
   }
   const provider={
-    async resolveOrganization(apiKey){
-      const data=await request('/api/current/organization',apiKey,true)
-      if(data===null)return null
+    async validateApiKey(apiKey){
+      let data
+      try { data=await request('/api/current/organization',apiKey,true) }
+      catch(error) {
+        if(error.providerCode==='KEY_INVALID')return {status:'invalid',organization:null}
+        if(error.providerCode==='KEY_DISABLED')return {status:'disabled',organization:null}
+        throw error
+      }
       if(!data||!Object.hasOwn(data,'organization'))throw new Error('Missing organization')
-      if(data.organization===null)return null
+      if(data.organization===null)return {status:'valid',organization:null}
       const value=organization(data.organization)
       if(!Number.isInteger(data.organization.status))throw new Error('Invalid organization status')
-      return data.organization.status===1?value:null
+      return data.organization.status===1?{status:'valid',organization:value}:{status:'disabled',organization:null}
+    },
+    async resolveOrganization(apiKey){
+      return (await provider.validateApiKey(apiKey)).organization
     }
   }
   if(typeof env.MARKET_ORGANIZATIONS_TOKEN==='string'&&env.MARKET_ORGANIZATIONS_TOKEN.trim()){

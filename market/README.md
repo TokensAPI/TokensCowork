@@ -1,99 +1,77 @@
-# TokensCowork 插件市场与管理后台
+# TokensCowork 插件市场
 
-TokensAPI 生产组织接口与上线配置见 [TOKENSAPI.md](TOKENSAPI.md)；外部 HTTP 适配位于 `server/integrations/`，业务权限不依赖上游原始字段。
+## 日常管理：不再修改代码
 
-## 管理工作台
+入口为 `/admin/`。可选插件的资料、版本策略、上架状态、组织和单独 Key 授权均保存在 D1 数据库，由后台维护。
 
-入口仍为 `/admin/`，登录成功才加载管理数据，服务端 Cookie 会话保持 7 天。四个工作区：
+1. **新建插件**：填写 ID 与包名，可从 npm 读取指定版本或 latest 的元数据，核对名称、简介和 GitHub 仓库，保存为草稿。也支持固定 40 位 Git commit 的安装源。
+2. **配置权限**：组织和单独 Key 任一命中即可访问；两项留空表示上架后公开。草稿无论配置何种权限都不会在客户端出现。
+3. **首次上架**：按组织/Key 配置访问范围，公开上架需单独确认。npm 插件上架时核对当前 latest 为稳定版，登记版本已过时也不必先手工更新。完整生产依赖许可证检查是发布前的独立责任，本后台不会自行扫描，也不会把 npm 的 license 字段视为检查结果。
+4. **编辑与更新**：npm 新版本只需发布到 npm latest，市场自动发现，不需再次保存或上架。名称、简介和权限不自动覆盖；管理员主动更换包名、仓库、安装源或登记版本时仍会退回草稿。
+5. **下架与回收站**：已上架插件先下架，再移入回收站。资料与授权保留，恢复后是草稿，不会自动公开。回收站支持「彻底删除」，须输入完整插件 ID 确认；原子删除市场资料及关联组织/Key 授权，保留受保留期限制的操作日志和共享组织/Key 身份。不删除 npm 包、私有存储文件或客户端已安装插件。彻底删除无法从后台恢复，此 ID 可重新创建为无旧授权的草稿。
 
-- **插件与权限**：区分内置组件与可选插件；支持名称、包名、分类、访问范围筛选。组织和单独 Key 任一命中即可访问，两项都为空时公开。受限改公开须确认。
-- **组织名录**：从 TokensAPI 同步、搜索和启停组织，显示关联受限插件数。同步不会重新启用本地停用组织，也不会因一次上游缺失删除原授权。
-- **授权验证**：只读输入一个 Key，调用真实市场权限逻辑，显示组织和每项插件的判断依据。输入不存入数据库、日志或本地存储；结果不是模型 API Key 有效性的独立证明。
-- **操作记录**：显示最新 50 条权限和组织变更，服务端最多保留 1000 条；日志与配置同一事务保存，不包含 Key 明文。
+npm 插件统一自动跟随稳定版 latest（包括历史标记为 pinned 的 npm 记录）；固定 Git commit 插件不变。`/v1/plugins`、兼容 `/roster.json` 和后台版本显示使用同一解析逻辑，最多 6 个并发查询，并复用最长约 120 秒的 registry 边缘缓存；在访问/刷新目录时发现版本，不是后台定时改数据库。npm 无响应或 latest 是预发布版时暂不向应用提供该 npm 条目，不把旧版本伪装成可安装的 latest。草稿、下架和回收站不会自动上架。
 
-权限编辑保留完整 Key 展示和单独复制/移除，自动合并重复项；关闭或离开未保存的表单会提醒。请求有超时和明确错误提示，保存后刷新失败会区分“已保存”与“未保存”。登录失败每个来源 15 分钟最多 8 次，已有有效会话不受限流影响。
+数据库保留登记版本，后台卡片另显示当前 npm 版本。自动发现不会写数据库、改修订号、权限或审核记录；更新展示不等于静默升级用户已安装的插件。各插件的 npm 发布前许可证检查流水线不在本市场内，尚需由对应发布仓库保证。
 
-页面显示组织服务的实际环境和配置状态；“已配置”不等于已验证连通。同步成功才显示此次同步结果。**不同环境的组织 ID 可能相同但代表不同组织，切换 TokensAPI 环境前必须核对授权，生产与测试宜使用独立数据库。**
+下架阻止新的市场展示和私有下载，不会卸载用户已安装的插件。客户端已有索引可能需要刷新/等待缓存过期。公开 npm/GitHub 包仍能从原地址下载，本市场权限不等于包内容的私有分发。
 
-市场权限仅控制本市场展示和私有下载入口，公开 npm/GitHub 包本身不是私有分发。管理凭证与所有服务秘密仅在服务端配置，不写入页面、示例或仓库。
+## 数据来源与边界
 
-## 工程结构与边界
+「授权验证」先通过 TokensAPI 当前组织接口验证 Key：成功响应（包括个人 Key 的 organization=null）才继续计算所见范围；401/403 直接停止，服务超时或异常提示重试，不把“无法验证”误报成“Key 无效”。此修改仅作用于后台诊断入口，不改变市场原有授权规则，不记录提交的 Key。
+
+- `market_plugins`：可选插件规范元数据、访问范围和私有对象引用。
+- `market_catalog`：草稿/已上架/已下架/回收站状态、修订号、版本策略、检查记录。
+- 原组织、Key 指纹、加密 Key 和授权表继续使用，迁移不会轮换密钥或重建授权。
+- 内置组件不作为市场商品展示。由 `product.json` 在构建时自动生成 `product-components.json`，仅用于防止误登记应用内置 ID/包名；该文件不是公开的插件名册，也不代表每位用户实际安装的桌面版本。
+- 已移除手工 `roster.json` 和静态插件快照。`/roster.json` 仅作为旧客户端兼容 HTTP 路径保留，返回经过权限过滤的数据库目录，不读同名文件。
+- 数据库不可用时目录返回 503，不会用旧静态内容复活已下架插件。
+
+## 工程结构
 
 ```text
 market/
-├── _worker.js                  Cloudflare 约定入口，仅转发
-├── _headers                    静态响应头与页面安全策略
-├── server/
-│   ├── market-worker.js        请求分发、目录与 npm 版本查询
-│   ├── routes/                 管理与下载 HTTP 路由
-│   ├── services/               插件访问规则、组织提供方适配
-│   ├── security/               会话、Key 指纹与加密存储
-│   └── http/                   请求解析、校验与响应
-├── admin/
-│   ├── index.html              管理页面结构，URL 保持 /admin/
-│   ├── access.html             旧入口兼容跳转
-│   └── assets/                 market-admin.js / market-model.js / market-api.js / market-admin.css
-├── database/migrations/        按编号执行的幂等 SQL
-├── ops/                        运维脚本与检查工具，不对公网开放
-├── tests/                      权限、会话、加密、目录与静态隔离测试
-├── legacy/admin/               未加载的历史页面脚本，仅供迁移参考
-├── roster.json                 唯一插件名册
-├── source.config.json          市场源配置
-└── package.json                统一维护命令
+├── server/routes/                  HTTP 鉴权、请求校验与路由
+├── server/services/catalog-service.js  插件生命周期与乐观并发控制
+├── server/services/plugin-access-service.js  统一授权规则
+├── server/integrations/             npm / TokensAPI 服务适配
+├── server/security/                 会话、限流、Key 加密与指纹
+├── admin/assets/market-admin.js     工作台与权限编辑交互
+├── admin/assets/market-catalog-editor.js  插件资料与状态表单
+├── admin/assets/market-model.js     可测试的筛选与 Key 去重
+├── admin/assets/market-api.js       有超时、无写入自动重试的请求层
+├── database/migrations/             递增编号的幂等迁移
+├── ops/                            本地演示、配置、检查脚本
+└── tests/                          权限、生命周期、迁移与异常回归
 ```
 
-### 分层约定
+管理数据只在登录后展示，会话保持 7 天。完整 Key 加密存储，仅授权管理端可读。密码错误有来源限流；同源校验防止跨站写入。插件编辑、上架及权限保存共享修订号；旧页面覆盖新更改时返回 409。操作记录与变更同事务保存，最新 50 条可见、服务端最多保留 1000 条，不记录 Key 明文。
 
-- HTTP 路由负责鉴权、输入校验与响应；访问规则在 services，密码学操作在 security。页面不直接调用数据库或组织提供方。
-- 浏览器请求统一走 `admin/assets/market-api.js`；该模块不操作 DOM。纯数据合并、筛选、Key 去重在 `market-model.js` 并单独测试；页面状态与交互在 `market-admin.js`，不为目录重排引入框架。
-- 文件采用小写 kebab-case；前端资源和运维入口保留 `market-` 前缀。Cloudflare 强制的 `_worker.js` / `_headers` 不改名。
-- 静态资源采用显式白名单，新增前端资源须同步 `server/market-worker.js`。源码、数据库、运维、测试、历史文件不公开提供。
-- 桌面产品覆盖仍在父仓库 `build/overlays/market/`，不混入市场后台，不修改只读子模块。
-- 现有 API、Cookie 名称、会话有效期与授权数据保持兼容。SQL 的 001/002 是现有幂等基线，不是新的数据库重建；后续变更另建递增编号脚本，禁止重置生产表。
+TokensAPI 接口及环境配置见 [TOKENSAPI.md](TOKENSAPI.md)。不同环境可能复用组织 ID，生产/测试应使用独立数据库；切换 URL 前须核对组织关系。
 
-### 常用命令（父仓库根目录）
+## 开发与测试
+
+新建插件时可在「npm 包名或链接」粘贴 npmjs.com 的包详情页地址，点击「读取并自动填写」；支持普通包、作用域包以及 `/v/版本` 链接。读取后自动填写包名、建议 ID、版本和公开简介，管理员可以修改再保存。已有插件 ID 或手工填写的 ID 不会被覆盖。
+
+npm 安装的 GitHub 仓库为选填，固定 Git commit 安装仍必须填写。预发布版本（例如 `0.1.0-beta.1`）可保存草稿，但当前桌面安装器只支持稳定版，因此预发布版本暂不可上架。npm 的许可证字段仅供提示，不代表完整依赖检查通过；导入不会自动创建、授权或上架插件。
+
+简介默认使用包版本的 `description`；导入时另外读取 npm 当前 README 的开头介绍，作为纯文本候选展示，点击「采用这段简介」后才填入表单。当前 README 可能与历史包版本不同，须人工核对。README 请求失败或内容过大时仍允许使用包描述、手工填写，不影响导入；不会执行或渲染 README 中的脚本/HTML。
 
 ```powershell
-npm --prefix market run verify  # 语法、相对引用、测试、名册一致性
-npm --prefix market test        # 后端回归
-npm --prefix market run build   # 生成现有部署产物
-npm --prefix market run dev     # 隔离的本地演示与 UI 验收
-npm --prefix market run dev:check # 本地服务 HTTP 自测
+npm --prefix market run build
+npm --prefix market run verify
+npm --prefix market run dev:check
+npm --prefix market run dev
 ```
 
-本地演示仅监听 `127.0.0.1:8788`，使用内存数据库和虚构组织，重启自动重置，不读取生产秘密、不会访问真实 TokensAPI/npm。测试凭证与模拟 Key 由启动提示给出；切勿将真实凭证填入演示环境。开发入口、测试文件与数据库脚本都不在 Worker 静态白名单内。
+本地演示仅监听 `127.0.0.1:8788`，使用虚构组织和内存数据库，重启重置；外网阻断，不读取生产部署配置。可在仓库根目录 `.market-dev.env` 设置 `MARKET_DEV_ADMIN_TOKEN`（已被 Git 忽略，不在网页目录内），或使用同名环境变量；未配置时使用演示凭证 `market-test`。自定义凭证不会打印到日志。不要输入真实 Key。
 
-部署仍使用 Cloudflare Pages 的现有项目，CI 已同步新路径。部署前按序执行 database/migrations 中的 SQL，再生成目录并上传 market。
-生成产物 `source.json` 和 `v1/plugins` 不手改；不要将凭证、会话令牌或安装包加入版本库。
-完整 Key 的加密密钥和授权指纹密钥必须保留，目录重构不轮换任何秘密。
+## 一次性迁移与部署
 
-本目录是 DSH Community Market「标准目录源」的 Cloudflare Pages 实现，只收录 TokensCowork 产品自有插件。插件目录数据的唯一来源是 `roster.json`。产品装配会预置并默认选中该官方源，无需用户手动登记。
+部署仍使用现有 Cloudflare Pages 项目。执行顺序：数据库迁移 → 生成部署文件 → 部署 Worker/管理页面。CI 按文件名顺序执行 SQL。
 
-## 文件
+`004-database-catalog.sql` 是历史目录的一次性快照：迁移既有四个可选插件、保留所有旧授权，排除内置组件。迁移标记确保重跑不会覆盖后台编辑，也不会恢复回收站中的插件。**后续新增插件不能再改此迁移文件。**
 
-```text
-source.config.json   部署 origin 配置
-source.json          目录源 manifest（生成产物，用户登记的就是它的 URL）
-roster.json          插件目录的唯一源数据（手工维护）
-v1/plugins           目录端点的静态兜底（部署时生成，不纳入 Git）
-_headers             Cloudflare Pages 响应头声明（保证 Content-Type 为 JSON）
-```
+首次上线前应备份 D1，并核对既有插件和授权数量。应用 004 后继续使用旧 Worker 会忽略生命周期状态，因此开始后台管理后不能简单回滚到旧静态目录版本；修复应前向发布，或在维护窗口配合数据库备份恢复。
 
-插件包名、展示信息、名册版本和 npm 状态只修改 `roster.json`。只有包已经发布并验证后才能把 `npm` 设为 `true`。GitHub Actions 会在部署前运行 `node scripts/generate-market-catalog.mjs`，现场生成 `v1/plugins`；本地手工部署时也必须先运行该命令。
-
-## 为什么不能部署到 GitHub Pages
-
-市场契约（`desktop/dsh-community-market/docs/schemas/catalog-source.schema.json`）强制端点路径**必须以 `/v1/plugins` 结尾**（不允许 `.json` 后缀），同时市场 Host 只接受 `Content-Type: application/json` 的响应。GitHub Pages 按扩展名推断 Content-Type，无扩展名文件一律按 `application/octet-stream` 返回且不支持自定义响应头，会被 Host 直接拒绝。因此需要一个支持自定义响应头的静态托管，本目录按 Cloudflare Pages 的 `_headers` 约定编写。
-
-## 部署（Cloudflare Pages）
-
-1. 提交市场相关变更到 `master`，`.github/workflows/market.yml` 会生成目录产物并部署到 Cloudflare Pages。
-2. 本地 Direct Upload 前，运行 `node scripts/generate-market-catalog.mjs`，再上传 `market` 目录。
-3. 部署 origin 由 `source.config.json` 声明；manifest 的 `transport.endpoint` 必须与 manifest URL 同源。
-4. 验证：`curl -sI https://<origin>/v1/plugins` 应返回 `200` 且 `Content-Type: application/json`。
-
-## 用户使用方式
-
-TokensCowork 首次启动后即可在插件市场浏览该源，无需添加或选择。产品界面隐藏来源的添加和删除操作，Host 也拒绝删除官方源，避免误操作后市场失去唯一来源。
-
-目录中带有经过验证的 npm 包信息时可直接安装；其他条目仍可查看介绍并跳转源码仓库。
+`npm run build` 仅生成 `source.json` 与产品组件身份清单，不生成插件目录。新增可选插件无须更新桌面安装包。源码、数据库脚本、组件身份文件和运维工具不在 Worker 公共静态资源白名单内。所有真实凭证只在服务端秘密配置中保存。

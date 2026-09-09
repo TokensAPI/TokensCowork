@@ -1,17 +1,22 @@
 import { fingerprint } from '../security/key-fingerprint.js'
 import { filterRoster } from './plugin-access-service.js'
-import { resolveOrganization } from './organization-service.js'
+import { validateApiKey } from './organization-service.js'
+import { catalogRoster } from './catalog-service.js'
 
 /** Read-only administrator diagnosis; never persist or return the submitted Key. */
 export async function accessPreview(request, env, apiKey) {
-  const rosterResponse = await env.ASSETS.fetch(new URL('/roster.json', request.url).toString())
-  if (!rosterResponse.ok) throw new Error('Roster unavailable')
-  const roster = await rosterResponse.json()
-  if (!Array.isArray(roster.items)) throw new Error('Invalid roster')
+  let validation
+  try { validation = await validateApiKey(apiKey, env) }
+  catch { validation = {status:'unavailable',organization:null} }
+  if (validation.status !== 'valid') {
+    return {keyStatus:validation.status,permissionsEvaluated:false,organization:null,organizationStatus:'unavailable',catalogAvailable:false,
+      warning: {invalid:'API Key 无效、已过期或已停用，未进行权限验证。',disabled:'该 Key 的组织或成员已被禁用，未进行权限验证。',unavailable:'TokensAPI 验证服务暂不可用，无法判断 Key 是否有效，请稍后重试。'}[validation.status],
+      items:[],summary:{total:0,allowed:0,denied:0}}
+  }
+  const roster = await catalogRoster(env)
 
   // The same provider result is shared by the summary and the real catalog policy path.
-  let identityPromise
-  const identity = () => identityPromise ??= resolveOrganization(apiKey, env)
+  const identity = async () => validation.organization
   let organization = null, organizationStatus = 'none', warning = null
   try {
     const resolved = await identity()
@@ -22,7 +27,7 @@ export async function accessPreview(request, env, apiKey) {
       if (!local) warning = '已识别组织，但尚未同步到组织名录；当前只能命中公开或单独 Key 授权。'
       else if (!local.enabled) warning = '该组织已在市场停用；单独 Key 授权仍按独立规则判断。'
     } else {
-      warning = '未返回可用组织：可能是私人 Key、无效 Key 或已停用身份。单独 Key 授权独立判断。'
+      warning = '这是有效的个人 Key，未绑定组织；按公开范围及单独 Key 授权判断。'
     }
   } catch {
     organizationStatus = 'unavailable'
@@ -51,7 +56,6 @@ export async function accessPreview(request, env, apiKey) {
   const legacyIds = new Set(legacy.map(row => row.plugin_id))
   const saved = new Map(plugins.map(row => [row.id, row]))
   const items = new Map(roster.items.map(item => [item.id, item]))
-  for (const plugin of plugins) if (!items.has(plugin.id)) items.set(plugin.id, JSON.parse(plugin.metadata))
   const decisions = [...items.values()].map(item => {
     const allowed = visible.has(item.id)
     const isPublic = item.category === 'builtin' || !saved.has(item.id) || saved.get(item.id).visibility === 'public'
@@ -63,6 +67,7 @@ export async function accessPreview(request, env, apiKey) {
   })
   const allowedCount = decisions.filter(item => item.allowed).length
   return {
+    keyStatus:'valid',permissionsEvaluated:true,
     organization, organizationStatus, catalogAvailable, warning, items: decisions,
     summary: { total: decisions.length, allowed: allowedCount, denied: decisions.length - allowedCount },
   }

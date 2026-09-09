@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - "market/**"
+      - "product.json"
       - "scripts/generate-market-catalog.mjs"
       - "build/verify/market-catalog-verify.mjs"
       - ".github/workflows/market.yml"
@@ -34,8 +35,7 @@ jobs:
         with:
           node-version: '24'
 
-      # roster.json 是插件目录的唯一源数据。先校验名册和产品约束，
-      # 再为本次部署生成不纳入 Git 的静态故障兜底。
+      # Verify the database migration seed and generated source manifest.
       - name: Verify market data
         run: node build/verify/market-catalog-verify.mjs
 
@@ -66,5 +66,5 @@ jobs:
             echo "${path} -> ${code}"
             [ "${code}" = "200" ] || exit 1
           done
-          curl -s "https://tokenscowork-market.pages.dev/v1/plugins" | jq -e '.schemaVersion == "1.0.0" and (.items | length) > 0' > /dev/null
+          curl -s "https://tokenscowork-market.pages.dev/v1/plugins" | jq -e '.schemaVersion == "1.0.0" and (.items | type) == "array"' > /dev/null
           echo "catalog schema ok"

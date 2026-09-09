@@ -1,3 +1,5 @@
+import { resetTestCatalog, seedTestPlugin } from './catalog-fixture.mjs'
+import { buildProductComponents } from '../../scripts/generate-market-catalog.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
@@ -8,7 +10,7 @@ import { createTokensApiOrganizations } from '../server/integrations/tokensapi-o
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
 test('HTTP adapter integrates with admin sync, organization policies and private downloads',async t=>{
-  const {env,call}=fixture(t)
+  const {env,call,db}=fixture(t)
   env.MARKET_ORGANIZATIONS=createTokensApiOrganizations({MARKET_ORGANIZATIONS_BASE_URL:'https://tokensapi.ai',MARKET_ORGANIZATIONS_TOKEN:'fixture-list'},async(url,options)=>{
     if(url.endsWith('/all')){
       assert.equal(options.headers.Authorization,'Bearer fixture-list')
@@ -139,7 +141,7 @@ test('mixed access retains bounded input arrays even when repeated values would 
     const response=await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys,keepFingerprints})
     assert.equal(response.status,400)
   }
-  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,0)
   assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_values').get().n,0)
 })
 
@@ -148,7 +150,7 @@ test('missing encryption secret or tampered ciphertext fails closed without leak
   const data={id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-secret'],keepFingerprints:[]}
   delete env.MARKET_KEY_ENCRYPTION_SECRET
   assert.equal((await call('/api/admin/plugin-access','admin-secret',data)).status,503)
-  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
+  assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugin_key_grants').get().n,0)
   env.MARKET_KEY_ENCRYPTION_SECRET='restored'
   assert.equal((await call('/api/admin/plugin-access','admin-secret',data)).status,200)
   db.exec("UPDATE market_plugin_key_values SET encrypted_value='00.00'")
@@ -156,20 +158,21 @@ test('missing encryption secret or tampered ciphertext fails closed without leak
 })
 test('built-in classification cannot be bypassed by editing request metadata',async t=>{
   const {env,call,db}=fixture(t)
+  db.prepare('DELETE FROM market_catalog WHERE id=?').run(metadata.id)
+  db.prepare('DELETE FROM market_plugins WHERE id=?').run(metadata.id)
   env.ASSETS.fetch=async()=>Response.json({publisher:{name:'Example'},items:[{...metadata,category:'builtin'}]})
   for(const path of ['/api/admin/plugins','/api/admin/plugin-keys','/api/admin/plugin-organizations','/api/admin/plugin-access']) {
     assert.equal((await call(path,'admin-secret',{id:metadata.id,metadata:{...metadata,category:'optional'},visibility:'restricted',organizationIds:[],apiKeys:['sk-direct'],keepFingerprints:[]})).status,409)
   }
   assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
 })
-test('roster built-ins match components assembled into the desktop patch',()=>{
-  const roster=JSON.parse(readFileSync(new URL('../roster.json',import.meta.url),'utf8'))
+test('product component identities are derived directly from product.json',()=>{
   const product=JSON.parse(readFileSync(new URL('../../product.json',import.meta.url),'utf8'))
-  assert.ok(roster.items.every(p=>['builtin','optional'].includes(p.category)))
-  assert.deepEqual(roster.items.filter(p=>p.category==='builtin').map(p=>p.id).sort(),product.plugins.filter(p=>p.enabledByDefault&&p.patch).map(p=>p.id).sort())
+  assert.deepEqual(buildProductComponents(product).items.map(p=>p.id).sort(),product.plugins.filter(p=>p.enabledByDefault&&p.patch).map(p=>p.id).sort())
 })
+
 test('mixed grants allow organization OR direct Key and revoke independently', async t => {
-  const {call,env}=fixture(t)
+  const {call,env,db}=fixture(t)
   await call('/api/admin/organizations','admin-secret',{id:1,name:'Org',enabled:true})
   env.MARKET_ORGANIZATIONS={resolveOrganization:async key=>({id:key==='sk-org'?1:2,name:'Org'})}
   const save=(organizationIds,apiKeys=[],keepFingerprints=[],confirmPublic=false)=>call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds,apiKeys,keepFingerprints,confirmPublic,objectKey:'private/tool.tgz'})
@@ -191,10 +194,11 @@ test('mixed grants allow organization OR direct Key and revoke independently', a
   assert.equal((await call('/downloads/private-tool')).status,200)
 })
 test('direct Key remains usable when another plugin requires unavailable organization provider',async t=>{
-  const {call}=fixture(t)
+  const {call,db}=fixture(t)
   await call('/api/admin/organizations','admin-secret',{id:1,name:'Org',enabled:true})
   await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:['sk-direct'],keepFingerprints:[]})
   const second={...metadata,id:'org-only'}
+  seedTestPlugin(db,second)
   await call('/api/admin/plugin-access','admin-secret',{id:second.id,metadata:second,organizationIds:[1],apiKeys:[],keepFingerprints:[]})
   assert.deepEqual((await (await call('/roster.json','sk-direct')).json()).items.map(p=>p.id),[metadata.id])
   assert.equal((await call('/downloads/org-only','sk-direct')).status,503)
@@ -223,6 +227,7 @@ function fixture(t) {
   for (const file of readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()) {
     db.exec(readFileSync(new URL(file, migrations), 'utf8'))
   }
+  resetTestCatalog(db,metadata)
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({ bind: (...v) => wrap(sql, v), first: async () => db.prepare(sql).get(...values), all: async () => ({ results: db.prepare(sql).all(...values) }), run: async () => db.prepare(sql).run(...values) })
   const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret', MARKET_KEY_ENCRYPTION_SECRET:'test-encryption-secret',
@@ -280,10 +285,12 @@ test('public plugin stays public; unconfigured download is rejected', async t =>
   assert.equal((await (await call('/v1/plugins')).json()).items.length, 1)
   assert.equal((await call('/downloads/private-tool')).status, 404)
 })
-test('malformed fields and unknown fingerprints cannot overwrite authorization', async t => {
-  const { call } = fixture(t)
+test('unknown fingerprints are rejected and permission metadata cannot overwrite the stored plugin', async t => {
+  const { call, db } = fixture(t)
+  const before = db.prepare('SELECT metadata FROM market_plugins WHERE id=?').get(metadata.id).metadata
   assert.equal((await call('/api/admin/keys', 'admin-secret', { fingerprint: 'a'.repeat(64), label:'test', enabled:true, plugins:[] })).status, 400)
-  assert.equal((await call('/api/admin/plugins', 'admin-secret', { id: metadata.id, metadata: { ...metadata, repository: 'javascript:alert(1)' }, visibility: 'restricted' })).status, 400)
+  assert.equal((await call('/api/admin/plugins', 'admin-secret', { id: metadata.id, metadata: { ...metadata, repository: 'javascript:alert(1)' }, visibility: 'restricted' })).status, 200)
+  assert.equal(db.prepare('SELECT metadata FROM market_plugins WHERE id=?').get(metadata.id).metadata, before)
 })
 test('HMAC fingerprint depends on server secret', async () => {
   assert.notEqual(await fingerprint('sk-test','one'), await fingerprint('sk-test','two'))
@@ -305,6 +312,7 @@ test('organization policy shares access across Keys, isolates organizations and 
   assert.equal((await (await call('/roster.json?organizationId=1','sk-other')).json()).items.length,0)
   // Multiple restricted plugins cause only one identity lookup per catalog request.
   const second={...metadata,id:'another-tool'}
+  seedTestPlugin(db,second)
   await call('/api/admin/plugin-organizations','admin-secret',{id:second.id,metadata:second,organizationIds:[1]})
   lookups=0; await call('/roster.json','sk-first'); assert.equal(lookups,1)
   await call('/api/admin/organizations','admin-secret',{id:1,name:'Renamed',enabled:false})

@@ -3,6 +3,20 @@ import assert from 'node:assert/strict'
 import {createTokensApiOrganizations} from '../server/integrations/tokensapi-organizations.js'
 const env={MARKET_ORGANIZATIONS_BASE_URL:'https://tokensapi.ai',MARKET_ORGANIZATIONS_TOKEN:'fixture-management-token'}
 const response=data=>Response.json({success:true,message:'',data})
+
+test('key validation distinguishes successful personal Keys from authentication rejection',async()=>{
+  for(const [reply,status] of [
+    [()=>response({organization:null}),'valid'],
+    [()=>new Response('sensitive upstream body',{status:401}),'invalid'],
+    [()=>new Response('sensitive upstream body',{status:403}),'disabled'],
+    [()=>response({organization:{id:8,name:'Team',status:0}}),'disabled'],
+  ]){
+    const source=createTokensApiOrganizations(env,async()=>reply())
+    assert.deepEqual(await source.validateApiKey('sk-fixture'),{status,organization:null})
+  }
+  const source=createTokensApiOrganizations(env,async()=>new Response('offline',{status:503}))
+  await assert.rejects(()=>source.validateApiKey('sk-fixture'))
+})
 test('identity uses customer credentials and discards role and quota fields',async()=>{
   const source=createTokensApiOrganizations(env,async(url,options)=>{
     assert.equal(url,'https://tokensapi.ai/api/current/organization')

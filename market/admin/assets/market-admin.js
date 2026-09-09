@@ -1,3 +1,4 @@
+import { catalogEditor } from './market-catalog-editor.js'
 import { marketRequest } from './market-api.js'
 import {
   mergePlugins,
@@ -54,7 +55,7 @@ const orgCount = (id) =>
       .filter(
         (g) =>
           g.organization_id === id &&
-          plugins.some((p) => p.id === g.plugin_id && restricted(p)),
+          plugins.some((p) => p.id === g.plugin_id && p.state === 'published' && restricted(p)),
       )
       .map((g) => g.plugin_id),
   ).size
@@ -132,7 +133,7 @@ function navigate(view) {
 }
 function renderPlugins() {
   const visible = filterPlugins(plugins, state, {
-    category,
+    stage: category,
     query: $('plugin-search').value,
     visibility: $('visibility-filter').value,
   })
@@ -152,8 +153,20 @@ function renderPlugins() {
       ),
     )
     const grants = node('div', '', 'grant-summary')
+    grants.append(
+      node(
+        'span',
+        {
+          draft: '草稿',
+          published: '已上架',
+          archived: '已下架',
+          deleted: '回收站',
+        }[p.state] || '草稿',
+        'chip',
+      ),
+    )
     if (builtin(p)) grants.append(node('span', '无需安装 · 不支持卸载', 'chip'))
-    else if (!restricted(p)) grants.append(node('span', '所有人可见', 'chip'))
+    else if (!restricted(p)) grants.append(node('span', p.state==='published'?'所有人可见':'上架后所有人可见', 'chip'))
     else {
       const ids = orgIds(p.id)
       grants.append(
@@ -171,16 +184,49 @@ function renderPlugins() {
     bottom.append(
       node(
         'span',
-        `v${p.version} · ${builtin(p) ? '随应用更新' : p.npm ? '名册版本 / npm 自动更新' : '名册版本'}`,
+        'v' +
+          (p.npm && p.state === 'published' ? (p.npmLatestVersion || 'npm 暂无可用稳定版') : p.version) +
+          ' · ' +
+          (p.npm ? '自动跟随 npm latest' : '固定版本'),
         'version',
       ),
     )
-    if (builtin(p)) bottom.append(node('span', '应用内置', 'muted'))
-    else {
-      const edit = button('配置权限', () => action(() => openPlugin(p)))
-      edit.setAttribute('aria-label', `${p.displayName} 配置权限`)
-      bottom.append(edit)
-    }
+    const actions = node('div', '', 'catalog-actions')
+    if (p.state !== 'deleted') {
+      actions.append(
+        button('编辑资料', () => editor.open(p), 'quiet'),
+        button('配置权限', () => action(() => openPlugin(p)), 'secondary'),
+      )
+      if (p.state === 'published')
+        actions.append(
+          button(
+            '下架',
+            () => editor.transition(p, 'archive', !restricted(p)),
+            'quiet',
+          ),
+        )
+      else
+        actions.append(
+          button('上架', () => editor.transition(p, 'publish', !restricted(p))),
+          button(
+            '移入回收站',
+            () => editor.transition(p, 'trash', !restricted(p)),
+            'quiet danger',
+          ),
+        )
+    } else
+      actions.append(
+        button('恢复草稿', () =>
+          editor.transition(p, 'restore', !restricted(p)),
+        ),
+        button('彻底删除', () => editor.transition(p, 'purge', !restricted(p)), 'danger'),
+      )
+    for (const control of actions.children)
+      control.setAttribute(
+        'aria-label',
+        p.displayName + ' ' + control.textContent,
+      )
+    bottom.append(actions)
     card.append(top, node('p', p.summary, 'description'), grants, bottom)
     return card
   })
@@ -188,10 +234,18 @@ function renderPlugins() {
   $('empty').hidden = visible.length > 0
   $('plugin-result-count').textContent =
     `显示 ${visible.length} / ${plugins.length} 项`
-  $('stat-total').textContent = plugins.length
-  $('stat-builtin').textContent = plugins.filter(builtin).length
-  $('stat-optional').textContent = plugins.filter((p) => !builtin(p)).length
-  $('stat-restricted').textContent = plugins.filter(restricted).length
+  $('stat-total').textContent = plugins.filter(
+    (p) => p.state !== 'deleted',
+  ).length
+  $('stat-builtin').textContent = plugins.filter(
+    (p) => p.state === 'draft',
+  ).length
+  $('stat-optional').textContent = plugins.filter(
+    (p) => p.state === 'published',
+  ).length
+  $('stat-restricted').textContent = plugins.filter(
+    (p) => p.state === 'archived',
+  ).length
   $('nav-plugins').textContent = plugins.length
 }
 function renderOrganizations() {
@@ -247,6 +301,13 @@ function renderOperations() {
   $('provider-status').textContent =
     `${env.origin || '组织服务未配置'} · ${state.organizationListReady ? '同步接口已配置' : '同步接口未配置'}${sync ? ` · 最近同步 ${formatTime(sync.createdAt)}` : ' · 点击同步可验证连接'}。切换环境前需核对组织 ID 与授权，不能直接复用不同环境的组织关系。`
   const labels = {
+    'catalog.created': '新建插件',
+    'catalog.edit': '编辑插件',
+    'catalog.publish': '上架插件',
+    'catalog.archive': '下架插件',
+    'catalog.trash': '移入回收站',
+    'catalog.restore': '恢复插件',
+    'catalog.purge': '彻底删除插件',
     'plugin.access.updated': '更新插件权限',
     'organization.updated': '维护组织',
     'organizations.synced': '同步组织名录',
@@ -257,6 +318,15 @@ function renderOperations() {
         detail = node('div', '', 'activity-text')
       const d = event.details || {},
         counts = []
+      if (d.state)
+        counts.push(
+          {
+            draft: '草稿',
+            published: '已上架',
+            archived: '已下架',
+            deleted: '回收站',
+          }[d.state] || d.state,
+        )
       if (d.visibility) counts.push(d.visibility === 'public' ? '公开' : '受限')
       if (d.organizationCount != null)
         counts.push(`${d.organizationCount} 个组织`)
@@ -285,7 +355,7 @@ function renderOperations() {
 async function load() {
   const [next, roster, ops] = await Promise.all([
     json('/api/admin/access'),
-    json('/api/admin/roster'),
+    json('/api/admin/catalog'),
     json('/api/admin/operations'),
   ])
   state = next
@@ -332,7 +402,13 @@ const orgDirty = () =>
 let pendingClose = null
 function closeDialog(id) {
   if (busy) return false
-  if (id === 'plugin-dialog' ? pluginDirty() : orgDirty()) {
+  if (
+    id === 'catalog-dialog'
+      ? editor.dirty()
+      : id === 'plugin-dialog'
+        ? pluginDirty()
+        : orgDirty()
+  ) {
     pendingClose = id
     $('discard-dialog').showModal()
     $('keep-editing').focus()
@@ -489,6 +565,7 @@ function clearPreview() {
 }
 function lock() {
   document.body.classList.add('signed-out')
+  editor.clear()
   state = null
   operations = null
   plugins = []
@@ -562,7 +639,7 @@ $('reset-filters').onclick = () => {
 }
 window.addEventListener('hashchange', () => navigate(location.hash.slice(1)))
 window.addEventListener('beforeunload', (event) => {
-  if (pluginDirty() || orgDirty()) {
+  if (pluginDirty() || orgDirty() || editor.dirty()) {
     event.preventDefault()
     event.returnValue = ''
   }
@@ -609,6 +686,7 @@ $('plugin-access-form').onsubmit = (event) => {
   const p = selectedPlugin
   const payload = {
     id: p.id,
+    revision: p.revision,
     metadata: p,
     objectKey: saved(p.id)?.object_key ?? null,
     organizationIds: [...selectedOrgs],
@@ -687,14 +765,18 @@ $('verify-form').onsubmit = (event) => {
     async () => {
       clearPreview()
       const result = await json('/api/admin/access-preview', { apiKey })
+      if (result.keyStatus !== 'valid' || !result.permissionsEvaluated) {
+        $('verify-error').textContent = result.warning || '无法确认 Key 有效性，未进行权限验证。'
+        return
+      }
       const org = result.organization
       const identity = org
         ? `组织：${org.name} (#${org.id})${!org.registered ? ' · 未登记到名录' : !org.enabled ? ' · 本地已停用' : ''}`
         : result.organizationStatus === 'none'
-          ? '未识别到可用组织（个人 Key、无效或停用 Key 均可能出现）'
+          ? '有效的个人 Key（未绑定组织）'
           : '组织识别暂不可用'
       $('verify-summary').textContent =
-        `${identity}。可见 ${result.summary.allowed} / ${result.summary.total} 项。${result.warning || ''}`
+        `API Key 有效。${identity}。可见 ${result.summary.allowed} / ${result.summary.total} 项。${result.warning || ''}`
       const reasons = {
         public: '公开访问',
         direct: '单独 Key 授权',
@@ -754,4 +836,11 @@ $('login-form').onsubmit = (event) => {
     await restore()
   })
 }
+const editor = catalogEditor({
+  request: json,
+  action,
+  reload: refreshAfterSave,
+  close: closeDialog,
+  isBusy: () => busy,
+})
 action(restore, { silent401: true })

@@ -9,6 +9,9 @@ import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from
 import { adminOperations } from '../services/admin-operations-service.js'
 import { auditStatements } from '../services/admin-audit-service.js'
 import { accessPreview } from '../services/access-preview-service.js'
+import { catalogRoster, catalogMutation, catalogEntry, revisionStatement } from '../services/catalog-service.js'
+import { npmPackage } from '../integrations/npm-registry.js'
+import { resolveNpmVersions } from '../services/npm-version-service.js'
 function loginLimited(wait) {
   const response = reply({ error: '尝试次数过多，请稍后再试', retryAfter: wait }, 429)
   response.headers.set('retry-after', String(wait))
@@ -28,7 +31,7 @@ export async function accessRoute(request, env) {
   try {
     if (download) {
       if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405)
-      const row = await env.MARKET_DB.prepare('SELECT * FROM market_plugins WHERE id=?').bind(download[1]).first()
+      const row = await env.MARKET_DB.prepare("SELECT p.* FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE p.id=? AND c.state='published'").bind(download[1]).first()
       if (!row || (row.visibility !== 'public' && !await allowed(request, env, row.id))) return reply({ error: '没有下载权限' }, 403)
       if (!row.object_key || !env.MARKET_PACKAGES) return reply({ error: '未配置私有安装包' }, 404)
       const object = await env.MARKET_PACKAGES.get(row.object_key)
@@ -77,11 +80,11 @@ export async function accessRoute(request, env) {
       const {results}=await env.MARKET_DB.prepare('SELECT v.fingerprint,v.encrypted_value FROM market_plugin_key_values v JOIN market_plugin_key_grants g ON g.plugin_id=v.plugin_id AND g.fingerprint=v.fingerprint WHERE v.plugin_id=?').bind(id).all()
       return reply({keys:await Promise.all(results.map(async row=>({fingerprint:row.fingerprint,apiKey:await openKey(row.encrypted_value,id,row.fingerprint,env)})))})
     }
-    if (request.method === 'GET' && url.pathname === '/api/admin/roster') {
-      const response = await env.ASSETS.fetch(new URL('/roster.json', request.url).toString())
-      if (!response.ok) throw new Error('roster unavailable')
-      return reply(await response.json())
+    if (request.method === 'GET' && ['/api/admin/roster','/api/admin/catalog'].includes(url.pathname)) {
+      const roster = await catalogRoster(env,true)
+      return reply({...roster, items: await resolveNpmVersions(roster.items)})
     }
+    if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') return reply(await npmPackage(url.searchParams.get('package'),url.searchParams.get('version') || 'latest'))
     if (request.method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) return reply({ error: '跨站请求被拒绝' }, 403)
     if (request.method === 'GET' && url.pathname === '/api/admin/access') {
       const [keys, grants, plugins] = await Promise.all([
@@ -95,6 +98,7 @@ export async function accessRoute(request, env) {
     if (request.method !== 'PUT') return reply({ error: 'method not allowed' }, 405)
     let data
     try { data = await body(request) } catch { return reply({ error: '请求格式无效或超过 16 KB' }, 400) }
+    if (url.pathname === '/api/admin/catalog') return reply(await catalogMutation(request,env,data))
     if (url.pathname === '/api/admin/access-preview') {
       if (!text(data.apiKey, 512) || !/^sk-\S+$/u.test(data.apiKey)) return reply({ error: '请输入有效的 API Key' }, 400)
       return reply(await accessPreview(request, env, data.apiKey))
@@ -135,14 +139,11 @@ export async function accessRoute(request, env) {
       return reply({ fingerprint: fp })
     }
     if (['/api/admin/plugins', '/api/admin/plugin-keys', '/api/admin/plugin-organizations','/api/admin/plugin-access'].includes(url.pathname)) {
-      // Classification is maintained in the release roster, never trusted from request metadata.
-      const rosterResponse=await env.ASSETS.fetch(new URL('/roster.json',request.url).toString())
-      if(!rosterResponse.ok) throw new Error('roster unavailable')
-      const roster=await rosterResponse.json()
-      if(!Array.isArray(roster.items)) throw new Error('invalid roster')
-      if(roster.items.some(p=>p.id===data.id && p.category==='builtin')) {
-        return reply({error:'内置组件随应用更新，不支持配置市场权限'},409)
-      }
+      if (!idOK(data.id)) return reply({error:'插件 ID 无效'},400)
+      const entry = await catalogEntry(env,data.id ?? '')
+      if(!entry) return reply({error:'请先通过新建插件创建草稿；内置组件不支持市场权限配置'},409)
+      if(entry.state === 'deleted')return reply({error:'请先从回收站恢复插件'},409)
+      const revision = revisionStatement(env,entry,data.revision ?? entry.revision)
       const mixedMode=url.pathname==='/api/admin/plugin-access'
       const orgMode = url.pathname === '/api/admin/plugin-organizations' || mixedMode
       let directFingerprints=[],addedFingerprints=[],encryptedKeys=[]
@@ -189,21 +190,16 @@ export async function accessRoute(request, env) {
         fingerprints = [...new Set([...data.keepFingerprints, ...newKeys])]
         data.visibility = fingerprints.length ? 'restricted' : 'public'
       }
-      const m = data.metadata
-      if (!idOK(data.id) || !['public', 'restricted'].includes(data.visibility) || !m || m.id !== data.id
-        || !text(m.package) || !text(m.displayName) || !text(m.summary, 2000) || !/^\d+\.\d+\.\d+$/u.test(m.version ?? '')
-        || typeof m.npm !== 'boolean') return reply({ error: '插件字段无效' }, 400)
-      try { if (new URL(m.repository).protocol !== 'https:') throw new Error() } catch { return reply({ error: '仓库地址必须为 HTTPS' }, 400) }
-      if (data.objectKey != null && !/^[a-zA-Z0-9/_.-]{1,240}$/u.test(data.objectKey)) return reply({ error: '安装包对象名无效' }, 400)
-      // Permission edits must not pin an old release or replace its installation source.
-      // Only server-owned roster metadata is authoritative for released plugins.
-      const metadata = roster.items.find(item => item.id === data.id)
-        ?? { id: m.id, package: m.package, displayName: m.displayName, summary: m.summary, repository: m.repository, version: m.version, npm: m.npm }
-      const savePlugin = env.MARKET_DB.prepare(`INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET visibility=excluded.visibility,metadata=excluded.metadata,object_key=excluded.object_key`)
-        .bind(data.id, data.visibility, JSON.stringify(metadata), data.objectKey || null)
+      if (!['public', 'restricted'].includes(data.visibility)) return reply({ error: '访问范围无效' }, 400)
+      if (data.objectKey != null && (typeof data.objectKey !== 'string' || data.objectKey !== data.objectKey.trim() || !/^[a-zA-Z0-9/_.-]{1,240}$/u.test(data.objectKey))) return reply({ error: '安装包对象名无效' }, 400)
+      // ACL writes never validate or rewrite client-provided plugin metadata.
+      // Missing objectKey means unchanged; explicit null clears it for legacy clients.
+      const objectKey = Object.hasOwn(data, 'objectKey') ? data.objectKey : entry.object_key
+      const savePlugin = env.MARKET_DB.prepare('UPDATE market_plugins SET visibility=?,object_key=? WHERE id=?')
+        .bind(data.visibility, objectKey ?? null, data.id)
       if (orgMode) {
         await env.MARKET_DB.batch([
+          revision,
           savePlugin,
           env.MARKET_DB.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?) ON CONFLICT(plugin_id) DO NOTHING').bind(data.id),
           env.MARKET_DB.prepare('DELETE FROM market_org_grants WHERE plugin_id=?').bind(data.id),
@@ -218,14 +214,19 @@ export async function accessRoute(request, env) {
         ])
       } else if (simple) {
         await env.MARKET_DB.batch([
+          revision,
           savePlugin,
           ...[...new Set(newKeys)].map(fp => env.MARKET_DB.prepare(`INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL) ON CONFLICT(fingerprint) DO NOTHING`).bind(fp, 'Key '+fp.slice(0, 8))),
           env.MARKET_DB.prepare('DELETE FROM market_grants WHERE plugin_id=?').bind(data.id),
           ...fingerprints.map(fp => env.MARKET_DB.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').bind(fp, data.id)),
         ])
-      } else await savePlugin.run()
+      } else await env.MARKET_DB.batch([revision,savePlugin])
       return reply({ ok: true })
     }
     return reply({ error: 'not found' }, 404)
-  } catch { return reply({ error: '授权服务暂时不可用' }, 503) }
+  } catch(error) {
+    if (error.status && [400,404,409,502,503].includes(error.status))return reply({error:error.message},error.status)
+    if (/catalog revision conflict|UNIQUE constraint failed: market_(catalog|plugins)/u.test(error.message ?? ''))return reply({error:'插件已被其他操作修改或 ID 已存在，请刷新后重试'},409)
+    return reply({ error: '授权服务暂时不可用' }, 503)
+  }
 }

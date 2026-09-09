@@ -989,3 +989,66 @@ nav a[aria-current='page'] {
 #discard-dialog {
   width: 440px;
 }
+:root {
+  --catalog-gap: 14px;
+}
+.catalog-fields {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+.catalog-fields label,
+.catalog-fields > label {
+  display: grid;
+  gap: 6px;
+}
+.catalog-fields input,
+.catalog-fields select {
+  width: 100%;
+}
+.catalog-fields small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.import-row {
+  display: flex;
+  gap: 10px;
+}
+.catalog-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.catalog-actions button {
+  padding: 7px 10px;
+}
+.card-bottom {
+  flex-direction: column;
+  align-items: stretch;
+}
+.tabs {
+  flex-wrap: wrap;
+}
+.stats {
+  margin-top: 20px;
+}
+#lifecycle-dialog {
+  width: 620px;
+}
+@media (max-width: 620px) {
+  .field-pair {
+    grid-template-columns: 1fr;
+  }
+  .catalog-actions {
+    justify-content: flex-start;
+  }
+  .import-row {
+    flex-direction: column;
+  }
+}

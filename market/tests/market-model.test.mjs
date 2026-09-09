@@ -2,10 +2,19 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mergePlugins, keyGrants, filterPlugins, parseKeys, effectiveNewKeys } from '../admin/assets/market-model.js'
 
+test('database lifecycle filters hide trash by default and keep draft/published views separate',()=>{
+ const list=['draft','published','archived','deleted'].map(state=>({id:state,category:'optional',state}))
+ assert.deepEqual(filterPlugins(list,{},{}).map(p=>p.id),['draft','published','archived'])
+ for(const state of ['draft','published','archived','deleted'])assert.deepEqual(filterPlugins(list,{}, {stage:state}).map(p=>p.id),[state])
+})
+test('built-in and ACL-only records never become editable market cards',()=>{
+ assert.deepEqual(mergePlugins({items:[{id:'app-core',category:'builtin'}]}, {plugins:[{id:'stale',metadata:{id:'stale'}}]}),[])
+})
+
 const plugin = (id, fields = {}) => ({ id, displayName: id, package: '@example/' + id, summary: 'Plugin ' + id, version: '2.0.0', category: 'optional', ...fields })
 
 test('release roster metadata wins over stale saved permission snapshots', () => {
-  const roster = { items: [plugin('tool', { displayName: 'Current name', category: 'builtin' })] }
+  const roster = { items: [plugin('tool', { displayName: 'Current name', category: 'optional' })] }
   const state = { plugins: [{ id: 'tool', visibility: 'restricted', metadata: plugin('tool', { displayName: 'Old name', version: '1.0.0' }) }] }
   const original = structuredClone({ roster, state })
   const result = mergePlugins(roster, state)
@@ -14,7 +23,7 @@ test('release roster metadata wins over stale saved permission snapshots', () =>
   assert.deepEqual({ roster, state }, original)
 })
 
-test('database-only plugins are appended once and cannot claim built-in status', () => {
+test('ACL-only records cannot resurrect missing catalog entries', () => {
   const roster = [plugin('released')]
   const state = { plugins: [
     { id: 'released', metadata: plugin('released', { version: '0.0.1' }) },
@@ -22,9 +31,9 @@ test('database-only plugins are appended once and cannot claim built-in status',
     { id: 'custom', metadata: plugin('duplicate') },
   ] }
   const result = mergePlugins(roster, state)
-  assert.deepEqual(result.map(item => item.id), ['released', 'custom'])
+  assert.deepEqual(result.map(item => item.id), ['released'])
   assert.equal(result[0].version, '2.0.0')
-  assert.equal(result[1].category, 'optional')
+  assert.equal(result.length, 1)
 })
 
 test('empty data is safe during initial session restoration', () => {

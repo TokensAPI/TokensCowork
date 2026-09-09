@@ -1,26 +1,11 @@
 /** Pure view-model helpers shared by the console and its regression tests. */
 const rows = (value) => (Array.isArray(value) ? value : [])
 
-/** Release metadata is authoritative; stored ACL metadata only adds custom plugins. */
-export function mergePlugins(roster, state = {}) {
-  const plugins = new Map()
-  for (const plugin of rows(Array.isArray(roster) ? roster : roster?.items)) {
-    if (!plugin?.id) continue
-    plugins.set(plugin.id, {
-      ...plugin,
-      category: plugin.category === 'builtin' ? 'builtin' : 'optional',
-    })
-  }
-  for (const stored of rows(state?.plugins)) {
-    if (!stored?.id || plugins.has(stored.id) || !stored.metadata) continue
-    // Only the release roster may classify something as an application built-in.
-    plugins.set(stored.id, {
-      ...stored.metadata,
-      id: stored.id,
-      category: 'optional',
-    })
-  }
-  return [...plugins.values()]
+/** Catalog API is authoritative. Never resurrect removed entries from ACL rows. */
+export function mergePlugins(catalog) {
+  return rows(Array.isArray(catalog) ? catalog : catalog?.items)
+    .filter((p) => p?.id && p.category !== 'builtin')
+    .map((p) => ({ ...p, category: 'optional' }))
 }
 
 /** Returns explicit grants after migration, otherwise active, unexpired legacy grants. */
@@ -60,7 +45,7 @@ export function keyGrants(state, id, now = Date.now()) {
 export function filterPlugins(
   plugins,
   state,
-  { query = '', category = 'all', visibility = 'all' } = {},
+  { query = '', category = 'all', visibility = 'all', stage = 'all' } = {},
 ) {
   const search = String(query).trim().toLocaleLowerCase()
   const restricted = new Set(
@@ -74,6 +59,7 @@ export function filterPlugins(
     const actualVisibility =
       !builtin && restricted.has(plugin.id) ? 'restricted' : 'public'
     return (
+      (stage === 'all' ? plugin.state !== 'deleted' : plugin.state === stage) &&
       (category === 'all' || category === actualCategory) &&
       (visibility === 'all' || visibility === actualVisibility) &&
       (!search ||

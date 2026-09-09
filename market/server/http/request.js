@@ -2,7 +2,7 @@ export function bearer(request) {
   return /^Bearer ([^\s]{1,512})$/u.exec(request.headers.get('authorization') ?? '')?.[1] ?? ''
 }
 export function text(value, max = 200) { return typeof value === 'string' && value.length <= max && value.trim().length > 0 }
-export const idOK = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,79}$/u.test(value)
+export const idOK = value => typeof value === 'string' && value === value.trim() && /^[a-z0-9][a-z0-9-]{0,79}$/u.test(value)
 export async function body(request) {
   const reader = request.body?.getReader()
   if (!reader) throw new Error('body required')

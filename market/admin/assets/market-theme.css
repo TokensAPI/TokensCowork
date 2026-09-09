@@ -1,0 +1,45 @@
+.theme-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 24px 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.theme-control select { padding: 6px 10px; }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101714;
+  --paper: #19231e;
+  --ink: #e4eee7;
+  --muted: #a5b7aa;
+  --line: #35473c;
+  --brand: #91d7ad;
+  --soft: #23372b;
+  --warn: #edc385;
+  --danger: #ffaaa0;
+}
+[data-theme='dark'] button { color: #112319; }
+[data-theme='dark'] :is(button.secondary, .stats > div, .plugin-card, .panel, .login-card, dialog, nav a.active, nav a[aria-current='page'], .tabs button[aria-pressed='true']) {
+  background: var(--paper);
+  border-color: var(--line);
+}
+[data-theme='dark'] button.secondary { color: var(--ink); }
+[data-theme='dark'] button.quiet { color: var(--muted); }
+[data-theme='dark'] :is(.sidebar, .tabs, input[readonly], th, .saved-key-row, .badge.builtin, .chip, .connection-strip, .notice) {
+  background: var(--soft);
+  color: var(--muted);
+  border-color: var(--line);
+}
+[data-theme='dark'] :is(.nav-label, nav a, .stats span, .tabs button, .description, footer) { color: var(--muted); }
+[data-theme='dark'] :is(nav a.active, .tabs button[aria-pressed='true']) { color: var(--brand); }
+[data-theme='dark'] :is(.badge.restricted, .chip.disabled, .warning) { background: #3d3020; color: var(--warn); }
+[data-theme='dark'] :is(button.danger, .feedback[data-kind='error']) { background: #422824; color: var(--danger); }
+[data-theme='dark'] :is(input:not([type='checkbox']), select, textarea, .card-bottom, td, #organization-options label) { border-color: var(--line); }
+[data-theme='dark'] .plugin-card:hover { border-color: #729780; }
+[data-theme='dark'] .brand-mark { background: var(--brand); color: #112319; }
+[data-theme='dark'] dialog { background: var(--paper); box-shadow: 0 25px 100px #0008; }
+[data-theme='dark'] dialog::backdrop { background: #050c09b3; }
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder { color: #91a297; opacity: 1; }

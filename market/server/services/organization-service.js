@@ -40,6 +40,16 @@ export async function resolveOrganization(apiKey, env) {
   return { id: organization.id, name: organization.name }
 }
 
+export async function validateApiKey(apiKey, env) {
+  const source = provider(env)
+  if (typeof source?.validateApiKey !== 'function') throw new Error('key validation unavailable')
+  const result = await bounded(() => source.validateApiKey(apiKey))
+  if (!result || !['valid','invalid','disabled'].includes(result.status)
+    || (result.organization !== null && !validOrganization(result.organization))
+    || (result.status !== 'valid' && result.organization !== null)) throw new Error('invalid key validation response')
+  return {status: result.status, organization: result.organization === null ? null : {id:result.organization.id,name:result.organization.name}}
+}
+
 export async function organizationAccess(request, env) {
   const key = /^Bearer ([^\s]{1,512})$/u.exec(request.headers.get('authorization') ?? '')?.[1]
   if (!key) return new Set()

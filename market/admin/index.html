@@ -4,9 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TokensCowork · 插件管理</title>
+    <script src="/admin/assets/market-theme.js"></script>
     <link rel="stylesheet" href="/admin/assets/market-admin.css" />
+    <link rel="stylesheet" href="/admin/assets/market-theme.css" />
   </head>
   <body class="signed-out session-pending">
+    <div class="theme-control">
+      <label for="theme-choice">外观</label>
+      <select id="theme-choice" aria-label="主题外观">
+        <option value="system">跟随系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </div>
     <aside class="sidebar">
       <a class="brand" href="#plugins"
         ><span class="brand-mark" aria-hidden="true">T</span
@@ -84,31 +94,42 @@
 
       <div id="workspace" hidden>
         <section id="plugins-panel" data-panel="plugins">
+          <div class="section-heading">
+            <p class="muted">
+              插件资料、状态和权限均由后台管理，无需修改代码发布。
+            </p>
+            <button id="new-plugin">新建插件</button>
+          </div>
           <div class="stats">
             <div>
               <span>全部插件</span><b id="stat-total">—</b
-              ><small>当前市场名册</small>
+              ><small>不含回收站</small>
             </div>
             <div>
-              <span>可选插件</span><b id="stat-optional">—</b
-              ><small>独立配置访问范围</small>
+              <span>已上架</span><b id="stat-optional">—</b
+              ><small>用户可按权限访问</small>
             </div>
             <div>
-              <span>受限插件</span><b id="stat-restricted">—</b
-              ><small>按组织或 Key 授权</small>
+              <span>已下架</span><b id="stat-restricted">—</b
+              ><small>保留资料与授权</small>
             </div>
             <div>
-              <span>内置组件</span><b id="stat-builtin">—</b
-              ><small>随应用提供与更新</small>
+              <span>草稿</span><b id="stat-builtin">—</b
+              ><small>尚未对用户展示</small>
             </div>
           </div>
           <div class="toolbar">
-            <div class="tabs" role="group" aria-label="组件分类">
-              <button data-category="all" aria-pressed="true">全部</button
-              ><button data-category="optional" aria-pressed="false">
-                可选插件</button
-              ><button data-category="builtin" aria-pressed="false">
-                内置组件
+            <div class="tabs" role="group" aria-label="插件状态">
+              <button data-category="all" aria-pressed="true">全部</button>
+              <button data-category="published" aria-pressed="false">
+                已上架
+              </button>
+              <button data-category="draft" aria-pressed="false">草稿</button>
+              <button data-category="archived" aria-pressed="false">
+                已下架
+              </button>
+              <button data-category="deleted" aria-pressed="false">
+                回收站
               </button>
             </div>
             <div class="filter-controls">
@@ -126,7 +147,7 @@
           </div>
           <div class="result-line">
             <span id="plugin-result-count"></span
-            ><span>内置组件不支持单独安装、卸载或权限配置</span>
+            ><span>内置组件由桌面产品管理，不属于市场商品</span>
           </div>
           <div id="plugin-grid"></div>
           <div id="empty" class="empty panel" hidden>
@@ -289,7 +310,7 @@
         </div>
         <div class="notice">
           <b>组织或单独 Key 任一命中即可访问。</b
-          ><br />两项都留空表示公开；修改只在点击保存后生效。
+          ><br />两项都留空表示上架后公开；保存权限不会改变插件的上架状态。
         </div>
         <section class="grant-section">
           <div class="section-heading">
@@ -397,6 +418,143 @@
           放弃修改
         </button>
       </div>
+    </dialog>
+    <dialog id="catalog-dialog" aria-labelledby="catalog-title">
+      <form id="catalog-form">
+        <div class="dialog-heading">
+          <h2 id="catalog-title">新建插件</h2>
+          <button
+            id="cancel-catalog"
+            class="quiet"
+            type="button"
+            aria-label="关闭插件资料"
+          >
+            ✕
+          </button>
+        </div>
+        <p class="notice">
+          新插件默认保存为草稿。已上架插件若更换包、仓库或版本，会退回草稿，需重新检查后上架；仅修改名称、简介即时生效。
+        </p>
+        <div class="catalog-fields">
+          <label
+            >插件 ID<input
+              id="catalog-id"
+              pattern="[a-z0-9][a-z0-9-]{0,79}"
+              maxlength="80"
+              required
+              placeholder="例如 tokens-my-tool"
+            /><small
+              >从 npm 读取时自动填写，也可自定义；创建后不可修改。</small
+            ></label
+          >
+          <label
+            >npm 包名或链接<input
+              id="catalog-package"
+              maxlength="512"
+              required
+              placeholder="粘贴 https://www.npmjs.com/package/包名 或输入包名"
+          /></label>
+          <div class="import-row">
+            <input
+              id="catalog-import-version"
+              aria-label="读取的 npm 版本"
+              placeholder="latest 或指定版本"
+            /><button id="catalog-import" class="secondary" type="button">
+              读取并自动填写
+            </button>
+          </div>
+          <label
+            >显示名称<input id="catalog-name" maxlength="120" required
+          /></label>
+          <label
+            >简介<textarea
+              id="catalog-summary"
+              maxlength="1000"
+              rows="3"
+              required
+            ></textarea>
+          </label>
+          <div id="catalog-readme-panel" class="notice" hidden>
+            <strong>README 简介建议</strong>
+            <p id="catalog-readme-summary"></p>
+            <small id="catalog-readme-notice"></small>
+            <div><button id="catalog-use-readme" class="secondary" type="button">采用这段简介</button></div>
+          </div>
+          <label
+            >GitHub 仓库（npm 安装选填）<input
+              id="catalog-repository"
+              type="url"
+              placeholder="https://github.com/组织/仓库"
+          /></label>
+          <div class="field-pair">
+            <label
+              >版本（支持 Beta 草稿）<input
+                id="catalog-version"
+                maxlength="64"
+                placeholder="例如 0.1.0-beta.1"
+                required /></label
+            ><label
+              >安装方式<select id="catalog-kind">
+                <option value="npm">npm 包</option>
+                <option value="github">固定 Git commit</option>
+              </select></label
+            >
+          </div>
+          <label id="catalog-commit-label" hidden
+            >Git commit<input
+              id="catalog-commit"
+              pattern="[a-f0-9]{40}"
+              maxlength="40"
+              placeholder="完整的 40 位 commit"
+          /></label>
+          <label
+            >版本策略<select id="catalog-mode">
+              <option value="pinned">固定 Git 版本</option>
+              <option value="latest">自动跟随 npm 稳定版 latest</option>
+            </select></label
+          >
+          <p class="muted">
+            npm 插件首次上架后自动跟随稳定版 latest，不需要重复保存或上架。名称、简介与权限保持不变；下架和草稿不会自动上架。依赖许可证检查应在 npm 发布前完成。npm 查询失败或 latest 为预发布版时，暂不向应用提供该条目。
+          </p>
+        </div>
+        <output id="catalog-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span class="muted">下一步：配置权限 → 上架</span
+          ><button type="submit">保存插件</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="lifecycle-dialog" aria-labelledby="lifecycle-title">
+      <form id="lifecycle-form">
+        <div class="dialog-heading">
+          <h2 id="lifecycle-title"></h2>
+          <button
+            id="cancel-lifecycle"
+            type="button"
+            class="quiet"
+            aria-label="取消状态变更"
+          >
+            ✕
+          </button>
+        </div>
+        <p id="lifecycle-description" class="notice"></p>
+        <div id="publish-checks">
+          <label id="publish-public-label" class="check-row"
+            ><input
+              id="publish-public"
+              type="checkbox"
+            />确认向所有用户公开上架</label
+          >
+        </div>
+        <output id="lifecycle-error" class="error" role="alert"></output>
+        <label id="purge-confirm-label" class="catalog-fields" hidden>
+          <span>请输入插件 ID 确认：<code id="purge-target-id"></code></span>
+          <input id="purge-confirm-id" autocomplete="off" spellcheck="false" maxlength="80" />
+        </label>
+        <div class="dialog-footer">
+          <span></span><button id="lifecycle-submit" type="submit">确认</button>
+        </div>
+      </form>
     </dialog>
     <script type="module" src="/admin/assets/market-admin.js"></script>
   </body>

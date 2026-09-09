@@ -1,4 +1,5 @@
 function safeDetails(action, details) {
+  if (/^catalog\.(created|edit|publish|archive|trash|restore|purge)$/u.test(action)) return { state: details.state }
   // Explicit allowlists prevent later call sites from accidentally auditing credentials.
   if (action === 'plugin.access.updated') return {
     visibility: details.visibility === 'restricted' ? 'restricted' : 'public',
@@ -14,6 +15,7 @@ export function auditStatements(env, action, target, details) {
   const source = env.MARKET_ORGANIZATIONS_BASE_URL === 'https://tokensapi.ai' ? 'production'
     : env.MARKET_ORGANIZATIONS_BASE_URL === 'https://dev.tokensapi.ai' ? 'development' : 'unconfigured'
   const safeTarget = action === 'organizations.synced' ? source : String(target)
+  if (action.startsWith('catalog.') && !/^[a-z0-9][a-z0-9-]{0,79}$/u.test(safeTarget)) throw new Error('Invalid catalog audit target')
   if (action === 'organization.updated' && !/^[1-9][0-9]*$/u.test(safeTarget)) throw new Error('Invalid audit target')
   if (action === 'plugin.access.updated' && !/^[a-z0-9][a-z0-9-]{0,79}$/u.test(safeTarget)) throw new Error('Invalid audit target')
   return [

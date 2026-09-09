@@ -2,7 +2,7 @@
   "manifestVersion": "1.0.0",
   "providerId": "com.tokensapi.plugins",
   "name": "TokensAPI 插件源",
-  "description": "TokensCowork 插件的官方目录源，数据来自 market/roster.json 名册。",
+  "description": "TokensCowork 官方插件目录，由市场数据库动态提供。",
   "homepage": "https://github.com/TokensAPI/TokensCowork",
   "attribution": {
     "name": "TokensAPI",

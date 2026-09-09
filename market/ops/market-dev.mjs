@@ -14,7 +14,9 @@ import { sealKey } from '../server/security/key-vault.js'
 
 const root = resolve(import.meta.dirname, '..')
 const HOST = '127.0.0.1'
-const CREDENTIAL = 'market-test'
+try { process.loadEnvFile(resolve(root, '../.market-dev.env')) }
+catch (error) { if (error.code !== 'ENOENT') throw error }
+const CREDENTIAL = process.env.MARKET_DEV_ADMIN_TOKEN || 'market-test'
 const runStatement = Symbol('run local prepared statement')
 const nativeFetch = globalThis.fetch.bind(globalThis)
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' }
@@ -46,6 +48,10 @@ async function fixtureEnvironment() {
     // The provider below is injected. This origin only drives the development badge.
     MARKET_ORGANIZATIONS_BASE_URL: 'https://dev.tokensapi.ai',
     MARKET_ORGANIZATIONS: {
+      validateApiKey: async key => key === 'sk-test-disabled' ? {status:'disabled',organization:null}
+        : ['sk-test-org','sk-test-other','sk-test-direct','sk-test-personal'].includes(key)
+          ? {status:'valid',organization:key === 'sk-test-org' ? organizations[0] : key === 'sk-test-other' ? organizations[1] : null}
+          : {status:'invalid',organization:null},
       resolveOrganization: async key => key === 'sk-test-org' ? organizations[0]
         : key === 'sk-test-other' ? organizations[1] : key === 'sk-test-disabled' ? organizations[2] : null,
       listOrganizations: async () => organizations.map(org => ({ ...org })),
@@ -84,7 +90,7 @@ async function fixtureEnvironment() {
       },
     },
   }
-  const roster = JSON.parse(await readFile(resolve(root, 'roster.json'), 'utf8'))
+  const roster = {items: db.prepare('SELECT metadata FROM market_plugins p JOIN market_catalog c ON c.id=p.id').all().map(row=>JSON.parse(row.metadata))}
   const restricted = roster.items.find(item => item.id === 'tokens-media-gen')
     ?? roster.items.find(item => item.category === 'optional')
   if (!restricted) throw new Error('A local optional roster item is required for QA')
@@ -92,7 +98,7 @@ async function fixtureEnvironment() {
   const encrypted = await sealKey('sk-test-direct', restricted.id, fp, env)
   await env.MARKET_DB.batch([
     ...organizations.map(org => wrap('INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)').bind(org.id, org.name, org.id === 103 ? 0 : 1)),
-    wrap('INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?)')
+    wrap('INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET visibility=excluded.visibility,object_key=excluded.object_key')
       .bind(restricted.id, 'restricted', JSON.stringify(restricted), 'fixtures/test-plugin.tgz'),
     wrap('INSERT INTO market_org_policies(plugin_id) VALUES(?)').bind(restricted.id),
     wrap('INSERT INTO market_org_grants(plugin_id,organization_id) VALUES(?,?)').bind(restricted.id, 101),
@@ -105,6 +111,8 @@ async function fixtureEnvironment() {
     if (url.origin === 'https://registry.npmjs.org') {
       const match = /^\/-\/package\/(.+)\/dist-tags$/u.exec(url.pathname)
       const item = roster.items.find(item => item.package === (match?.[1] ?? ''))
+      const doc = roster.items.find(item => url.pathname === '/'+encodeURIComponent(item.package)+'/latest')
+      if(doc)return Response.json({...doc,name:doc.package,description:doc.summary})
       return item ? Response.json({ latest: item.version }) : new Response('Fixture package not found', { status: 404 })
     }
     throw new Error('External network is disabled in local market QA')
@@ -192,9 +200,10 @@ async function smoke() {
 if (process.argv.includes('--smoke')) {
   await smoke()
 } else {
-  const app = await start(8788)
+  const app = await start(Number(process.env.MARKET_DEV_PORT || 8788))
   console.log(`Local market QA ready: ${app.origin}/admin/`)
-  console.log('Fixture login: market-test | organization Key: sk-test-org | direct Key: sk-test-direct')
+  console.log(process.env.MARKET_DEV_ADMIN_TOKEN ? 'Login: configured in MARKET_DEV_ADMIN_TOKEN (hidden)' : 'Fixture login: market-test')
+  console.log('Fixture organization Key: sk-test-org | direct Key: sk-test-direct')
   console.log('All organizations, credentials and packages are TEST FIXTURES. External network is blocked; memory data resets on restart.')
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)) })
 }

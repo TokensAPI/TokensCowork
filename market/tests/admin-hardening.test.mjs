@@ -1,3 +1,4 @@
+import { resetTestCatalog, seedTestPlugin } from './catalog-fixture.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
@@ -15,6 +16,7 @@ function fixture(t) {
   for (const file of readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()) {
     db.exec(readFileSync(new URL(file, migrations), 'utf8'))
   }
+  resetTestCatalog(db,metadata)
   t.after(() => db.close())
   const wrap = (sql, values = []) => ({
     bind: (...next) => wrap(sql, next),
@@ -104,12 +106,12 @@ test('invalid login JSON does not cause a server error', async t => {
 test('permission saves retain canonical release metadata and future roster changes', async t => {
   const { save, db, roster, call } = fixture(t)
   const installSource = { kind: 'fixture', url: 'https://example.com/package.tgz' }
-  roster.items[0] = { ...metadata, version: '2.0.0', installSource, summary: 'New release' }
+  seedTestPlugin(db,{ ...metadata, version: '2.0.0', installSource, summary: 'New release' })
   assert.equal((await save()).status, 200)
   const saved = JSON.parse(db.prepare('SELECT metadata FROM market_plugins').get().metadata)
   assert.equal(saved.version, '2.0.0')
   assert.deepEqual(saved.installSource, installSource)
-  roster.items[0] = { ...roster.items[0], version: '3.0.0', displayName: 'Latest name' }
+  seedTestPlugin(db,{...metadata,installSource,version:'3.0.0',displayName:'Latest name'})
   const items = (await (await call('/roster.json')).json()).items
   assert.equal(items[0].version, '3.0.0')
   assert.equal(items[0].displayName, 'Latest name')
@@ -125,16 +127,13 @@ test('custom plugin records remain usable without a release roster entry', async
   assert.equal(items[0].version, '1.0.0')
 })
 
-test('promotion to an application built-in cannot inherit stale organization restrictions', async t => {
-  const { save, call, roster } = fixture(t)
-  assert.equal((await call('/api/admin/organizations', { token: 'test-admin', body: { id: 1, name: 'Fixture organization', enabled: true } })).status, 200)
-  assert.equal((await save({ organizationIds: [1] })).status, 200)
-  roster.items[0] = { ...metadata, category: 'builtin', version: '2.0.0' }
-  const response = await call('/roster.json', { token: 'sk-unrelated-key' })
-  assert.equal(response.status, 200)
-  const items = (await response.json()).items
-  assert.equal(items[0].category, 'builtin')
-  assert.equal(items[0].version, '2.0.0')
+test('archived catalog entries never invoke organization authorization or return metadata',async t=>{
+ const {save,call,env,db}=fixture(t)
+ await save({apiKeys:['sk-direct']})
+ db.prepare("UPDATE market_catalog SET state='archived',revision=revision+1").run()
+ let calls=0;env.MARKET_ORGANIZATIONS={resolveOrganization:async()=>{calls++;throw new Error('offline')}}
+ assert.deepEqual((await (await call('/roster.json',{token:'sk-unrelated-key'})).json()).items,[])
+ assert.equal(calls,0)
 })
 
 test('operations exposes safe configuration and bounded recent actions only to administrators', async t => {
@@ -202,14 +201,32 @@ test('request parsing rejects non-object JSON before administrator mutations', a
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_admin_audit').get().n, 0)
 })
 
+test('invalid Key stops before catalog or grant lookup even when a direct grant exists', async t => {
+  const {call,save,env}=fixture(t)
+  await save({apiKeys:['sk-invalid']})
+  env.MARKET_ORGANIZATIONS={validateApiKey:async()=>({status:'invalid',organization:null})}
+  const prepare=env.MARKET_DB.prepare
+  env.MARKET_DB.prepare=(sql)=>{
+    assert.ok(!sql.includes('FROM market_catalog')&&!sql.includes('JOIN market_catalog')&&!sql.includes('FROM market_plugin_key_grants'))
+    return prepare(sql)
+  }
+  const response=await call('/api/admin/access-preview',{token:'test-admin',body:{apiKey:'sk-invalid'}})
+  assert.equal(response.status,200)
+  const value=await response.json()
+  assert.equal(value.keyStatus,'invalid');assert.equal(value.permissionsEvaluated,false);assert.deepEqual(value.items,[])
+  assert.ok(!JSON.stringify(value).includes('sk-invalid'))
+})
+
 test('access preview shares catalog decisions and resolves identity only once without recording the Key', async t => {
   const { call, save, env, db, roster } = fixture(t)
   let lookups = 0
   env.MARKET_ORGANIZATIONS = { resolveOrganization: async key => { lookups++; return { id: key === 'sk-seven' ? 7 : 8, name: 'Test organization' } } }
+  env.MARKET_ORGANIZATIONS.validateApiKey = async key => ({status:'valid',organization:await env.MARKET_ORGANIZATIONS.resolveOrganization(key)})
   assert.equal((await call('/api/admin/organizations', { token: 'test-admin', body: { id: 7, name: 'Seven', enabled: true } })).status, 200)
   assert.equal((await save({ organizationIds: [7], apiKeys: ['sk-direct'] })).status, 200)
-  roster.items.push({ ...metadata, id: 'public-tool', displayName: 'Public tool' })
+  seedTestPlugin(db,{ ...metadata, id: 'public-tool', displayName: 'Public tool' })
   const denied = { ...metadata, id: 'denied-tool', displayName: 'Denied tool' }
+  seedTestPlugin(db,denied)
   assert.equal((await save({ id: denied.id, metadata: denied, apiKeys: ['sk-another'] })).status, 200)
   const initialAuditCount = db.prepare('SELECT COUNT(*) AS n FROM market_admin_audit').get().n
   for (const apiKey of ['sk-seven', 'sk-direct', 'sk-other']) {
@@ -237,6 +254,7 @@ test('access preview handles personal Keys, disabled organizations and upstream 
   assert.equal((await save({ organizationIds: [7], apiKeys: ['sk-direct'] })).status, 200)
   const preview = async apiKey => (await (await call('/api/admin/access-preview', { token: 'test-admin', body: { apiKey } })).json())
   env.MARKET_ORGANIZATIONS = { resolveOrganization: async () => null }
+  env.MARKET_ORGANIZATIONS.validateApiKey = async key => ({status:'valid',organization:await env.MARKET_ORGANIZATIONS.resolveOrganization(key)})
   let value = await preview('sk-personal')
   assert.equal(value.organizationStatus, 'none')
   assert.equal(value.organization, null)
@@ -249,8 +267,10 @@ test('access preview handles personal Keys, disabled organizations and upstream 
   env.MARKET_ORGANIZATIONS.resolveOrganization = async () => { throw new Error('Sensitive upstream body sk-secret') }
   value = await preview('sk-direct')
   assert.equal(value.organizationStatus, 'unavailable')
-  assert.equal(value.catalogAvailable, true)
-  assert.equal(value.items[0].reason, 'direct')
+  assert.equal(value.catalogAvailable, false)
+  assert.equal(value.keyStatus, 'unavailable')
+  assert.equal(value.permissionsEvaluated, false)
+  assert.deepEqual(value.items, [])
   value = await preview('sk-unrecognized')
   assert.equal(value.organizationStatus, 'unavailable')
   assert.equal(value.catalogAvailable, false)

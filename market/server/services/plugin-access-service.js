@@ -23,7 +23,7 @@ async function directKeyAccess(request,env) {
 }
 export async function filterRoster(request, env, roster) {
   if (!env.MARKET_DB) return roster
-  const { results } = await env.MARKET_DB.prepare('SELECT * FROM market_plugins').all()
+  const { results } = await env.MARKET_DB.prepare("SELECT p.* FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE c.state='published'").all()
   const merged = new Map(roster.items.map(item => [item.id, item]))
   const { results: policies } = await env.MARKET_DB.prepare('SELECT plugin_id FROM market_org_policies').all()
   const orgPolicies = new Set(policies.map(p => p.plugin_id))
@@ -39,7 +39,7 @@ export async function filterRoster(request, env, roster) {
   for (const row of results) {
     const releaseItem = merged.get(row.id)
     // A component promoted into the application cannot inherit stale market restrictions.
-    if (releaseItem?.category === 'builtin') continue
+    if (!releaseItem || releaseItem.category === 'builtin') continue
     merged.delete(row.id)
     if (row.visibility === 'public' || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
       // Release updates own package metadata; the database owns only access policy.
