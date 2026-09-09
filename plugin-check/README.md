@@ -16,6 +16,9 @@ npx @tokensapi/dsh-plugin-check --skip-smoke
 
 # 机器可读输出(CI / 市场门禁)
 npx @tokensapi/dsh-plugin-check --json
+
+# 体检一个已发布的 npm 包(市场上架审核用)
+npx @tokensapi/dsh-plugin-check --package @scope/name@1.2.3 --runtime 0.1.3-alpha.1
 ```
 
 退出码:`0` 合格,`1` 存在 error(`--strict` 时 warning 也计入)。冒烟失败时加 `--keep-workspace` 保留临时工作区排查。
@@ -71,4 +74,6 @@ npx @tokensapi/dsh-plugin-check --json
 
 ## 上架流程中的位置
 
-市场上架要求本工具体检通过:提交插件版本后,门禁会以相同规则复检并记录"验证于运行时 x.y.z"。本地先跑一遍,提交即通过。
+1. 开发者:发布 npm 版本前本地跑体检,全绿再发。
+2. 管理员:在仓库 Actions 的 **Plugin Check** workflow 填「包名@版本」手动触发,体检报告生成在该次运行的 Summary。
+3. 上架:后台 publish 对话框把这次运行的链接填入「检查记录链接」——链接的红/绿即审核证据,`reviewed_version` 随上架落库。存在 error 的版本不满足上架条件。

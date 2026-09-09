@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { runNpm } from './npm.mjs'
 
 const RUNNER_TIMEOUT_MS = 90_000
 const INSTALL_TIMEOUT_MS = 300_000
@@ -76,15 +77,6 @@ writeFileSync(resultPath, JSON.stringify(results))
 process.exit(0)
 `
 
-function runNpm(args, cwd, timeout) {
-  return spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
-    cwd,
-    encoding: 'utf8',
-    timeout,
-    shell: process.platform === 'win32',
-    env: { ...process.env, npm_config_ignore_scripts: 'true' },
-  })
-}
 
 /**
  * 对插件目录执行隔离冒烟。

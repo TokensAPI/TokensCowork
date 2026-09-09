@@ -17,18 +17,20 @@
 import { resolve } from 'node:path'
 import { checkManifest } from '../lib/manifest-check.mjs'
 import { checkSmoke } from '../lib/smoke-check.mjs'
+import { fetchPackage } from '../lib/fetch-package.mjs'
 
 const args = process.argv.slice(2)
-const options = { dir: process.cwd(), runtime: undefined, skipSmoke: false, keepWorkspace: false, strict: false, json: false }
+const options = { dir: process.cwd(), package: undefined, runtime: undefined, skipSmoke: false, keepWorkspace: false, strict: false, json: false }
 for (let index = 0; index < args.length; index += 1) {
   const arg = args[index]
   if (arg === '--runtime') { options.runtime = args[++index]; continue }
+  if (arg === '--package') { options.package = args[++index]; continue }
   if (arg === '--skip-smoke') { options.skipSmoke = true; continue }
   if (arg === '--keep-workspace') { options.keepWorkspace = true; continue }
   if (arg === '--strict') { options.strict = true; continue }
   if (arg === '--json') { options.json = true; continue }
   if (arg === '--help' || arg === '-h') {
-    process.stdout.write('用法: dsh-plugin-check [插件目录] [--runtime <version>] [--skip-smoke] [--keep-workspace] [--strict] [--json]\n')
+    process.stdout.write('用法: dsh-plugin-check [插件目录] [--package <name@version>] [--runtime <version>] [--skip-smoke] [--keep-workspace] [--strict] [--json]\n')
     process.exit(0)
   }
   if (arg.startsWith('--')) {
@@ -40,6 +42,16 @@ for (let index = 0; index < args.length; index += 1) {
 
 const findings = []
 const phases = []
+
+if (options.package !== undefined) {
+  const fetched = fetchPackage(options.package)
+  if ('error' in fetched) {
+    process.stderr.write(`无法获取 ${options.package}: ${fetched.error}
+`)
+    process.exit(1)
+  }
+  options.dir = fetched.dir
+}
 
 const manifestResult = checkManifest(options.dir, { runtime: options.runtime })
 findings.push(...manifestResult.findings)
