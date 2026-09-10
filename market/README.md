@@ -31,25 +31,27 @@ npm 插件统一自动跟随稳定版 latest（包括历史标记为 pinned 的 
 
 ```text
 market/
-├── server/routes/                  HTTP 鉴权、请求校验与路由
-├── server/services/catalog-service.js  插件生命周期与乐观并发控制
-├── server/services/plugin-access-service.js  统一授权规则
-├── server/integrations/             npm / TokensAPI 服务适配
-├── server/registry/                 可选私有 npm Registry 代理（仅服务端）
-├── server/security/                 会话、限流、Key 加密与指纹
-├── registry/                         独立 Verdaccio 服务（npm API、账号、Web UI、包存储）
-├── admin/assets/market-admin.js     工作台与权限编辑交互
-├── admin/assets/market-catalog-editor.js  插件资料与状态表单
-├── admin/assets/market-model.js     可测试的筛选与 Key 去重
-├── admin/assets/market-api.js       有超时、无写入自动重试的请求层
-├── database/migrations/             递增编号的幂等迁移
-├── ops/                            本地演示、配置、检查脚本
-└── tests/                          权限、生命周期、迁移与异常回归
+├── server/                         市场 Worker、HTTP 路由、业务服务和第三方适配
+│   ├── routes/                     管理 API 路由
+│   ├── services/                   目录、权限、组织和审计服务
+│   ├── integrations/               npm / TokensAPI 适配器
+│   ├── registry/                   市场到私有 Registry 的受控代理
+│   ├── security/                   会话、限流、Key 加密与指纹
+│   └── http/                       请求解析和响应辅助
+├── admin/                          管理后台静态页面和浏览器端模块
+├── database/migrations/             递增编号的幂等 D1 迁移
+├── ops/                            本地 QA、Cloudflare 配置和凭证运维脚本
+└── tests/                          权限、生命周期、迁移和异常回归测试
 ```
 
-`market/server/` 和 `market/registry/` 是两个独立运行时：市场服务只通过受控的
-HTTP 代理访问 Registry，不读取 Verdaccio 的存储、账号文件或 Docker 配置；Registry
-也不依赖市场数据库。替换服务器或切换域名时，只需分别更新对应服务的环境配置。
+`market/` 和顶层 `registry/` 是两个独立运行时：市场服务只通过受控的 HTTP 代理
+访问 Registry，不读取 Verdaccio 的存储、账号文件或 Docker 配置；Registry 也不依赖
+市场数据库。替换服务器或切换域名时，只需分别更新对应服务的环境配置。
+
+根目录的 `_worker.js`、`_headers`、`package.json`、`source.config.json` 和生成的
+`source.json` 属于 Cloudflare Pages 部署入口；`product-components.json` 是由
+`product.json` 构建生成的内置组件身份清单。历史版 `legacy/` 和空的 `v1/` 目录已移除，
+不再保留第二套管理页面或静态目录实现。
 
 管理数据只在登录后展示，会话保持 7 天。完整 Key 加密存储，仅授权管理端可读。密码错误有来源限流；同源校验防止跨站写入。插件编辑、上架及权限保存共享修订号；旧页面覆盖新更改时返回 409。操作记录与变更同事务保存，最新 50 条可见、服务端最多保留 1000 条，不记录 Key 明文。
 

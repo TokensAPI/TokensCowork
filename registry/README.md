@@ -1,8 +1,8 @@
 # 私有 npm Registry
 
 该目录是独立的 Verdaccio 服务部署单元。它只负责 npm API、Web UI、账号和包存储；
-插件目录、组织/API Key 权限与市场代理属于 `market/server/`，桌面端安装地址属于
-`build/overlays/market/`。三个目录可以独立部署和迁移。
+插件目录、组织/API Key 权限与市场代理属于 `market/`，桌面端安装地址属于
+`build/overlays/market/`。这两个服务可以独立部署和迁移。
 
 该目录不包含账号、Token、证书或真实域名配置。首次部署时，在本目录创建未提交的
 `.env`（可由 `.env.example` 复制）：
@@ -19,7 +19,7 @@ cp .env.example .env
 在服务器拉取仓库后执行：
 
 ```bash
-cd tokens_TokensHarness_code/market/registry
+cd tokens_TokensHarness_code/registry
 docker compose pull
 docker compose up -d
 curl -fsS http://127.0.0.1:4873/-/ping
@@ -31,3 +31,11 @@ curl -fsS https://npm.tokensapi.ai/ | grep -F 'https://npm.tokensapi.ai/'
 `VERDACCIO_PUBLIC_URL` 也会保证 UI 使用配置的公网地址。
 
 Verdaccio 的存储使用 Docker named volume 持久化。首次创建发布账号、生成市场只读 Token 等操作由运维按安全流程完成，不写入仓库。
+
+当前配置 `auth.htpasswd.max_users: -1` 已关闭匿名自助注册。已有账号仍可登录，
+新账号由运维在维护流程中创建，避免任何人通过 Web UI 或 npm API 直接获得 Registry
+访问权。Web UI 只是 Verdaccio 的包仓库门户，不是插件市场后台；市场服务和桌面端
+不依赖它。
+
+需要增加账号时，运维应在维护窗口临时放开注册、创建账号后立即恢复 `-1` 并重启
+服务；生产环境不要长期保留开放注册。
