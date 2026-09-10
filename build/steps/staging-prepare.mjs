@@ -271,7 +271,7 @@ let windowsPwshSandbox = readFileSync(windowsPwshSandboxPath, 'utf8')
 /* -------------------------- 配置插件市场 --------------------------- */
 // 产品插件源部署在 market/server/source.config.json 声明的 origin；为其加入
 // 市场受限 HTTP 客户端的 fake-IP 代理豁免，保证国内代理环境可添加。
-const marketSourceConfig = JSON.parse(readFileSync(resolve(root, 'market', 'source.config.json'), 'utf8'))
+const marketSourceConfig = JSON.parse(readFileSync(resolve(root, 'market', 'server', 'source.config.json'), 'utf8'))
 const marketHttpPath = resolve(stage, 'dsh-community-market', 'src', 'network', 'restricted-http.ts')
 writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
   readFileSync(marketHttpPath, 'utf8'),
@@ -280,7 +280,7 @@ writeFileSync(marketHttpPath, allowMarketSourceSyntheticProxy(
 
 // 预置产品目录源为唯一入口：默认选中、隐藏上游合作源与添加/删除入口，
 // 同时精简固定来源页面的说明信息。
-const marketSourceManifest = JSON.parse(readFileSync(resolve(root, 'market', 'source.json'), 'utf8'))
+const marketSourceManifest = JSON.parse(readFileSync(resolve(root, 'market', 'server', 'source.json'), 'utf8'))
 const marketIndexPath = resolve(stage, 'dsh-community-market', 'src', 'index.ts')
 const marketRoutesPath = resolve(stage, 'dsh-community-market', 'src', 'host', 'routes.ts')
 const marketSourceStorePath = resolve(stage, 'dsh-community-market', 'src', 'catalog', 'source-store.ts')
