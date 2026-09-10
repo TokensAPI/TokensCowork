@@ -10,7 +10,10 @@ import { buildProductComponents } from '../../../scripts/generate-market-catalog
 
 const m={id:'new-tool',package:'@fixture/new-tool',displayName:'New tool',summary:'A safe fictional plugin',repository:'https://github.com/fixture/new-tool',version:'1.0.0',npm:true}
 const dir=new URL('../database/migrations/',import.meta.url)
-const migrations=readdirSync(dir).filter(f=>f.endsWith('.sql')).sort().map(f=>readFileSync(new URL(f,dir),'utf8'))
+const files=readdirSync(dir).filter(f=>f.endsWith('.sql')).sort()
+const migrations=files.map(f=>readFileSync(new URL(f,dir),'utf8'))
+// The one-time catalog seed; later data migrations are guarded by market_data_migrations markers.
+const seedIndex=files.findIndex(f=>f.startsWith('004-'))
 function fixture(t) {
  const db=new DatabaseSync(':memory:');db.exec('PRAGMA foreign_keys=ON')
  for(const sql of migrations)db.exec(sql)
@@ -124,16 +127,16 @@ test('built-in identities, malformed metadata, legacy create bypasses and unauth
 })
 test('migration imports optional records once, preserves ACL and never recreates a removed or edited listing',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close())
- for(const sql of migrations.slice(0,-1))db.exec(sql)
+ for(const sql of migrations.slice(0,seedIndex))db.exec(sql)
  db.prepare('INSERT INTO market_plugins(id,visibility,metadata) VALUES(?,?,?)').run('tokens-media-gen','restricted',JSON.stringify({...m,id:'tokens-media-gen'}))
  db.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?)').run('tokens-media-gen')
  db.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').run('tokens-media-gen','fixture-fingerprint')
- db.exec(migrations.at(-1))
+ for(const sql of migrations.slice(seedIndex))db.exec(sql)
  assert.equal(db.prepare('SELECT count(*) n FROM market_catalog').get().n,4)
  assert.equal(db.prepare("SELECT visibility FROM market_plugins WHERE id='tokens-media-gen'").get().visibility,'restricted')
  db.exec("UPDATE market_catalog SET state='deleted',revision=revision+1 WHERE id='tokens-connect'")
  db.prepare("UPDATE market_plugins SET metadata=? WHERE id='tokens-media-gen'").run(JSON.stringify({...m,displayName:'Admin changed'}))
- db.exec(migrations.at(-1))
+ for(const sql of migrations.slice(seedIndex))db.exec(sql)
  assert.equal(db.prepare("SELECT state FROM market_catalog WHERE id='tokens-connect'").get().state,'deleted')
  assert.equal(JSON.parse(db.prepare("SELECT metadata FROM market_plugins WHERE id='tokens-media-gen'").get().metadata).displayName,'Admin changed')
  assert.equal(db.prepare('SELECT count(*) n FROM market_plugin_key_grants').get().n,1)
