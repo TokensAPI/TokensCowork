@@ -10,9 +10,9 @@
 
 | 包名 | 匿名读取 | 发布 | 回源 npmjs |
 | --- | --- | --- | --- |
-| `@tokensapi-private/*` | 拒绝，必须登录 | 需账号 | 否 |
-| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 允许 | 需账号 | 否 |
-| 其余任意包 | 允许 | 需账号 | 是，并缓存 |
+| `@tokensapi-private/*` | 拒绝，必须登录 | 白名单账号 | 否 |
+| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 允许 | 白名单账号 | 否 |
+| 其余任意包 | 允许 | 白名单账号 | 是，并缓存 |
 
 自有包不配 `proxy`，本地副本即唯一来源，不会和 npmjs 上的同名包合并元数据；把现有
 npm 包迁移进来时，直接向本 Registry `npm publish` 即可，不需要先在 npmjs 下架。
@@ -21,6 +21,23 @@ npm 包迁移进来时，直接向本 Registry `npm publish` 即可，不需要�
 
 其余包走 `npmjs` uplink 并缓存，因此客户端可以把本 Registry 作为唯一 npm 源使用，
 插件的第三方依赖也能正常安装。缓存会随使用增长，需要关注磁盘。
+
+## 发布白名单与只读账号
+
+`config.yaml` 里每条规则的 `publish`/`unpublish` 写的是具体用户名，不是
+`$authenticated`。因为市场 Worker 也需要一个账号才能读私有包，而 Verdaccio 无法
+用 token 表达“只读”：`POST /-/npm/v1/tokens` 的 `readonly` 参数不生效，签出来的
+token 仍带 `$all`、`$authenticated` 组。只有把写权限收紧到白名单，服务账号才真正
+只能读。
+
+因此新增发布者是两步：先 `create-user.sh` 建账号，再把用户名加进 `config.yaml`
+对应规则的 `publish`/`unpublish`（多个用户名用空格分隔）并重新 `docker compose up -d`。
+只建账号不改配置的话，该账号能登录、能读私有包，但发布会被拒绝。
+
+市场服务用的 `market` 账号就是这样一个不在任何白名单里的账号。它的凭据以
+`用户名:密码` 形式放在 Worker Secret `MARKET_PRIVATE_REGISTRY_TOKEN`，配合
+`MARKET_PRIVATE_REGISTRY_AUTH_SCHEME=basic`；Basic 凭据不会像 JWT 那样 60 天过期，
+要吊销只需用 `create-user.sh` 重置该账号密码。
 
 ## security 段不能删
 
@@ -58,7 +75,7 @@ curl -fsS https://npm.tokensapi.ai/ | grep -F 'https://npm.tokensapi.ai/'
 反代至少应保留原始 `Host`，并传递 `X-Forwarded-Proto`；即使反代头配置改变，
 `VERDACCIO_PUBLIC_URL` 也会保证 UI 使用配置的公网地址。
 
-Verdaccio 的存储使用 Docker named volume 持久化。首次创建发布账号、生成市场只读 Token 等操作由运维按安全流程完成，不写入仓库。
+Verdaccio 的存储使用 Docker named volume 持久化。创建发布账号和市场只读账号由运维按安全流程完成，密码不写入仓库。
 
 ## 账号
 

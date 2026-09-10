@@ -23,3 +23,24 @@ test('private registry rejects invalid tarball redirects and exposes stable late
   assert.equal(result.stable, false)
   assert.deepEqual(await client.tarball('https://cdn.example.test/fixture.tgz'), { ok: false, reason: 'invalid-url' })
 })
+test('basic scheme sends the service account instead of an expiring bearer token', async () => {
+  const client = createRegistryClient({ MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/', MARKET_PRIVATE_REGISTRY_TOKEN: 'market:s3cret', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }, async (url, options) => {
+    assert.equal(options.headers.Authorization, 'Basic ' + btoa('market:s3cret'))
+    return Response.json({ name: 'fixture', 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name: 'fixture', version: '1.0.0', dist: { tarball: 'https://registry.example.test/fixture.tgz' } } } })
+  })
+  assert.equal((await client.resolve('fixture')).ok, true)
+})
+test('malformed credentials and unknown schemes never reach the network', async () => {
+  const base = { MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/' }
+  const reject = () => { throw Error('must not fetch') }
+  for (const [env, reason] of [
+    [{ ...base, MARKET_PRIVATE_REGISTRY_TOKEN: 'market', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }, 'invalid-credentials'],
+    [{ ...base, MARKET_PRIVATE_REGISTRY_TOKEN: 'market:', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }, 'invalid-credentials'],
+    [{ ...base, MARKET_PRIVATE_REGISTRY_TOKEN: 'market:密码', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }, 'invalid-credentials'],
+    [{ ...base, MARKET_PRIVATE_REGISTRY_TOKEN: 'fixture-token', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'digest' }, 'invalid-auth-scheme'],
+  ]) {
+    const client = createRegistryClient(env, reject)
+    assert.deepEqual(client.status(), { enabled: true, ready: false, reason })
+    assert.deepEqual(await client.metadata('fixture'), { ok: false, reason })
+  }
+})

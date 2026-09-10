@@ -21,7 +21,7 @@ export function createRegistryClient(env, fetchImpl = globalThis.fetch.bind(glob
     try {
       const response = await fetchImpl(url, {
         ...options,
-        headers: { Authorization: 'Bearer ' + config.token, Accept: 'application/json', ...(options.headers ?? {}) },
+        headers: { Authorization: config.authorization, Accept: 'application/json', ...(options.headers ?? {}) },
         redirect: 'manual',
         signal: controller.signal,
       })

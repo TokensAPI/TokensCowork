@@ -38,39 +38,42 @@ uplinks:
     timeout: 30s
     maxage: 2m
 
-# Publishing always requires an ops-provisioned account. Read access is split:
+# publish/unpublish list the accounts allowed to write, NOT $authenticated: the
+# market Worker signs in with its own account and must stay read-only, and a
+# token cannot express that (Verdaccio ignores the npm token API readonly flag).
+# Add a username here to grant publishing. Read access is split:
 # the private scope needs a login, everything else is public.
 packages:
   # Private plugins. Never proxied, so a name here can never resolve to npmjs.
   '@tokensapi-private/*':
     access: $authenticated
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
 
   # Own packages, migrated off npmjs. No proxy: the local copy is the source of
   # truth and must not be merged with npmjs metadata of the same name.
   '@tokensapi/*':
     access: $all
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
   '@tokens/*':
     access: $all
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
   'dsh-tokensapi-ui':
     access: $all
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
   'tokens-dsh-web-search':
     access: $all
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
 
   # Everything else: readable by anyone, fetched from npmjs and cached.
   '**':
     access: $all
-    publish: $authenticated
-    unpublish: $authenticated
+    publish: tokenscowork
+    unpublish: tokenscowork
     proxy: npmjs
 
 server:
