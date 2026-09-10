@@ -3,6 +3,8 @@ services:
     image: verdaccio/verdaccio:6.1.6
     container_name: tokenscowork-registry
     restart: unless-stopped
+    environment:
+      VERDACCIO_PUBLIC_URL: ${VERDACCIO_PUBLIC_URL:-http://127.0.0.1:4873/}
     ports:
       - "127.0.0.1:4873:4873"
     volumes:

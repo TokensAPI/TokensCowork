@@ -5,3 +5,4 @@
 /market/v1/plugins
 market/product-components.json
 /.market-dev.env
+/market/registry/.env

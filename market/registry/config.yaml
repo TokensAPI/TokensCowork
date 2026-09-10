@@ -7,6 +7,8 @@ web:
   enable: true
   title: TokensCowork Private npm Registry
   gravatar: false
+  # The public UI/API base is supplied by VERDACCIO_PUBLIC_URL in Compose.
+  # Keep this file portable so the registry can move between hosts.
 
 auth:
   htpasswd:

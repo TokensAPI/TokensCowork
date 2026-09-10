@@ -37,6 +37,7 @@ market/
 ├── server/integrations/             npm / TokensAPI 服务适配
 ├── server/registry/                 可选私有 npm Registry 代理（仅服务端）
 ├── server/security/                 会话、限流、Key 加密与指纹
+├── registry/                         独立 Verdaccio 服务（npm API、账号、Web UI、包存储）
 ├── admin/assets/market-admin.js     工作台与权限编辑交互
 ├── admin/assets/market-catalog-editor.js  插件资料与状态表单
 ├── admin/assets/market-model.js     可测试的筛选与 Key 去重
@@ -45,6 +46,10 @@ market/
 ├── ops/                            本地演示、配置、检查脚本
 └── tests/                          权限、生命周期、迁移与异常回归
 ```
+
+`market/server/` 和 `market/registry/` 是两个独立运行时：市场服务只通过受控的
+HTTP 代理访问 Registry，不读取 Verdaccio 的存储、账号文件或 Docker 配置；Registry
+也不依赖市场数据库。替换服务器或切换域名时，只需分别更新对应服务的环境配置。
 
 管理数据只在登录后展示，会话保持 7 天。完整 Key 加密存储，仅授权管理端可读。密码错误有来源限流；同源校验防止跨站写入。插件编辑、上架及权限保存共享修订号；旧页面覆盖新更改时返回 409。操作记录与变更同事务保存，最新 50 条可见、服务端最多保留 1000 条，不记录 Key 明文。
 
