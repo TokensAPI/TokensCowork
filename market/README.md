@@ -109,6 +109,6 @@ MARKET_PRIVATE_REGISTRY_AUTH_SCHEME=basic
 MARKET_PRIVATE_REGISTRY_TOKEN=<只放在 Worker Secret 中>
 ```
 
-`MARKET_PRIVATE_REGISTRY_AUTH_SCHEME` 可为 `bearer`（默认，`TOKEN` 是一个 npm token）或 `basic`（`TOKEN` 是 `用户名:密码`）。Verdaccio 签发的 JWT 默认 60 天过期，它的 npm token API 也只是再发一个同样会过期的 JWT（且忽略 `readonly`），所以对着 Verdaccio 要用 `basic` 配一个专用服务账号，否则私有插件会在 60 天后集体下载失败。只读靠的是 Registry 端的 `publish` 白名单，不是 token 本身。
+`MARKET_PRIVATE_REGISTRY_AUTH_SCHEME` 可为 `bearer`（默认，`TOKEN` 是一个 npm token）或 `basic`（`TOKEN` 是 `用户名:密码`）。Verdaccio 签发的 JWT 默认 60 天过期，它的 npm token API 也只是再发一个同样会过期的 JWT（且忽略 `readonly`），所以对着 Verdaccio 要用 `basic` 配一个专用服务账号，否则私有插件会在 60 天后集体下载失败。只读靠的是 Registry 端私有域的 `publish` 白名单，不是 token 本身；公开包仍然对所有账号开放发布。
 
 Registry 必须是 HTTPS、无用户名密码/query/fragment 的标准 npm Registry；市场会拒绝重定向、无效包元数据和超过大小上限的响应。私有包仍需先在后台登记、配置组织或单独 Key 权限并上架。没有权限、上游不可用或配置缺失时均 fail-closed，不会静默回退到公开 npm。

@@ -10,34 +10,37 @@
 
 | 包名 | 匿名读取 | 发布 | 回源 npmjs |
 | --- | --- | --- | --- |
-| `@tokensapi-private/*` | 拒绝，必须登录 | 白名单账号 | 否 |
-| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 允许 | 白名单账号 | 否 |
-| 其余任意包 | 允许 | 白名单账号 | 是，并缓存 |
+| `@tokensapi-private/*` | 拒绝，必须登录 | 仅白名单账号 | 否 |
+| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 允许 | 任意账号 | 是（迁移期） |
+| 其余任意包 | 允许 | 任意账号 | 是，并缓存 |
 
-自有包不配 `proxy`，本地副本即唯一来源，不会和 npmjs 上的同名包合并元数据；把现有
-npm 包迁移进来时，直接向本 Registry `npm publish` 即可，不需要先在 npmjs 下架。
-新增自有包若使用新的作用域或非作用域名字，需要在 `config.yaml` 的 `packages` 中
-补一条同样不带 `proxy` 的规则，否则它会被 `**` 规则当作 npmjs 的包回源。
+自有包保留 `proxy: npmjs`，因此迁移期间两边都能装：已经发到本 Registry 的版本用
+本地的，还只在 npmjs 上的旧版本仍然能拉到，Verdaccio 会把本地元数据盖在 uplink
+上。代价是同名包的上游版本也会出现在列表里；某个包完全迁移完毕后，把它那条规则
+的 `proxy` 去掉，本地副本就成为唯一来源。
+
+真正不回源的只有 `@tokensapi-private/*`：私有包名永远不会解析到 npmjs 上的同名包。
 
 其余包走 `npmjs` uplink 并缓存，因此客户端可以把本 Registry 作为唯一 npm 源使用，
 插件的第三方依赖也能正常安装。缓存会随使用增长，需要关注磁盘。
 
-## 发布白名单与只读账号
+## 发布权限与只读账号
 
-`config.yaml` 里每条规则的 `publish`/`unpublish` 写的是具体用户名，不是
-`$authenticated`。因为市场 Worker 也需要一个账号才能读私有包，而 Verdaccio 无法
-用 token 表达“只读”：`POST /-/npm/v1/tokens` 的 `readonly` 参数不生效，签出来的
-token 仍带 `$all`、`$authenticated` 组。只有把写权限收紧到白名单，服务账号才真正
-只能读。
+发布权限分两档：公开包是 `publish: $authenticated`，任何运维发的账号都能发，新增
+发布者只需 `create-user.sh`，不用改配置；只有 `@tokensapi-private/*` 写死了账号白名单。
 
-因此新增发布者是两步：先 `create-user.sh` 建账号，再把用户名加进 `config.yaml`
-对应规则的 `publish`/`unpublish`（多个用户名用空格分隔）并重新 `docker compose up -d`。
-只建账号不改配置的话，该账号能登录、能读私有包，但发布会被拒绝。
+这一条不能改成 `$authenticated`，因为市场 Worker 也需要一个账号才能读私有包，而
+Verdaccio 无法用 token 表达“只读”：`POST /-/npm/v1/tokens` 的 `readonly` 参数不生效，
+签出来的 token 仍带 `$all`、`$authenticated` 组。只有把私有域的写权限收紧到白名单，
+服务账号才真正动不了私有包。
 
-市场服务用的 `market` 账号就是这样一个不在任何白名单里的账号。它的凭据以
-`用户名:密码` 形式放在 Worker Secret `MARKET_PRIVATE_REGISTRY_TOKEN`，配合
-`MARKET_PRIVATE_REGISTRY_AUTH_SCHEME=basic`；Basic 凭据不会像 JWT 那样 60 天过期，
-要吊销只需用 `create-user.sh` 重置该账号密码。
+需要注意的副作用：`market` 账号在公开包上仍然是能发布的，Verdaccio 没有“除了某
+个账号之外的所有人”这种写法。这是为了不让每次新增发布者都要改配置而接受的权衡；
+如果以后要堵上，把对应规则的 `publish` 也改成显式白名单即可。
+
+`market` 账号的凭据以 `用户名:密码` 形式放在 Worker Secret
+`MARKET_PRIVATE_REGISTRY_TOKEN`，配合 `MARKET_PRIVATE_REGISTRY_AUTH_SCHEME=basic`；Basic
+凭据不会像 JWT 那样 60 天过期，要吊销只需用 `create-user.sh` 重置该账号密码。
 
 ## security 段不能删
 

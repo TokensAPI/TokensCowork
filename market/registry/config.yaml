@@ -38,42 +38,53 @@ uplinks:
     timeout: 30s
     maxage: 2m
 
-# publish/unpublish list the accounts allowed to write, NOT $authenticated: the
-# market Worker signs in with its own account and must stay read-only, and a
-# token cannot express that (Verdaccio ignores the npm token API readonly flag).
-# Add a username here to grant publishing. Read access is split:
-# the private scope needs a login, everything else is public.
+# Only the private scope restricts publishing to a named account list, because
+# the market Worker signs in with its own account and must never write there.
+# Everywhere else publishing stays open to any provisioned account, so adding a
+# publisher does not need a config change and a redeploy.
+#
+# Read access is split: the private scope needs a login, everything else is
+# public. Note this makes the market account able to publish public packages;
+# Verdaccio cannot express "every account except this one".
 packages:
-  # Private plugins. Never proxied, so a name here can never resolve to npmjs.
+  # Private plugins. Never proxied, so a name here can never resolve to npmjs,
+  # and never $authenticated for publish, so the market account stays read-only.
+  # This is the actual security boundary of the registry.
   '@tokensapi-private/*':
     access: $authenticated
     publish: tokenscowork
     unpublish: tokenscowork
 
-  # Own packages, migrated off npmjs. No proxy: the local copy is the source of
-  # truth and must not be merged with npmjs metadata of the same name.
+  # Own packages. Proxied while the npmjs copies are being migrated in: a
+  # version that only exists upstream still resolves, and Verdaccio merges the
+  # local metadata over it. Once a package is fully migrated its proxy can be
+  # dropped to make the local copy the only source.
   '@tokensapi/*':
     access: $all
-    publish: tokenscowork
-    unpublish: tokenscowork
+    publish: $authenticated
+    unpublish: $authenticated
+    proxy: npmjs
   '@tokens/*':
     access: $all
-    publish: tokenscowork
-    unpublish: tokenscowork
+    publish: $authenticated
+    unpublish: $authenticated
+    proxy: npmjs
   'dsh-tokensapi-ui':
     access: $all
-    publish: tokenscowork
-    unpublish: tokenscowork
+    publish: $authenticated
+    unpublish: $authenticated
+    proxy: npmjs
   'tokens-dsh-web-search':
     access: $all
-    publish: tokenscowork
-    unpublish: tokenscowork
+    publish: $authenticated
+    unpublish: $authenticated
+    proxy: npmjs
 
   # Everything else: readable by anyone, fetched from npmjs and cached.
   '**':
     access: $all
-    publish: tokenscowork
-    unpublish: tokenscowork
+    publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
 server:

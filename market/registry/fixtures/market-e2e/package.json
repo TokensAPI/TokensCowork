@@ -7,7 +7,6 @@
   "main": "index.js",
   "files": ["index.js"],
   "publishConfig": {
-    "registry": "https://npm.tokensapi.ai/",
     "access": "restricted"
   }
 }
