@@ -13,7 +13,15 @@ function safeHttps(value) {
       : undefined
   } catch { return undefined }
 }
-export function createRegistryClient(env, fetchImpl = globalThis.fetch.bind(globalThis)) {
+/**
+ * `anonymous` drops the service account from the request. A plugin published as
+ * public is fetched this way, so the Registry's own `access` rules decide who may
+ * read the package: a private scope answers 401 and the market fails closed,
+ * while an `access: $all` package is served to everyone. The market therefore
+ * never duplicates the Registry ACL and can never hand private bytes to an
+ * anonymous client.
+ */
+export function createRegistryClient(env, fetchImpl = globalThis.fetch.bind(globalThis), { anonymous = false } = {}) {
   const config = registryConfig(env)
   async function request(url, options = {}, maxBytes = 4 * 1024 * 1024) {
     const controller = new AbortController()
@@ -21,7 +29,11 @@ export function createRegistryClient(env, fetchImpl = globalThis.fetch.bind(glob
     try {
       const response = await fetchImpl(url, {
         ...options,
-        headers: { Authorization: config.authorization, Accept: 'application/json', ...(options.headers ?? {}) },
+        headers: {
+          ...(anonymous ? {} : { Authorization: config.authorization }),
+          Accept: 'application/json',
+          ...(options.headers ?? {}),
+        },
         redirect: 'manual',
         signal: controller.signal,
       })

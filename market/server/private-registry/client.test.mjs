@@ -44,3 +44,28 @@ test('malformed credentials and unknown schemes never reach the network', async 
     assert.deepEqual(await client.metadata('fixture'), { ok: false, reason })
   }
 })
+test('anonymous mode sends no credential and still refuses foreign tarball hosts', async () => {
+  const env = { MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/', MARKET_PRIVATE_REGISTRY_TOKEN: 'market:s3cret', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }
+  const seen = []
+  const client = createRegistryClient(env, async (url, options) => {
+    seen.push(options.headers)
+    assert.equal(options.redirect, 'manual')
+    return Response.json({ name: 'fixture', 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name: 'fixture', version: '1.0.0', dist: { tarball: 'https://registry.example.test/fixture.tgz' } } } })
+  }, { anonymous: true })
+  assert.equal((await client.resolve('fixture')).ok, true)
+  assert.equal(seen.length, 1)
+  assert.equal('Authorization' in seen[0], false)
+  assert.deepEqual(await client.tarball('https://cdn.example.test/fixture.tgz'), { ok: false, reason: 'invalid-url' })
+})
+test('a package the registry hides from anonymous clients is not publicly readable', async t => {
+  const { publiclyReadable } = await import('../services/catalog-service.js')
+  const env = { MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/', MARKET_PRIVATE_REGISTRY_TOKEN: 'market:s3cret', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal('Authorization' in options.headers, false)
+    return String(url).includes('private')
+      ? new Response('unauthorized', { status: 401 })
+      : Response.json({ name: 'open', 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name: 'open', version: '1.0.0', dist: { tarball: 'https://registry.example.test/open.tgz' } } } })
+  })
+  assert.equal(await publiclyReadable(env, '@fixture-private/tool'), false)
+  assert.equal(await publiclyReadable(env, 'open'), true)
+})

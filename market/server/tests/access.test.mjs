@@ -392,3 +392,58 @@ test('cross-origin writes and oversized JSON are rejected', async t => {
   assert.equal((await worker.fetch(request('https://attacker.example','{}'), env, {})).status, 403)
   assert.equal((await worker.fetch(request('https://market.example', ' '.repeat(17000)), env, {})).status, 400)
 })
+
+// The self-hosted Registry serves public and private packages side by side, so the
+// source must not decide visibility. These two tests pin both directions of that.
+const selfHostedEnv = { MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/', MARKET_PRIVATE_REGISTRY_TOKEN: 'market:s3cret', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }
+const selfHosted = { id: 'self-hosted-tool', package: '@fixture/self-hosted', displayName: '自建源插件', summary: '放在自建 Registry 的公开包', repository: 'https://github.com/fixture/self-hosted', version: '1.0.0', npm: true, registry: 'tokenscowork' }
+function selfHostedMetadata(name, tarball) {
+  return Response.json({ name, 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name, version: '1.0.0', dist: { tarball } } } })
+}
+test('a public plugin on the self-hosted registry is proxied without credentials; restricting it closes the proxy', async t => {
+  const { env, call, db } = fixture(t)
+  Object.assign(env, selfHostedEnv)
+  seedTestPlugin(db, selfHosted)
+  const credentials = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    credentials.push(options.headers.Authorization)
+    return String(url).endsWith('.tgz')
+      ? new Response('tarball-bytes', { headers: { 'content-type': 'application/octet-stream' } })
+      : selfHostedMetadata(selfHosted.package, 'https://registry.example.test/self-hosted-1.0.0.tgz')
+  })
+  const path = '/registry/self-hosted-tool/' + selfHosted.package
+  assert.ok((await (await call('/v1/plugins')).json()).items.some(item => item.id === selfHosted.id))
+  credentials.length = 0
+  assert.equal((await call(path)).status, 200)
+  assert.deepEqual(credentials, [undefined])
+  credentials.length = 0
+  assert.equal((await call(path + '/1.0.0/tarball')).status, 200)
+  assert.deepEqual(credentials, [undefined, undefined])
+
+  db.prepare('UPDATE market_plugins SET visibility=? WHERE id=?').run('restricted', selfHosted.id)
+  assert.equal((await call(path)).status, 403)
+  assert.equal((await (await call('/v1/plugins')).json()).items.some(item => item.id === selfHosted.id), false)
+  const fp = await fingerprint('sk-self-hosted', env.MARKET_HMAC_SECRET)
+  db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').run(fp, '企业 B')
+  db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').run(fp, selfHosted.id)
+  credentials.length = 0
+  assert.equal((await call(path, 'sk-self-hosted')).status, 200)
+  assert.deepEqual(credentials, ['Basic ' + btoa('market:s3cret')])
+})
+test('a package the registry hides from anonymous clients can never be made public', async t => {
+  const { env, call, db } = fixture(t)
+  Object.assign(env, selfHostedEnv)
+  const hidden = { ...selfHosted, id: 'hidden-tool', package: '@fixture-private/hidden' }
+  t.mock.method(globalThis, 'fetch', async (url, options) => 'Authorization' in options.headers
+    ? selfHostedMetadata(hidden.package, 'https://registry.example.test/hidden-1.0.0.tgz')
+    : new Response('unauthorized', { status: 401 }))
+  const revision = () => db.prepare('SELECT revision FROM market_catalog WHERE id=?').get(hidden.id).revision
+  assert.equal((await call('/api/admin/catalog', 'admin-secret', { operation: 'create', id: hidden.id, metadata: hidden })).status, 200)
+  assert.equal((await call('/api/admin/catalog', 'admin-secret', { operation: 'publish', id: hidden.id, revision: revision(), confirmPublic: true })).status, 409)
+  assert.equal((await call('/api/admin/plugin-access', 'admin-secret', { id: hidden.id, revision: revision(), organizationIds: [], apiKeys: ['sk-hidden-grant'], keepFingerprints: [] })).status, 200)
+  assert.equal((await call('/api/admin/catalog', 'admin-secret', { operation: 'publish', id: hidden.id, revision: revision() })).status, 200)
+  // The published entry may not be reopened to everyone: that used to leave it
+  // listed to nobody while the backend still displayed 公开.
+  assert.equal((await call('/api/admin/plugin-access', 'admin-secret', { id: hidden.id, revision: revision(), organizationIds: [], apiKeys: [], keepFingerprints: [], confirmPublic: true })).status, 409)
+  assert.equal(db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(hidden.id).visibility, 'restricted')
+})

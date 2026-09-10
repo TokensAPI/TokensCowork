@@ -58,6 +58,21 @@ export async function catalogLatestVersion(env, item) {
   if (item.registry === 'tokenscowork') return await createRegistryClient(env).latestVersion(item.package)
   return await latestVersion(item.package, '')
 }
+
+// The Registry serves public and private packages side by side, so the source a
+// plugin is fetched from says nothing about who may read it. Only the Registry's
+// own `access` rule does, and an anonymous request is how it answers: a package
+// that an anonymous client cannot read must not be published as public, or the
+// entry would be listed to nobody and install for nobody.
+export const PUBLIC_PRIVATE_REGISTRY_ERROR =
+  '这个包在 Registry 里不允许匿名读取，公开上架会导致谁都装不上；请先配置组织或 API Key 权限'
+export async function publiclyReadable(env, name) {
+  return (await createRegistryClient(env, undefined, { anonymous: true }).metadata(name)).ok
+}
+export async function privateRegistryPublicConflict(env, item, visibility) {
+  if (item?.registry !== 'tokenscowork' || visibility !== 'public') return false
+  return !await publiclyReadable(env, item.package)
+}
 export async function productComponents(request, env) {
   const response = await env.ASSETS.fetch(
     new URL('/product-components.json', request.url).toString(),
@@ -84,7 +99,7 @@ function metadata(value) {
       '请填写有效的 ID、npm 包名、名称、简介及版本（例如 1.0.0 或 0.1.0-beta.1）',
     )
   const registry = value.npm ? (value.registry ?? 'npm') : 'github'
-  if (value.npm && !['npm', 'tokenscowork'].includes(registry)) throw invalid('npm 来源只能选择公开 npm 或 TokensCowork 私有 Registry')
+  if (value.npm && !['npm', 'tokenscowork'].includes(registry)) throw invalid('npm 来源只能选择公开 npm 或 TokensCowork 自建 Registry')
   if (!value.npm && value.registry !== undefined) throw invalid('GitHub 插件不能设置 npm Registry 来源')
   const repository = value.repository ?? ''
   if (!(value.npm && repository === '') && (
@@ -232,8 +247,8 @@ export async function catalogMutation(request, env, data) {
       if (!validReference) throw invalid('检查记录链接须为有效的 HTTPS 地址，也可留空')
     }
     metadata(m)
-    if (m.registry === 'tokenscowork' && entry.visibility !== 'restricted')
-      throw invalid('私有 Registry 插件必须先配置组织或 API Key 权限', 409)
+    if (await privateRegistryPublicConflict(env, m, entry.visibility))
+      throw invalid(PUBLIC_PRIVATE_REGISTRY_ERROR, 409)
     if (entry.visibility === 'public' && data.confirmPublic !== true)
       throw invalid('此插件未限制访问范围，请明确确认公开上架', 409)
     reference = suppliedReference

@@ -96,11 +96,17 @@ npm --prefix market/server run dev
 
 `npm run build` 仅生成 `source.json` 与产品组件身份清单，不生成插件目录。新增可选插件无须更新桌面安装包。源码、数据库脚本、组件身份文件和运维工具不在 Worker 公共静态资源白名单内。所有真实凭证只在服务端秘密配置中保存。
 
-## 可选私有 npm Registry
+## 可选自建 npm Registry
 
-公开 npm 插件无需任何额外配置。需要受控分发的包可在后台把「npm 来源」选为「TokensCowork 私有 Registry」；市场会在上架和每次目录刷新时读取私有 Registry 的稳定 `latest`，并通过 `/registry/` 代理元数据和 tarball。代理先检查市场的组织/Key 权限，再使用服务端 Secret 访问上游 Registry；桌面端只会拿到当前用户自己的 API Key，不会拿到 Registry Token。
+公开 npm 插件无需任何额外配置。需要自己托管的包可在后台把「npm 来源」选为「TokensCowork 自建 Registry」；市场会在上架和每次目录刷新时读取该 Registry 的稳定 `latest`，并通过 `/registry/` 代理元数据和 tarball，桌面端只会拿到当前用户自己的 API Key，不会拿到 Registry 凭据。
 
-服务器还未准备好时保持 `MARKET_PRIVATE_REGISTRY_ENABLED` 未设置（或不是 `true`），私有来源不会显示为可安装条目，公开 npm 完全不受影响。服务器准备好后只需配置以下 Worker Secret/变量并重新部署市场，不需要修改插件目录代码，也不需要为了每次 npm 发版重打桌面包：
+**来源只决定从哪里取包，不决定谁能看。** 自建 Registry 同时放公开包和私有包，唯一的访问边界写在它自己的 `config.yaml` 里，市场不再复制一份 ACL：
+
+- 上架为「公开」的条目，代理**不带**服务账号凭据去取上游，由 Registry 的 `access` 规则裁决。私有作用域会回 401，市场 fail-closed；`access: $all` 的包正常分发给所有人。
+- 上架为「受限」的条目行为不变：先校验市场的组织/Key 授权，再用服务端 Secret 里的服务账号取包。
+- 为避免出现「登记成功却谁都装不上」，上架和权限保存两个入口都会先匿名探测一次：包在 Registry 里不允许匿名读取却要标成公开时直接返回 409，并说明要先配组织或 API Key 权限。
+
+服务器还未准备好时保持 `MARKET_PRIVATE_REGISTRY_ENABLED` 未设置（或不是 `true`），该来源不会显示为可安装条目，公开 npm 完全不受影响。服务器准备好后只需配置以下 Worker Secret/变量并重新部署市场，不需要修改插件目录代码，也不需要为了每次 npm 发版重打桌面包：
 
 ```text
 MARKET_PRIVATE_REGISTRY_ENABLED=true
@@ -111,4 +117,4 @@ MARKET_PRIVATE_REGISTRY_TOKEN=<只放在 Worker Secret 中>
 
 `MARKET_PRIVATE_REGISTRY_AUTH_SCHEME` 可为 `bearer`（默认，`TOKEN` 是一个 npm token）或 `basic`（`TOKEN` 是 `用户名:密码`）。Verdaccio 签发的 JWT 默认 60 天过期，它的 npm token API 也只是再发一个同样会过期的 JWT（且忽略 `readonly`），所以对着 Verdaccio 要用 `basic` 配一个专用服务账号，否则私有插件会在 60 天后集体下载失败。只读靠的是 Registry 端私有域的 `publish` 白名单，不是 token 本身；公开包仍然对所有账号开放发布。
 
-Registry 必须是 HTTPS、无用户名密码/query/fragment 的标准 npm Registry；市场会拒绝重定向、无效包元数据和超过大小上限的响应。私有包仍需先在后台登记、配置组织或单独 Key 权限并上架。没有权限、上游不可用或配置缺失时均 fail-closed，不会静默回退到公开 npm。
+Registry 必须是 HTTPS、无用户名密码/query/fragment 的标准 npm Registry；市场会拒绝重定向、无效包元数据和超过大小上限的响应。私有作用域的包仍需先在后台登记、配置组织或单独 Key 权限并上架。没有权限、上游不可用或配置缺失时均 fail-closed，不会静默回退到公开 npm。

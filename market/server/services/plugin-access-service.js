@@ -41,8 +41,11 @@ export async function filterRoster(request, env, roster) {
     // A component promoted into the application cannot inherit stale market restrictions.
     if (!releaseItem || releaseItem.category === 'builtin') continue
     merged.delete(row.id)
-    const privateRegistry = JSON.parse(row.metadata).registry === 'tokenscowork'
-    if ((!privateRegistry && row.visibility === 'public') || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
+    // Which Registry a package comes from decides where the bytes are fetched, not
+    // who may see it: that Registry serves public and private packages side by side.
+    // A public entry whose package is private upstream fails closed at download time
+    // and is refused at publication, so it never becomes a silent leak here.
+    if (row.visibility === 'public' || (orgPolicies.has(row.id) ? directAllowed.has(row.id) || orgAllowed.has(row.id) : await allowed(request, env, row.id))) {
       // Release updates own package metadata; the database owns only access policy.
       merged.set(row.id, { ...JSON.parse(row.metadata), ...releaseItem })
     }
