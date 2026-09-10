@@ -8,7 +8,7 @@ function files(directory){
     return entry.isDirectory()?files(path):/\.(?:m?js)$/u.test(path)?[path]:[]
   })
 }
-for(const file of [resolve(root,'_worker.js'),...['server','admin/assets','ops','tests'].flatMap(path=>files(resolve(root,path)))]){
+for(const file of files(root)){
   const result=spawnSync(process.execPath,['--check',file],{stdio:'inherit'})
   if(result.status!==0)process.exit(1)
   for(const match of readFileSync(file,'utf8').matchAll(/(?:from\s+|import\s*)['"](\.[^'"]+)['"]/gu)){

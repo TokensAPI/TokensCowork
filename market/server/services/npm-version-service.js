@@ -1,5 +1,5 @@
 import { latestVersion } from '../integrations/npm-registry.js'
-import { createRegistryClient } from '../registry/client.mjs'
+import { createRegistryClient } from '../private-registry/client.mjs'
 
 // Runtime version resolution only: never mutate metadata, grants or lifecycle.
 export async function resolveNpmVersions(items, env = {}) {

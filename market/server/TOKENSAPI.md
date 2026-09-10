@@ -20,7 +20,7 @@
 ## 上线验证
 
 1. 在生产 Pages 项目配置上述变量和 Secret，保留既有 HMAC、加密与会话配置。
-2. 运行 `npm --prefix market run verify`，构建并部署。
+2. 运行 `npm --prefix market/server run verify`，构建并部署。
 3. 登录后台，点击“同步组织”，核对实际组织 ID/名称。
 4. 用明确绑定测试组织的有效 Key 验证对应插件可见，其他组织及个人 Key 不获组织权限。
 

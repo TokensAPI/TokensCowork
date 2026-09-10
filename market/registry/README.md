@@ -1,8 +1,8 @@
 # 私有 npm Registry
 
-该目录是独立的 Verdaccio 服务部署单元。它只负责 npm API、Web UI、账号和包存储；
-插件目录、组织/API Key 权限与市场代理属于 `market/`，桌面端安装地址属于
-`build/overlays/market/`。这两个服务可以独立部署和迁移。
+该目录是 `market/` 下面独立的 Verdaccio 服务部署单元。它只负责 npm API、Web UI、
+账号和包存储；插件目录、组织/API Key 权限与市场代理属于 `market/server/`，桌面端
+安装地址属于 `build/overlays/market/`。两个服务可以独立部署和迁移。
 
 该目录不包含账号、Token、证书或真实域名配置。首次部署时，在本目录创建未提交的
 `.env`（可由 `.env.example` 复制）：
@@ -19,7 +19,7 @@ cp .env.example .env
 在服务器拉取仓库后执行：
 
 ```bash
-cd tokens_TokensHarness_code/registry
+cd tokens_TokensHarness_code/market/registry
 docker compose pull
 docker compose up -d
 curl -fsS http://127.0.0.1:4873/-/ping

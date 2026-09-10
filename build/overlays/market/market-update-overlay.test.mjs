@@ -9,8 +9,8 @@ import { addMarketAuth } from './market-auth-overlay.mjs'
 const root = resolve(import.meta.dirname, '../../..')
 const paths = { service: 'src/install/service.ts', routes: 'src/host/routes.ts', types: 'src/api-types.ts', settingsTab: 'src/client/MarketSettingsTab.tsx', locales: 'src/client/locales.ts' }
 const read = path => readFileSync(resolve(root, 'desktop/dsh-community-market', path), 'utf8').replaceAll('\r\n', '\n')
-const config = JSON.parse(readFileSync(resolve(root, 'market/source.config.json'), 'utf8'))
-const sourceManifest = JSON.parse(readFileSync(resolve(root, 'market/source.json'), 'utf8'))
+const config = JSON.parse(readFileSync(resolve(root, 'market/server/source.config.json'), 'utf8'))
+const sourceManifest = JSON.parse(readFileSync(resolve(root, 'market/server/source.json'), 'utf8'))
 const sources = Object.fromEntries(Object.entries(paths).map(([key, path]) => [key, read(path)]))
 const pinned = pinProductMarketSource({ index: read('src/index.ts'), sourceStore: read('src/catalog/source-store.ts'), service: read('src/catalog/service.ts'), routes: sources.routes, settingsTab: sources.settingsTab, locales: sources.locales }, config.origin, sourceManifest)
 const auth = addMarketAuth({ index: pinned.index, routes: pinned.routes, http: allowMarketSourceSyntheticProxy(read('src/network/restricted-http.ts'), new URL(config.origin).hostname) }, config.origin)

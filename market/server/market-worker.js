@@ -3,7 +3,7 @@ import { filterRoster } from './services/plugin-access-service.js'
 import { catalogRoster } from './services/catalog-service.js'
 import { liveCatalog } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
-import { registryRoute } from './registry/routes.js'
+import { registryRoute } from './private-registry/routes.js'
 
 const publicHeaders = {
   'access-control-allow-origin': '*',

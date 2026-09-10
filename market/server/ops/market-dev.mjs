@@ -1,7 +1,7 @@
 /**
  * Isolated localhost QA environment. All data is fictional and held in memory.
  * Never reads deployment credentials, contacts TokensAPI/npm, or writes database files.
- * Usage: npm --prefix market run dev   |   npm --prefix market run dev:check
+ * Usage: npm --prefix market/server run dev   |   npm --prefix market/server run dev:check
  */
 import { createServer } from 'node:http'
 import { readFile, readdir } from 'node:fs/promises'
@@ -9,8 +9,8 @@ import { resolve, sep, extname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import assert from 'node:assert/strict'
 import worker from '../_worker.js'
-import { fingerprint } from '../server/security/key-fingerprint.js'
-import { sealKey } from '../server/security/key-vault.js'
+import { fingerprint } from '../security/key-fingerprint.js'
+import { sealKey } from '../security/key-vault.js'
 
 const root = resolve(import.meta.dirname, '..')
 const HOST = '127.0.0.1'

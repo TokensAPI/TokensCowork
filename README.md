@@ -20,13 +20,17 @@ docs/
   manual-release.md          手动构建与发布指南（新增插件、本地打包、发新版）
   plugin-guide.md            插件开发从 0 到 1 教程
   releases/                  各版本发布说明与模板
-market/                      插件市场 Cloudflare 服务（目录、权限、管理后台）
-registry/                    独立私有 npm Registry 服务（Verdaccio、账号、包存储）
+market/                      插件市场及其独立私有 npm Registry 服务
 download/                    静态下载页（GitHub Pages 自动部署）
 .github/workflows/           Build Desktop（Windows + macOS + Release）与下载页部署
 VERSION                      唯一可编辑的产品版本源
 product.json                 产品身份、固定提交与默认插件清单
 ```
+
+`market/` 内只划分两个运行时服务：`market/server/` 是插件市场管理服务，
+`market/registry/` 是私有 npm Registry 服务。两者通过 HTTPS API 和服务端密钥连接，
+不共享代码运行时、数据库或容器存储；`build/overlays/market/` 只是桌面端适配层，
+不属于任一服务。
 
 ## 初始化
 

@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 import worker from '../_worker.js'
-import { catalogMutation } from '../server/services/catalog-service.js'
-import { npmPackage, npmReference } from '../server/integrations/npm-registry.js'
-import { versionOK } from '../server/services/catalog-service.js'
-import { buildProductComponents } from '../../scripts/generate-market-catalog.mjs'
+import { catalogMutation } from '../services/catalog-service.js'
+import { npmPackage, npmReference } from '../integrations/npm-registry.js'
+import { versionOK } from '../services/catalog-service.js'
+import { buildProductComponents } from '../../../scripts/generate-market-catalog.mjs'
 
 const m={id:'new-tool',package:'@fixture/new-tool',displayName:'New tool',summary:'A safe fictional plugin',repository:'https://github.com/fixture/new-tool',version:'1.0.0',npm:true}
 const dir=new URL('../database/migrations/',import.meta.url)
@@ -22,7 +22,7 @@ function fixture(t) {
    return Response.json({latest:item?.version ?? '1.0.0'})
  })
  const wrap=(sql,v=[])=>({bind:(...args)=>wrap(sql,args),first:async()=>db.prepare(sql).get(...v),all:async()=>({results:db.prepare(sql).all(...v)}),run:async()=>db.prepare(sql).run(...v)})
- const components=buildProductComponents(JSON.parse(readFileSync(new URL('../../product.json',import.meta.url),'utf8')))
+ const components=buildProductComponents(JSON.parse(readFileSync(new URL('../../../product.json',import.meta.url),'utf8')))
  const env={MARKET_ADMIN_TOKEN:'fixture-admin',MARKET_HMAC_SECRET:'fixture-hmac',MARKET_KEY_ENCRYPTION_SECRET:'fixture-vault',MARKET_PACKAGES:{get:async()=>({body:'fixture'})},MARKET_DB:{prepare:wrap,batch:async statements=>{db.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());db.exec('COMMIT');return results}catch(e){db.exec('ROLLBACK');throw e}}},ASSETS:{fetch:async input=>String(input).endsWith('/product-components.json')?Response.json(components):new Response('No static catalog',{status:404})}}
  const call=(path,data,token='fixture-admin',origin='https://market.test')=>worker.fetch(new Request('https://market.test'+path,{method:data===undefined?'GET':'PUT',headers:{Origin:origin,...(token?{Authorization:'Bearer '+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})}),env)
  const entry=()=>db.prepare('SELECT * FROM market_catalog WHERE id=?').get(m.id)

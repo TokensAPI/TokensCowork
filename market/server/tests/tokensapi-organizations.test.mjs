@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {createTokensApiOrganizations} from '../server/integrations/tokensapi-organizations.js'
+import {createTokensApiOrganizations} from '../integrations/tokensapi-organizations.js'
 const env={MARKET_ORGANIZATIONS_BASE_URL:'https://tokensapi.ai',MARKET_ORGANIZATIONS_TOKEN:'fixture-management-token'}
 const response=data=>Response.json({success:true,message:'',data})
 

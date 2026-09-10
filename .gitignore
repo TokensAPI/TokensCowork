@@ -2,7 +2,6 @@
 .pnp.*
 .yarn/
 .wrangler/
-/market/v1/plugins
-market/product-components.json
+market/server/product-components.json
 /.market-dev.env
-/registry/.env
+/market/registry/.env

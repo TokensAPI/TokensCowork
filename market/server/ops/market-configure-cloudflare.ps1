@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $account = 'd91498139b9b628efa58b42bb2b3dad0'
 $project = 'tokenscowork-market'
-$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
 $credentialFile = Join-Path $root '.build/market-admin.credential.xml'
 $config = Get-Content "$env:APPDATA\xdg.config\.wrangler\config\default.toml" -Raw
 $oauth = [regex]::Match($config, '(?m)^oauth_token\s*=\s*"([^"]+)"').Groups[1].Value

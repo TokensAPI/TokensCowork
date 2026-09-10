@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
  * blocked-address 拒绝。同时上游豁免只认 IPv4：代理同时返回 IPv6 假地址
  * （fc00::/7）时仍会失败，故豁免主机名改为仅保留能通过校验的地址。
  * @param source - staging 副本中 restricted-http.ts 的完整内容。
- * @param hostname - 产品插件源主机名（来自 market/source.config.json）。
+ * @param hostname - 产品插件源主机名（来自 market/server/source.config.json）。
  * @returns 加入豁免后的模块内容。
  * @throws 主机名非法或上游锚点变化时抛出，中断打包待人工复查。
  */
@@ -70,8 +70,8 @@ export function allowMarketSourceSyntheticProxy(source, hostname) {
  * 产品源，无需手动登记；Host 同时拒绝删除产品源，避免绕过界面误删。
  * 上游标准源机制本身保持不变（校验、缓存、快照均走原逻辑）。
  * @param sources - staging 副本中市场各文件的内容。
- * @param origin - 产品目录源 origin（来自 market/source.config.json）。
- * @param manifest - 产品目录源 manifest 的完整 JSON 对象（market/source.json）。
+ * @param origin - 产品目录源 origin（来自 market/server/source.config.json）。
+ * @param manifest - 产品目录源 manifest 的完整 JSON 对象（market/server/source.json）。
  * @returns 改写后的各文件内容。
  * @throws 上游锚点变化时抛出，中断打包待人工复查。
  */

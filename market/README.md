@@ -31,31 +31,43 @@ npm 插件统一自动跟随稳定版 latest（包括历史标记为 pinned 的 
 
 ```text
 market/
-├── server/                         市场 Worker、HTTP 路由、业务服务和第三方适配
-│   ├── routes/                     管理 API 路由
-│   ├── services/                   目录、权限、组织和审计服务
+├── server/                         插件市场管理服务（Cloudflare Pages/Worker）
+│   ├── admin/                      管理后台静态页面和浏览器端模块
+│   ├── database/migrations/        递增编号的幂等 D1 迁移
 │   ├── integrations/               npm / TokensAPI 适配器
-│   ├── registry/                   市场到私有 Registry 的受控代理
+│   ├── private-registry/           访问私有 Registry 的 HTTP 代理适配器
+│   ├── routes/                     管理 API 路由
 │   ├── security/                   会话、限流、Key 加密与指纹
-│   └── http/                       请求解析和响应辅助
-├── admin/                          管理后台静态页面和浏览器端模块
-├── database/migrations/             递增编号的幂等 D1 迁移
-├── ops/                            本地 QA、Cloudflare 配置和凭证运维脚本
-└── tests/                          权限、生命周期、迁移和异常回归测试
+│   ├── services/                   目录、权限、组织和审计服务
+│   ├── ops/                        本地 QA、Cloudflare 配置和凭证运维脚本
+│   ├── tests/                      权限、生命周期、迁移和异常回归测试
+│   ├── _worker.js                  Pages Worker 入口
+│   ├── _headers                    Pages 静态资源安全头
+│   ├── package.json                市场服务自己的开发与验证命令
+│   └── source*.json                市场源配置和生成的 manifest
+├── registry/                        私有 npm Registry 服务（Verdaccio）
+│   ├── config.yaml                  Registry 配置
+│   ├── docker-compose.yml           Registry 容器编排
+│   └── README.md                     Registry 部署和运维说明
+└── README.md                        两个服务的边界与操作说明
 ```
 
-`market/` 和顶层 `registry/` 是两个独立运行时：市场服务只通过受控的 HTTP 代理
-访问 Registry，不读取 Verdaccio 的存储、账号文件或 Docker 配置；Registry 也不依赖
-市场数据库。替换服务器或切换域名时，只需分别更新对应服务的环境配置。
+`market/server/` 和 `market/registry/` 是两个独立运行时：市场服务只通过受控的 HTTP
+代理访问 Registry，不读取 Verdaccio 的存储、账号文件或 Docker 配置；Registry 也不
+依赖市场数据库。替换服务器或切换域名时，只需分别更新对应服务的环境配置。
 
-根目录的 `_worker.js`、`_headers`、`package.json`、`source.config.json` 和生成的
-`source.json` 属于 Cloudflare Pages 部署入口；`product-components.json` 是由
-`product.json` 构建生成的内置组件身份清单。历史版 `legacy/` 和空的 `v1/` 目录已移除，
-不再保留第二套管理页面或静态目录实现。
+`market/server/private-registry/` 只是市场 Worker 内部的 HTTP 代理适配器，不是第二个
+Registry 服务；真正的 npm Registry 运行单元只有 `market/registry/`。两个服务之间的
+唯一运行时依赖是受控的 HTTPS 请求。
+
+`market/server/` 是 Cloudflare Pages 的部署根目录，`market/registry/` 是 Docker
+Compose 的部署根目录；不会把 Registry 的配置、账号或容器文件复制到市场 Worker。
+`product-components.json` 在 `market/server/` 中由 `product.json` 构建生成。历史版
+`legacy/` 和空的 `v1/` 目录已移除，不再保留第二套管理页面或静态目录实现。
 
 管理数据只在登录后展示，会话保持 7 天。完整 Key 加密存储，仅授权管理端可读。密码错误有来源限流；同源校验防止跨站写入。插件编辑、上架及权限保存共享修订号；旧页面覆盖新更改时返回 409。操作记录与变更同事务保存，最新 50 条可见、服务端最多保留 1000 条，不记录 Key 明文。
 
-TokensAPI 接口及环境配置见 [TOKENSAPI.md](TOKENSAPI.md)。不同环境可能复用组织 ID，生产/测试应使用独立数据库；切换 URL 前须核对组织关系。
+TokensAPI 接口及环境配置见 [server/TOKENSAPI.md](server/TOKENSAPI.md)。不同环境可能复用组织 ID，生产/测试应使用独立数据库；切换 URL 前须核对组织关系。
 
 ## 开发与测试
 
@@ -66,10 +78,10 @@ npm 安装的 GitHub 仓库为选填，固定 Git commit 安装仍必须填写�
 简介默认使用包版本的 `description`；导入时另外读取 npm 当前 README 的开头介绍，作为纯文本候选展示，点击「采用这段简介」后才填入表单。当前 README 可能与历史包版本不同，须人工核对。README 请求失败或内容过大时仍允许使用包描述、手工填写，不影响导入；不会执行或渲染 README 中的脚本/HTML。
 
 ```powershell
-npm --prefix market run build
-npm --prefix market run verify
-npm --prefix market run dev:check
-npm --prefix market run dev
+npm --prefix market/server run build
+npm --prefix market/server run verify
+npm --prefix market/server run dev:check
+npm --prefix market/server run dev
 ```
 
 本地演示仅监听 `127.0.0.1:8788`，使用虚构组织和内存数据库，重启重置；外网阻断，不读取生产部署配置。可在仓库根目录 `.market-dev.env` 设置 `MARKET_DEV_ADMIN_TOKEN`（已被 Git 忽略，不在网页目录内），或使用同名环境变量；未配置时使用演示凭证 `market-test`。自定义凭证不会打印到日志。不要输入真实 Key。

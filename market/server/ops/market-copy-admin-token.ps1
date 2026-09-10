@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$path = Join-Path $PSScriptRoot '../../.build/market-admin.credential.xml'
+$path = Join-Path $PSScriptRoot '../../../.build/market-admin.credential.xml'
 if (-not (Test-Path -LiteralPath $path)) { throw 'No local encrypted administrator credential found' }
 $credential = Import-Clixml -LiteralPath $path
 Set-Clipboard -Value $credential.GetNetworkCredential().Password

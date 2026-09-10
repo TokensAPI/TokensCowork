@@ -1,5 +1,5 @@
 import { organizationProviderReady, organizationListReady } from './organization-service.js'
-import { registryConfig } from '../registry/config.mjs'
+import { registryConfig } from '../private-registry/config.mjs'
 
 export function organizationEnvironment(env) {
   const origin = env.MARKET_ORGANIZATIONS_BASE_URL

@@ -1,7 +1,7 @@
 import { idOK, text } from '../http/request.js'
 import { auditStatements } from './admin-audit-service.js'
 import { latestVersion } from '../integrations/npm-registry.js'
-import { createRegistryClient } from '../registry/client.mjs'
+import { createRegistryClient } from '../private-registry/client.mjs'
 
 export const publisher = {
   name: 'TokensAPI',

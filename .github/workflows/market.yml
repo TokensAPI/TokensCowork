@@ -43,7 +43,7 @@ jobs:
         run: node scripts/generate-market-catalog.mjs
 
       - name: Test market authorization
-        run: npm --prefix market run verify
+        run: npm --prefix market/server run verify
 
       # 直接 npx 调用 wrangler:仓库根 package.json 声明 yarn@4 的
       # packageManager,wrangler-action 的 yarn 安装路径会被 corepack
@@ -53,10 +53,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          for migration in market/database/migrations/*.sql; do
+          for migration in market/server/database/migrations/*.sql; do
             npx --yes wrangler@4 d1 execute tokenscowork-market-access --remote --file "$migration"
           done
-          npx --yes wrangler@4 pages deploy market --project-name tokenscowork-market --branch master
+          npx --yes wrangler@4 pages deploy market/server --project-name tokenscowork-market --branch master
 
       - name: Verify deployment
         run: |

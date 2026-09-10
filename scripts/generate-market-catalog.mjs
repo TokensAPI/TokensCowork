@@ -107,9 +107,9 @@ export function buildProductComponents(product) {
 }
 if (process.argv[1] === import.meta.filename) {
   const root = resolve(import.meta.dirname, '..')
-  const config = JSON.parse(readFileSync(resolve(root, 'market', 'source.config.json'), 'utf8'))
+  const config = JSON.parse(readFileSync(resolve(root, 'market', 'server', 'source.config.json'), 'utf8'))
   const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
-  writeFileSync(resolve(root,'market','source.json'),JSON.stringify(buildSourceManifest(config.origin),null,2)+'\n')
-  writeFileSync(resolve(root,'market','product-components.json'),JSON.stringify(buildProductComponents(product),null,2)+'\n')
+  writeFileSync(resolve(root,'market','server','source.json'),JSON.stringify(buildSourceManifest(config.origin),null,2)+'\n')
+  writeFileSync(resolve(root,'market','server','product-components.json'),JSON.stringify(buildProductComponents(product),null,2)+'\n')
   process.stdout.write('Generated market manifest and product component identities; no plugin snapshot.\n')
 }

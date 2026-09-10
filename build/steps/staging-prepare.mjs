@@ -269,7 +269,7 @@ let windowsAclRunner = readFileSync(windowsAclRunnerPath, 'utf8')
 let windowsPwshSandbox = readFileSync(windowsPwshSandboxPath, 'utf8')
 
 /* -------------------------- 配置插件市场 --------------------------- */
-// 产品插件源部署在 market/source.config.json 声明的 origin；为其加入
+// 产品插件源部署在 market/server/source.config.json 声明的 origin；为其加入
 // 市场受限 HTTP 客户端的 fake-IP 代理豁免，保证国内代理环境可添加。
 const marketSourceConfig = JSON.parse(readFileSync(resolve(root, 'market', 'source.config.json'), 'utf8'))
 const marketHttpPath = resolve(stage, 'dsh-community-market', 'src', 'network', 'restricted-http.ts')

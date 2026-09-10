@@ -1,12 +1,12 @@
 import { resetTestCatalog, seedTestPlugin } from './catalog-fixture.mjs'
-import { buildProductComponents } from '../../scripts/generate-market-catalog.mjs'
+import { buildProductComponents } from '../../../scripts/generate-market-catalog.mjs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 import worker from '../_worker.js'
-import { fingerprint } from '../server/security/key-fingerprint.js'
-import { createTokensApiOrganizations } from '../server/integrations/tokensapi-organizations.js'
+import { fingerprint } from '../security/key-fingerprint.js'
+import { createTokensApiOrganizations } from '../integrations/tokensapi-organizations.js'
 
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
 test('HTTP adapter integrates with admin sync, organization policies and private downloads',async t=>{
@@ -167,7 +167,7 @@ test('built-in classification cannot be bypassed by editing request metadata',as
   assert.equal(db.prepare('SELECT count(*) AS n FROM market_plugins').get().n,0)
 })
 test('product component identities are derived directly from product.json',()=>{
-  const product=JSON.parse(readFileSync(new URL('../../product.json',import.meta.url),'utf8'))
+  const product=JSON.parse(readFileSync(new URL('../../../product.json',import.meta.url),'utf8'))
   assert.deepEqual(buildProductComponents(product).items.map(p=>p.id).sort(),product.plugins.filter(p=>p.enabledByDefault&&p.patch).map(p=>p.id).sort())
 })
 

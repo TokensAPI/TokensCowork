@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { liveCatalog, resolveNpmVersions } from '../server/services/npm-version-service.js'
+import { liveCatalog, resolveNpmVersions } from '../services/npm-version-service.js'
 
 const item={id:'fixture',package:'@fixture/tool',version:'1.0.0',state:'published',npm:true,versionMode:'pinned',summary:'Keep this'}
 test('legacy npm pinned records also follow stable latest without mutating metadata',async t=>{

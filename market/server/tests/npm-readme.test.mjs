@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readmeSummary } from '../server/integrations/npm-readme.js'
-import { npmPackage } from '../server/integrations/npm-registry.js'
+import { readmeSummary } from '../integrations/npm-readme.js'
+import { npmPackage } from '../integrations/npm-registry.js'
 
 const intro='基于银行流水生成基础资产负债表和利润表的 TokensCowork 本地插件。'
 test('README introduction is offered separately from package description', async t => {
