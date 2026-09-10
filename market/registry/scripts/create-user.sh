@@ -28,6 +28,6 @@ entry=$(printf '%s\n' "$password" | docker run --rm -i httpd:2.4-alpine htpasswd
 
 # Verdaccio runs as uid 10001 / gid 65533; a root-owned 600 file gives EACCES
 # and hangs every login, so the file has to be chowned after rewriting it.
-printf '%s\n' "$entry" | docker run --rm -i -v tokenscowork-registry-storage:/verdaccio/storage alpine:3.20 sh -c 'umask 077; touch /verdaccio/storage/htpasswd; grep -v "^$1:" /verdaccio/storage/htpasswd > /tmp/htpasswd.new || true; cat >> /tmp/htpasswd.new; mv /tmp/htpasswd.new /verdaccio/storage/htpasswd; chown 10001:65533 /verdaccio/storage/htpasswd; chmod 600 /verdaccio/storage/htpasswd' sh "$username"
+printf '%s\n' "$entry" | docker run --rm -i -v tokenscowork-registry-storage:/verdaccio/storage alpine:3.20 sh -c 'umask 077; touch /verdaccio/storage/htpasswd; grep -v "^$1:" /verdaccio/storage/htpasswd | grep -v "^[[:space:]]*$" > /tmp/htpasswd.new || true; cat >> /tmp/htpasswd.new; mv /tmp/htpasswd.new /verdaccio/storage/htpasswd; chown 10001:65533 /verdaccio/storage/htpasswd; chmod 600 /verdaccio/storage/htpasswd' sh "$username"
 docker restart tokenscowork-registry >/dev/null
 echo "created $username"
