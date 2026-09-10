@@ -9,7 +9,7 @@ import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from
 import { adminOperations } from '../services/admin-operations-service.js'
 import { auditStatements } from '../services/admin-audit-service.js'
 import { accessPreview } from '../services/access-preview-service.js'
-import { catalogRoster, catalogMutation, catalogEntry, revisionStatement, privateRegistryPublicConflict, PUBLIC_PRIVATE_REGISTRY_ERROR } from '../services/catalog-service.js'
+import { catalogRoster, catalogMutation, catalogEntry, revisionStatement } from '../services/catalog-service.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 function loginLimited(wait) {
@@ -191,11 +191,6 @@ export async function accessRoute(request, env) {
         data.visibility = fingerprints.length ? 'restricted' : 'public'
       }
       if (!['public', 'restricted'].includes(data.visibility)) return reply({ error: '访问范围无效' }, 400)
-      // Upholding the same rule as publication: a package the Registry will not
-      // serve anonymously cannot be made public after the fact, or the entry ends
-      // up published yet listed to nobody, with the backend still showing 公开.
-      if (await privateRegistryPublicConflict(env, JSON.parse(entry.metadata), data.visibility))
-        return reply({ error: PUBLIC_PRIVATE_REGISTRY_ERROR }, 409)
       if (data.objectKey != null && (typeof data.objectKey !== 'string' || data.objectKey !== data.objectKey.trim() || !/^[a-zA-Z0-9/_.-]{1,240}$/u.test(data.objectKey))) return reply({ error: '安装包对象名无效' }, 400)
       // ACL writes never validate or rewrite client-provided plugin metadata.
       // Missing objectKey means unchanged; explicit null clears it for legacy clients.

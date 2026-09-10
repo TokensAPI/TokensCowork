@@ -17,12 +17,12 @@ async function privatePackage(request, env, id, name) {
   let metadata
   try { metadata = JSON.parse(row.metadata) } catch { return undefined }
   if (metadata.registry !== 'tokenscowork' || metadata.npm !== true || metadata.package !== name) return undefined
-  // A published public entry is proxied anonymously, so the Registry itself decides
-  // whether the package may be read; a restricted one still needs a market grant and
-  // is fetched with the service account.
-  const anonymous = row.visibility === 'public'
-  if (!anonymous && !await allowed(request, env, id)) return undefined
-  return { id, name, metadata, anonymous }
+  // Visibility is decided in the admin backend, nowhere else: a public entry is
+  // served to everyone and a restricted one needs a market grant. The Registry is
+  // storage — the proxy always fetches with the service account, so which scope
+  // hosts the package never affects who can install the plugin.
+  if (row.visibility !== 'public' && !await allowed(request, env, id)) return undefined
+  return { id, name, metadata }
 }
 
 function tarballUrl(requestUrl, id, name, version) {
@@ -32,7 +32,7 @@ function tarballUrl(requestUrl, id, name, version) {
 async function metadataResponse(request, env, id, name) {
   const item = await privatePackage(request, env, id, name)
   if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
-  const client = createRegistryClient(env, undefined, { anonymous: item.anonymous })
+  const client = createRegistryClient(env)
   if (!client.status().ready) return reply({ error: '私有 Registry 未配置' }, 503)
   const result = await client.metadata(name)
   if (!result.ok) return reply({ error: result.reason === 'not-found' ? '私有 Registry 未找到此包' : '私有 Registry 暂时不可用' }, result.reason === 'not-found' ? 404 : 503)
@@ -54,7 +54,7 @@ async function tarballResponse(request, env, id, name, version) {
   if (!versionOK(version)) return reply({ error: '版本无效' }, 400)
   const item = await privatePackage(request, env, id, name)
   if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
-  const client = createRegistryClient(env, undefined, { anonymous: item.anonymous })
+  const client = createRegistryClient(env)
   if (!client.status().ready) return reply({ error: '私有 Registry 未配置' }, 503)
   const result = await client.resolve(name, version)
   if (!result.ok) return reply({ error: result.reason === 'version-not-found' ? '私有 Registry 未找到此版本' : '私有 Registry 暂时不可用' }, result.reason === 'version-not-found' ? 404 : 503)

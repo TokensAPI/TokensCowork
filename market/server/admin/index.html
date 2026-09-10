@@ -504,7 +504,7 @@
             >npm 来源<select id="catalog-registry">
               <option value="npm">公开 npm Registry</option>
               <option value="tokenscowork">TokensCowork 自建 Registry（需服务器配置）</option>
-            </select><small>未配置自建 Registry 时，该来源不能上架；公开 npm 插件流程不受影响。自建 Registry 同时放公开包和私有包：公开上架要求该包在 Registry 里允许匿名读取，私有作用域的包必须配组织或 API Key 权限。</small></label
+            </select><small>未配置自建 Registry 时，该来源不能上架；公开 npm 插件流程不受影响。自建 Registry 同时放公开插件和受限插件，谁能看到和下载只由这里的访问范围决定：公开对所有人开放，受限只对配置的组织或 API Key 开放。</small></label
           >
           <label id="catalog-commit-label" hidden
             >Git commit<input

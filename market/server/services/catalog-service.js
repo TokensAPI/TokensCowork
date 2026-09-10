@@ -59,20 +59,6 @@ export async function catalogLatestVersion(env, item) {
   return await latestVersion(item.package, '')
 }
 
-// The Registry serves public and private packages side by side, so the source a
-// plugin is fetched from says nothing about who may read it. Only the Registry's
-// own `access` rule does, and an anonymous request is how it answers: a package
-// that an anonymous client cannot read must not be published as public, or the
-// entry would be listed to nobody and install for nobody.
-export const PUBLIC_PRIVATE_REGISTRY_ERROR =
-  '这个包在 Registry 里不允许匿名读取，公开上架会导致谁都装不上；请先配置组织或 API Key 权限'
-export async function publiclyReadable(env, name) {
-  return (await createRegistryClient(env, undefined, { anonymous: true }).metadata(name)).ok
-}
-export async function privateRegistryPublicConflict(env, item, visibility) {
-  if (item?.registry !== 'tokenscowork' || visibility !== 'public') return false
-  return !await publiclyReadable(env, item.package)
-}
 export async function productComponents(request, env) {
   const response = await env.ASSETS.fetch(
     new URL('/product-components.json', request.url).toString(),
@@ -247,8 +233,6 @@ export async function catalogMutation(request, env, data) {
       if (!validReference) throw invalid('检查记录链接须为有效的 HTTPS 地址，也可留空')
     }
     metadata(m)
-    if (await privateRegistryPublicConflict(env, m, entry.visibility))
-      throw invalid(PUBLIC_PRIVATE_REGISTRY_ERROR, 409)
     if (entry.visibility === 'public' && data.confirmPublic !== true)
       throw invalid('此插件未限制访问范围，请明确确认公开上架', 409)
     reference = suppliedReference

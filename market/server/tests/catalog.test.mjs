@@ -266,10 +266,11 @@ test('purge rolls back when audit fails or another operation wins the revision r
  assert.ok(f.db.prepare('SELECT * FROM market_plugins WHERE id=?').get(m.id))
 })
 
-test('a self-hosted package readable anonymously publishes as public; the private-scope one is refused',async t=>{
+test('self-hosted packages publish as public no matter how the Registry itself gates reads',async t=>{
  const f=fixture(t)
  Object.assign(f.env,{MARKET_PRIVATE_REGISTRY_ENABLED:'true',MARKET_PRIVATE_REGISTRY_URL:'https://registry.example.test/',MARKET_PRIVATE_REGISTRY_TOKEN:'market:s3cret',MARKET_PRIVATE_REGISTRY_AUTH_SCHEME:'basic'})
- // Only the private scope refuses anonymous readers; the source itself says nothing.
+ // The private scope only answers credentialed reads — and the market always is one,
+ // so the backend's visibility switch is the only thing deciding who sees the entry.
  t.mock.method(globalThis,'fetch',async(url,options)=>{
   const name=decodeURIComponent(new URL(url).pathname.slice(1))
   if(name.startsWith('@fixture-private/')&&!('Authorization' in options.headers))return new Response('unauthorized',{status:401})
@@ -281,6 +282,6 @@ test('a self-hosted package readable anonymously publishes as public; the privat
  const hidden={...m,id:'hidden-tool',package:'@fixture-private/new-tool',registry:'tokenscowork'}
  const revision=()=>f.db.prepare('SELECT revision FROM market_catalog WHERE id=?').get(hidden.id).revision
  assert.equal((await f.call('/api/admin/catalog',{operation:'create',id:hidden.id,metadata:hidden})).status,200)
- assert.equal((await f.call('/api/admin/catalog',{operation:'publish',id:hidden.id,revision:revision(),confirmPublic:true})).status,409)
- assert.equal(f.db.prepare('SELECT state FROM market_catalog WHERE id=?').get(hidden.id).state,'draft')
+ assert.equal((await f.call('/api/admin/catalog',{operation:'publish',id:hidden.id,revision:revision(),confirmPublic:true})).status,200)
+ assert.equal(f.db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(hidden.id).visibility,'public')
 })
