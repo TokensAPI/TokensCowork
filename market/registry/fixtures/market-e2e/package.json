@@ -1,0 +1,13 @@
+{
+  "name": "@tokensapi-private/market-e2e",
+  "version": "0.0.1",
+  "description": "Acceptance fixture for the private registry chain. Not a plugin.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js"],
+  "publishConfig": {
+    "registry": "https://npm.tokensapi.ai/",
+    "access": "restricted"
+  }
+}
