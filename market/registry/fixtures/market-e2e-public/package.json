@@ -1,0 +1,12 @@
+{
+  "name": "@tokensapi/market-e2e-public",
+  "version": "0.0.1",
+  "description": "Acceptance fixture for a public package served by the self-hosted registry. Not a plugin.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js"],
+  "publishConfig": {
+    "access": "public"
+  }
+}
