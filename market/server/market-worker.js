@@ -5,6 +5,12 @@ import { liveCatalog } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
 import { registryRoute } from './registry/routes.js'
 
+const publicHeaders = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, OPTIONS',
+  'access-control-allow-headers': 'Authorization, Content-Type',
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -14,10 +20,11 @@ export default {
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
     ) {
+      if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: publicHeaders })
       if (request.method !== 'GET')
-        return reply({ error: 'method not allowed' }, 405)
+        return reply({ error: 'method not allowed' }, 405, publicHeaders)
       if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET)
-        return reply({ error: '市场数据库未配置' }, 503)
+        return reply({ error: '市场数据库未配置' }, 503, publicHeaders)
       try {
         const roster = await filterRoster(
           request,
@@ -29,7 +36,7 @@ export default {
           return reply({
             publisher: roster.publisher,
             items: roster.items.map(publicMetadata),
-          })
+          }, 200, publicHeaders)
         const items = await Promise.all(
           roster.items.map(async (item) => {
             return {
@@ -50,9 +57,9 @@ export default {
             }
           }),
         )
-        return reply({ schemaVersion: '1.0.0', items, page: {} })
+        return reply({ schemaVersion: '1.0.0', items, page: {} }, 200, publicHeaders)
       } catch {
-        return reply({ error: '授权目录暂时不可用' }, 503)
+        return reply({ error: '授权目录暂时不可用' }, 503, publicHeaders)
       }
     }
     // No static plugin snapshot: outages must never resurrect unpublished entries.
@@ -70,7 +77,13 @@ export default {
       '/admin/assets/market-catalog-editor.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
-    return env.ASSETS.fetch(request)
+    if (url.pathname === '/source.json' && request.method === 'OPTIONS')
+      return new Response(null, { status: 204, headers: publicHeaders })
+    const response = await env.ASSETS.fetch(request)
+    if (url.pathname !== '/source.json') return response
+    const headers = new Headers(response.headers)
+    for (const [key, value] of Object.entries(publicHeaders)) headers.set(key, value)
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   },
 }
 function publicMetadata(item) {
