@@ -234,7 +234,7 @@ function fixture(t) {
     MARKET_DB: { prepare: wrap, batch: async statements => { db.exec('BEGIN'); try { const r = []; for (const s of statements) r.push(await s.run()); db.exec('COMMIT'); return r } catch (e) { db.exec('ROLLBACK'); throw e } } },
     MARKET_PACKAGES: { get: async () => ({ body: 'private package' }) },
     ASSETS: { fetch: async () => Response.json({ publisher: { name: 'Example' }, items: [metadata] }) } }
-  const call = (path, key, data) => worker.fetch(new Request('https://market.example'+path, { method: data ? 'PUT' : 'GET', headers: key ? { Authorization: `Bearer ${key}` } : {}, ...(data ? { body: JSON.stringify(data) } : {}) }), env, {})
+  const call = (path, key, data, headers = {}) => worker.fetch(new Request('https://market.example'+path, { method: data ? 'PUT' : 'GET', headers: { ...(key ? { Authorization: `Bearer ${key}` } : {}), ...headers }, ...(data ? { body: JSON.stringify(data) } : {}) }), env, {})
   const restrict = () => call('/api/admin/plugins', 'admin-secret', { id: metadata.id, metadata, visibility: 'restricted', objectKey: 'private/tool.tgz' })
   const grant = (enabled = true, expiresAt = null) => call('/api/admin/keys', 'admin-secret', { apiKey: 'sk-customer-a', label: '企业 A', enabled, expiresAt, plugins: [metadata.id] })
   return { db, env, call, restrict, grant }
@@ -416,7 +416,13 @@ test('a public self-hosted plugin is served to everyone; restricting it closes t
       : selfHostedMetadata(selfHosted.package, 'https://registry.example.test/self-hosted-1.0.0.tgz')
   })
   const path = '/registry/self-hosted-tool/' + selfHosted.package
-  assert.ok((await (await call('/v1/plugins')).json()).items.some(item => item.id === selfHosted.id))
+  const capability = { 'X-Dsh-Catalog-Registries': 'npm tokenscowork' }
+  assert.ok((await (await call('/v1/plugins', undefined, undefined, capability)).json()).items.some(item => item.id === selfHosted.id))
+  // Clients that do not declare self-hosted support (desktop builds before
+  // 0.4.11 whose schema rejects any non-npm registry) keep the old payload.
+  const legacy = (await (await call('/v1/plugins')).json()).items
+  assert.equal(legacy.some(item => item.id === selfHosted.id), false)
+  assert.ok(legacy.every(item => item.package === undefined || item.package.registry === 'npm'))
   credentials.length = 0
   assert.equal((await call(path)).status, 200)
   assert.deepEqual(credentials, [serviceBasic])
@@ -426,7 +432,7 @@ test('a public self-hosted plugin is served to everyone; restricting it closes t
 
   db.prepare('UPDATE market_plugins SET visibility=? WHERE id=?').run('restricted', selfHosted.id)
   assert.equal((await call(path)).status, 403)
-  assert.equal((await (await call('/v1/plugins')).json()).items.some(item => item.id === selfHosted.id), false)
+  assert.equal((await (await call('/v1/plugins', undefined, undefined, capability)).json()).items.some(item => item.id === selfHosted.id), false)
   const fp = await fingerprint('sk-self-hosted', env.MARKET_HMAC_SECRET)
   db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').run(fp, '企业 B')
   db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').run(fp, selfHosted.id)
@@ -448,7 +454,7 @@ test('a package the Registry gates behind login still distributes once the backe
   assert.equal((await call('/api/admin/catalog', 'admin-secret', { operation: 'create', id: hidden.id, metadata: hidden })).status, 200)
   assert.equal((await call('/api/admin/catalog', 'admin-secret', { operation: 'publish', id: hidden.id, revision: revision(), confirmPublic: true })).status, 200)
   const path = '/registry/hidden-tool/' + hidden.package
-  assert.ok((await (await call('/v1/plugins')).json()).items.some(item => item.id === hidden.id))
+  assert.ok((await (await call('/v1/plugins', undefined, undefined, { 'X-Dsh-Catalog-Registries': 'npm tokenscowork' })).json()).items.some(item => item.id === hidden.id))
   assert.equal((await call(path)).status, 200)
   assert.equal((await call(path + '/1.0.0/tarball')).status, 200)
   // Granting a key flips the entry to restricted; clearing every grant reopens it.

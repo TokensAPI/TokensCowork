@@ -8,7 +8,8 @@ import { registryRoute } from './private-registry/routes.js'
 const publicHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, OPTIONS',
-  'access-control-allow-headers': 'Authorization, Content-Type',
+  'access-control-allow-headers': 'Authorization, Content-Type, X-Dsh-Catalog-Registries',
+  vary: 'Authorization, X-Dsh-Catalog-Registries',
 }
 
 export default {
@@ -31,6 +32,15 @@ export default {
           env,
           await catalogRoster(env),
         )
+        // Desktop builds before 0.4.11 validate listings against a schema whose
+        // package registry is exactly "npm", and a single self-hosted entry fails
+        // the whole page — the market would go blank on those installs. Entries
+        // from the self-hosted Registry are therefore only listed to clients that
+        // declare support for them; every other client keeps receiving exactly
+        // the payload shape it always received.
+        const declared = (request.headers.get('x-dsh-catalog-registries') ?? '').toLowerCase().split(/[\s,]+/u)
+        if (!declared.includes('tokenscowork'))
+          roster.items = roster.items.filter(item => item.registry !== 'tokenscowork')
         roster.items = await liveCatalog(roster.items, env)
         if (url.pathname === '/roster.json')
           return reply({
