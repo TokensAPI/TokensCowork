@@ -37,5 +37,12 @@ Verdaccio 的存储使用 Docker named volume 持久化。首次创建发布账�
 访问权。Web UI 只是 Verdaccio 的包仓库门户，不是插件市场后台；市场服务和桌面端
 不依赖它。
 
-需要增加账号时，运维应在维护窗口临时放开注册、创建账号后立即恢复 `-1` 并重启
-服务；生产环境不要长期保留开放注册。
+需要增加账号时，不要修改 `max_users`。运维直接执行：
+
+```bash
+chmod +x scripts/create-user.sh
+./scripts/create-user.sh publisher-name
+```
+
+脚本在临时容器中生成 bcrypt 哈希并写入持久化的 `htpasswd`，然后重启 Registry。
+密码不会写入仓库，也不会出现在命令行参数中；注册开关始终保持关闭。
