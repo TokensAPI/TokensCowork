@@ -1,11 +1,11 @@
-# TokensCowork private npm Registry.
+# TokensCowork npm Registry.
 # Nginx should proxy to http://127.0.0.1:4873.
 storage: /verdaccio/storage
 plugins: /verdaccio/plugins
 
 web:
   enable: true
-  title: TokensCowork Private npm Registry
+  title: TokensCowork npm Registry
   gravatar: false
   # The public UI/API base is supplied by VERDACCIO_PUBLIC_URL in Compose.
   # Keep this file portable so the registry can move between hosts.
@@ -18,16 +18,60 @@ auth:
     algorithm: bcrypt
     rounds: 10
 
-# Private-only registry. No public npm proxy and no anonymous reads.
+# The Web UI signs in with a JWT. Without an explicit security.api.jwt block
+# Verdaccio falls back to legacy AES tokens for API auth, rejects that JWT and
+# treats the request as anonymous, so $authenticated packages stay invisible in
+# the UI. Keep this block whenever any package requires authentication.
+security:
+  api:
+    jwt:
+      sign:
+        expiresIn: 60d
+  web:
+    sign:
+      expiresIn: 7d
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    cache: true
+    timeout: 30s
+    maxage: 2m
+
+# Publishing always requires an ops-provisioned account. Read access is split:
+# the private scope needs a login, everything else is public.
 packages:
+  # Private plugins. Never proxied, so a name here can never resolve to npmjs.
+  '@tokensapi-private/*':
+    access: $authenticated
+    publish: $authenticated
+    unpublish: $authenticated
+
+  # Own packages, migrated off npmjs. No proxy: the local copy is the source of
+  # truth and must not be merged with npmjs metadata of the same name.
   '@tokensapi/*':
-    access: $authenticated
+    access: $all
     publish: $authenticated
     unpublish: $authenticated
+  '@tokens/*':
+    access: $all
+    publish: $authenticated
+    unpublish: $authenticated
+  'dsh-tokensapi-ui':
+    access: $all
+    publish: $authenticated
+    unpublish: $authenticated
+  'tokens-dsh-web-search':
+    access: $all
+    publish: $authenticated
+    unpublish: $authenticated
+
+  # Everything else: readable by anyone, fetched from npmjs and cached.
   '**':
-    access: $authenticated
+    access: $all
     publish: $authenticated
     unpublish: $authenticated
+    proxy: npmjs
 
 server:
   keepAliveTimeout: 60

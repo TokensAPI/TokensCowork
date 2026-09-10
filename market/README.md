@@ -45,7 +45,7 @@ market/
 │   ├── _headers                    Pages 静态资源安全头
 │   ├── package.json                市场服务自己的开发与验证命令
 │   └── source*.json                市场源配置和生成的 manifest
-├── registry/                        私有 npm Registry 服务（Verdaccio）
+├── registry/                        npm Registry 服务（Verdaccio，公开 + 私有）
 │   ├── config.yaml                  Registry 配置
 │   ├── docker-compose.yml           Registry 容器编排
 │   └── README.md                     Registry 部署和运维说明
