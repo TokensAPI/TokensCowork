@@ -342,6 +342,7 @@ for (const [key, path] of Object.entries(marketUpdatePaths)) writeFileSync(path,
 // 上游固定 registry；私有来源经由产品市场的授权代理，Registry Secret
 // 永远只存在 Worker 环境变量中。
 const marketPrivateRegistry = addPrivateRegistrySupport({
+  http: readFileSync(marketHttpPath, 'utf8'),
   index: readFileSync(marketIndexPath, 'utf8'),
   service: readFileSync(marketUpdatePaths.service, 'utf8'),
   routes: readFileSync(marketUpdatePaths.routes, 'utf8'),
@@ -352,6 +353,7 @@ const marketPrivateRegistry = addPrivateRegistrySupport({
   providerTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-provider-page.ts'), 'utf8'),
   snapshotTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-snapshot.ts'), 'utf8'),
 }, marketSourceConfig.origin)
+writeFileSync(marketHttpPath, marketPrivateRegistry.http)
 writeFileSync(marketIndexPath, marketPrivateRegistry.index)
 writeFileSync(marketUpdatePaths.service, marketPrivateRegistry.service)
 writeFileSync(marketUpdatePaths.routes, marketPrivateRegistry.routes)

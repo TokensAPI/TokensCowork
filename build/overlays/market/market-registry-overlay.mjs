@@ -13,6 +13,17 @@ export function addPrivateRegistrySupport(files, origin) {
   if (market.protocol !== 'https:' || market.username || market.password || market.search || market.hash) {
     throw new Error('prepare-desktop: private Registry market origin must be credential-free HTTPS')
   }
+  // Declare the widened schema to the market: listings only include self-hosted
+  // entries for clients that send this header, so desktop builds whose schema
+  // still rejects non-npm registries keep receiving the payload they can parse.
+  const newline = String.fromCharCode(10)
+  const userAgentLine = "        'user-agent': 'dsh-community-market/0.1',"
+  const http = replaceOnce(
+    files.http,
+    [userAgentLine, '      },'].join(newline),
+    [userAgentLine, "        'x-dsh-catalog-registries': 'npm tokenscowork',", '      },'].join(newline),
+    'catalog registries capability header',
+  )
   let providerSchema = widenRegistrySchema(files.providerSchema)
   let snapshotSchema = widenRegistrySchema(files.snapshotSchema)
   let providerTypes = replaceOnce(files.providerTypes, "registry: 'npm'", "registry: 'npm' | 'tokenscowork'", 'provider package type')
@@ -126,5 +137,5 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
   index = replaceOnce(index, "  const scope = registerMarketSettings(ctx)", `  const scope = registerMarketSettings(ctx)\n  const readMarketKey = async (): Promise<string> => {\n    const credentials = ctx.reflect?.get?.('credentials') as { resolve?: (ref: string) => Promise<{ value?: unknown }> } | undefined\n    if (!credentials?.resolve) return ''\n    const result = await credentials.resolve('TOKENSAPI_API_KEY')\n    const key = typeof result?.value === 'string' ? result.value.trim() : ''\n    return /^sk-\\\\S{1,509}$/u.test(key) ? key : ''\n  }\n  setProductMarketRegistryKeyReader(readMarketKey)`, 'market registry credential reader')
   index = replaceOnce(index, "createMarketPackageVerifier(npmRegistryHttp),", `createMarketPackageVerifier(npmRegistryHttp, { privateRegistryOrigin: productMarketRegistryOrigin }),`, 'market verifier registry origin')
   index = replaceOnce(index, "          logFailure: message => ctx.logger.error(message),", `          logFailure: message => ctx.logger.error(message),\n          registryOrigin: productMarketRegistryOrigin,\n          registryToken: readMarketKey,`, 'market install registry options')
-  return { ...files, index, service, routes, identity, types, providerSchema, snapshotSchema, providerTypes, snapshotTypes }
+  return { ...files, http, index, service, routes, identity, types, providerSchema, snapshotSchema, providerTypes, snapshotTypes }
 }
