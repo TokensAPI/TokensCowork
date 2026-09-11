@@ -1,0 +1,4 @@
+.env
+/market-d1-export.sql
+*.tgz
+node_modules

@@ -3,7 +3,7 @@
  *
  * Every desktop build shipped before 0.4.12 has this origin baked in, so the
  * entry must stay alive forever. After the backend moved to the self-hosted
- * unit (market/host), this worker forwards everything there — one source of
+ * unit (market/server), this worker forwards everything there — one source of
  * truth, no split-brain — with a single exception: /source.json must keep the
  * pages.dev endpoint, because the desktop trust root requires the manifest and
  * its transport endpoint to share an origin. The copy served here is the last

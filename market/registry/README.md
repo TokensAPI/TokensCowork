@@ -72,7 +72,7 @@ cp .env.example .env
 在服务器拉取仓库后执行：
 
 ```bash
-cd tokens_TokensHarness_code/market/registry
+cd TokensCowork/market/registry
 docker compose pull
 docker compose up -d
 curl -fsS http://127.0.0.1:4873/-/ping

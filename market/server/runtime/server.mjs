@@ -8,10 +8,10 @@
 import { createServer } from 'node:http'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import worker from '../server/_worker.js'
+import worker from '../_worker.js'
 import { createAssets, createD1Database, createPackagesStore } from './adapters.mjs'
 
-const serverRoot = resolve(import.meta.dirname, '../server')
+const serverRoot = resolve(import.meta.dirname, '..')
 const dataDir = process.env.MARKET_HOST_DATA_DIR || '/data'
 const port = Number(process.env.MARKET_HOST_PORT || 8080)
 const publicOrigin = new URL(process.env.MARKET_HOST_PUBLIC_ORIGIN ?? (() => {

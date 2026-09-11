@@ -2,8 +2,8 @@ name: tokenscowork-market-host
 services:
   market:
     build:
-      context: ..
-      dockerfile: host/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     container_name: tokenscowork-market-host
     restart: unless-stopped
     env_file: .env

@@ -8,7 +8,7 @@ Docker 部署单元。它与 `market/registry/`（Verdaccio）是**两个平级�
 | 单元 | 域名 | 本机端口 |
 | --- | --- | --- |
 | market/registry | npm.tokensapi.ai | 127.0.0.1:4873 |
-| market/host | npm.tokensapi.ai（按路径分流） | 127.0.0.1:4880 |
+| market/server | npm.tokensapi.ai（按路径分流） | 127.0.0.1:4880 |
 
 两个服务共用一个域名：Nginx 只把市场自己的少数路径送到 4880，其余（包元数据、
 tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：已发布包的元数据
@@ -17,15 +17,15 @@ tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：
 并重新烘焙桌面版本。
 
 旧入口 `tokenscowork-market.pages.dev` 烘焙在所有已发货的桌面安装包里，**永远不能
-下线**；迁移完成后它变成一层薄代理（`market/edge/`）转发到本服务，数据只有这里一份。
+下线**；迁移完成后它变成一层薄代理（`market/legacy/`）转发到本服务，数据只有这里一份。
 
 ## 组成
 
-- `server.mjs`：node:http → Worker `fetch(request, env)` 翻译层。公网 origin 由
+- `runtime/server.mjs`：node:http → Worker `fetch(request, env)` 翻译层。公网 origin 由
   `MARKET_HOST_PUBLIC_ORIGIN` 固定，不从请求头推导；陌生 `Host` 一律 403（防 DNS
   rebinding）；登录限流的客户端标识只信任 `X-Edge-Client-IP`（边缘代理）或
   `X-Real-IP`（Nginx），并删除客户端自带的 `cf-connecting-ip`。
-- `adapters.mjs`：三个 Cloudflare 绑定的落盘替身——D1→`/data/market.sqlite`
+- `runtime/adapters.mjs`：三个 Cloudflare 绑定的落盘替身——D1→`/data/market.sqlite`
   （node:sqlite，batch 走事务；启动时重放 `database/migrations/*.sql`，全部幂等）、
   R2→`/data/packages/` 目录、静态资产→镜像内的 `market/server/` 副本（含 `_headers`
   中 `/admin/*` 的安全响应头）。
@@ -34,7 +34,7 @@ tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：
 ## 部署
 
 ```bash
-cd tokens_TokensHarness_code/market/host
+cd TokensCowork/market/server
 cp .env.example .env    # 填入六个 Secret；值不入库
 docker compose up -d --build
 curl -fsS http://127.0.0.1:4880/v1/plugins | head -c 200
@@ -106,7 +106,7 @@ npx --yes wrangler@4 d1 export tokenscowork-market-access --remote --output mark
 ```bash
 docker compose stop market
 docker run --rm -v tokenscowork-market-host-data:/data -v "$PWD:/import:ro" node:24-alpine \
-  node /import/import-d1-export.mjs /import/market-d1-export.sql
+  node /import/ops/import-d1-export.mjs /import/market-d1-export.sql
 docker compose up -d --build
 ```
 

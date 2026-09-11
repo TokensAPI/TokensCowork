@@ -5,3 +5,5 @@
 market/server/product-components.json
 /.market-dev.env
 /market/registry/.env
+/market/server/.env
+/market/server/market-d1-export.sql

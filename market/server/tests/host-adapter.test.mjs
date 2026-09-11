@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createD1Database, createPackagesStore, createAssets } from '../../host/adapters.mjs'
+import { createD1Database, createPackagesStore, createAssets } from '../runtime/adapters.mjs'
 
 const migrations = resolve(import.meta.dirname, '../database/migrations')
 
