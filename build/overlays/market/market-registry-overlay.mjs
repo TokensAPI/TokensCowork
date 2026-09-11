@@ -8,6 +8,13 @@ function widenRegistrySchema(source) {
   return replaceOnce(source, '"const": "npm"', '"enum": ["npm", "tokenscowork"]', 'provider package registry')
 }
 
+export function widenInstallCandidateRegistry(source) {
+  return replaceOnce(source,
+    "source === undefined && item.package?.registry === 'npm' && safePackageName(item.package.name)",
+    "source === undefined && (item.package?.registry === 'npm' || item.package?.registry === 'tokenscowork') && safePackageName(item.package.name)",
+    'installable candidate registry selection')
+}
+
 export function addPrivateRegistrySupport(files, origin) {
   const market = new URL(origin)
   if (market.protocol !== 'https:' || market.username || market.password || market.search || market.hash) {
@@ -36,7 +43,7 @@ export function addPrivateRegistrySupport(files, origin) {
     'package identity normalization',
   )
 
-  let service = files.service
+  let service = widenInstallCandidateRegistry(files.service)
   let routes = files.routes ?? ''
   service = replaceOnce(service, "const NPM_REGISTRY = `${NPM_REGISTRY_ORIGIN}/`", "const NPM_REGISTRY = `${NPM_REGISTRY_ORIGIN}/`\nconst PRIVATE_REGISTRY_KIND = 'tokenscowork'", 'registry constants')
   service = replaceOnce(service, "interface InstallCandidate {\n  readonly key: string\n  readonly sourceRecordId: string\n  readonly providerId: string\n  readonly itemId: string\n  readonly displayName: string\n  readonly packageName?: string\n  readonly source?: NormalizedGitHubInstallSource", "interface InstallCandidate {\n  readonly key: string\n  readonly sourceRecordId: string\n  readonly providerId: string\n  readonly itemId: string\n  readonly displayName: string\n  readonly packageName?: string\n  readonly packageRegistry?: 'npm' | 'tokenscowork'\n  readonly source?: NormalizedGitHubInstallSource", 'install candidate registry')

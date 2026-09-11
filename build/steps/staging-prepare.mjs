@@ -353,6 +353,8 @@ const marketPrivateRegistry = addPrivateRegistrySupport({
   providerTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-provider-page.ts'), 'utf8'),
   snapshotTypes: readFileSync(resolve(stage, 'dsh-community-market', 'src', 'contracts', 'generated', 'catalog-snapshot.ts'), 'utf8'),
 }, marketSourceConfig.origin)
+cpSync(resolve(root, 'build', 'overlays', 'market', 'market-registry-candidates.spec.ts'),
+  resolve(stage, 'dsh-community-market', 'tests', 'market-registry-candidates.spec.ts'))
 writeFileSync(marketHttpPath, marketPrivateRegistry.http)
 writeFileSync(marketIndexPath, marketPrivateRegistry.index)
 writeFileSync(marketUpdatePaths.service, marketPrivateRegistry.service)
