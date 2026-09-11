@@ -1,0 +1,16 @@
+services:
+  market:
+    build:
+      context: ..
+      dockerfile: host/Dockerfile
+    container_name: tokenscowork-market-host
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:4880:8080"
+    volumes:
+      - market-host-data:/data
+
+volumes:
+  market-host-data:
+    name: tokenscowork-market-host-data
