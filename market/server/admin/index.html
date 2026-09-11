@@ -502,9 +502,9 @@
           </div>
           <label id="catalog-registry-label"
             >npm 来源<select id="catalog-registry">
-              <option value="npm">公开 npm Registry</option>
+              <option value="npm">兼容来源（新版自建仓库 / 旧版公开 npm）</option>
               <option value="tokenscowork">TokensCowork 自建 Registry（需服务器配置）</option>
-            </select><small>未配置自建 Registry 时，该来源不能上架；公开 npm 插件流程不受影响。自建 Registry 同时放公开插件和受限插件，谁能看到和下载只由这里的访问范围决定：公开对所有人开放，受限只对配置的组织或 API Key 开放。</small></label
+            </select><small>兼容来源保留旧版的公开 npm 安装方式；新版经市场从自建仓库下载。仅自建的新插件请选择自建 Registry。新插件统一使用 @tokensapi/包名：仓库限制直连，用户公开或受限由市场范围决定，无需改包名。公开 npm 历史包和第三方兜底规则下的包不受市场权限保护。</small></label
           >
           <label id="catalog-commit-label" hidden
             >Git commit<input

@@ -401,6 +401,39 @@ test('cross-origin writes and oversized JSON are rejected', async t => {
 const selfHostedEnv = { MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example.test/', MARKET_PRIVATE_REGISTRY_TOKEN: 'market:s3cret', MARKET_PRIVATE_REGISTRY_AUTH_SCHEME: 'basic' }
 const selfHosted = { id: 'self-hosted-tool', package: '@fixture/self-hosted', displayName: '自建源插件', summary: '放在自建 Registry 的公开插件', repository: 'https://github.com/fixture/self-hosted', version: '1.0.0', npm: true, registry: 'tokenscowork' }
 const serviceBasic = 'Basic ' + btoa('market:s3cret')
+test('compatible entries resolve different versions for modern and legacy clients and preserve grants', async t => {
+  const { env, call, db } = fixture(t)
+  Object.assign(env, selfHostedEnv)
+  const entry = { ...selfHosted, registry: 'npm' }
+  seedTestPlugin(db, entry)
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (new URL(url).hostname !== 'registry.example.test') return Response.json({ latest: '1.0.0' })
+    assert.equal(options.headers.Authorization, serviceBasic)
+    if (String(url).endsWith('.tgz')) return new Response('new-tarball')
+    return Response.json({name: entry.package, 'dist-tags':{latest:'2.0.0'}, versions:{'2.0.0':{name:entry.package,version:'2.0.0',dist:{tarball:'https://registry.example.test/pkg.tgz'}}}})
+  })
+  const capability = { 'X-Dsh-Catalog-Registries': 'tokenscowork' }
+  const listing = async headers => (await (await call('/v1/plugins', undefined, undefined, headers)).json()).items.find(x=>x.id===entry.id)
+  assert.equal((await listing({})).latestVersion, '1.0.0')
+  assert.equal((await listing({})).package.registry, 'npm')
+  assert.equal((await listing(capability)).latestVersion, '2.0.0')
+  assert.equal((await listing(capability)).package.registry, 'tokenscowork')
+  const admin = (await (await call('/api/admin/catalog','admin-secret')).json()).items.find(x=>x.id===entry.id)
+  assert.equal(admin.registry,'npm')
+  assert.equal(admin.effectiveRegistry,'tokenscowork')
+  assert.equal(admin.npmLatestVersion,'2.0.0')
+  const download = '/registry/'+entry.id+'/'+entry.package+'/2.0.0/tarball'
+  assert.equal((await call(download)).status,200)
+  db.prepare('UPDATE market_plugins SET visibility=? WHERE id=?').run('restricted',entry.id)
+  assert.equal(await listing({}),undefined)
+  assert.equal(await listing(capability),undefined)
+  assert.equal((await call(download)).status,403)
+  const fp = await fingerprint('sk-compatible',env.MARKET_HMAC_SECRET)
+  db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').run(fp,'fixture')
+  db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').run(fp,entry.id)
+  assert.equal((await call(download,'sk-compatible')).status,200)
+  assert.equal((await call('/registry/wrong-id/'+entry.package)).status,403)
+})
 function selfHostedMetadata(name, tarball) {
   return Response.json({ name, 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name, version: '1.0.0', dist: { tarball } } } })
 }

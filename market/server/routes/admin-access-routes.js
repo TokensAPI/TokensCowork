@@ -12,6 +12,7 @@ import { accessPreview } from '../services/access-preview-service.js'
 import { catalogRoster, catalogMutation, catalogEntry, revisionStatement } from '../services/catalog-service.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
+import { selectCatalogSources } from '../services/catalog-source-service.js'
 function loginLimited(wait) {
   const response = reply({ error: '尝试次数过多，请稍后再试', retryAfter: wait }, 429)
   response.headers.set('retry-after', String(wait))
@@ -82,7 +83,8 @@ export async function accessRoute(request, env) {
     }
     if (request.method === 'GET' && ['/api/admin/roster','/api/admin/catalog'].includes(url.pathname)) {
       const roster = await catalogRoster(env,true)
-      return reply({...roster, items: await resolveNpmVersions(roster.items, env)})
+      const resolved = await resolveNpmVersions(selectCatalogSources(roster.items, env, true), env)
+      return reply({...roster, items: resolved.map((item, i) => ({...item, registry: roster.items[i].registry, effectiveRegistry: item.registry ?? 'npm'}))})
     }
     if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') return reply(await npmPackage(url.searchParams.get('package'),url.searchParams.get('version') || 'latest'))
     if (request.method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) return reply({ error: '跨站请求被拒绝' }, 403)

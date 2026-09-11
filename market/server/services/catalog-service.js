@@ -2,6 +2,7 @@ import { idOK, text } from '../http/request.js'
 import { auditStatements } from './admin-audit-service.js'
 import { latestVersion } from '../integrations/npm-registry.js'
 import { createRegistryClient } from '../private-registry/client.mjs'
+import { selectCatalogSources } from './catalog-source-service.js'
 
 export const publisher = {
   name: 'TokensAPI',
@@ -55,7 +56,7 @@ export async function catalogEntry(env, id) {
 }
 
 export async function catalogLatestVersion(env, item) {
-  if (item.registry === 'tokenscowork') return await createRegistryClient(env).latestVersion(item.package)
+  if (selectCatalogSources([item], env, true)[0].registry === 'tokenscowork') return await createRegistryClient(env).latestVersion(item.package)
   return await latestVersion(item.package, '')
 }
 

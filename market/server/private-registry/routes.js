@@ -2,6 +2,7 @@ import { reply } from '../http/response.js'
 import { allowed } from '../services/plugin-access-service.js'
 import { packageOK, versionOK } from '../services/catalog-service.js'
 import { createRegistryClient } from './client.mjs'
+import { canServeRegistryPackage } from '../services/catalog-source-service.js'
 
 const pluginId = /^[a-z0-9][a-z0-9-]{0,79}$/u
 
@@ -16,7 +17,7 @@ async function privatePackage(request, env, id, name) {
   if (!row) return undefined
   let metadata
   try { metadata = JSON.parse(row.metadata) } catch { return undefined }
-  if (metadata.registry !== 'tokenscowork' || metadata.npm !== true || metadata.package !== name) return undefined
+  if (!canServeRegistryPackage(metadata) || metadata.package !== name) return undefined
   // Visibility is decided in the admin backend, nowhere else: a public entry is
   // served to everyone and a restricted one needs a market grant. The Registry is
   // storage — the proxy always fetches with the service account, so which scope

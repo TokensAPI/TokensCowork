@@ -4,6 +4,7 @@ import { catalogRoster } from './services/catalog-service.js'
 import { liveCatalog } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
 import { registryRoute } from './private-registry/routes.js'
+import { selectCatalogSources } from './services/catalog-source-service.js'
 
 const publicHeaders = {
   'access-control-allow-origin': '*',
@@ -39,8 +40,7 @@ export default {
         // declare support for them; every other client keeps receiving exactly
         // the payload shape it always received.
         const declared = (request.headers.get('x-dsh-catalog-registries') ?? '').toLowerCase().split(/[\s,]+/u)
-        if (!declared.includes('tokenscowork'))
-          roster.items = roster.items.filter(item => item.registry !== 'tokenscowork')
+        roster.items = selectCatalogSources(roster.items, env, declared.includes('tokenscowork'))
         roster.items = await liveCatalog(roster.items, env)
         if (url.pathname === '/roster.json')
           return reply({
