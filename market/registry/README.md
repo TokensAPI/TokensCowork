@@ -6,13 +6,18 @@
 
 ## 公开与私有
 
-同一个 Registry 同时提供公开包和私有包，按包名划分：
+自有插件统一限制仓库直连；是否向最终用户公开，只在 Market 后台设置：
 
 | 包名 | 匿名读取 | 发布 | 回源 npmjs |
 | --- | --- | --- | --- |
-| `@tokensapi-private/*` | 拒绝，必须登录 | 仅白名单账号 | 否 |
-| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 允许 | 任意账号 | 是（迁移期） |
-| 其余任意包 | 允许 | 任意账号 | 是，并缓存 |
+| `@tokensapi-private/*` | 拒绝，仅 tokenscowork / market 可读 | tokenscowork | 否 |
+| `@tokensapi/*`、`@tokens/*`、`dsh-tokensapi-ui`、`tokens-dsh-web-search` | 拒绝，仅 tokenscowork / market 可读 | tokenscowork | 是（迁移期） |
+| 其他包（第三方依赖） | 允许 | tokenscowork | 是，并缓存 |
+
+新插件统一使用 `@tokensapi/插件名`，不要用落入第三方兜底规则的任意包名。
+不再要求按公开/私有改包名：Market 设为公开就允许经市场下载，设为受限则校验
+组织或 API Key；修改市场范围不需要重新发布。已公开发布到 npm 的历史版本无法收回。
+公开注册保持关闭。不要向最终用户提供内部仓库账号；普通新建账号也不能读取自有插件。
 
 自有包保留 `proxy: npmjs`，因此迁移期间两边都能装：已经发到本 Registry 的版本用
 本地的，还只在 npmjs 上的旧版本仍然能拉到，Verdaccio 会把本地元数据盖在 uplink
@@ -31,17 +36,17 @@
 
 ## 发布权限与只读账号
 
-发布权限分两档：公开包是 `publish: $authenticated`，任何运维发的账号都能发，新增
-发布者只需 `create-user.sh`，不用改配置；只有 `@tokensapi-private/*` 写死了账号白名单。
+`tokenscowork` 是内部发布账号；`market` 是只读服务账号。所有规则的写权限均限制为
+`tokenscowork`，市场服务不能发布或删除包。新增发布者需要显式更新配置中的白名单，
+仅创建 htpasswd 账号不再自动获得权限。
 
 这一条不能改成 `$authenticated`，因为市场 Worker 也需要一个账号才能读私有包，而
 Verdaccio 无法用 token 表达“只读”：`POST /-/npm/v1/tokens` 的 `readonly` 参数不生效，
 签出来的 token 仍带 `$all`、`$authenticated` 组。只有把私有域的写权限收紧到白名单，
 服务账号才真正动不了私有包。
 
-需要注意的副作用：`market` 账号在公开包上仍然是能发布的，Verdaccio 没有“除了某
-个账号之外的所有人”这种写法。这是为了不让每次新增发布者都要改配置而接受的权衡；
-如果以后要堵上，把对应规则的 `publish` 也改成显式白名单即可。
+仓库内部账号应只交给可信发布者和后端服务。若发布账号曾对外共享，需要轮换凭证；
+收紧匿名访问不会使已泄露的内部账号自动失效。
 
 `market` 账号的凭据以 `用户名:密码` 形式放在 Worker Secret
 `MARKET_PRIVATE_REGISTRY_TOKEN`，配合 `MARKET_PRIVATE_REGISTRY_AUTH_SCHEME=basic`；Basic
@@ -115,4 +120,5 @@ npm publish --registry=https://npm.tokensapi.ai/
 `--auth-type=legacy` 让 npm 使用 Verdaccio 支持的账号密码登录，不走网页登录流程。
 
 Web UI 只是 Verdaccio 的包仓库门户，不是插件市场后台；市场服务和桌面端不依赖它。
-匿名访问 Web UI 只能看到公开包，登录后才会出现私有作用域的包。
+匿名访问 Web UI 不显示自有插件。使用白名单内部账号登录后才能看到；普通账号仅登录
+也不会获得自有插件读取权限。最终用户应使用 Market，不要使用仓库内部账号。
