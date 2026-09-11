@@ -1,0 +1,22 @@
+{
+  "manifestVersion": "1.0.0",
+  "providerId": "com.tokensapi.plugins",
+  "name": "TokensAPI 插件源",
+  "description": "TokensCowork 官方插件目录，由市场数据库动态提供。",
+  "homepage": "https://github.com/TokensAPI/TokensCowork",
+  "attribution": {
+    "name": "TokensAPI",
+    "url": "https://github.com/TokensAPI"
+  },
+  "transport": {
+    "kind": "https-json",
+    "endpoint": "https://tokenscowork-market.pages.dev/v1/plugins",
+    "method": "GET"
+  },
+  "query": {
+    "supported": [],
+    "defaultLimit": 50,
+    "maxLimit": 50,
+    "sorts": []
+  }
+}

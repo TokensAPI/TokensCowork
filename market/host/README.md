@@ -70,9 +70,13 @@ npx --yes wrangler@4 d1 export tokenscowork-market-access --remote --output mark
 ```bash
 docker compose stop market
 docker run --rm -v tokenscowork-market-host-data:/data -v "$PWD:/import:ro" node:24-alpine \
-  node -e "const{DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('/data/market.sqlite');db.exec(require('fs').readFileSync('/import/market-d1-export.sql','utf8'));db.exec('DELETE FROM market_admin_sessions; DELETE FROM market_admin_login_limits');console.log('imported')"
+  sh -c "rm -f /data/market.sqlite* && node -e \"const{DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('/data/market.sqlite');db.exec(require('fs').readFileSync('/import/market-d1-export.sql','utf8'));db.exec('DELETE FROM market_admin_sessions; DELETE FROM market_admin_login_limits');console.log('imported')\""
 docker compose up -d --build
 ```
+
+导出文件自带完整建表语句，所以导入必须落在空库上（上面的 `rm` 就是干这个的——
+容器首次启动会先建好带种子的库）。导入的数据里包含 `market_data_migrations` 标记，
+重启后 migrations 重放不会重复种子。
 
 导入后 D1 原库冻结保留，不删除；后台登录会话与限流桶已清空，重新登录即可。
 
