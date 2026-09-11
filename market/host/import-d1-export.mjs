@@ -9,7 +9,7 @@
  *     -v "$PWD:/import:ro" node:24-alpine \
  *     node /import/import-d1-export.mjs /import/market-d1-export.sql
  */
-import { readFileSync, existsSync, unlinkSync } from 'node:fs'
+import { readFileSync, existsSync, unlinkSync, chownSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 
 const [dump, target = '/data/market.sqlite'] = process.argv.slice(2)
@@ -29,4 +29,11 @@ for (const table of ['market_plugins', 'market_keys', 'market_grants', 'market_o
   console.log(`${table}: ${n}`)
 }
 db.close()
+// The throwaway container runs as root while the service runs as node(1000),
+// so hand the freshly created file over or the worker boots read-only.
+if (typeof process.getuid === 'function' && process.getuid() === 0) {
+  for (const suffix of ['', '-wal', '-shm']) {
+    if (existsSync(target + suffix)) chownSync(target + suffix, 1000, 1000)
+  }
+}
 console.log('imported')

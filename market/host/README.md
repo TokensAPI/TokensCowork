@@ -48,22 +48,26 @@ Nginx：在现有 `npm.tokensapi.ai` 的 server 块里、默认 `location /`（V
 **之前**加入下面的分流规则。市场只认这些路径，根路径与 `/-/` 命名空间不受影响：
 
 ```nginx
-  # ---- 插件市场（其余路径一律照旧走 Verdaccio）----
-  location = /v1/plugins  { include snippets/tokenscowork-market.conf; }
-  location = /v1/plugins/ { include snippets/tokenscowork-market.conf; }
-  location = /roster.json { include snippets/tokenscowork-market.conf; }
-  location = /source.json { include snippets/tokenscowork-market.conf; }
-  location ^~ /api/admin/ { include snippets/tokenscowork-market.conf; }
-  # 同名 npm 包让路：`/包名` 元数据与 `/包名/-/` tarball 仍归 Verdaccio
-  location = /admin       { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /admin/-/   { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /admin/     { include snippets/tokenscowork-market.conf; }
-  location = /registry    { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /registry/-/ { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /registry/  { include snippets/tokenscowork-market.conf; }
-  location = /downloads   { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /downloads/-/ { proxy_pass http://127.0.0.1:4873; }
-  location ^~ /downloads/ { include snippets/tokenscowork-market.conf; }
+    # ---- 插件市场：只有这些路径离开 Verdaccio ----
+    location = /v1/plugins  { include snippets/tokenscowork-market.conf; }
+    location = /v1/plugins/ { include snippets/tokenscowork-market.conf; }
+    location = /roster.json { include snippets/tokenscowork-market.conf; }
+    location = /source.json { include snippets/tokenscowork-market.conf; }
+    location ^~ /api/admin/ { include snippets/tokenscowork-market.conf; }
+    # 名为 admin/registry/downloads 的 npm 包保留元数据与 tarball 路径；
+    # 浏览器访问 /admin 则跳到市场后台。
+    location = /admin {
+        if ($http_accept ~* text/html) { return 302 /admin/; }
+        proxy_pass http://127.0.0.1:4873;
+    }
+    location ^~ /admin/-/    { proxy_pass http://127.0.0.1:4873; }
+    location ^~ /admin/      { include snippets/tokenscowork-market.conf; }
+    location = /registry     { proxy_pass http://127.0.0.1:4873; }
+    location ^~ /registry/-/ { proxy_pass http://127.0.0.1:4873; }
+    location ^~ /registry/   { include snippets/tokenscowork-market.conf; }
+    location = /downloads    { proxy_pass http://127.0.0.1:4873; }
+    location ^~ /downloads/-/ { proxy_pass http://127.0.0.1:4873; }
+    location ^~ /downloads/  { include snippets/tokenscowork-market.conf; }
 ```
 
 `snippets/tokenscowork-market.conf`（新建一次，供上面复用）：
@@ -76,9 +80,18 @@ proxy_set_header X-Real-IP $remote_addr;
 client_max_body_size 1m;
 ```
 
-遮挡说明：名为 `admin`/`registry`/`downloads` 的 npm 包，元数据和 tarball 路径已被
-上面的规则让回 Verdaccio，仅 `GET /包名/版本号` 这种少见的单版本查询会落到市场返回
-404；名为 `v1` 的包只有无意义的 `/v1/plugins` 被占用。正常 `npm install` 不受影响。
+遮挡说明：名为 `admin`/`registry`/`downloads` 的 npm 包，元数据（`/包名`）和 tarball
+（`/包名/-/…`）路径都让回了 Verdaccio，仅 `GET /包名/版本号` 这种少见的单版本查询会落到
+市场返回 404；名为 `v1` 的包只有无意义的 `/v1/plugins` 被占用。`npm install admin` 与
+`npm install @tokensapi/dsh-connect` 均已实测通过分流代理安装成功，字节数与直连一致。
+
+改配置前可以先把这套 location 放进一个临时容器验证，完全不碰线上 nginx：
+
+```bash
+docker run --rm --network host -v /tmp/nginx-test/nginx.conf:/etc/nginx/nginx.conf:ro -v /tmp/nginx-test/snippets:/etc/nginx/snippets:ro nginx:1.28-alpine
+# 另一个终端：把 listen 换成 127.0.0.1:8099 后逐条对比 Verdaccio 与市场路径
+curl -s -o /dev/null -w "%{http_code}" -H "Host: npm.tokensapi.ai" http://127.0.0.1:8099/v1/plugins
+```
 
 ## 数据迁移（从 Cloudflare D1 一次性导入）
 
