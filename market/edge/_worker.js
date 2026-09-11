@@ -9,7 +9,7 @@
  * its transport endpoint to share an origin. The copy served here is the last
  * manifest generated for this origin; never regenerate it against a new one.
  */
-const ORIGIN = 'https://market.tokensapi.ai'
+const ORIGIN = 'https://npm.tokensapi.ai'
 
 export default {
   async fetch(request, env) {

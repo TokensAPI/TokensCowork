@@ -8,9 +8,13 @@ Docker 部署单元。它与 `market/registry/`（Verdaccio）是**两个平级�
 | 单元 | 域名 | 本机端口 |
 | --- | --- | --- |
 | market/registry | npm.tokensapi.ai | 127.0.0.1:4873 |
-| market/host | market.tokensapi.ai | 127.0.0.1:4880 |
+| market/host | npm.tokensapi.ai（按路径分流） | 127.0.0.1:4880 |
 
-Registry 的域名不能更换：已发布包的元数据里所有 tarball 地址都指向它。
+两个服务共用一个域名：Nginx 只把市场自己的少数路径送到 4880，其余（包元数据、
+tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：已发布包的元数据
+里所有 tarball 地址都指向它。若以后拿到独立子域，只需改 `.env` 的
+`MARKET_HOST_PUBLIC_ORIGIN`、给新域一个整站 `proxy_pass` 到 4880 的 server 块，
+并重新烘焙桌面版本。
 
 旧入口 `tokenscowork-market.pages.dev` 烘焙在所有已发货的桌面安装包里，**永远不能
 下线**；迁移完成后它变成一层薄代理（`market/edge/`）转发到本服务，数据只有这里一份。
@@ -40,22 +44,41 @@ curl -fsS http://127.0.0.1:4880/v1/plugins | head -c 200
 `MARKET_KEY_ENCRYPTION_SECRET`。**HMAC 与 Key 加密两个 Secret 必须沿用 Cloudflare 上的
 原值**：换新会让所有已授权 API Key 的指纹与已保存的加密 Key 值全部作废。
 
-Nginx（同机与 Registry 并存时是两个 server 块，分机时各自一块）：
+Nginx：在现有 `npm.tokensapi.ai` 的 server 块里、默认 `location /`（Verdaccio）
+**之前**加入下面的分流规则。市场只认这些路径，根路径与 `/-/` 命名空间不受影响：
 
 ```nginx
-server {
-  server_name market.tokensapi.ai;
-  listen 443 ssl http2;
-  # ssl_certificate ...; ssl_certificate_key ...;
-  client_max_body_size 1m;
-  location / {
-    proxy_pass http://127.0.0.1:4880;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
-  }
-}
+  # ---- 插件市场（其余路径一律照旧走 Verdaccio）----
+  location = /v1/plugins  { include snippets/tokenscowork-market.conf; }
+  location = /v1/plugins/ { include snippets/tokenscowork-market.conf; }
+  location = /roster.json { include snippets/tokenscowork-market.conf; }
+  location = /source.json { include snippets/tokenscowork-market.conf; }
+  location ^~ /api/admin/ { include snippets/tokenscowork-market.conf; }
+  # 同名 npm 包让路：`/包名` 元数据与 `/包名/-/` tarball 仍归 Verdaccio
+  location = /admin       { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /admin/-/   { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /admin/     { include snippets/tokenscowork-market.conf; }
+  location = /registry    { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /registry/-/ { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /registry/  { include snippets/tokenscowork-market.conf; }
+  location = /downloads   { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /downloads/-/ { proxy_pass http://127.0.0.1:4873; }
+  location ^~ /downloads/ { include snippets/tokenscowork-market.conf; }
 ```
+
+`snippets/tokenscowork-market.conf`（新建一次，供上面复用）：
+
+```nginx
+proxy_pass http://127.0.0.1:4880;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Real-IP $remote_addr;
+client_max_body_size 1m;
+```
+
+遮挡说明：名为 `admin`/`registry`/`downloads` 的 npm 包，元数据和 tarball 路径已被
+上面的规则让回 Verdaccio，仅 `GET /包名/版本号` 这种少见的单版本查询会落到市场返回
+404；名为 `v1` 的包只有无意义的 `/v1/plugins` 被占用。正常 `npm install` 不受影响。
 
 ## 数据迁移（从 Cloudflare D1 一次性导入）
 

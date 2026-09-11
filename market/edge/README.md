@@ -1,7 +1,7 @@
 # 旧入口薄代理
 
 `tokenscowork-market.pages.dev` 烘焙在 0.4.12 之前所有桌面安装包里，永远不能下线。
-后台迁到自建服务（`market/host/`，market.tokensapi.ai）之后，这个 Pages 项目改为部署
+后台迁到自建服务（`market/host/`，与 Registry 共用 npm.tokensapi.ai，按路径分流）之后，这个 Pages 项目改为部署
 本目录：除 `/source.json`（必须保持 pages.dev endpoint 的旧 manifest，桌面同源信任
 要求）外，其余请求全部透传到自建服务，数据只有服务器一份。
 
