@@ -113,7 +113,7 @@ docker run --rm -v tokenscowork-market-host-data:/data -v "$PWD:/backup" alpine:
 ```
 
 搬机 = 新机器解包同名 volume + 复制 `.env` + `docker compose up -d --build` + 把
-`market.tokensapi.ai` 的 DNS 指到新机器。Registry 单元同理（见 `market/registry/README.md`），
+`npm.tokensapi.ai` 的 DNS 指到新机器（连同 Nginx 配置一起带走）。Registry 单元同理（见 `market/registry/README.md`），
 两个单元互不影响，可以分开搬。
 
 ## 升级
