@@ -95,20 +95,6 @@ export async function accessRoute(request, env) {
       return reply({ keys: keys.results, grants: grants.results, plugins: plugins.results.map(p => ({ ...p, metadata: JSON.parse(p.metadata) })), ...await organizationState(env) })
     }
     if (request.method === 'GET' && url.pathname === '/api/admin/operations') return reply(await adminOperations(env))
-    if (request.method === 'PUT' && url.pathname === '/api/admin/migration-export') {
-      // Temporary self-hosting migration aid: hands the write-only deployment
-      // secrets back to the operator so the server .env can reuse them (a new
-      // HMAC secret would orphan every stored key fingerprint). Bearer-only —
-      // a browser session must not reach it — and removed in the next deploy.
-      if (!bearerAdmin) return reply({ error: '仅支持管理员 Token 直连' }, 403)
-      await env.MARKET_DB.batch(auditStatements(env, 'migration.exported', 'secrets', { count: 4 }))
-      return reply({
-        MARKET_HMAC_SECRET: env.MARKET_HMAC_SECRET ?? '',
-        MARKET_KEY_ENCRYPTION_SECRET: env.MARKET_KEY_ENCRYPTION_SECRET ?? '',
-        MARKET_ORGANIZATIONS_TOKEN: env.MARKET_ORGANIZATIONS_TOKEN ?? '',
-        MARKET_PRIVATE_REGISTRY_TOKEN: env.MARKET_PRIVATE_REGISTRY_TOKEN ?? '',
-      })
-    }
     if (request.method !== 'PUT') return reply({ error: 'method not allowed' }, 405)
     let data
     try { data = await body(request) } catch { return reply({ error: '请求格式无效或超过 16 KB' }, 400) }

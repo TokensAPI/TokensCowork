@@ -8,7 +8,6 @@ function safeDetails(action, details) {
   }
   if (action === 'organization.updated') return { enabled: details.enabled === true }
   if (action === 'organizations.synced') return { count: details.count }
-  if (action === 'migration.exported') return { count: details.count }
   throw new Error('Unsupported audit action')
 }
 
