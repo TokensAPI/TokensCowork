@@ -111,6 +111,7 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
 `
   service = service.slice(0, start) + verifier + service.slice(end)
   service = replaceOnce(service, "  const npm = createNpmRegistryVerifier(http)\n", "  const npm = createNpmRegistryVerifier(http, options)\n", 'verifier options')
+  service = replaceOnce(service, 'npm.verify({ packageName: candidate.packageName }, signal)', 'npm.verify(candidate, signal)', 'preserve registry verification identity')
   service = replaceOnce(service, "export function createMarketPackageVerifier(\n  http: CatalogHttpClient,\n): MarketPackageVerifier {", "export function createMarketPackageVerifier(\n  http: CatalogHttpClient,\n  options: { privateRegistryOrigin?: string } = {},\n): MarketPackageVerifier {", 'market verifier options')
   service = replaceOnce(service, "        || (packageName !== undefined && !marketManagedPackage(packageName))", "        || (packageName !== undefined && !marketManagedPackage(packageName))\n        || (packageName !== undefined && item.package?.registry !== 'npm' && item.package?.registry !== PRIVATE_REGISTRY_KIND)", 'candidate registry validation')
   service = replaceOnce(service, "        ...(packageName === undefined ? {} : { packageName }),\n        ...(source === undefined ? {} : { source }),", "        ...(packageName === undefined ? {} : { packageName }),\n        ...(packageName === undefined ? {} : { packageRegistry: item.package?.registry ?? 'npm' }),\n        ...(source === undefined ? {} : { source }),", 'candidate registry capture')
@@ -144,5 +145,16 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
   index = replaceOnce(index, "  const scope = registerMarketSettings(ctx)", `  const scope = registerMarketSettings(ctx)\n  const readMarketKey = async (): Promise<string> => {\n    const credentials = ctx.reflect?.get?.('credentials') as { resolve?: (ref: string) => Promise<{ value?: unknown }> } | undefined\n    if (!credentials?.resolve) return ''\n    const result = await credentials.resolve('TOKENSAPI_API_KEY')\n    const key = typeof result?.value === 'string' ? result.value.trim() : ''\n    return /^sk-\\\\S{1,509}$/u.test(key) ? key : ''\n  }\n  setProductMarketRegistryKeyReader(readMarketKey)`, 'market registry credential reader')
   index = replaceOnce(index, "createMarketPackageVerifier(npmRegistryHttp),", `createMarketPackageVerifier(npmRegistryHttp, { privateRegistryOrigin: productMarketRegistryOrigin }),`, 'market verifier registry origin')
   index = replaceOnce(index, "          logFailure: message => ctx.logger.error(message),", `          logFailure: message => ctx.logger.error(message),\n          registryOrigin: productMarketRegistryOrigin,\n          registryToken: readMarketKey,`, 'market install registry options')
+  // Correct the generated credential regex (one backslash in TypeScript source).
+  index = index.replaceAll(String.raw`/^sk-\\S{1,509}$/u`, String.raw`/^sk-\S{1,509}$/u`)
+  service = replaceOnce(service,
+    "    if (!this.registryOrigin || !candidate.itemId || !this.registryToken) throw new MarketInstallError('operation-failed', 'The private Registry is not configured.')\n    const token = await this.registryToken()\n    if (typeof token !== 'string' || !/^sk-\\S{1,509}$/u.test(token)) throw new MarketInstallError('operation-failed', 'A valid API Key is required for private plugin installation.')",
+    "    if (!this.registryOrigin || !candidate.itemId) throw new MarketInstallError('operation-failed', 'The private Registry is not configured.')\n    const token = await this.registryToken?.() ?? ''\n    if (token && !/^sk-\\S{1,509}$/u.test(token)) throw new MarketInstallError('operation-failed', 'The API Key format is invalid.')",
+    'allow anonymous public registry installation')
+  service = replaceOnce(service, 'const auth = `//${new URL(registry).host}', 'const auth = `--//${new URL(registry).host}', 'pnpm auth option prefix')
+  service = replaceOnce(service,
+    "return ['--save-exact', `--registry=${registry}`, auth, ...(scope === undefined ? [] : [`--${scope}:registry=${registry}`])]",
+    "return ['--save-exact', `--registry=${scope === undefined ? registry : NPM_REGISTRY}`, ...(token ? [auth] : []), ...(scope === undefined ? [] : [`--${scope}:registry=${registry}`])]",
+    'third-party dependency registry')
   return { ...files, http, index, service, routes, identity, types, providerSchema, snapshotSchema, providerTypes, snapshotTypes }
 }
