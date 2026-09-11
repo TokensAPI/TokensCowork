@@ -10,7 +10,7 @@
   },
   "transport": {
     "kind": "https-json",
-    "endpoint": "https://tokenscowork-market.pages.dev/v1/plugins",
+    "endpoint": "https://market.tokensapi.ai/v1/plugins",
     "method": "GET"
   },
   "query": {

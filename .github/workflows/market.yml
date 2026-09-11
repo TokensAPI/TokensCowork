@@ -53,16 +53,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          for migration in market/server/database/migrations/*.sql; do
-            npx --yes wrangler@4 d1 execute tokenscowork-market-access --remote --file "$migration"
-          done
-          npx --yes wrangler@4 pages deploy market/server --project-name tokenscowork-market --branch master
+          npx --yes wrangler@4 pages deploy market/legacy --project-name tokenscowork-market --branch master
 
       - name: Verify deployment
         run: |
           sleep 15
           for path in /source.json /roster.json /v1/plugins /admin/; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "https://tokenscowork-market.pages.dev${path}")
+            code=$(curl -s -L -o /dev/null -w '%{http_code}' "https://tokenscowork-market.pages.dev${path}")
             echo "${path} -> ${code}"
             [ "${code}" = "200" ] || exit 1
           done
