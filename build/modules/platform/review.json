@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-12",
+  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80"
+  },
+  "entries": [
+    {
+      "id": "platform.windows-acl",
+      "module": "platform",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/platform/windows-acl-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop windows-acl-runner.ts, windows-pwsh-sandbox.ts；注入 build/modules/platform/assets/windows/acl"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "宿主控制台生命周期、基础设施失败熔断，防止终端启动失败与连续闪窗。",
+      "retireWhen": "上游覆盖等效启动、后台窗口与 ACL 失败恢复后，通过相同 Windows 真机回归再删除。",
+      "verification": "2026-09-12：隔离 staging 下真实 PowerShell 5.1 输出、工作区内写入、工作区外拒绝写入通过；含 windows-acl-product.spec.ts 的 13 文件/233 项桌面专项测试通过。"
+    },
+    {
+      "id": "platform.windows-installer",
+      "module": "platform",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/platform/windows-installer-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop package.json NSIS 资源；build/modules/platform/assets/windows/installer/upgrade-guard.nsh"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-product-configure.mjs"
+      ],
+      "reason": "升级占用保护、卸载行为与 Unicode 解压资源固定。",
+      "retireWhen": "上游安装器等效处理占用/卸载/Unicode 资源，覆盖安装与卸载 smoke 通过后逐项移除。",
+      "verification": "test:uninstall、Windows 安装 smoke、packaged-app-verify；不是本地 unit 测试通过就能发包。"
+    },
+    {
+      "id": "platform.packaging",
+      "module": "platform",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/platform/desktop-packaging-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop package.json 打包身份与架构裁剪、prepare-fs-ext.ts、release-mac.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs",
+        "build/pipeline/staging-product-configure.mjs"
+      ],
+      "reason": "保留产品打包参数和显式架构；共享质量检查由 Windows 承担，macOS 不重复跑。",
+      "retireWhen": "上游支持配置化架构/质量门禁后缩减；产品身份与必要检查不能跟随临时补丁一起删除。",
+      "verification": "test:build platform；--plan 查看平台顺序；macOS 原生依赖、签名与 Windows 内容仍由平台构建验收。"
+    },
+    {
+      "id": "platform.macos-signing",
+      "module": "platform",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/platform/mac-adhoc-sign.ts",
+        "build/modules/platform/mac-signing-resolve.mjs"
+      ],
+      "targets": [
+        "staged Desktop scripts/mac-unsigned-after-pack.ts（覆盖上游 afterPack 回调）",
+        "外层 macOS 签名模式选择，不注入上游运行时"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs",
+        "build/pipeline/macos-build.mjs",
+        ".github/workflows/release.yml"
+      ],
+      "reason": "凭据完整时正式签名，否则走 ad-hoc；复制的回调承担未签名包收尾与校验。",
+      "retireWhen": "上游能提供等效的未签名/正式签名接口后复用；始终保留签名凭据隔离和原生架构验证。",
+      "verification": "test:build platform 验证模式选择；macOS 实际签名、回调及安装需原生 runner 验收。"
+    }
+  ],
+  "diagnostics": [
+    "build/modules/platform/staging-windows-acl-smoke.mjs"
+  ]
+}

@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-12",
+  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "dsh": {
+      "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+      "version": "0.1.5-rc.2"
+    },
+    "plugins": [
+      {
+        "id": "tokens-version-updates",
+        "commit": "3c19b2a218215f529585853f8396c234aa01f305",
+        "version": "0.1.0",
+        "artifact": null,
+        "enabled": true
+      },
+      {
+        "id": "dsh-tokensapi-ui",
+        "commit": "9969d31660e44389fe23500b4df44fa89681caf1",
+        "version": "0.2.20",
+        "artifact": "a032fe5e1ad7504137683724bd691df8040786a42de30a15251f9599517b7fc1",
+        "enabled": true
+      },
+      {
+        "id": "tokens-model-manager",
+        "commit": "7a7b8a917eb2b392f0f208eef5b717c945326edb",
+        "version": "0.2.18",
+        "artifact": null,
+        "enabled": true
+      },
+      {
+        "id": "tokens-dsh-web-search",
+        "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
+        "version": "0.1.0",
+        "artifact": null,
+        "enabled": true
+      }
+    ]
+  },
+  "entries": [
+    {
+      "id": "runtime.web-search-command",
+      "module": "runtime",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": ["dsh", "plugins"],
+      "files": ["build/modules/runtime/runtime-version-overlay.mjs"],
+      "targets": ["product-plugins/tokens-dsh-web-search/lib/client.js: command.register description"],
+      "appliedBy": ["build/pipeline/staging-plugins-compile.mjs"],
+      "reason": "固定的联网搜索插件仍用字符串注册命令描述，新 DSH 调用 description()，导致整个斜杠候选列表报错。仅将该插件描述适配为函数，不放宽上游接口，不改变搜索引擎选项和切换逻辑。本地开发与 CI 共用编译后适配步骤。",
+      "retireWhen": "插件发布原生 lazy description 后，固定该版本并通过实际斜杠菜单回归，再移除此适配。",
+      "verification": "2026-09-13：固定 Git 产物、命令注册行为、幂等和漂移检测回归通过；Electron 登录、输入 /compact、压缩及回忆通过，未再出现 candidates failed。"
+    },
+    {
+      "id": "runtime.compaction-summary",
+      "module": "runtime",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": ["dsh"],
+      "files": ["build/modules/runtime/compaction-overlay.mjs", "build/modules/runtime/staging-compaction-smoke.mjs"],
+      "targets": ["installed @deepseek-ai/dsh-compaction-basic/lib/index.js: summarizeWithLlm"],
+      "appliedBy": ["build/pipeline/staging-runtime-patch.mjs"],
+      "reason": "真实 Flash 压缩曾返回 ACK / STORED / 拒绝式文本并替换历史。仅给摘要调用独立系统任务、将所有历史角色消息作为引用数据，保留图片附件，并验证上游要求的八段 checkpoint；无效摘要交由上游事务失败处理，保留历史。没有更改普通对话、插件路由、压缩阈值或增加模型重试。独立系统提示不再复用普通对话的完整前缀缓存。",
+      "retireWhen": "上游提供等效摘要任务隔离与无效输出保护，并通过 ACK、拒绝、截断、失败保留历史及真实文本/图片压缩回归后删除。不能只按版本号删除。",
+      "verification": "2026-09-13：11 项定向回归与完整 50 项构建测试通过。上游压缩基线 209 项通过，适配成功夹具及请求契约后的产品测试 209 项通过、无跳过。真实 DSH 内存事务检查覆盖 ACK/拒绝/截断/报错不改历史、手动/压力/溢出有效提交和 checkpoint 重放。TokensAPI Flash 实测三次连续压缩保留三组事实，最新图片桥接及压缩后记忆通过。真实长上下文自动触发和安装包未验收；Electron 界面结果详见发布说明。 2026-09-14：补充旧开发缓存精确迁移、Windows 换行和连续执行回归（摘要模块共 12 项，外层共 53 项通过）；用户默认 staging 的运行时步骤连续两次通过，不清理用户数据。"
+    },
+    {
+      "id": "runtime.versions",
+      "module": "runtime",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "dsh",
+        "plugins"
+      ],
+      "files": [
+        "build/modules/runtime/runtime-version-overlay.mjs"
+      ],
+      "targets": [
+        "staged workspace/package.json, .yarnrc.yml, workspace manifests, package.spec.ts, Market tests/contracts.spec.ts, plugin dependencies"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "统一外层固定 DSH 依赖及 peers、保留 Desktop Yarn patches、精确新版本冷却期豁免。",
+      "retireWhen": "Desktop 原生依赖图与产品固定运行时一致时评估缩减；不能删除闭包及 immutable lock 验证。",
+      "verification": "2026-09-12：新增 Market 精确 peer 版本断言适配回归；完整 Market 测试 274 通过、9 跳过，247 个第一方节点闭合、561 个生产依赖许可证通过。安装包仍待 CI 验证。"
+    },
+    {
+      "id": "runtime.rpc-scope",
+      "module": "runtime",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "dsh"
+      ],
+      "files": [
+        "build/modules/runtime/runtime-version-overlay.mjs"
+      ],
+      "targets": [
+        "installed @deepseek-ai/dsh-client-connection/lib/index.js: register"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-runtime-patch.mjs"
+      ],
+      "reason": "修复 Cordis getter shadow 导致 RPC 注册缺少 webServer 的作用域问题，保持调用方生命周期。",
+      "retireWhen": "未加工的上游 Connection 通过相同注册、鉴权、显式注销和插件卸载回归后删除。",
+      "verification": "2026-09-12：真实 Cordis 注册、Host/鉴权边界、显式注销与卸载清理通过；隔离 Electron healthy 启动到 Key 页面。独立 Profile 的真实 TokensAPI 登录、短对话与图片桥接通过；手动压缩后的信息保留存在失败，直接 provider 纯文本对照也复现，详见 docs/releases/v0.5.0.md，不视为完整功能验收。"
+    },
+    {
+      "id": "runtime.presets-asar",
+      "module": "runtime",
+      "kind": "workaround",
+      "state": "upstream",
+      "inputs": [
+        "desktop",
+        "dsh"
+      ],
+      "files": [
+        "build/modules/runtime/preset-discovery-verify.mjs"
+      ],
+      "targets": [
+        "Desktop patches/dsh-agent-presets@0.1.5-rc.1.patch → installed DSH agent-presets/lib/index.js"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-runtime-patch.mjs",
+        "build/pipeline/packaged-app-verify.mjs"
+      ],
+      "reason": "旧自有 preset 补丁已由 Desktop Yarn patch 接管；这里只验证 asar 解析行为，不重复打补丁。",
+      "retireWhen": "上游消除该场景后评估验证的去留；不要把 verifier 当成正在注入的补丁。",
+      "verification": "安装后及最终 Windows asar 中验证完整 export 解析、存在/缺失、不执行插件。"
+    },
+    {
+      "id": "runtime.startup",
+      "module": "runtime",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/runtime/desktop-runtime-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop src/main.ts: skipDesktopSetupWizard"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "使用产品已装配默认 Profile，跳过原生首次向导并保留其状态流程。",
+      "retireWhen": "产品恢复向导或上游提供显式配置时移除。",
+      "verification": "装配锚点；首次启动与 Profile 升级需要 Electron 验证。"
+    },
+    {
+      "id": "runtime.stderr",
+      "module": "runtime",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/runtime/desktop-runtime-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop src/main.ts, desktop-logger.ts: protectDesktopStderr"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "避免 GUI stderr 管道断开时二次异常掩盖启动根因。",
+      "retireWhen": "上游包含等效防护且断管写入回归通过后删除。",
+      "verification": "装配锚点；需要断开 stderr 的真实 GUI/进程行为测试，不以文本匹配冒充完成。"
+    },
+    {
+      "id": "runtime.test-adapters",
+      "module": "runtime",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/runtime/desktop-runtime-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop scripts/verify-cli-runtime.mjs, tests/module-resolution.spec.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "对齐 Windows Electron Node shim 与 URL 测试夹具，不修改生产模块解析。",
+      "retireWhen": "上游测试已支持当前 Windows 路径与 Node 模式后移除适配；保留实际行为测试。",
+      "verification": "test:build runtime 含 URL 转换；staging CLI smoke、module-resolution tests 检查行为。"
+    },
+    {
+      "id": "runtime.legacy-profile",
+      "module": "runtime",
+      "kind": "compatibility",
+      "state": "inactive",
+      "inputs": [
+        "desktop",
+        "plugins"
+      ],
+      "files": [
+        "build/modules/runtime/desktop-runtime-overlay.mjs"
+      ],
+      "targets": [
+        "旧导出 removeManagedBundlesFromProfile；当前没有装配调用"
+      ],
+      "appliedBy": [],
+      "reason": "历史托管 bundle 去重函数尚未删除，但当前不注入 Profile。",
+      "retireWhen": "独立确认上游已处理重复项且无引用后清理；此次不改功能。",
+      "verification": "入口检索，不把残留函数描述为当前迁移能力。"
+    }
+  ],
+  "diagnostics": [
+    "build/modules/runtime/staging-rpc-smoke.mjs"
+  ]
+}

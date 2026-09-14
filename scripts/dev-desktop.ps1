@@ -5,14 +5,14 @@
 #   powershell -File scripts\dev-desktop.ps1 -Watch       # 热加载：改代码自动重编，窗口内 Ctrl+R 生效
 #   powershell -File scripts\dev-desktop.ps1 -Build       # 改了代码、没开 -Watch 时，强制重建再启动
 #   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
-#   powershell -File scripts\dev-desktop.ps1 -Prepare     # 改过 build/overlays/** 后先重新装配
+#   powershell -File scripts\dev-desktop.ps1 -Prepare     # 强制重新装配（默认会检测输入变化）
 #   powershell -File scripts\dev-desktop.ps1 -Force       # 连已安装的 TokensCowork 一起关掉再启动
 #
 # 热加载范围：
 # - 市场客户端 / 桌面渲染层（.build/desktop/*/src 下的 client、native-ui 代码）：
 #   保存后 watcher 自动重编，回应用窗口按 Ctrl+R 即见效果。
 # - Electron 主进程代码：watcher 会自动重编，但要关掉应用重新跑本脚本（默认即秒起）。
-# - overlay（build/overlays/**）：必须 -Prepare 重新装配才会进 staging。
+# - overlay（build/modules/**）：检测到变化后自动重新装配；-Prepare 可强制执行。
 #   在 staging 里直接改源码迭代最快，但最终务必落回 overlay，否则下次装配即丢失。
 #
 # 数据模式：
@@ -25,6 +25,8 @@
 # 注意：.build/desktop 是共享工作区，别在另一会话装配/打包时同时跑本脚本。
 
 param(
+  [ValidatePattern('^desktop(?:-[a-zA-Z0-9][a-zA-Z0-9-]*)?$')]
+  [string]$StageName = 'desktop',
   [switch]$Prepare,
   [switch]$Sandbox,
   [switch]$Build,
@@ -37,7 +39,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$stage = Join-Path $root '.build\desktop'
+$env:PRODUCT_STAGE_NAME = $StageName
+$stage = Join-Path (Join-Path $root '.build') $StageName
 $desktop = Join-Path $stage 'dsh-plugin-desktop'
 
 if ($Sandbox -and $RealData) {
@@ -131,11 +134,10 @@ function Get-NewestWriteTimeUtc {
 $prepareProbe = Join-Path $desktop 'src\main.ts'
 $prepareInputs = @(
   Get-Item (Join-Path $root 'product.json')
-  Get-Item (Join-Path $root 'build\product.yarn.lock')
-  Get-Item (Join-Path $root 'market\source.json')
-  Get-Item (Join-Path $root 'market\source.config.json')
-  Get-ChildItem (Join-Path $root 'build\steps'), (Join-Path $root 'build\overlays'), (Join-Path $root 'build\assets'), (Join-Path $root 'build\hooks') -Recurse -File |
-    Where-Object { $_.Extension -ne '.md' }
+  Get-Item (Join-Path $root 'market\server\source.json')
+  Get-Item (Join-Path $root 'market\server\source.config.json')
+  Get-ChildItem (Join-Path $root 'build\pipeline'), (Join-Path $root 'build\modules') -Recurse -File |
+    Where-Object { $_.Extension -ne '.md' -and $_.Name -ne 'review.json' -and $_.Name -notlike '*.test.mjs' }
 )
 $autoPrepare = -not (Test-Path $prepareProbe)
 if (-not $autoPrepare) {
@@ -148,14 +150,16 @@ if (-not $Prepare -and $autoPrepare) {
 }
 
 if ($Prepare) {
-  Invoke-Step '拉取插件产物' $root 'node build\steps\plugin-artifacts-fetch.mjs'
-  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\steps\staging-prepare.mjs'
+  Invoke-Step '拉取插件产物' $root 'node build\pipeline\plugin-artifacts-fetch.mjs'
+  Invoke-Step '装配 staging（应用 overlay）' $root 'node build\pipeline\staging-prepare.mjs'
   Invoke-Step '安装依赖（约 5 分钟）' $stage 'corepack yarn install --immutable'
 }
 
 if (-not (Test-Path (Join-Path $stage 'node_modules'))) {
   Invoke-Step '安装依赖（首次，约 5 分钟）' $stage 'corepack yarn install --immutable'
 }
+
+Invoke-Step '应用并验证运行时兼容修正' $root 'node build\pipeline\staging-runtime-patch.mjs'
 
 # prepare 只负责源码覆盖和插件装配；正式品牌与 Logo 需要在依赖安装后注入。
 # 仅在刚完成 prepare 或 staging 仍是上游品牌时执行，避免每次启动重复改写。
@@ -174,7 +178,7 @@ if (-not $configureNeeded) {
   }
 }
 if ($configureNeeded) {
-  Invoke-Step '注入产品品牌与 Logo' $root 'node build\steps\staging-product-configure.mjs'
+  Invoke-Step '注入产品品牌与 Logo' $root 'node build\pipeline\staging-product-configure.mjs'
   $Build = $true
 }
 
@@ -216,6 +220,7 @@ if (-not $Build -and -not $Prepare -and $buildInputsChanged) {
   $Build = $true
 }
 if ($Build -or $Prepare -or $outputsMissing) {
+  Invoke-Step '编译并适配产品插件' $root 'node build\pipeline\staging-plugins-compile.mjs'
   Invoke-Step '生成市场契约类型' $stage 'corepack yarn workspace dsh-community-market run generate:types'
   Invoke-Step '构建市场插件（宿主+客户端）' $stage 'corepack yarn workspace dsh-community-market run build'
   Invoke-Step '生成 Windows 应用图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-windows-app-icon.mjs'
@@ -251,7 +256,8 @@ if (-not $Sandbox) {
   Write-Host "    APPDATA  = $env:APPDATA" -ForegroundColor DarkGray
   Write-Host "    DSH home = $(Join-Path $HOME '.dsh')" -ForegroundColor DarkGray
 } else {
-  $sandbox = Join-Path $root '.build\dev-sandbox'
+  $sandboxName = if ($StageName -eq 'desktop') { 'dev-sandbox' } else { "dev-sandbox-$StageName" }
+  $sandbox = Join-Path (Join-Path $root '.build') $sandboxName
   $sandboxAppData = Join-Path $sandbox 'AppData'
   $sandboxHome = Join-Path $sandbox 'home\.dsh'
   New-Item -ItemType Directory -Force $sandboxAppData | Out-Null

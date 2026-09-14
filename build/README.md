@@ -1,94 +1,59 @@
-# Desktop product build
+# 产品构建
 
-本目录把只读的 Desktop、DeepSeek Harness 和产品插件组装为 TokensCowork。
-所有产品改写只能发生在生成目录 `.build/desktop/`，不得修改 `desktop/`、
-`desktop/deepseek-harness/` 或 `plugins/` 子模块工作树。
+将固定版本的 Desktop、DSH 和插件装配为 TokensCowork。子模块只读，产品加工只在生成的 `.build/desktop*` 中进行；版本和插件以 `product.json` 为准。
 
 ## 目录
 
-每个目录只回答一个问题——这类文件被谁、在什么时机调用:
-
 ```text
 build/
-├─ desktop-build.mjs   # 总调度(唯一知道执行顺序的地方):check、Windows、macOS
-├─ product.yarn.lock   # 产品固定依赖图
-├─ steps/              # 流程步骤:被调度器/脚本按序执行
-├─ overlays/           # 领域覆盖:被 steps 调用的纯函数改写模块(见其 README)
-├─ verify/             # 门禁:只读幂等校验,任意时点可跑
-├─ hooks/              # 被外部工具(electron-builder 等)回调的
-└─ assets/             # 静态输入素材,由 steps 复制/读取
+├─ README.md
+├─ build.mjs           完整检查 / 平台打包的统一调度入口
+├─ pipeline/           装配步骤、依赖锁、跨模块校验
+└─ modules/            上游行为覆盖，代码 / 测试 / 资源 / review.json 就近存放
+   ├─ branding/        品牌、Logo、文案、旧数据迁移
+   ├─ market/          市场来源、授权、插件更新、Registry 与部署适配
+   ├─ runtime/         DSH 版本、启动、RPC、压缩及插件接口兼容
+   ├─ updates/         桌面应用自身的版本更新
+   └─ platform/        Windows ACL / 安装器、macOS 签名与架构
 ```
 
-## 命名规则(全部可执行文件同一语法)
+依赖方向：`build.mjs → pipeline → modules`。模块可使用共享路径工具，不反向调用构建流程。
+不再另外分散 overlays、verify、hooks；只给资源建 `assets/`，不为每个模块重复建 steps/tests/utils。
 
-`<对象/位置>-<动词>[-<限定>].mjs` —— 名词领头,一眼可见"在哪里、做什么";
-目录内按字母排序即按领域聚簇(staging-*、market-*、mac* 各成一组)。
+命名采用小写 `kebab-case`：`对象-动作.mjs`；覆盖为 `*-overlay.mjs`，
+检查为 `*-verify.mjs`，显式诊断为 `*-smoke.mjs / *-regression.mjs`。
+`*.test.mjs` 是外层 Node 测试；`*.spec.ts` 和资源中的源码、签名回调复制到 staging 后执行，保留目标工具要求的格式。
 
-1. 对象段点名作用位置:作用于 staging 的显式以 `staging-` 开头
-   (staging-prepare、staging-runtime-patch、staging-branding-verify);
-   仓库级用 repo-,产品级用 product-,打包产物用 packaged-。
-2. 动词收尾,封闭表:fetch / prepare / patch / compile / prune /
-   configure / refresh / build / resolve / verify / smoke / overlay / sign。
-3. 覆盖库以 `-overlay` 收尾(branding-overlay、market-auth-overlay);
-   市场主题在 overlays/market/ 下以 `market-` 开头。
-4. `-verify` 结尾为 CI 门禁,`-smoke` 结尾为手动诊断,都在 verify/。
-5. 单测同名同目录 `<name>.test.mjs`;`assets/` 下的素材数据用纯名词,
-   是唯一不带动词的文件。
-## 构建流程
-
-所有完整检查和平台打包都先执行同一套干净装配：
+## 执行过程
 
 ```text
-检查版本、Git pin 和产品声明
-→ 重建 .build/desktop
-→ 注入默认插件和产品锁文件
-→ yarn install --immutable
-→ 编译并裁剪插件
-→ 检查生产依赖许可证
+检查产品与 Git pin → 获取固定插件产物 → 装配上游副本并应用模块覆盖
+→ immutable 安装 → 运行时兼容检查 → 编译 / 裁剪插件 → 生产许可证门禁
+→ 平台检查 / 品牌配置 / Desktop 编译 → 打包 → 产物验收 → CI 发布
 ```
 
-正常发布流程：
+- Windows 承担 Fabric、Market、Windows 包测试，再完成产品编译、品牌、类型、CLI、Loader、Profile 检查与 NSIS 打包。包测试所需的上游身份编译与后续产品编译仍保留。
+- macOS 在原生 runner 完成配置、编译、品牌、原生依赖与签名检查；共享质量检查由同次 Windows 任务承担。发布等待全部平台成功。
+- `check` 不生成安装包；本地开发脚本根据输入变化决定装配 / 编译，不调用安装包流程。
+- 运行时检查包含摘要保护回归：只用内存中的测试会话，不联网、不读取 Key；真实模型测试需显式执行。
+- 市场服务部署入口 `modules/market/market-routing-prepare.mjs` 独立生成服务副本，Desktop 打包不会调用它或部署市场。
 
-```text
-本机 product:check
-→ 提交并推送版本
-→ 触发 Build Desktop
-→ Windows、macOS arm64、macOS amd64 并行构建
-→ 全部通过后创建 GitHub Release
-```
+## 常用命令
 
-- Windows 在同一份 staging 中完成 Fabric、Market、Desktop、CLI、Loader、
-  Profile 和最终运行时验收，然后生成 unsigned NSIS x64 安装包。安装 smoke
-  使用上一稳定版模拟占用文件，确认失败升级不污染旧版、解除占用后可自动升级。
-- macOS 两个架构在各自原生 runner 上构建，验证架构、签名、公证状态和 DMG。
-- 发布任务只汇总安装包、SHA256、插件清单和 BUILD-INFO，不重新构建产品。
+| 命令 | 用途 |
+|---|---|
+| `yarn product:plan` | 只显示 Windows 执行顺序，不安装、不写 staging |
+| `node build/build.mjs mac --plan` | 查看其他目标计划；支持 check / win / mac / mac-unsigned |
+| `yarn product:check` | 快速检查产品声明与 Git pin，不编译 |
+| `yarn product:prepare` | 获取产物并装配；后续仍须 immutable 安装核对 |
+| `yarn product:refresh-lock` | 依赖变化时刷新 pipeline/product.yarn.lock，不是每次发布前置 |
+| `yarn test:build [模块]` | 外层测试，不安装、不启动 Electron、不访问生产市场 |
+| `yarn product:overlays [模块] --check` | 查看覆盖记录，关联 pin 变化时提示复查并非零退出 |
+| `yarn product:check-desktop` | 完整 staging 校验，不打包 |
+| `yarn product:dist:win / product:dist:mac:auto` | 本地完整打包；正常发布交给 GitHub |
+| `powershell -File scripts/dev-desktop.ps1 -Sandbox -StageName desktop-v050` | 隔离 Electron 功能测试 |
 
-Windows Desktop 必须编译两次：先以原始 DSH 身份通过上游专项测试，再注入
-TokensCowork 品牌生成最终产品。两个 macOS 架构也必须使用不同原生 runner。
-除此之外，不再运行独立的重复 Desktop 质量构建。
+模块名同目录名。测试需要已检出的固定子模块；固定产物断言还需要已下载插件产物。
+独立装配使用 `PRODUCT_STAGE_NAME=desktop-<名称>`，不要覆盖其他任务正在使用的 staging。
 
-## 命令
-
-```text
-product:check             快速检查版本、Git pin 和产品声明
-product:prepare           只重建 staging，不安装依赖
-product:refresh-lock      默认插件或生产依赖变化时更新锁文件
-product:check-desktop     本地完整检查，不生成安装包
-product:dist:win          完整检查并生成 Windows 安装包
-product:dist:mac:auto     生成当前架构的 macOS 安装包
-```
-
-正常发布时，本机只运行 `product:check`。其余完整命令只用于修改构建脚本、
-排查 Action 失败或显式验证本机打包环境。快速检查允许子模块保留本地开发改动；
-完整检查和打包会要求实际进入产品的源码子模块保持干净。
-
-## 修改规则
-
-1. 版本、品牌、Desktop pin 和默认插件写入顶层 `product.json`。
-2. 产品加工只修改 staging；子模块保持只读并固定到 Git commit。
-3. 插件进入产品前必须通过完整生产依赖许可证检查。
-4. 运行时收在 app.asar 内（smartUnpack 只解原生模块）：不得让普通模块以真实
-   文件镜像解包（afterPack 门禁拒绝），需要真实文件语义的健康检查一律走
-   patch-runtime 补丁并由 verify-package 验收。
-5. 构建产物、凭据、证书、API Key 和本地运行数据不得提交。
-6. 流程或路径变化必须同步更新顶层命令、GitHub workflow 和本文档。
+升级时先看 [上游升级检查指南](../docs/upstream-upgrade.md)，覆盖台账见 [模块复查说明](modules/README.md)。结构测试与装配一致不代表跨平台安装和模型功能已验收，不能替代 CI、许可证门禁或真机测试。

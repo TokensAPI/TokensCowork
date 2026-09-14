@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-12",
+  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "updates": {
+      "commit": "3c19b2a218215f529585853f8396c234aa01f305",
+      "version": "0.1.0",
+      "artifact": null,
+      "enabled": true
+    }
+  },
+  "entries": [
+    {
+      "id": "updates.product",
+      "module": "updates",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "updates"
+      ],
+      "files": [
+        "build/modules/updates/updates-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop cordis.patch.yml, scripts/verify-profile-boot.mjs；产品更新插件配置"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs",
+        "build/pipeline/staging-product-configure.mjs"
+      ],
+      "reason": "关闭上游官方更新；有产品插件时显示产品入口，否则隐藏更新入口。",
+      "retireWhen": "可原生配置产品 Release 来源且纯净/带插件两种菜单都正确时，缩减覆盖。",
+      "verification": "test:build updates 含纯净/产品菜单谓词行为及 Release 配置；Profile 菜单与 staging-branding-verify、真实下载/回退/安装仍需验收。"
+    }
+  ],
+  "diagnostics": []
+}

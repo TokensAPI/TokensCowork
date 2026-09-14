@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-12",
+  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "dsh": {
+      "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+      "version": "0.1.5-rc.2"
+    }
+  },
+  "entries": [
+    {
+      "id": "branding.upstream-cloud-entry",
+      "module": "branding",
+      "kind": "customization",
+      "state": "active",
+      "inputs": ["desktop"],
+      "files": ["build/modules/branding/branding-overlay.mjs"],
+      "targets": ["installed @agents-anywhere/dsh-bridge-next/lib/client.js: agentsAnywhereOnboarding.sidebar"],
+      "appliedBy": ["build/pipeline/staging-product-configure.mjs"],
+      "reason": "隐藏插件市场旁边的上游手机连接入口及其 Agents Anywhere 云服务引导；仅移除该侧边栏注册，不删除连接配置，不卸载组件，不改市场或已有后台连接服务。",
+      "retireWhen": "产品需要重新提供该入口，或上游提供可配置的导航开关时评估移除；升级 Desktop 所带 AA 产物时复查注册契约。",
+      "verification": "2026-09-14：品牌模块 7 项回归通过，含只隐藏目标注册、保留市场及运行时工作、幂等和漂移检测；实际 staging 品牌校验通过。"
+    },
+    {
+      "id": "branding.identity",
+      "module": "branding",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "dsh"
+      ],
+      "files": [
+        "build/modules/branding/branding-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop: src/product-identity.ts, main.ts, index.ts, native UI/copy, certificate, cordis.patch.yml",
+        "DSH installed: app-boot, web-app, agent-presets prompts, client-ui-layout productTitle, web-frontend dist/index.html",
+        "Product assets: build/modules/branding/assets"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs",
+        "build/pipeline/staging-product-configure.mjs"
+      ],
+      "reason": "产品身份、Logo、可见文案与提示词；迁移 TokensHarness 数据。",
+      "retireWhen": "产品仍使用独立品牌时保留；旧数据迁移只能在停止支持旧用户后另行决策。",
+      "verification": "2026-09-13：6 项品牌回归、staging-branding-verify 通过。Electron 登录后的初始标题与真实会话标题均为 TokensCowork；兼容模式 HTML 重新编译及标题校验通过。平台图标及旧数据迁移仍待安装/升级真机验收。"
+    }
+  ],
+  "diagnostics": [
+    "build/modules/branding/staging-branding-verify.mjs"
+  ]
+}

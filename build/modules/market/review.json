@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-12",
+  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "plugins": [
+      {
+        "id": "tokens-version-updates",
+        "commit": "3c19b2a218215f529585853f8396c234aa01f305",
+        "version": "0.1.0",
+        "artifact": null,
+        "enabled": true
+      },
+      {
+        "id": "dsh-tokensapi-ui",
+        "commit": "9969d31660e44389fe23500b4df44fa89681caf1",
+        "version": "0.2.20",
+        "artifact": "a032fe5e1ad7504137683724bd691df8040786a42de30a15251f9599517b7fc1",
+        "enabled": true
+      },
+      {
+        "id": "tokens-model-manager",
+        "commit": "7a7b8a917eb2b392f0f208eef5b717c945326edb",
+        "version": "0.2.18",
+        "artifact": null,
+        "enabled": true
+      },
+      {
+        "id": "tokens-dsh-web-search",
+        "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
+        "version": "0.1.0",
+        "artifact": null,
+        "enabled": true
+      }
+    ],
+    "ui": {
+      "commit": "9969d31660e44389fe23500b4df44fa89681caf1",
+      "version": "0.2.20",
+      "artifact": "a032fe5e1ad7504137683724bd691df8040786a42de30a15251f9599517b7fc1",
+      "enabled": true
+    }
+  },
+  "entries": [
+    {
+      "id": "market.source",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-source-overlay.mjs",
+        "build/modules/market/market-staging-overlay.mjs"
+      ],
+      "targets": [
+        "Market: catalog/source-store.ts, catalog/service.ts, index.ts, host/routes.ts, client/settings/locales",
+        "Market tests: 来源、多来源界面、生命周期、持久化目录用例"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "固定唯一产品来源、自愈旧来源、隐藏增删及说明；上游多来源测试按产品语义调整。",
+      "retireWhen": "只有产品改回多来源策略才移除；不得把跳过上游用例当成覆盖正确的证据。",
+      "verification": "test:build market 仅含部分行为与组合锚点；完整 staging Market test/typecheck、来源迁移与隐藏入口需验收。"
+    },
+    {
+      "id": "market.network",
+      "module": "market",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-source-overlay.mjs"
+      ],
+      "targets": [
+        "Market: network/restricted-http.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "只给产品域名增加 fake-IP 支持，并适配 IPv6 假地址处理。",
+      "retireWhen": "上游能显式配置产品域名且通过相同网络/安全测试时，删除手工覆盖。",
+      "verification": "组合锚点已覆盖；代理、IPv4/IPv6 及 SSRF 边界需要专项行为验证。"
+    },
+    {
+      "id": "market.authorization",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "plugins"
+      ],
+      "files": [
+        "build/modules/market/market-auth-overlay.mjs"
+      ],
+      "targets": [
+        "Market: network/restricted-http.ts, index.ts, host/routes.ts, tests/host-routes.spec.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "按当前 API Key 请求产品目录，隔离目录缓存，防止向第三方透传凭据。",
+      "retireWhen": "上游提供等效的按用户授权及缓存隔离扩展点后改走配置，并保留重定向泄漏回归。",
+      "verification": "test:build market 含真实请求构造、第三方跳转与缓存隔离边界；线上权限另外验收。"
+    },
+    {
+      "id": "market.updates",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-update-overlay.mjs",
+        "build/modules/market/market-update.spec.ts"
+      ],
+      "targets": [
+        "Market: install/service.ts, host/routes.ts, api-types.ts, client/api.ts/settings/locales",
+        "Market tests: client-api, settings-tab, 注入 market-update.spec.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "对可管理的 npm 插件提供版本检查、确认、执行更新，保留 Profile 与启用设置。",
+      "retireWhen": "上游具备同等更新、权限、确认与重启语义时，先让原生实现通过产品行为测试再移除。",
+      "verification": "test:build market 检查组合锚点；staging Market test 才执行注入的更新行为测试。"
+    },
+    {
+      "id": "market.registry",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-registry-overlay.mjs",
+        "build/modules/market/market-registry-candidates.spec.ts",
+        "build/modules/market/market-routing-overlay.mjs"
+      ],
+      "targets": [
+        "Market: network, index, contracts/types/identity/schemas/generated types, install/service.ts, host/routes.ts"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "支持 tokenscowork 私有 Registry 身份、验证及共享 scope 路由，保留每插件授权。",
+      "retireWhen": "上游支持等效 Registry 身份与安装路由时改用原生扩展；公开 npm 与私有包都要回归。",
+      "verification": "test:build market；staging Market test/typecheck；实际 pnpm 安装验证为 opt-in。"
+    },
+    {
+      "id": "market.server-routing",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [],
+      "files": [
+        "build/modules/market/market-routing-overlay.mjs"
+      ],
+      "targets": [
+        "market/server/private-registry/routes.js（外层市场服务，不是 Desktop 子模块）"
+      ],
+      "appliedBy": [
+        "build/modules/market/market-routing-prepare.mjs"
+      ],
+      "reason": "市场服务部署副本支持共享 Registry URL 与每插件权限。不会由 Desktop 装配或发布自动部署。",
+      "retireWhen": "服务源码正式吸收等效实现，并通过 SQLite/授权/撤权/产物测试后移除此部署覆盖。",
+      "verification": "test:build market 含 SQLite 集成；服务文件未有独立 Git pin，升级时人工复查，不能仅看 Desktop 基线。"
+    },
+    {
+      "id": "market.desktop-provider",
+      "module": "market",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-desktop-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop: src/main.ts 市场选择与持久偏好"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "正常启动固定 community-market，修复误关；Safe Mode 仍例外。",
+      "retireWhen": "产品不再固定市场，或上游提供等效策略配置时移除；不能丢失其他偏好字段。",
+      "verification": "装配锚点；Profile/Safe Mode 与旧偏好迁移需行为回归。"
+    },
+    {
+      "id": "market.dialog-position",
+      "module": "market",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "ui"
+      ],
+      "files": [
+        "build/modules/market/market-dialog-position-overlay.mjs"
+      ],
+      "targets": [
+        "dsh-tokensapi-ui release artifact: lib/client.js 全局 dialog position CSS"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "移除主题覆盖原生 Modal 定位的冲突规则。",
+      "retireWhen": "插件产物不再包含该冲突，且未经加工的弹窗定位测试通过后删除。",
+      "verification": "test:build market 验证主题规则、原生 fixed 定位及已下载的固定产物；仍需肉眼检查弹窗。"
+    },
+    {
+      "id": "market.legacy-managed-update",
+      "module": "market",
+      "kind": "compatibility",
+      "state": "inactive",
+      "inputs": [
+        "desktop"
+      ],
+      "files": [
+        "build/modules/market/market-source-overlay.mjs"
+      ],
+      "targets": [
+        "旧导出 enableManagedPluginUpdate；当前没有装配调用"
+      ],
+      "appliedBy": [],
+      "reason": "历史托管插件独立更新覆盖仍在文件中，但不进入产品。",
+      "retireWhen": "本次只登记；独立清理时确认无调用和测试依赖后删除，禁止误认为正在生效。",
+      "verification": "通过入口检索识别为未接入；不声称有运行效果。"
+    }
+  ],
+  "diagnostics": [
+    "build/modules/market/market-routing-prepare.mjs",
+    "build/modules/market/market-agent-cli-regression.mjs",
+    "build/modules/market/market-catalog-verify.mjs",
+    "build/modules/market/market-live-regression.mjs",
+    "build/modules/market/market-private-install-regression.mjs"
+  ]
+}

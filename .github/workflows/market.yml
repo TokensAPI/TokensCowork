@@ -8,7 +8,7 @@ on:
       - "market/**"
       - "product.json"
       - "scripts/generate-market-catalog.mjs"
-      - "build/verify/market-catalog-verify.mjs"
+      - "build/modules/market/market-catalog-verify.mjs"
       - ".github/workflows/market.yml"
   workflow_dispatch:
 
@@ -37,7 +37,7 @@ jobs:
 
       # Verify the database migration seed and generated source manifest.
       - name: Verify market data
-        run: node build/verify/market-catalog-verify.mjs
+        run: node build/modules/market/market-catalog-verify.mjs
 
       - name: Generate market deployment artifacts
         run: node scripts/generate-market-catalog.mjs

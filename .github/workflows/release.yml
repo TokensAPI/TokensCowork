@@ -84,6 +84,16 @@ jobs:
         with:
           node-version: 22.23.2
 
+      - name: Check out product Harness override
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(node -p "require('./product.json').desktop.deepseekHarnessCommit")"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
+          git -C desktop/deepseek-harness checkout --detach "$commit"
+          git -C desktop/deepseek-harness submodule update --init --recursive
+
       - name: Restore build caches
         uses: actions/cache@v5
         continue-on-error: true
@@ -95,7 +105,7 @@ jobs:
             ~/Library/Caches/electron-builder
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
-          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
+          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
 
       - name: Run complete product gates and build unsigned Windows installer
         run: |
@@ -260,6 +270,16 @@ jobs:
         with:
           node-version: 22.23.2
 
+      - name: Check out product Harness override
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(node -p "require('./product.json').desktop.deepseekHarnessCommit")"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
+          git -C desktop/deepseek-harness checkout --detach "$commit"
+          git -C desktop/deepseek-harness submodule update --init --recursive
+
       - name: Restore build caches
         uses: actions/cache@v5
         continue-on-error: true
@@ -271,7 +291,7 @@ jobs:
             ~/Library/Caches/electron-builder
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
-          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/product.yarn.lock') }}
+          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
 
       - name: Select macOS signing mode
         id: signing
@@ -283,7 +303,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: printf 'mode=%s\n' "$(node build/steps/mac-signing-resolve.mjs)" >> "${GITHUB_OUTPUT}"
+        run: printf 'mode=%s\n' "$(node build/modules/platform/mac-signing-resolve.mjs)" >> "${GITHUB_OUTPUT}"
 
       - name: Build macOS DMG
         shell: bash

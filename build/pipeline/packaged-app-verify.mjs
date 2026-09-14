@@ -1,0 +1,158 @@
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  readSync,
+  statSync,
+} from 'node:fs'
+import { createRequire } from 'node:module'
+import { resolve, sep } from 'node:path'
+import { verifyAsarPresetDiscovery } from '../modules/runtime/preset-discovery-verify.mjs'
+import { alignConnectionRpcScope } from '../modules/runtime/runtime-version-overlay.mjs'
+import { alignCompactionSummary } from '../modules/runtime/compaction-overlay.mjs'
+import { productStage } from './paths.mjs'
+
+const root = resolve(import.meta.dirname, '..', '..')
+const stage = productStage(root)
+const desktopRoot = resolve(stage, 'dsh-plugin-desktop')
+const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).product
+const mode = process.argv[2]
+
+function assertPortableExecutable(path, label) {
+  const stat = statSync(path)
+  if (!stat.isFile() || stat.size < 68) throw new Error(`${label} is not a non-empty file: ${path}`)
+  const descriptor = openSync(path, 'r')
+  const dosHeader = Buffer.alloc(64)
+  try {
+    if (readSync(descriptor, dosHeader, 0, dosHeader.byteLength, 0) !== dosHeader.byteLength
+      || dosHeader.subarray(0, 2).toString('ascii') !== 'MZ') {
+      throw new Error(`${label} has no Windows PE header: ${path}`)
+    }
+    const peOffset = dosHeader.readUInt32LE(0x3c)
+    const signature = Buffer.alloc(4)
+    if (peOffset > stat.size - 4
+      || readSync(descriptor, signature, 0, signature.byteLength, peOffset) !== signature.byteLength
+      || !signature.equals(Buffer.from('PE\0\0'))) {
+      throw new Error(`${label} has no Windows PE signature: ${path}`)
+    }
+  } finally {
+    closeSync(descriptor)
+  }
+}
+
+if (mode !== 'windows') throw new Error('verify-package: expected windows')
+const installer = resolve(desktopRoot, 'dist', `${product.name}-${product.version}-x64-Setup.exe`)
+const executable = resolve(desktopRoot, 'dist', 'win-unpacked', `${product.name}.exe`)
+assertPortableExecutable(installer, 'Windows NSIS installer')
+assertPortableExecutable(executable, 'unpacked Windows application')
+const buildManifest = JSON.parse(readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'))
+const requireFromDesktop = createRequire(resolve(desktopRoot, 'package.json'))
+const { extractFile, listPackage } = requireFromDesktop('@electron/asar')
+const packagedAsar = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar')
+const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
+const packagedAsarFiles = listPackage(packagedAsar)
+  .map(path => path.replaceAll('\\', '/').replace(/^\/+/, ''))
+const packagedMain = extractFile(packagedAsar, 'lib/main.js').toString('utf8')
+const packagedRuntimeClosure = packagedAsarFiles
+  .filter(path => path.startsWith('lib/') && path.endsWith('.js'))
+  .map(path => extractFile(packagedAsar, path.replaceAll('/', sep)).toString('utf8'))
+  .join('\n')
+const unpackedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
+  .map(path => path.replaceAll('\\', '/'))
+const packagedRuntimeFiles = [...new Set([...packagedAsarFiles, ...unpackedRuntimeFiles])]
+const packagedNodeModuleFiles = packagedRuntimeFiles
+  .filter(path => path.startsWith('node_modules/'))
+const forbiddenMetadata = packagedNodeModuleFiles.filter(path => path.endsWith('.map')
+  || path.endsWith('.d.ts')
+  || path.endsWith('.d.mts')
+  || path.endsWith('.d.cts'))
+const requiredWindowsX64Runtime = [
+  'node_modules/@img/sharp-win32-x64',
+  'node_modules/@koromix/koffi-win32-x64',
+  'node_modules/@vscode/ripgrep-win32-x64',
+  'node_modules/node-addon-require-builtin-win32-x64-msvc',
+  'node_modules/node-pty/prebuilds/win32-x64',
+]
+const forbiddenForeignRuntime = [
+  'node_modules/@img/sharp-win32-arm64',
+  'node_modules/@img/sharp-win32-ia32',
+  'node_modules/@koromix/koffi-win32-arm64',
+  'node_modules/@koromix/koffi-win32-ia32',
+  'node_modules/@vscode/ripgrep-win32-arm64',
+  'node_modules/@vscode/ripgrep-win32-ia32',
+  'node_modules/node-addon-require-builtin-win32-arm64-msvc',
+  'node_modules/node-addon-require-builtin-win32-ia32-msvc',
+  'node_modules/node-pty/prebuilds/darwin-arm64',
+  'node_modules/node-pty/prebuilds/darwin-x64',
+  'node_modules/node-pty/prebuilds/linux-arm64',
+  'node_modules/node-pty/prebuilds/linux-x64',
+  'node_modules/node-pty/prebuilds/win32-arm64',
+  'node_modules/node-pty/prebuilds/win32-ia32',
+]
+// 预设健康检查必须带 asar 感知补丁(staging-runtime-patch.mjs):运行时进 asar 后,
+// agent-presets 用裸 fs 遍历 node_modules 会把全部插件行误判为缺失,预设
+// 无法挂载(v0.4.0/v0.4.1 真机回归)。上游打包门禁禁止普通模块解包,故
+// 以实际解析行为验收,缺失即构建失败。
+const packagedAgentPresets = extractFile(
+  packagedAsar,
+  'node_modules/@deepseek-ai/dsh-agent-presets/lib/index.js'.replaceAll('/', sep),
+).toString('utf8')
+verifyAsarPresetDiscovery(packagedAgentPresets)
+const packagedConnection = extractFile(packagedAsar,
+  'node_modules/@deepseek-ai/dsh-client-connection/lib/index.js'.replaceAll('/', sep)).toString('utf8')
+if (alignConnectionRpcScope(packagedConnection) !== packagedConnection) {
+  throw new Error('Packaged Connection is missing the RPC scope compatibility fix')
+}
+const packagedCompaction = extractFile(packagedAsar,
+  'node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js'.replaceAll('/', sep)).toString('utf8')
+if (alignCompactionSummary(packagedCompaction) !== packagedCompaction) {
+  throw new Error('Packaged compaction is missing checkpoint isolation and validation')
+}
+if (buildManifest.build?.appId !== product.appId
+  || buildManifest.build?.productName !== product.name) {
+  throw new Error('Windows build configuration branding differs from product.json')
+}
+if (buildManifest.build?.nsis?.guid !== product.windowsInstallerGuid) {
+  throw new Error('Windows installer upgrade identity differs from product.json')
+}
+// deleteAppDataOnUninstall 是编译期开关：一旦打进安装包，卸载时运行期传的
+// /KEEP_APP_DATA 也救不回用户数据。产品约定卸载默认保留，故它必须不为真。
+if (buildManifest.build?.nsis?.deleteAppDataOnUninstall === true) {
+  throw new Error('Windows build configuration would delete user data on uninstall')
+}
+if (!packagedMain.includes(`${product.name} Local CA`)
+  || packagedMain.includes('DeepSeek Harness Desktop Local CA')) {
+  throw new Error('packaged Windows main runtime retains upstream certificate branding')
+}
+if (!packagedRuntimeClosure.includes(product.name)
+  || !packagedRuntimeClosure.includes(product.appId)
+  || packagedRuntimeClosure.includes('"ai.deepseek.dsh.desktop"')
+  || packagedRuntimeClosure.includes('DeepSeek Harness Desktop')) {
+  throw new Error('packaged Windows desktop runtime retains upstream identity')
+}
+if (forbiddenMetadata.length !== 0) {
+  throw new Error(`packaged Windows runtime retains non-runtime metadata: ${forbiddenMetadata[0]}`)
+}
+// NSIS 的 nsisunz.dll 不支持 UTF-8 zip 条目：产物中任何非 ASCII 文件名
+// 都会在用户安装时按 OEM 代码页乱解，报 Failed to decompress files
+//（v0.3.7 事故：web-search 插件携带中文名 .cmd）。在此失败关闭。
+const nonAsciiRuntimeFiles = packagedRuntimeFiles.filter(path => [...path].some(ch => ch.charCodeAt(0) > 127))
+if (nonAsciiRuntimeFiles.length !== 0) {
+  throw new Error(`packaged Windows runtime contains non-ASCII file names the installer cannot extract: ${nonAsciiRuntimeFiles[0]}`)
+}
+for (const path of requiredWindowsX64Runtime) {
+  if (!existsSync(resolve(unpackedResources, path))) {
+    throw new Error(`packaged Windows x64 runtime is missing required native files: ${path}`)
+  }
+}
+for (const path of forbiddenForeignRuntime) {
+  if (existsSync(resolve(unpackedResources, path))) {
+    throw new Error(`packaged Windows x64 runtime retains a foreign native architecture: ${path}`)
+  }
+}
+process.stdout.write(
+  `verify-package: Windows ${product.name} ${product.version} installer passed `
+  + `(${packagedAsarFiles.length} ASAR entries, ${unpackedRuntimeFiles.length} unpacked entries)\n`,
+)
