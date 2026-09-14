@@ -41,10 +41,22 @@ export function verifyProductUpdateMenu(script) {
     `  if (trayItems.some(item => item.label() === 'Check for Updates…')) {
     throw new Error('assembled product profile unexpectedly retains the upstream update tray command')
   }
-  if (!trayItems.some(item => item.label() === 'Check Updates…')) {
+  if (!trayItems.some(item => item.id === 'check-for-updates' && item.label() === 'Check Updates…')) {
     throw new Error('assembled product profile is missing the product update tray command')
   }`,
   )
+}
+
+/** Bridge the pinned product plugin to Desktop's native/compatibility update command. */
+export function alignProductUpdateCommand(source) {
+  const normalized = source.replaceAll('\r\n', '\n')
+  const anchor = "const registration = ctx.desktopRuntime.registerTrayItem({\n      group: 'status',"
+  const patched = "const registration = ctx.desktopRuntime.registerTrayItem({\n      id: 'check-for-updates',\n      group: 'status',"
+  const registrations = normalized.split('ctx.desktopRuntime.registerTrayItem(').length - 1
+  if (registrations !== 1) throw new Error('Product update tray registration changed; review command compatibility')
+  if (normalized.includes(patched)) return source
+  if (!normalized.includes(anchor)) throw new Error('Product update command anchor changed')
+  return normalized.replace(anchor, patched)
 }
 
 /**

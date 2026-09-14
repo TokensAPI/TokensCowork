@@ -13,6 +13,19 @@
   },
   "entries": [
     {
+      "id": "updates.compatibility-command",
+      "module": "updates",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": ["desktop", "updates"],
+      "files": ["build/modules/updates/updates-overlay.mjs"],
+      "targets": ["product-plugins/tokens-version-updates/index.js: registerTrayItem.id"],
+      "appliedBy": ["build/pipeline/staging-plugins-compile.mjs"],
+      "reason": "新版兼容模式顶部菜单按 check-for-updates ID 查找命令；给固定版本的产品更新插件补齐 ID，复用原有手动检查，不启用官方更新、不更改更新源。",
+      "retireWhen": "更新插件原生注册相同 ID，或 Desktop 改用新的更新命令 API 时，复查并移除适配；不能只按菜单文案验收。",
+      "verification": "2026-09-14：57 项外层测试通过；实际插件注册片段和 Desktop 顶部菜单分发代码复现旧版失败，修复后与托盘复用同一调用，禁用/错误传播、幂等与漂移回归通过。实际 staging 插件验证正常检查、模拟断网结果和恢复后检查；完整 Profile 加载及 ID/文案门禁通过。未执行真实下载安装或重新发布。"
+    },
+    {
       "id": "updates.product",
       "module": "updates",
       "kind": "customization",

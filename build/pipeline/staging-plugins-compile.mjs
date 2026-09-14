@@ -1,5 +1,6 @@
 import { productStage } from './paths.mjs'
 import { alignWebSearchCommandDescription } from '../modules/runtime/runtime-version-overlay.mjs'
+import { alignProductUpdateCommand } from '../modules/updates/updates-overlay.mjs'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
@@ -139,6 +140,12 @@ for (const plugin of product.plugins.filter(
 }
 
 // Apply after compilation so a plugin build cannot overwrite the adaptation.
+if (product.plugins.some(plugin => plugin.id === 'tokens-version-updates' && plugin.enabledByDefault === true)) {
+  const entryPath = resolve(pluginsRoot, 'tokens-version-updates', 'index.js')
+  const source = readFileSync(entryPath, 'utf8')
+  const patched = alignProductUpdateCommand(source)
+  if (patched !== source) writeFileSync(entryPath, patched)
+}
 if (product.plugins.some(plugin => plugin.id === 'tokens-dsh-web-search' && plugin.enabledByDefault === true)) {
   const clientPath = resolve(pluginsRoot, 'tokens-dsh-web-search', 'lib', 'client.js')
   const source = readFileSync(clientPath, 'utf8')
