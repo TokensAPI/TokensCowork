@@ -22,6 +22,8 @@
 
 页面右上角的版本下拉框会自动列出公开的历史 Releases。选择旧版本后，平台下载按钮、发布日期和发布说明会同步切换到对应版本。
 
+新 Release 的 clean/bundled 类型由发布步骤从固定 `product.json` 自动写入说明中的隐藏标记；不再只按 `x.y.0` 判断纯净版。无标记的历史版本保留旧约定。稳定/预发布仍以 GitHub Release 元数据为准。
+
 如需临时使用固定下载链接，可在 `site-config.js` 的 `downloadOverrides` 中覆盖某个平台。
 
 ## 本地预览

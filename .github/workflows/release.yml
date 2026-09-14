@@ -49,6 +49,7 @@ jobs:
           bash scripts/set-version.sh --check
           node scripts/validate-release-notes.mjs --version "${version}" --file "${release_notes}"
           node --test scripts/validate-release-notes.test.mjs
+          node --test scripts/generate-plugin-manifest.test.mjs
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
             echo "Release tag ${GITHUB_REF_NAME} does not match VERSION=${version}" >&2
             exit 1
@@ -424,6 +425,7 @@ jobs:
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
           node scripts/generate-plugin-manifest.mjs > "release-assets/TokensCowork-${version}-plugins.json"
+          node scripts/generate-plugin-manifest.mjs --release-notes "${{ needs.metadata.outputs.release_notes }}" > release-assets/release-notes.md
           cat "release-assets/TokensCowork-${version}-plugins.json"
 
       - name: Create checksums and GitHub Release
@@ -432,7 +434,7 @@ jobs:
           set -euo pipefail
           version="${{ needs.metadata.outputs.version }}"
           tag="${{ needs.metadata.outputs.tag }}"
-          release_notes="${{ needs.metadata.outputs.release_notes }}"
+          release_notes="release-assets/release-notes.md"
           packages=(
             "release-assets/TokensCowork-${version}-windows-amd64-installer.exe"
             "release-assets/TokensCowork-${version}-macos-arm64-installer.dmg"

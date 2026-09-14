@@ -744,10 +744,13 @@
     return Boolean(release) && release.prerelease === false && release.draft !== true;
   }
 
-  // 纯净正式版使用 x.y.0 标签约定。它仍遵循 GitHub 原生正式版状态，
-  // 但不参与页面推荐版本计算，避免覆盖包含完整产品能力的默认下载。
+  // 新发布从固定 product.json 生成发行类型；只有无标记的历史 Release
+  // 才沿用 x.y.0 纯净版约定。发行类型与 GitHub stable/prerelease 相互独立。
   function isPureRelease(release) {
-    return Boolean(release) && /^v?\d+\.\d+\.0$/i.test(String(release.tag_name || ""));
+    if (!release) return false;
+    var distribution = /<!--\s*tokenscowork:distribution=(clean|bundled)\s*-->/.exec(String(release.body || ""));
+    if (distribution) return distribution[1] === "clean";
+    return /^v?\d+\.\d+\.0$/i.test(String(release.tag_name || ""));
   }
 
   function appendReleaseBadge(container, text, modifier) {

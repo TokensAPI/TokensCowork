@@ -39,8 +39,19 @@ export function buildPluginManifest(manifest) {
   }
 }
 
+/** Release distribution comes from the pinned product, never the version suffix. */
+export function buildReleaseNotes(manifest, notes) {
+  const distribution = buildPluginManifest(manifest).plugins.length === 0 ? 'clean' : 'bundled'
+  const body = notes.replace(/<!--\s*tokenscowork:distribution=[^>]*-->/gu, '').trimEnd()
+  return `${body}\n\n<!-- tokenscowork:distribution=${distribution} -->\n`
+}
+
 if (process.argv[1] === import.meta.filename) {
   const root = resolve(import.meta.dirname, '..')
   const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
-  process.stdout.write(`${JSON.stringify(buildPluginManifest(manifest), undefined, 2)}\n`)
+  if (process.argv.length === 2) {
+    process.stdout.write(`${JSON.stringify(buildPluginManifest(manifest), undefined, 2)}\n`)
+  } else if (process.argv.length === 4 && process.argv[2] === '--release-notes') {
+    process.stdout.write(buildReleaseNotes(manifest, readFileSync(process.argv[3], 'utf8')))
+  } else throw new Error('expected no arguments or --release-notes <path>')
 }
