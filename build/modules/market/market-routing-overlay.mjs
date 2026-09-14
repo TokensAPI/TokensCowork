@@ -1,5 +1,6 @@
 /** Shared scope registry: resolve each package independently, retain its ACL. */
 export function patchRegistryRoutes(source) {
+  if (source.includes("  if (id === 'by-package') {")) return source
   const anchor = '  const id = parts.shift()';
   if (source.split(anchor).length !== 2) throw new Error('Registry route anchor changed');
   return source.replace(anchor, `  let id = parts.shift()

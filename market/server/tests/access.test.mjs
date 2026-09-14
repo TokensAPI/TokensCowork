@@ -449,6 +449,7 @@ test('a public self-hosted plugin is served to everyone; restricting it closes t
       : selfHostedMetadata(selfHosted.package, 'https://registry.example.test/self-hosted-1.0.0.tgz')
   })
   const path = '/registry/self-hosted-tool/' + selfHosted.package
+  const sharedPath = '/registry/by-package/' + encodeURIComponent(selfHosted.package)
   const capability = { 'X-Dsh-Catalog-Registries': 'npm tokenscowork' }
   assert.ok((await (await call('/v1/plugins', undefined, undefined, capability)).json()).items.some(item => item.id === selfHosted.id))
   // Clients that do not declare self-hosted support (desktop builds before
@@ -458,20 +459,23 @@ test('a public self-hosted plugin is served to everyone; restricting it closes t
   assert.ok(legacy.every(item => item.package === undefined || item.package.registry === 'npm'))
   credentials.length = 0
   assert.equal((await call(path)).status, 200)
-  assert.deepEqual(credentials, [serviceBasic])
+  assert.equal((await call(sharedPath)).status, 200)
+  assert.deepEqual(credentials, [serviceBasic, serviceBasic])
   credentials.length = 0
   assert.equal((await call(path + '/1.0.0/tarball')).status, 200)
   assert.deepEqual(credentials, [serviceBasic, serviceBasic])
 
   db.prepare('UPDATE market_plugins SET visibility=? WHERE id=?').run('restricted', selfHosted.id)
   assert.equal((await call(path)).status, 403)
+  assert.equal((await call(sharedPath)).status, 403)
   assert.equal((await (await call('/v1/plugins', undefined, undefined, capability)).json()).items.some(item => item.id === selfHosted.id), false)
   const fp = await fingerprint('sk-self-hosted', env.MARKET_HMAC_SECRET)
   db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').run(fp, '企业 B')
   db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').run(fp, selfHosted.id)
   credentials.length = 0
   assert.equal((await call(path, 'sk-self-hosted')).status, 200)
-  assert.deepEqual(credentials, [serviceBasic])
+  assert.equal((await call(sharedPath, 'sk-self-hosted')).status, 200)
+  assert.deepEqual(credentials, [serviceBasic, serviceBasic])
 })
 test('a package the Registry gates behind login still distributes once the backend makes it public', async t => {
   const { env, call, db } = fixture(t)

@@ -77,7 +77,17 @@ export async function registryRoute(request, env) {
   if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET) return reply({ error: '授权服务未配置' }, 503)
   const parts = pathParts(url)
   if (!parts || parts.length < 2) return reply({ error: 'Registry 路径无效' }, 400)
-  const id = parts.shift()
+  let id = parts.shift()
+  if (id === 'by-package') {
+    // Shared scoped Registry metadata endpoint. Tarball URLs retain the real
+    // plugin ID so every archive request repeats the same ACL check.
+    const name = parts.join('/')
+    if (!packageOK(name)) return reply({ error: 'Invalid package name' }, 400)
+    const { results } = await env.MARKET_DB.prepare("SELECT p.id FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE c.state='published' AND json_extract(p.metadata,'$.package')=? LIMIT 2").bind(name).all()
+    if (results.length !== 1) return reply({ error: '插件不存在或没有下载权限' }, 403)
+    id = results[0].id
+    return metadataResponse(request, env, id, name)
+  }
   const last = parts.at(-1)
   if (last === 'tarball' && parts.length >= 3) {
     parts.pop()
