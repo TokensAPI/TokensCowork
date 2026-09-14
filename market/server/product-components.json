@@ -13,8 +13,8 @@
       "id": "dsh-tokensapi-ui",
       "package": "dsh-tokensapi-ui",
       "displayName": "Tokens Cowork UI",
-      "version": "0.2.20",
-      "commit": "9969d31660e44389fe23500b4df44fa89681caf1",
+      "version": "0.2.22",
+      "commit": "7f03733d36c7ee1bb37210e7362782a67af077b5",
       "category": "builtin"
     },
     {
