@@ -97,6 +97,16 @@ export function brandDesktopCertificate(certificate, productName) {
   )
 }
 
+/** Check the whole compiled runtime: the CA can live in a lazy-loaded chunk. */
+export function verifyDesktopCertificateBranding(runtimeClosure, productName) {
+  if (!runtimeClosure.includes(`${productName} Local CA`)) {
+    throw new Error('Desktop runtime is missing the product local certificate brand')
+  }
+  if (runtimeClosure.includes('DeepSeek Harness Desktop Local CA')) {
+    throw new Error('Desktop runtime retains upstream local certificate branding')
+  }
+}
+
 /** 顶部栏和桌面设置中的可见名称使用产品品牌。 */
 export function brandDesktopClient({ titlebar, locales }, productName) {
   const brand = '<span className="dshDesktopFrameProduct">DSH Desktop</span>'

@@ -46,7 +46,7 @@
       ],
       "reason": "产品身份、Logo、可见文案与提示词；迁移 TokensHarness 数据。",
       "retireWhen": "产品仍使用独立品牌时保留；旧数据迁移只能在停止支持旧用户后另行决策。",
-      "verification": "2026-09-13：6 项品牌回归、staging-branding-verify 通过。Electron 登录后的初始标题与真实会话标题均为 TokensCowork；兼容模式 HTML 重新编译及标题校验通过。平台图标及旧数据迁移仍待安装/升级真机验收。"
+      "verification": "2026-09-14：9 项品牌回归及 staging-branding-verify 通过。证书模块改为动态加载后，装配与 Windows ASAR 校验共用完整运行时品牌断言；80 个真实编译分块组成的测试 ASAR 复现旧检查误报，修复检查通过，缺品牌及混入旧品牌仍拒绝。此前 Electron 初始/会话标题与兼容模式标题通过。完整安装包以 CI 为准，平台图标及旧数据迁移仍待真机验收。"
     }
   ],
   "diagnostics": [

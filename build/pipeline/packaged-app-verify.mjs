@@ -12,6 +12,7 @@ import { resolve, sep } from 'node:path'
 import { verifyAsarPresetDiscovery } from '../modules/runtime/preset-discovery-verify.mjs'
 import { alignConnectionRpcScope } from '../modules/runtime/runtime-version-overlay.mjs'
 import { alignCompactionSummary } from '../modules/runtime/compaction-overlay.mjs'
+import { verifyDesktopCertificateBranding } from '../modules/branding/branding-overlay.mjs'
 import { productStage } from './paths.mjs'
 
 const root = resolve(import.meta.dirname, '..', '..')
@@ -54,7 +55,6 @@ const packagedAsar = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', '
 const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
 const packagedAsarFiles = listPackage(packagedAsar)
   .map(path => path.replaceAll('\\', '/').replace(/^\/+/, ''))
-const packagedMain = extractFile(packagedAsar, 'lib/main.js').toString('utf8')
 const packagedRuntimeClosure = packagedAsarFiles
   .filter(path => path.startsWith('lib/') && path.endsWith('.js'))
   .map(path => extractFile(packagedAsar, path.replaceAll('/', sep)).toString('utf8'))
@@ -122,10 +122,9 @@ if (buildManifest.build?.nsis?.guid !== product.windowsInstallerGuid) {
 if (buildManifest.build?.nsis?.deleteAppDataOnUninstall === true) {
   throw new Error('Windows build configuration would delete user data on uninstall')
 }
-if (!packagedMain.includes(`${product.name} Local CA`)
-  || packagedMain.includes('DeepSeek Harness Desktop Local CA')) {
-  throw new Error('packaged Windows main runtime retains upstream certificate branding')
-}
+// Certificate setup is dynamically imported in 0.5.0; validate all packaged
+// runtime chunks, retaining both the required brand and forbidden-brand checks.
+verifyDesktopCertificateBranding(packagedRuntimeClosure, product.name)
 if (!packagedRuntimeClosure.includes(product.name)
   || !packagedRuntimeClosure.includes(product.appId)
   || packagedRuntimeClosure.includes('"ai.deepseek.dsh.desktop"')

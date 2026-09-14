@@ -3,9 +3,28 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import { brandDesktopMain, brandInstalledRuntimePrompts, hideUpstreamCloudEntry } from './branding-overlay.mjs'
+import { brandDesktopMain, brandInstalledRuntimePrompts, hideUpstreamCloudEntry, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
 
 const productName = 'TokensCowork'
+
+test('certificate branding accepts monolithic and lazy-loaded runtime chunks', () => {
+  const certificate = `const CA_COMMON_NAME = "${productName} Local CA";`
+  const main = 'async function setup() { return import("./lan-https-certificate-ABC.js"); }'
+  assert.doesNotThrow(() => verifyDesktopCertificateBranding(certificate, productName))
+  assert.doesNotThrow(() => verifyDesktopCertificateBranding([main, certificate].join('\n'), productName))
+  assert.throws(() => verifyDesktopCertificateBranding(main, productName), /missing the product/)
+})
+
+test('certificate branding rejects missing, wrong, and mixed brands in any chunk', () => {
+  const product = `const name = "${productName} Local CA";`
+  const upstream = 'const name = "DeepSeek Harness Desktop Local CA";'
+  for (const source of ['', upstream, 'const name = "OtherProduct Local CA";']) {
+    assert.throws(() => verifyDesktopCertificateBranding(source, productName), /missing the product/)
+  }
+  for (const chunks of [[product, upstream], [upstream, product]]) {
+    assert.throws(() => verifyDesktopCertificateBranding(chunks.join('\n'), productName), /retains upstream/)
+  }
+})
 const bootAnchor = 'The DeepSeek Harness implementation checkout is at'
 const bootBranded = `The ${productName} implementation checkout is at`
 const guiAnchor = 'DeepSeek Harness Web GUI'

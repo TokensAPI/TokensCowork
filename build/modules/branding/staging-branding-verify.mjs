@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { productStage } from '../../pipeline/paths.mjs'
-import { hideUpstreamCloudEntry } from './branding-overlay.mjs'
+import { hideUpstreamCloudEntry, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
 const desktopRoot = resolve(productStage(root), 'dsh-plugin-desktop')
@@ -79,8 +79,7 @@ requireText(desktopRuntimeClosure, product.name, 'compiled desktop runtime closu
 requireText(desktopRuntimeClosure, product.appId, 'compiled desktop runtime closure')
 requireText(certificateSource, `${product.name} Local CA`, 'local certificate source')
 rejectText(certificateSource, 'DeepSeek Harness Desktop Local CA', 'local certificate source')
-requireText(desktopRuntimeClosure, `${product.name} Local CA`, 'compiled desktop runtime closure')
-rejectText(desktopRuntimeClosure, 'DeepSeek Harness Desktop Local CA', 'compiled desktop runtime closure')
+verifyDesktopCertificateBranding(desktopRuntimeClosure, product.name)
 
 requireText(indexSource, product.name, 'desktop shell source')
 rejectText(indexSource, 'DeepSeek Harness Desktop', 'desktop shell source')
