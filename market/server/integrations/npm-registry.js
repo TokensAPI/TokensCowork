@@ -68,23 +68,16 @@ async function registry(path) {
     clearTimeout(timer)
   }
 }
-export async function npmPackage(name, version = 'latest') {
-  ;({ name, version } = npmReference(name, version))
-  const value = await registry(encodeURIComponent(name) + '/' + encodeURIComponent(version))
-  if (value.name !== name || !versionOK(value.version) || (version !== 'latest' && value.version !== version))
-    throw invalid('npm 未返回对应的有效版本', 502)
+export function npmPackageMetadata(name, value, packument) {
   const repo =
     typeof value.repository === 'string'
       ? value.repository
       : value.repository?.url
   let suggestion = '', readmeNotice = ''
-  try {
-    const packument = await registry(encodeURIComponent(name))
-    if (packument.name === name) {
-      suggestion = readmeSummary(packument.readme)
-      if (suggestion) readmeNotice = '来自 npm 当前 README，可能与指定历史版本不同，请核对后采用。'
-    }
-  } catch { readmeNotice = 'README 暂时无法读取，不影响使用包描述或手工填写简介。' }
+  if (packument?.name === name) {
+    suggestion = readmeSummary(packument.readme)
+    if (suggestion) readmeNotice = '来自 npm 当前 README，可能与指定历史版本不同，请核对后采用。'
+  }
   return {
     readmeSummary: suggestion,
     readmeNotice,
@@ -105,6 +98,18 @@ export async function npmPackage(name, version = 'latest') {
     npm: true,
     category: 'optional',
   }
+}
+export async function npmPackage(name, version = 'latest') {
+  ;({ name, version } = npmReference(name, version))
+  const value = await registry(encodeURIComponent(name) + '/' + encodeURIComponent(version))
+  if (value.name !== name || !versionOK(value.version) || (version !== 'latest' && value.version !== version))
+    throw invalid('npm 未返回对应的有效版本', 502)
+  let packument
+  try { packument = await registry(encodeURIComponent(name)) }
+  catch { /* README is optional. */ }
+  const result = npmPackageMetadata(name, value, packument)
+  if (!packument) result.readmeNotice = 'README 暂时无法读取，不影响使用包描述或手工填写简介。'
+  return result
 }
 export async function latestVersion(name, fallback) {
   try {

@@ -11,6 +11,7 @@ import { auditStatements } from '../services/admin-audit-service.js'
 import { accessPreview } from '../services/access-preview-service.js'
 import { catalogRoster, catalogMutation, catalogEntry, revisionStatement } from '../services/catalog-service.js'
 import { npmPackage } from '../integrations/npm-registry.js'
+import { privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
 function loginLimited(wait) {
@@ -86,7 +87,12 @@ export async function accessRoute(request, env) {
       const resolved = await resolveNpmVersions(selectCatalogSources(roster.items, env, true), env)
       return reply({...roster, items: resolved.map((item, i) => ({...item, registry: roster.items[i].registry, effectiveRegistry: item.registry ?? 'npm'}))})
     }
-    if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') return reply(await npmPackage(url.searchParams.get('package'),url.searchParams.get('version') || 'latest'))
+    if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') {
+      const registry = url.searchParams.get('registry') || 'npm'
+      if (!['npm', 'tokenscowork'].includes(registry)) return reply({ error: 'npm Registry 来源无效' }, 400)
+      const args = [url.searchParams.get('package'), url.searchParams.get('version') || 'latest']
+      return reply(await (registry === 'tokenscowork' ? privateNpmPackage(...args, env) : npmPackage(...args)))
+    }
     if (request.method !== 'GET' && request.headers.get('origin') && request.headers.get('origin') !== url.origin) return reply({ error: '跨站请求被拒绝' }, 403)
     if (request.method === 'GET' && url.pathname === '/api/admin/access') {
       const [keys, grants, plugins] = await Promise.all([

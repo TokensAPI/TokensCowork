@@ -12,8 +12,9 @@ test('link import fills a draft form, preserves custom/existing IDs and never wr
   Object.defineProperty(globalThis,'document',{configurable:true,value:{getElementById:get}})
   t.after(()=>{if(previous)Object.defineProperty(globalThis,'document',previous);else delete globalThis.document})
   let reads=0,writes=0
+  const requests=[]
   const p={package:'tokens-cowork-finance',suggestedId:'tokens-cowork-finance',version:'0.1.0-beta.1',displayName:'Finance',summary:'Fixture',readmeSummary:'Detailed finance introduction',readmeNotice:'Current README',repository:'',npm:true,prerelease:true,license:'UNLICENSED'}
-  const editor=catalogEditor({request:async(path,data)=>{if(data)writes++;else reads++;return p},action:async fn=>fn(),reload:async()=>{},close:()=>{},isBusy:()=>false})
+  const editor=catalogEditor({request:async(path,data)=>{requests.push(path);if(data)writes++;else reads++;return p},action:async fn=>fn(),reload:async()=>{},close:()=>{},isBusy:()=>false})
   editor.open()
   get('catalog-package').value='https://www.npmjs.com/package/tokens-cowork-finance'
   await get('catalog-import').onclick()
@@ -26,6 +27,7 @@ test('link import fills a draft form, preserves custom/existing IDs and never wr
   assert.equal(get('catalog-summary').value,p.readmeSummary)
   assert.equal(get('catalog-repository').required,false)
   assert.ok(get('catalog-error').textContent.includes('UNLICENSED'))
+  assert.ok(requests[0].includes('registry=npm'))
   assert.equal(editor.dirty(),true)
   get('catalog-id').value='my-custom-id'
   await get('catalog-import').onclick()
@@ -33,10 +35,14 @@ test('link import fills a draft form, preserves custom/existing IDs and never wr
   editor.open({...p,id:'existing-id'})
   await get('catalog-import').onclick()
   assert.equal(get('catalog-id').value,'existing-id')
+  get('catalog-registry').value='tokenscowork'
+  get('catalog-package').value='https://npm.tokensapi.ai/-/web/detail/@tokensapi/dsh-weekly-report'
+  await get('catalog-import').onclick()
+  assert.ok(requests.at(-1).includes('registry=tokenscowork'))
   get('catalog-kind').value='github';get('catalog-kind').onchange()
   assert.equal(get('catalog-repository').required,true)
   assert.equal(get('catalog-commit').required,true)
-  assert.equal(reads,3);assert.equal(writes,0)
+  assert.equal(reads,4);assert.equal(writes,0)
   editor.transition({...p,id:'existing-id',revision:2},'purge',false)
   assert.equal(get('purge-confirm-label').hidden,false)
   assert.equal(get('purge-confirm-id').required,true)

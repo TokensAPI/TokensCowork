@@ -285,3 +285,24 @@ test('self-hosted packages publish as public no matter how the Registry itself g
  assert.equal((await f.call('/api/admin/catalog',{operation:'publish',id:hidden.id,revision:revision(),confirmPublic:true})).status,200)
  assert.equal(f.db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(hidden.id).visibility,'public')
 })
+
+test('admin import reads package metadata from the selected self-hosted Registry on the server',async t=>{
+ const f=fixture(t)
+ Object.assign(f.env,{MARKET_PRIVATE_REGISTRY_ENABLED:'true',MARKET_PRIVATE_REGISTRY_URL:'https://npm.tokensapi.ai/',MARKET_PRIVATE_REGISTRY_TOKEN:'reader:secret',MARKET_PRIVATE_REGISTRY_AUTH_SCHEME:'basic'})
+ let calls=0
+ t.mock.method(globalThis,'fetch',async(url,options)=>{
+  calls++
+  assert.equal(String(url),'https://npm.tokensapi.ai/%40tokensapi%2Fdsh-weekly-report')
+  assert.equal(options.headers.Authorization,'Basic '+btoa('reader:secret'))
+  return Response.json({name:'@tokensapi/dsh-weekly-report',readme:'# 周报插件\n\n生成并审阅企业周报。','dist-tags':{latest:'0.1.0'},versions:{'0.1.0':{name:'@tokensapi/dsh-weekly-report',version:'0.1.0',description:'周报生成、审阅和 PDF 预览',license:'UNLICENSED',dist:{tarball:'https://npm.tokensapi.ai/@tokensapi/dsh-weekly-report/-/dsh-weekly-report-0.1.0.tgz'}}}})
+ })
+ const input=encodeURIComponent('https://npm.tokensapi.ai/-/web/detail/@tokensapi/dsh-weekly-report')
+ const response=await f.call('/api/admin/npm-package?registry=tokenscowork&version=latest&package='+input)
+ const data=await response.json()
+ assert.equal(response.status,200,JSON.stringify(data))
+ assert.equal(data.package,'@tokensapi/dsh-weekly-report')
+ assert.equal(data.version,'0.1.0')
+ assert.equal(data.summary,'周报生成、审阅和 PDF 预览')
+ assert.equal(data.readmeSummary,'生成并审阅企业周报。')
+ assert.equal(calls,1)
+})

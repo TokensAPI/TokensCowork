@@ -73,7 +73,9 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
             '&version=' +
             encodeURIComponent(
               $('catalog-import-version').value.trim() || 'latest',
-            ),
+            ) +
+            '&registry=' +
+            encodeURIComponent($('catalog-registry').value),
         )
         $('catalog-package').value = data.package
         if (!selected && (!$('catalog-id').value.trim() || $('catalog-id').value === generatedId)) {
