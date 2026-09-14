@@ -4,7 +4,7 @@
 FROM node:24-alpine
 WORKDIR /app
 COPY . .
-RUN mkdir -p /data && chown node:node /data
+RUN test -s product-components.json && mkdir -p /data && chown node:node /data
 USER node
 ENV MARKET_HOST_DATA_DIR=/data
 EXPOSE 8080

@@ -1,0 +1,37 @@
+{
+  "productVersion": "0.5.1",
+  "items": [
+    {
+      "id": "tokens-version-updates",
+      "package": "@tokens/dsh-version-updates",
+      "displayName": "TokensCowork 更新",
+      "version": "0.1.0",
+      "commit": "3c19b2a218215f529585853f8396c234aa01f305",
+      "category": "builtin"
+    },
+    {
+      "id": "dsh-tokensapi-ui",
+      "package": "dsh-tokensapi-ui",
+      "displayName": "Tokens Cowork UI",
+      "version": "0.2.20",
+      "commit": "9969d31660e44389fe23500b4df44fa89681caf1",
+      "category": "builtin"
+    },
+    {
+      "id": "tokens-model-manager",
+      "package": "@tokens/dsh-model-manager",
+      "displayName": "TokensAPI 模型",
+      "version": "0.2.18",
+      "commit": "7a7b8a917eb2b392f0f208eef5b717c945326edb",
+      "category": "builtin"
+    },
+    {
+      "id": "tokens-dsh-web-search",
+      "package": "tokens-dsh-web-search",
+      "displayName": "联网搜索",
+      "version": "0.1.0",
+      "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
+      "category": "builtin"
+    }
+  ]
+}

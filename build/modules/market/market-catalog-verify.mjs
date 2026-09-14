@@ -6,6 +6,7 @@ const root=resolve(import.meta.dirname, '../../..')
 const read=path=>JSON.parse(readFileSync(resolve(root,path),'utf8'))
 const config=read('market/server/source.config.json'), product=read('product.json')
 if(JSON.stringify(read('market/server/source.json'))!==JSON.stringify(buildSourceManifest(config.origin)))throw new Error('Run npm --prefix market/server run build to refresh source.json')
+if(JSON.stringify(read('market/server/product-components.json'))!==JSON.stringify(buildProductComponents(product)))throw new Error('Run npm --prefix market/server run build to refresh product-components.json')
 const db=new DatabaseSync(':memory:')
 try {
   const dir=resolve(root,'market/server/database/migrations')
