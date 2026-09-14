@@ -23,6 +23,15 @@ it.each(['', 'sk-fixture'])('builds scoped install options without redirecting t
   expect(options.filter(x=>x.includes('_authToken'))).toEqual(key?['--//market.example/registry/:_authToken='+key]:[])
 })
 
+it.each(['', 'sk-fixture'])('keeps private dependencies resolvable while removing a plugin (%s)', async key => {
+  const service=new MarketInstallService(()=>({name:'test',dir:'.'}),{} as MarketDesktopPnpm,{verify:vi.fn()},
+    {registryOrigin:'https://market.example',registryToken:async()=>key})
+  const options=await (service as unknown as {privateRegistryOptions():Promise<string[]>}).privateRegistryOptions()
+  expect(options).toContain('--config.registry=https://registry.npmjs.org/')
+  expect(options).toContain('--config.@tokensapi:registry=https://market.example/registry/by-package/')
+  expect(options.filter(x=>x.includes('_authToken'))).toEqual(key?['--config.//market.example/registry/:_authToken='+key]:[])
+})
+
 it.each(['npm', 'tokenscowork'] as const)('includes %s packages in the actual installable page', registry => {
   const service = new MarketInstallService(
     () => ({ name: 'desktop', dir: '.' }),

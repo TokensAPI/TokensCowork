@@ -157,6 +157,23 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
     "return ['--save-exact', `--registry=${registry}`, auth, ...(scope === undefined ? [] : [`--${scope}:registry=${registry}`])]",
     "return ['--save-exact', `--registry=${scope === undefined ? registry : NPM_REGISTRY}`, ...(token ? [auth] : []), ...(scope === undefined ? [] : [`--${scope}:registry=${registry}`])]",
     'third-party dependency registry')
+  service = replaceOnce(service,
+    "      await this.runPnpm(['remove', intent.packageName], operationSignal)",
+    "      await this.runPnpm(['remove', ...await this.privateRegistryOptions(), intent.packageName], operationSignal)",
+    'private registry uninstall routing')
+  service = replaceOnce(service,
+    '  private async installOptions(candidate:',
+    `  private async privateRegistryOptions(): Promise<readonly string[]> {
+    if (!this.registryOrigin) return []
+    const registry = \`\${this.registryOrigin}/registry/by-package/\`
+    const token = await this.registryToken?.() ?? ''
+    if (token && !/^sk-\\S{1,509}$/u.test(token)) throw new MarketInstallError('operation-failed', 'The API Key format is invalid.')
+    const auth = \`--config.//\${new URL(registry).host}/registry/:_authToken=\${token}\`
+    return [\`--config.registry=\${NPM_REGISTRY}\`, ...(token ? [auth] : []), \`--config.@tokensapi:registry=\${registry}\`]
+  }
+
+  private async installOptions(candidate:`,
+    'private registry options for dependency reconciliation')
   service = patchInstallerRouting(service)
   return { ...files, http, index, service, routes, identity, types, providerSchema, snapshotSchema, providerTypes, snapshotTypes }
 }
