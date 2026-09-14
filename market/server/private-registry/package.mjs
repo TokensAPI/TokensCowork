@@ -22,6 +22,18 @@ function reference(input, requested, config) {
   return { name, version: requested }
 }
 
+export function isPrivateNpmReference(input, env = {}) {
+  const config = registryConfig(env)
+  if (!config.ready || typeof input !== 'string' || input.length > 512 || !/^https?:/iu.test(input.trim())) return false
+  try {
+    const url = new URL(input.trim())
+    const detail = new URL('-/web/detail/', config.url)
+    const path = decodeURIComponent(url.pathname)
+    return url.protocol === 'https:' && url.origin === detail.origin && !url.username && !url.password
+      && path.startsWith(detail.pathname) && path !== detail.pathname
+  } catch { return false }
+}
+
 export async function privateNpmPackage(input, requested = 'latest', env = {}) {
   const config = registryConfig(env)
   if (!config.enabled || !config.ready) throw invalid('自建 Registry 查询服务未配置', 503)
