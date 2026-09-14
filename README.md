@@ -10,11 +10,9 @@ TokensCowork 桌面产品的纯构建 Superproject。顶层不复制 Desktop、D
 desktop/                     Desktop 子模块（内含递归的 deepseek-harness 子模块）
 plugins/                     插件源码子模块（每个插件一个独立仓库）
 build/                       组装、验收与打包脚本
-  assembly/                  staging 组装与产品配置改写
-  plugins/                   插件获取、编译与运行时裁剪
-  verify/                    布局、品牌与最终安装包验收
-  macos/                     macOS 签名模式选择与打包 hook
-  product.yarn.lock          产品固定依赖图（immutable）
+  build.mjs                  完整检查与打包调度入口
+  pipeline/                  装配步骤、跨模块验收与 product.yarn.lock
+  modules/                   按品牌、市场、运行时、更新、平台归拢覆盖与测试
 scripts/                     版本同步、发布说明校验、插件清单生成、Windows 卸载
 docs/
   manual-release.md          手动构建与发布指南（新增插件、本地打包、发新版）
@@ -29,8 +27,8 @@ product.json                 产品身份、固定提交与默认插件清单
 
 `market/` 内只划分两个运行时服务：`market/server/` 是插件市场管理服务，
 `market/registry/` 是私有 npm Registry 服务。两者通过 HTTPS API 和服务端密钥连接，
-不共享代码运行时、数据库或容器存储；`build/overlays/market/` 只是桌面端适配层，
-不属于任一服务。
+不共享代码运行时、数据库或容器存储；`build/modules/market/` 集中维护桌面市场覆盖
+及服务部署副本的路由适配，不属于任一服务运行时。
 
 ## 初始化
 
@@ -47,7 +45,7 @@ corepack yarn product:check
 | --- | --- |
 | `product:check` | 快速检查版本、Git pin 和产品声明 |
 | `product:prepare` | 只重建 `.build/desktop` staging，不安装依赖 |
-| `product:refresh-lock` | 默认插件或生产依赖变化后更新 `build/product.yarn.lock` |
+| `product:refresh-lock` | 默认插件或生产依赖变化后更新 `build/pipeline/product.yarn.lock` |
 | `product:check-desktop` | 本地完整检查，不生成安装包 |
 | `product:dist:win` | 完整检查并生成 Windows NSIS 安装包 |
 | `product:dist:mac:auto` | 生成当前架构的 macOS DMG（自动选择签名模式） |
@@ -63,7 +61,7 @@ corepack yarn product:check
 ```text
 检查版本、Git pin 和产品声明
 → 重建 .build/desktop
-→ 注入默认插件、TokensCowork 品牌和 build/product.yarn.lock
+→ 注入默认插件、TokensCowork 品牌和 build/pipeline/product.yarn.lock
 → yarn install --immutable
 → 编译并裁剪插件
 → 检查生产依赖许可证
@@ -76,7 +74,7 @@ corepack yarn product:check
 
 macOS 打包细节：`product:dist:mac:auto` 是本地和 GitHub Actions 的统一 DMG 入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择架构。当 `MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和 `APPLE_TEAM_ID` 全部存在时执行 Developer ID 签名、公证和 staple；全部缺失时自动 ad-hoc 签名；只配置一部分时立即失败。`BUILD-INFO.txt` 记录实际采用的签名模式。
 
-Windows 最终验收（`build/verify/package.mjs`）除品牌与原生架构检查外，还会拒绝产物中出现任何非 ASCII 文件名——NSIS 的解压组件不支持 UTF-8 zip 条目，此类文件会导致用户安装时报 "Failed to decompress files"（v0.3.7 事故）。
+Windows 最终验收（`build/pipeline/packaged-app-verify.mjs`）除品牌与原生架构检查外，还会拒绝产物中出现任何非 ASCII 文件名——NSIS 的解压组件不支持 UTF-8 zip 条目，此类文件会导致用户安装时报 "Failed to decompress files"（v0.3.7 事故）。
 
 ## 发布流程
 
@@ -101,7 +99,7 @@ Windows 最终验收（`build/verify/package.mjs`）除品牌与原生架构检�
 
 保留用户数据是产品约定，两头都得守住：构建侧不设
 `nsis.deleteAppDataOnUninstall`，因为它是**编译期**开关，写进安装包后运行期
-再也关不掉；`build/verify/branding.mjs` 和 `build/verify/package.mjs` 会拦下它变回
+再也关不掉；`build/modules/branding/staging-branding-verify.mjs` 和 `build/pipeline/packaged-app-verify.mjs` 会拦下它变回
 `true`。运行侧则靠不传 `--delete-app-data`。注意卸载器只解析这个参数，
 electron-builder 自升级时传的 `/KEEP_APP_DATA` 在 `uninstaller.nsh` 里根本没有解析分支，
 写了也不会生效。
@@ -132,7 +130,7 @@ GUID 注册记录发现产品，并在 `InstallLocation` 缺失时从 `Uninstall
 
 插件源码包名与产品运行时包名不同时，用 `sourcePackage` 固定上游身份，`package` 声明桌面最终加载的名称；重命名只发生在 staging 副本。
 
-启用或升级默认插件后运行 `corepack yarn product:refresh-lock`，提交生成的 `build/product.yarn.lock`。普通 CI 和发布构建只接受 immutable lockfile。
+启用或升级默认插件后运行 `corepack yarn product:refresh-lock`，提交生成的 `build/pipeline/product.yarn.lock`。普通 CI 和发布构建只接受 immutable lockfile。
 
 > 想从零开发一个插件？见 [插件开发从 0 到 1](docs/plugin-guide.md)。
 

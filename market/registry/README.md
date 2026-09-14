@@ -2,7 +2,7 @@
 
 该目录是 `market/` 下面独立的 Verdaccio 服务部署单元。它只负责 npm API、Web UI、
 账号和包存储；插件目录、组织/API Key 权限与市场代理属于 `market/server/`，桌面端
-安装地址属于 `build/overlays/market/`。两个服务可以独立部署和迁移。
+安装地址属于 `build/modules/market/`。两个服务可以独立部署和迁移。
 
 ## 公开与私有
 

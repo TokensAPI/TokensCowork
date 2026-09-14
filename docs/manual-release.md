@@ -20,7 +20,7 @@ git submodule update --init --recursive
 corepack yarn product:check
 ```
 
-`product:check` 必须确认 Desktop、DSH 和所有插件子模块都在 `product.json` 固定的提交上，且子模块工作区没有未提交修改。
+`product:check` 核对 `product.json` 的提交与 Git 索引中的 gitlink、实际检出和清单；发布使用 `--require-clean` 核对参与构建的源码洁净性。不要为此删除协作者正在开发的子模块修改，改用独立检出。完整升级注意事项见 [上游升级检查指南](upstream-upgrade.md)。
 
 ## 2. 新增插件子模块
 
@@ -72,7 +72,7 @@ git -C plugins/tokens_NewPlugin_code rev-parse HEAD
 corepack yarn product:refresh-lock
 ```
 
-必须把生成的 `build/product.yarn.lock` 与插件配置一起提交。发布构建使用 immutable lockfile，锁文件未同步会直接失败。
+必须把生成的 `build/pipeline/product.yarn.lock` 与插件配置一起提交。发布构建使用 immutable lockfile，锁文件未同步会直接失败。
 
 ## 5. 设置产品版本
 
@@ -85,7 +85,7 @@ Remove-Item Env:VERSION
 corepack yarn product:version-check
 ```
 
-下载页把 `x.y.0` 识别为纯净版。包含默认插件的普通版本不要使用 `x.y.0`；例如可以使用 `0.3.1`、`0.3.2`。
+新发布从 `product.json` 自动生成 clean/bundled 发行标记，带插件版本也可以使用 `x.y.0`；无需另行维护发行类型。下载页仅对无标记的历史 Release 沿用 `x.y.0` 纯净版约定。发行类型与 GitHub 的 stable/prerelease 状态相互独立。
 
 ## 6. 编写发布说明
 
@@ -153,7 +153,7 @@ git diff --check
 推荐把插件产品变更和版本准备拆成两个逻辑提交：
 
 ```powershell
-git add .gitmodules plugins/tokens_NewPlugin_code product.json build/product.yarn.lock
+git add .gitmodules plugins/tokens_NewPlugin_code product.json build/pipeline/product.yarn.lock
 git commit -m "feat(product): bundle new plugin" `
   -m "登记并默认启用新插件，同步固定提交和产品依赖锁。"
 
@@ -209,7 +209,7 @@ Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/acti
 - [ ] 插件自身仓库已提交可发布代码和运行时产物。
 - [ ] 插件子模块与 `product.json` 使用同一提交 SHA。
 - [ ] 默认插件的完整生产依赖许可证已通过。
-- [ ] `build/product.yarn.lock` 已刷新并提交。
+- [ ] `build/pipeline/product.yarn.lock` 已刷新并提交。
 - [ ] `VERSION`、`package.json` 和 `product.json` 版本一致。
 - [ ] `docs/releases/vx.y.z.md` 已创建并通过校验。
 - [ ] `product:check-desktop` 已通过。
