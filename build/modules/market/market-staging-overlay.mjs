@@ -1,6 +1,7 @@
 import { cpSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
+import { brandMarketCopy } from './market-source-overlay.mjs'
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from './market-update-overlay.mjs'
 import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './market-source-overlay.mjs'
@@ -121,4 +122,7 @@ export function applyMarketSourceOverlays({ root, stage }) {
     marketLifecycleTestsPath,
     awaitProductSourceMigrationInLifecycleTest(readFileSync(marketLifecycleTestsPath, 'utf8')),
   )
+  // Last, so update overlays cannot reintroduce upstream UI copy.
+  const { product } = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+  writeFileSync(marketLocalesPath, brandMarketCopy(readFileSync(marketLocalesPath, 'utf8'), product.name))
 }

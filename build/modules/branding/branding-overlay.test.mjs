@@ -3,9 +3,42 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
-import { brandDesktopMain, brandInstalledRuntimePrompts, hideUpstreamCloudEntry, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { brandDesktopMain, brandInstalledRuntimePrompts, brandNativeCopy, nativeCopyPaths, hideUpstreamCloudEntry, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { brandMarketCopy } from '../market/market-source-overlay.mjs'
 
 const productName = 'TokensCowork'
+
+test('all selected native surfaces use product copy without altering technical identifiers', () => {
+  const stage = mkdtempSync(resolve(tmpdir(), 'native-branding-'))
+  try {
+    for (const parts of nativeCopyPaths) {
+      const target = resolve(stage, ...parts)
+      mkdirSync(resolve(target, '..'), { recursive: true })
+      writeFileSync(target, readFileSync(resolve(import.meta.dirname, '../../../desktop/dsh-plugin-desktop', ...parts)))
+    }
+    brandNativeCopy(stage, productName)
+    for (const parts of nativeCopyPaths) {
+      const original = readFileSync(resolve(import.meta.dirname, '../../../desktop/dsh-plugin-desktop', ...parts), 'utf8')
+      const branded = readFileSync(resolve(stage, ...parts), 'utf8')
+      assert.equal(branded, original.replaceAll('DSH Desktop', productName).replaceAll('DeepSeek Harness', productName))
+      assert.doesNotMatch(branded, /DSH Desktop|DeepSeek Harness/u)
+    }
+    brandNativeCopy(stage, productName)
+    writeFileSync(resolve(stage, ...nativeCopyPaths[0]), 'upstream changed')
+    assert.throws(() => brandNativeCopy(stage, productName), /no longer carries/)
+  } finally { rmSync(stage, { recursive: true, force: true }) }
+})
+
+test('market installation and restart copy is branded in both languages', () => {
+  const original = readFileSync(resolve(import.meta.dirname, '../../../desktop/dsh-community-market/src/client/locales.ts'), 'utf8')
+  const result = brandMarketCopy(original, productName)
+  assert.ok(result.includes('请确认 TokensCowork 验证的 npm 包、版本和目标配置。'))
+  assert.ok(result.includes('操作完成后需要重启 TokensCowork，改动才会生效。'))
+  assert.ok(result.includes('Restart TokensCowork after this operation'))
+  assert.doesNotMatch(result, /DSH Desktop|DeepSeek Harness|DSH Terminal|DSH 终端/u)
+  assert.equal(brandMarketCopy(result, productName), result)
+  assert.equal(brandMarketCopy('dsh-community-market /api/dsh @deepseek-ai/dsh', productName), 'dsh-community-market /api/dsh @deepseek-ai/dsh')
+})
 
 test('certificate branding accepts monolithic and lazy-loaded runtime chunks', () => {
   const certificate = `const CA_COMMON_NAME = "${productName} Local CA";`
@@ -42,6 +75,7 @@ function makeStage(files) {
   const modules = resolve(stage, 'dsh-plugin-desktop', 'node_modules', '@deepseek-ai')
   const write = (path, text) => { mkdirSync(resolve(path, '..'), { recursive: true }); writeFileSync(path, text) }
   write(resolve(modules, '../@agents-anywhere/dsh-bridge-next/lib/client.js'), cloudEntry)
+  write(resolve(modules, 'dsh-client-ui-directory-picker-browse/lib/client.js'), 'DSH Desktop native directory picker is unavailable; DSH Desktop directory validation is unavailable')
   write(resolve(modules, 'dsh-app-boot', 'lib', 'index.js'), files.boot)
   write(resolve(modules, 'dsh-web-app', 'lib', 'index.js'), files.gui)
   write(resolve(modules, 'dsh-client-ui-layout', 'lib', 'client.js'), files.title)

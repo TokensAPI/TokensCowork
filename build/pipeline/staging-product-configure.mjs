@@ -121,7 +121,8 @@ writeFileSync(settingsLocalesPath, clientBranding.locales)
 writeFileSync(
   indexPath,
   index
-    .replace(upstreamWindowTitle, `windowTitle: ${JSON.stringify(product.name)},`),
+    .replace(upstreamWindowTitle, `windowTitle: ${JSON.stringify(product.name)},`)
+    .replaceAll('DSH Desktop', product.name),
 )
 writeFileSync(assistedMessagesPath, assistedMessages.replaceAll('DSH Desktop', product.name))
 writeFileSync(

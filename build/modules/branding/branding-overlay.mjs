@@ -342,6 +342,11 @@ export function brandInstalledRuntimePrompts({ stage, productName }) {
     if (changed) writeFileSync(path, content)
   }
 
+  replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-client-ui-directory-picker-browse', 'lib', 'client.js'), [
+    ['DSH Desktop native directory picker is unavailable', `${productName} native directory picker is unavailable`, 1],
+    ['DSH Desktop directory validation is unavailable', `${productName} directory validation is unavailable`, 1],
+  ])
+
   // Published clients have already substituted DSH_CLIENT_TITLE at compile time.
   // Setting a build environment variable in this outer project cannot change them.
   replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-client-ui-layout', 'lib', 'client.js'), [
@@ -385,8 +390,7 @@ export function brandInstalledRuntimePrompts({ stage, productName }) {
 }
 
 /** Brand display-only native surfaces, excluding install identity/migration logic. */
-export function brandNativeCopy(desktopRoot, productName) {
-  const nativeCopyPaths = [
+export const nativeCopyPaths = [
     ['src', 'native-dialog-copy.ts'],
     ['src', 'tray-locale.ts'],
     ['src', 'recovery-copy.ts'],
@@ -396,13 +400,25 @@ export function brandNativeCopy(desktopRoot, productName) {
     ['src', 'native-ui', 'recovery.html'],
     ['src', 'native-ui', 'setup-wizard.html'],
     ['src', 'native-ui', 'compatibility-chrome.html'],
+    ['src', 'native-ui', 'compatibility-chrome', 'main.tsx'],
+    ['src', 'setup-wizard-copy.ts'],
+    ['src', 'remote-control-offer.ts'],
+    ['src', 'desktop-terminal.ts'],
+    ['src', 'desktop-boot-recovery.ts'],
+    ['src', 'desktop-data-directory.ts'],
+    ['src', 'windows-volume-diagnostics.ts'],
+    ['src', 'workspace-admission.ts'],
+    ['src', 'update-lifecycle.ts'],
+    ['src', 'bin.ts'],
   ]
+export function brandNativeCopy(desktopRoot, productName) {
   for (const segments of nativeCopyPaths) {
     const nativeCopyPath = resolve(desktopRoot, ...segments)
     const nativeCopySource = readFileSync(nativeCopyPath, 'utf8')
-    if (!nativeCopySource.includes('DSH Desktop')) {
+    if (!/DSH Desktop|DeepSeek Harness/u.test(nativeCopySource)) {
+      if (nativeCopySource.includes(productName)) continue
       throw new Error(`configure-product: ${segments.join('/')} no longer carries upstream desktop branding`)
     }
-    writeFileSync(nativeCopyPath, nativeCopySource.replaceAll('DSH Desktop', productName))
+    writeFileSync(nativeCopyPath, nativeCopySource.replaceAll('DSH Desktop', productName).replaceAll('DeepSeek Harness', productName))
   }
 }

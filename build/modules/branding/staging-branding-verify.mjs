@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { productStage } from '../../pipeline/paths.mjs'
-import { hideUpstreamCloudEntry, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { hideUpstreamCloudEntry, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
 const desktopRoot = resolve(productStage(root), 'dsh-plugin-desktop')
@@ -46,6 +46,16 @@ if (desktopPackage.build?.appId !== product.appId) {
 if (desktopPackage.build?.productName !== product.name) {
   throw new Error('verify-product-branding: packaged productName differs from product.json')
 }
+if (desktopPackage.description !== `${product.name} desktop application`) {
+  throw new Error('verify-product-branding: shortcut/application description differs from product brand')
+}
+const marketClient = readFileSync(resolve(desktopRoot, '../dsh-community-market/lib/client.js'), 'utf8')
+for (const oldBrand of ['DSH Desktop', 'DeepSeek Harness', 'DSH Terminal', 'DSH 终端']) {
+  rejectText(marketClient, oldBrand, 'compiled market client')
+}
+requireText(marketClient, `重启 ${product.name}`, 'compiled market restart message')
+rejectText(read('node_modules/@deepseek-ai/dsh-client-ui-directory-picker-browse/lib/client.js'),
+  'DSH Desktop', 'installed directory picker error copy')
 if (desktopPackage.build?.nsis?.guid !== product.windowsInstallerGuid) {
   throw new Error('verify-product-branding: NSIS upgrade identity differs from product.json')
 }
@@ -87,18 +97,10 @@ requireText(desktopRuntimeClosure, product.name, 'compiled desktop shell runtime
 rejectText(read('src/client/DesktopFrameTitlebarView.tsx'), 'DSH Desktop', 'desktop titlebar source')
 // 原生对话框/托盘/恢复/通知文案与原生页面标题:configure 阶段整体替换,
 // 这里兜底防止上游 pin 更新后新增的品牌串漏网。
-for (const nativeCopyPath of [
-  'src/native-dialog-copy.ts',
-  'src/tray-locale.ts',
-  'src/recovery-copy.ts',
-  'src/notifications.ts',
-  'src/client/directory-picker.ts',
-  'src/native-ui/desktop-dialog.html',
-  'src/native-ui/recovery.html',
-  'src/native-ui/setup-wizard.html',
-  'src/native-ui/compatibility-chrome.html',
-]) {
+for (const segments of nativeCopyPaths) {
+  const nativeCopyPath = segments.join('/')
   rejectText(read(nativeCopyPath), 'DSH Desktop', nativeCopyPath)
+  rejectText(read(nativeCopyPath), 'DeepSeek Harness', nativeCopyPath)
 }
 rejectText(read('src/client/desktop-settings-locales.ts'), 'DSH Desktop', 'desktop settings source')
 requireText(read('lib/client.js'), `${product.name} 设置`, 'compiled desktop settings')

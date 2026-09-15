@@ -60,7 +60,7 @@
         "build/modules/platform/desktop-packaging-overlay.mjs"
       ],
       "targets": [
-        "Desktop package.json 打包身份与架构裁剪、prepare-fs-ext.ts、release-mac.ts"
+        "Desktop package.json 打包身份、description（快捷方式悬停/应用说明）与架构裁剪、prepare-fs-ext.ts、release-mac.ts"
       ],
       "appliedBy": [
         "build/pipeline/staging-prepare.mjs",
@@ -68,7 +68,7 @@
       ],
       "reason": "保留产品打包参数和显式架构；共享质量检查由 Windows 承担，macOS 不重复跑。",
       "retireWhen": "上游支持配置化架构/质量门禁后缩减；产品身份与必要检查不能跟随临时补丁一起删除。",
-      "verification": "test:build platform；--plan 查看平台顺序；macOS 原生依赖、签名与 Windows 内容仍由平台构建验收。"
+      "verification": "2026-09-15：平台回归验证 mac/win 产品 description，实际 electron-builder AppInfo.description 读取正确；staging 与安装包校验增加相同断言。Windows 现有快捷方式须新包安装后验收；macOS 原生依赖、签名与 Windows 内容仍由平台构建验收。"
     },
     {
       "id": "platform.macos-signing",

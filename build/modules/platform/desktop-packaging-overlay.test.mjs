@@ -12,6 +12,8 @@ test('packaging extraction preserves product identity and Windows-only exclusion
   configureDesktopPackage(mac, product, 'default')
   configureDesktopPackage(win, product, 'windows')
   assert.equal(win.version, product.version)
+  assert.equal(win.description, 'TokensCowork desktop application')
+  assert.equal(mac.description, win.description)
   assert.equal(win.build.nsis.guid, product.windowsInstallerGuid)
   assert.equal(win.build.nsis.artifactName, 'TokensCowork-${version}-${arch}-Setup.${ext}')
   assert.deepEqual(mac.build.files, pristine.build.files)

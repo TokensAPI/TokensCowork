@@ -16,6 +16,8 @@ const upstreamReleaseCheck = `  // The workspace check includes the package buil
 /** Keep the original Windows x64 exclusions and installer identity. */
 export function configureDesktopPackage(desktopPackage, product, packagingTarget) {
   desktopPackage.version = product.version
+  // electron-builder uses this for NSIS shortcut tooltips and FileDescription.
+  desktopPackage.description = `${product.name} desktop application`
   desktopPackage.build.appId = product.appId
   desktopPackage.build.productName = product.name
   desktopPackage.build.win.artifactName = `${product.name}-\${version}-\${arch}-Portable.\${ext}`

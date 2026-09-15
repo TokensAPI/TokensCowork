@@ -49,6 +49,9 @@ const executable = resolve(desktopRoot, 'dist', 'win-unpacked', `${product.name}
 assertPortableExecutable(installer, 'Windows NSIS installer')
 assertPortableExecutable(executable, 'unpacked Windows application')
 const buildManifest = JSON.parse(readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'))
+if (buildManifest.description !== `${product.name} desktop application`) {
+  throw new Error('Windows shortcut/application description retains incorrect branding')
+}
 const requireFromDesktop = createRequire(resolve(desktopRoot, 'package.json'))
 const { extractFile, listPackage } = requireFromDesktop('@electron/asar')
 const packagedAsar = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar')

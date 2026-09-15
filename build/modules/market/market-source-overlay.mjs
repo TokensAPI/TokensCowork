@@ -64,6 +64,14 @@ export function allowMarketSourceSyntheticProxy(source, hostname) {
   return source.replace(clientAnchor, patchedClient).replace(lookupAnchor, patchedLookup)
 }
 
+/** Brand display-only market locales after all behavior overlays have composed. */
+export function brandMarketCopy(source, productName) {
+  return source.replaceAll('DSH Desktop', productName)
+    .replaceAll('DeepSeek Harness', productName)
+    .replaceAll('DSH Terminal', `${productName} Terminal`)
+    .replaceAll('DSH 终端', `${productName} 终端`)
+}
+
 /**
  * 将插件市场收敛为产品自营源：预置 TokensAPI 目录源并默认选中、清空上游
  * 合作源目录、隐藏来源的添加/删除入口和冗余说明。用户打开市场即浏览

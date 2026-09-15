@@ -36,8 +36,8 @@
         "build/modules/branding/branding-overlay.mjs"
       ],
       "targets": [
-        "Desktop: src/product-identity.ts, main.ts, index.ts, native UI/copy, certificate, cordis.patch.yml",
-        "DSH installed: app-boot, web-app, agent-presets prompts, client-ui-layout productTitle, web-frontend dist/index.html",
+        "Desktop: src/product-identity.ts, main.ts, index.ts, native UI/copy（含终端、加载与启动错误）, certificate, cordis.patch.yml",
+        "DSH installed: app-boot, web-app, agent-presets prompts, client-ui-layout productTitle, client-ui-directory-picker-browse errors, web-frontend dist/index.html",
         "Product assets: build/modules/branding/assets"
       ],
       "appliedBy": [
@@ -46,7 +46,7 @@
       ],
       "reason": "产品身份、Logo、可见文案与提示词；迁移 TokensHarness 数据。",
       "retireWhen": "产品仍使用独立品牌时保留；旧数据迁移只能在停止支持旧用户后另行决策。",
-      "verification": "2026-09-14：9 项品牌回归及 staging-branding-verify 通过。证书模块改为动态加载后，装配与 Windows ASAR 校验共用完整运行时品牌断言；80 个真实编译分块组成的测试 ASAR 复现旧检查误报，修复检查通过，缺品牌及混入旧品牌仍拒绝。此前 Electron 初始/会话标题与兼容模式标题通过。完整安装包以 CI 为准，平台图标及旧数据迁移仍待真机验收。"
+      "verification": "2026-09-15：11 项品牌回归、Desktop/Market 编译与类型检查、staging-branding-verify 通过；补齐原生终端、加载/启动/目录选择错误文案。此前证书动态分块及 ASAR 品牌回归保留。未执行本次 GUI 与新包安装验收；平台图标及旧数据迁移仍需真机验证。"
     }
   ],
   "diagnostics": [

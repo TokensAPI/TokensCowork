@@ -61,9 +61,9 @@
       "appliedBy": [
         "build/pipeline/staging-prepare.mjs"
       ],
-      "reason": "固定唯一产品来源、自愈旧来源、隐藏增删及说明；上游多来源测试按产品语义调整。",
+      "reason": "固定唯一产品来源、自愈旧来源、隐藏增删及说明；上游多来源测试按产品语义调整。全部覆盖执行后统一替换市场中英文安装、卸载、更新与重启品牌文案。",
       "retireWhen": "只有产品改回多来源策略才移除；不得把跳过上游用例当成覆盖正确的证据。",
-      "verification": "test:build market 仅含部分行为与组合锚点；完整 staging Market test/typecheck、来源迁移与隐藏入口需验收。"
+      "verification": "2026-09-15：staging Market 24 个测试文件通过（276 passed、9 原有 skipped），编译与类型检查通过；品牌回归覆盖中英文安装/重启文案及幂等，编译客户端品牌校验通过。来源迁移与隐藏入口仍需 GUI 验收。"
     },
     {
       "id": "market.network",
