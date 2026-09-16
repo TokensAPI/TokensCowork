@@ -40,6 +40,7 @@ const product = JSON.parse(fs.readFileSync('product.json', 'utf8'))
 product.product.version = version
 fs.writeFileSync('product.json', `${JSON.stringify(product, null, 2)}\n`)
 NODE
+  node scripts/generate-market-catalog.mjs
 }
 
 check_metadata() {
@@ -73,6 +74,7 @@ case "$mode" in
       exit 1
     fi
     check_metadata "$current"
+    node build/modules/market/market-catalog-verify.mjs
     printf 'Version metadata is synchronized: %s\n' "$current"
     ;;
   sync)

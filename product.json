@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.3"
+    "version": "0.5.4"
   },
   "desktop": {
     "path": "desktop",
