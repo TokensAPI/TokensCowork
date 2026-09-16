@@ -175,5 +175,20 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
   private async installOptions(candidate:`,
     'private registry options for dependency reconciliation')
   service = patchInstallerRouting(service)
+  // Update badges use the freshly authorized catalog's version hint. Preview
+  // and execution retain their independent authorization/package verification.
+  const updateTargetType = "readonly packageRegistry: 'npm' | 'tokenscowork'; readonly itemId: string"
+  service = service.replaceAll(updateTargetType, updateTargetType + '; readonly latestVersion?: string')
+  routes = routes.replaceAll(updateTargetType, updateTargetType + '; readonly latestVersion?: string')
+  if (routes !== '') routes = replaceOnce(routes,
+    'packageRegistry: item.package.registry, itemId: item.id }',
+    "packageRegistry: item.package.registry, itemId: item.id, ...(item.latestVersion === undefined ? {} : { latestVersion: item.latestVersion }) }",
+    'catalog update version hint')
+  service = replaceOnce(service,
+    'const latest = await this.verifier.verify({ packageName: item.packageName, ...(target ?? {}) }, operationSignal)',
+    `const latest = target?.latestVersion !== undefined && stableExactVersion(target.latestVersion)
+            ? { version: target.latestVersion }
+            : await this.verifier.verify({ packageName: item.packageName, ...(target ?? {}) }, operationSignal)`,
+    'reuse authorized catalog version for update badges')
   return { ...files, http, index, service, routes, identity, types, providerSchema, snapshotSchema, providerTypes, snapshotTypes }
 }

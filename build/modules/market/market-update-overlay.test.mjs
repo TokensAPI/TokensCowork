@@ -18,6 +18,24 @@ const installedTests = skipUpstreamSourceDescriptionTests(read('tests/market-set
 const input = { ...sources, routes: auth.routes, settingsTab: pinned.settingsTab, locales: pinned.locales }
 const output = addMarketUpdates(input)
 
+test('registry composition reuses catalog version hints without removing update verification', () => {
+  const result = addPrivateRegistrySupport({
+    http: auth.http, index: auth.index, service: output.service, routes: output.routes,
+    identity: read('src/contracts/identity.ts'), types: read('src/contracts/types.ts'),
+    providerSchema: read('docs/schemas/catalog-provider-page.schema.json'),
+    snapshotSchema: read('docs/schemas/catalog-snapshot.schema.json'),
+    providerTypes: read('src/contracts/generated/catalog-provider-page.ts'),
+    snapshotTypes: read('src/contracts/generated/catalog-snapshot.ts'),
+  }, config.origin)
+  assert.match(result.routes, /latestVersion: item.latestVersion/)
+  assert.match(result.service, /stableExactVersion\(target.latestVersion\)/)
+  assert.match(result.service, /: await this.verifier.verify\(\{ packageName: item.packageName/)
+  const preview = result.service.slice(result.service.indexOf('async previewUpdate('))
+  assert.match(preview, /await authorize\(operationSignal\)/)
+  assert.match(preview, /await this.verifier.verify\(\{ packageName,/)
+  assert.match(preview, /await intent.authorize\(operationSignal\)/)
+})
+
 test('composes with source and authorization while preserving the native installed list', () => {
   assert.match(output.routes, /previewUpdate/)
   assert.match(output.routes, /force: true/)
@@ -43,11 +61,15 @@ test('the actual staging entry point invokes update assembly and tests', () => {
 })
 
 // Focused verification assembly: no whole-tree rebuild, dependency install, or installer packaging.
-if (process.argv.includes('--stage')) {
+if (process.argv.includes('--stage') || process.argv.includes('--stage-client')) {
   const stage = resolve(root, '.build/desktop/dsh-community-market')
-  for (const [key, path] of Object.entries(paths)) writeFileSync(resolve(stage, path), output[key])
+  for (const [key, path] of Object.entries(paths)) {
+    if (process.argv.includes('--stage-client') && !['settingsTab', 'locales'].includes(key)) continue
+    writeFileSync(resolve(stage, path), output[key])
+  }
   writeFileSync(resolve(stage, 'src/client/api.ts'), addMarketUpdateChecks(read('src/client/api.ts')))
   writeFileSync(resolve(stage, 'tests/market-settings-tab.spec.tsx'), addMarketUpdateUiTests(installedTests))
   writeFileSync(resolve(stage, 'tests/client-api.spec.ts'), addMarketUpdateApiTests(read('tests/client-api.spec.ts')))
   copyFileSync(resolve(root, 'build/modules/market/market-update.spec.ts'), resolve(stage, 'tests/market-update.spec.ts'))
 }
+import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'

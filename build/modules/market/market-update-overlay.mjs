@@ -169,6 +169,18 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
             preview`)
 
   // Keep the existing JSON API and confirmation/restart flow; update is an explicit action.
+  settingsTab = replace(settingsTab, '      return { installations: response.installations }', `      // Render local inventory before any network update discovery.
+      if (viewRef.current !== 'installed') return { installations: response.installations }
+      try {
+        const updates = await readMarketInstallations(request.signal, true)
+        if (request.signal.aborted || installationsRequest.current !== request) return
+        setInstallations(updates.installations)
+        return { installations: updates.installations }
+      } catch {
+        if (request.signal.aborted || installationsRequest.current !== request) return
+        setInstallationsError(t('updateCheckFailed'))
+      }
+      return { installations: response.installations }`)
   settingsTab = replace(settingsTab, "      void loadInstallable(false, '', [])\n    } else {", "      void loadInstallable(false, '', [])\n    } else if (viewRef.current === 'installed') {\n      void loadState('', [], false, false)\n      void loadInstallations()\n    } else {")
   settingsTab = replace(settingsTab, '  }, [loadInstallable, loadState])', '  }, [loadInstallable, loadInstallations, loadState])')
   settingsTab = replace(settingsTab, "        if (result.action === 'install') return current", `        if (result.action === 'update') return current.map(item => item.packageName === result.packageName
@@ -219,16 +231,33 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
 }
 
 export function addMarketUpdateChecks(api) {
-  return replace(api.replaceAll('\r\n', '\n'), "fetch('/api/community-market/installations',", "fetch('/api/community-market/installations?updates=1',")
+  api = replace(api.replaceAll('\r\n', '\n'), 'readMarketInstallations(signal?: AbortSignal)', 'readMarketInstallations(signal?: AbortSignal, updates = false)')
+  return replace(api, "fetch('/api/community-market/installations',", "fetch(updates ? '/api/community-market/installations?updates=1' : '/api/community-market/installations',")
 }
 
 export function addMarketUpdateApiTests(tests) {
-  return replace(tests, "toBe('/api/community-market/installations')", "toBe('/api/community-market/installations?updates=1')")
+  return tests
 }
 
 export function addMarketUpdateUiTests(tests) {
   return tests + `
 describe('product market update UI', () => {
+  it('renders local inventory while update lookup is pending and retains it on failure', async () => {
+    vi.mocked(readMarketState).mockResolvedValue(emptyState)
+    let rejectUpdates!: (error: Error) => void
+    vi.mocked(readMarketInstallations)
+      .mockResolvedValueOnce({ installations: [{ kind: 'profile', bundleId: 'local-first', packageName: '@tokensapi/local-first', status: 'active', action: 'uninstall' }] })
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectUpdates = reject }))
+    render(<MarketSettingsTab {...props} initialView="installed" />)
+    expect(await screen.findByRole('heading', { name: '@tokensapi/local-first' })).toBeTruthy()
+    expect(screen.queryByText(en.loadingInstallations)).toBeNull()
+    expect(screen.getByRole('button', { name: en.checkingUpdates })).toBeTruthy()
+    expect(readMarketInstallations).toHaveBeenNthCalledWith(2, expect.any(AbortSignal), true)
+    rejectUpdates(new Error('offline'))
+    expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '@tokensapi/local-first' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.checkUpdates })).toBeTruthy()
+  })
   it('shows an available version, confirms explicitly, and keeps the plugin after update', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{
@@ -269,7 +298,7 @@ describe('product market update UI', () => {
     expect(screen.queryByRole('button', { name: en.uninstall + ': dsh-plugin-desktop' })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Update:/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.checkUpdates }))
-    await waitFor(() => expect(readMarketInstallations).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(readMarketInstallations).toHaveBeenCalledTimes(4))
   })
 })
 `
