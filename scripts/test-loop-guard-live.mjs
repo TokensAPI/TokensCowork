@@ -7,18 +7,41 @@
  *   → 经过 tokens-loop-guard 的 tools/post-execute 监听器
  *   → accept(附提醒)/ block(替换为纠错反馈)→ 历史回灌 → 下一轮
  *
- * 用法: node /tmp/test-loop-guard-live.mjs [--guard off] [--max-steps 25]
+ * 用法:
+ *   node scripts/test-loop-guard-live.mjs --plugin <插件目录> [--url http://127.0.0.1:8081]
+ *       [--guard off] [--max-steps 25] [--prime 8] [--temperature 0.1] [--replay-reasoning]
+ *
+ * --plugin 指向 tokens-loop-guard 插件目录(含 index.js/identity.js);
+ * 默认依次尝试:环境变量 LOOP_GUARD_PLUGIN → 本仓库 feature/loop-guard 分支的
+ * 插件子模块路径(plugins/tokens_DshLoopGuard_code)。
+ * 插件依赖 @deepseek-ai/schemastery,需能在插件目录向上解析到
+ * (如在 .build/desktop 装配产物内,或插件目录里 npm install 过)。
  * ==================================================================== */
-import { apply } from '/home/snow/Develop/tokensapi/litellm/TokensCowork/.build/desktop/dsh-plugin-desktop/product-plugins/tokens-loop-guard/index.js'
-import { REMIND_THRESHOLDS, BLOCK_THRESHOLD, FUZZY_REMIND_THRESHOLDS, FUZZY_BLOCK_THRESHOLD, FUZZY_TOOLS, INCLUDE, EXCLUDE, ARGUMENTS_PREVIEW_CHARS } from '/home/snow/Develop/tokensapi/litellm/TokensCowork/.build/desktop/dsh-plugin-desktop/product-plugins/tokens-loop-guard/identity.js'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const args = process.argv.slice(2)
-const GUARD_ON = !args.includes('--guard') || args[args.indexOf('--guard') + 1] !== 'off'
-const MAX_STEPS = Number(args.includes('--max-steps') ? args[args.indexOf('--max-steps') + 1] : 25)
-const BASE_URL = 'http://127.0.0.1:8081'
-const TEMPERATURE = args.includes('--temperature') ? Number(args[args.indexOf('--temperature') + 1]) : undefined
-const PRIME = Number(args.includes('--prime') ? args[args.indexOf('--prime') + 1] : 0)
+const argValue = (flag, fallback) => {
+  const index = args.indexOf(flag)
+  return index >= 0 && args[index + 1] && !args[index + 1].startsWith('--') ? args[index + 1] : fallback
+}
+const GUARD_ON = argValue('--guard', 'on') !== 'off'
+const MAX_STEPS = Number(argValue('--max-steps', 25))
+const BASE_URL = argValue('--url', 'http://127.0.0.1:8081').replace(/\/$/, '')
+const TEMPERATURE = args.includes('--temperature') ? Number(argValue('--temperature')) : undefined
+const PRIME = Number(argValue('--prime', 0))
 const REPLAY_REASONING = args.includes('--replay-reasoning')
+
+const pluginDir = resolve(argValue('--plugin', process.env.LOOP_GUARD_PLUGIN ?? 'plugins/tokens_DshLoopGuard_code'))
+if (!existsSync(resolve(pluginDir, 'index.js'))) {
+  throw new Error(`找不到 tokens-loop-guard 插件目录: ${pluginDir}\n用 --plugin <dir> 指定(含 index.js 与 identity.js 的目录)`)
+}
+const { apply } = await import(pathToFileURL(resolve(pluginDir, 'index.js')).href)
+const {
+  REMIND_THRESHOLDS, BLOCK_THRESHOLD, FUZZY_REMIND_THRESHOLDS, FUZZY_BLOCK_THRESHOLD,
+  FUZZY_TOOLS, INCLUDE, EXCLUDE, ARGUMENTS_PREVIEW_CHARS,
+} = await import(pathToFileURL(resolve(pluginDir, 'identity.js')).href)
 
 /* ---- 挂载真实插件 ---- */
 const listeners = []
