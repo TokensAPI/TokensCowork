@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.6",
+  "productVersion": "0.5.7",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -21,8 +21,8 @@
       "id": "tokens-model-manager",
       "package": "@tokens/dsh-model-manager",
       "displayName": "TokensAPI 模型",
-      "version": "0.2.20",
-      "commit": "9d5b4975722a9c781e8bbeb4777582212532a7d3",
+      "version": "0.2.21",
+      "commit": "64782897b7446ca616bd2b643a6ad9cd118d4fad",
       "category": "builtin"
     },
     {
