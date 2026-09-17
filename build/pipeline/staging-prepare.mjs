@@ -15,6 +15,7 @@ import {
   skipDesktopSetupWizard,
 } from '../modules/runtime/desktop-runtime-overlay.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../modules/updates/updates-overlay.mjs'
+import { disableUpstreamRepeatReminder } from '../modules/guard/loop-guard-overlay.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../modules/platform/windows-acl-overlay.mjs'
 
 /* ====================================================================
@@ -31,6 +32,7 @@ const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
 const hasProductUpdatePlugin = enabledPlugins.some(item => item.id === 'tokens-version-updates')
+const hasLoopGuardPlugin = enabledPlugins.some(item => item.id === 'tokens-loop-guard')
 
 // 产品运行时由外层固定，安装时仍须通过 Yarn 补丁和 immutable 锁文件校验。
 const desktopRuntimeVersion = manifest.desktop.runtimeVersion
@@ -208,6 +210,13 @@ if (hasProductUpdatePlugin) {
   profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
 } else {
   profileBootVerifier = verifyDisabledUpdateMenu(profileBootVerifier)
+}
+
+/* -------------------------- 配置循环护栏 --------------------------- */
+// 内置 tokens-loop-guard 时停用上游 repeat-tool-reminder,避免同一次
+// 重复调用收到两条提醒;产品插件未启用时上游护栏保持原样兜底。
+if (hasLoopGuardPlugin) {
+  desktopPatch = disableUpstreamRepeatReminder(desktopPatch)
 }
 
 /* --------------------------- 注入产品插件 --------------------------- */

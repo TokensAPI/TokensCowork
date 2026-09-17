@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const modules = ['branding', 'market', 'runtime', 'updates', 'platform']
+export const modules = ['branding', 'market', 'runtime', 'updates', 'platform', 'guard']
 const root = resolve(import.meta.dirname, '../..')
 export function loadCatalog(base = root) {
   const records = modules.map(module => {
@@ -31,6 +31,7 @@ export function currentInputs(product) {
     plugins: product.plugins.map(value => ({ id: value.id, ...plugin(value) })),
     ui: plugin(product.plugins.find(value => value.id === 'dsh-tokensapi-ui')),
     updates: plugin(product.plugins.find(value => value.id === 'tokens-version-updates')),
+    loopGuard: plugin(product.plugins.find(value => value.id === 'tokens-loop-guard')),
   }
 }
 
