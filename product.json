@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.4"
+    "version": "0.5.5"
   },
   "desktop": {
     "path": "desktop",
@@ -59,9 +59,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "7a7b8a917eb2b392f0f208eef5b717c945326edb",
+      "commit": "a3ed195924a5ddb5625fe28a7fa83905433fc0bb",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.2.18",
+      "version": "0.2.19",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
@@ -71,7 +71,7 @@
       "description": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "path": "plugins/tokens_DshWebSearch_code",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
-      "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
+      "commit": "b6f32e2f64f16cc666fff937d4c7569b72293bdb",
       "package": "tokens-dsh-web-search",
       "version": "0.1.0",
       "enabledByDefault": true,

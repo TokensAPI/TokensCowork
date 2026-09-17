@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.4",
+  "productVersion": "0.5.5",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -21,8 +21,8 @@
       "id": "tokens-model-manager",
       "package": "@tokens/dsh-model-manager",
       "displayName": "TokensAPI 模型",
-      "version": "0.2.18",
-      "commit": "7a7b8a917eb2b392f0f208eef5b717c945326edb",
+      "version": "0.2.19",
+      "commit": "a3ed195924a5ddb5625fe28a7fa83905433fc0bb",
       "category": "builtin"
     },
     {
@@ -30,7 +30,7 @@
       "package": "tokens-dsh-web-search",
       "displayName": "联网搜索",
       "version": "0.1.0",
-      "commit": "277a7a4fb7da36131487efb53b207bbe1afab5a2",
+      "commit": "b6f32e2f64f16cc666fff937d4c7569b72293bdb",
       "category": "builtin"
     }
   ]
