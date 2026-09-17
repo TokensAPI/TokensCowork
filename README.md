@@ -17,6 +17,7 @@ scripts/                     版本同步、发布说明校验、插件清单生
 docs/
   manual-release.md          手动构建与发布指南（新增插件、本地打包、发新版）
   plugin-guide.md            插件开发从 0 到 1 教程
+  responses-loop-repro.md    Responses 协议循环复现与 loop-guard 验证指南
   releases/                  各版本发布说明与模板
 market/                      插件市场及其独立私有 npm Registry 服务
 download/                    静态下载页（GitHub Pages 自动部署）
@@ -138,5 +139,6 @@ GUID 注册记录发现产品，并在 `InstallLocation` 缺失时从 `Uninstall
 
 - [手动构建与发布指南](docs/manual-release.md) — 新增插件子模块、本地打包验证、发布新版本
 - [插件开发从 0 到 1](docs/plugin-guide.md) — DSH 插件开发教程
+- [Responses 协议循环复现指南](docs/responses-loop-repro.md) — 循环复现对照实验与 loop-guard 端到端验证
 - [build/README.md](build/README.md) — 构建脚本内部结构、流程与修改规则
 - [download/README.md](download/README.md) — 下载页配置、Release 命名约定与部署
