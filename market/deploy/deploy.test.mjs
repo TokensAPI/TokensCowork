@@ -7,6 +7,11 @@ import assert from 'node:assert/strict'
 
 const read = name => readFileSync(new URL(name, import.meta.url), 'utf8')
 const bash = process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash'
+test('market fetch explicitly disables submodule recursion', () => {
+  const fetchLine = read('deploy.sh').split('\n').find(line => line.startsWith('git ') && line.includes(' fetch '))
+  assert.match(fetchLine, /fetch --no-recurse-submodules /)
+  assert.match(fetchLine, /refs\/heads\/master:refs\/remotes\/origin\/master/)
+})
 for (const file of ['deploy.sh']) {
   test(`${file} has valid Bash syntax`, () => {
     const result = spawnSync(bash, ['-n'], { input: read(file), encoding: 'utf8' })

@@ -20,7 +20,8 @@ mkdir -p "$deploy_root"
 exec 9>"$deploy_root/deploy.lock"
 flock -n 9 || { echo 'Another market deployment is running' >&2; exit 75; }
 mkdir -p "$deploy_root/releases" "$deploy_root/backups"
-git -C "$repository" fetch --prune origin '+refs/heads/master:refs/remotes/origin/master'
+# Market is self-contained; override server-wide recursive-fetch settings.
+git -C "$repository" fetch --no-recurse-submodules --prune origin '+refs/heads/master:refs/remotes/origin/master'
 git -C "$repository" cat-file -e "$sha^{commit}"
 # Superseded queued deployments must not roll the service back to an older commit.
 [[ $(git -C "$repository" rev-parse refs/remotes/origin/master) == "$sha" ]] || {
