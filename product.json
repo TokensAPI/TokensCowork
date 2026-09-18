@@ -86,7 +86,7 @@
       "description": "检测工具的精确重复与近似重复调用,先提醒后硬阻断,替代上游 repeat-tool-reminder。",
       "path": "plugins/tokens_DshLoopGuard_code",
       "repository": "https://github.com/TokensAPI/tokens_DshLoopGuard_code.git",
-      "commit": "f2d57b08950c3e50838396b514173673b818c4b5",
+      "commit": "35ed973c248d38c0dbf9ecab4170bfc62c9be04e",
       "package": "@tokens/dsh-loop-guard",
       "version": "0.1.0",
       "enabledByDefault": true,
