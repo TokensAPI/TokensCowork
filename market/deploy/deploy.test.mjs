@@ -12,6 +12,11 @@ test('market fetch explicitly disables submodule recursion', () => {
   assert.match(fetchLine, /fetch --no-recurse-submodules /)
   assert.match(fetchLine, /refs\/heads\/master:refs\/remotes\/origin\/master/)
 })
+test('archived image source remains readable despite private deployment umask', () => {
+  const script = read('deploy.sh')
+  assert.ok(script.indexOf('chmod -R a+rX "$release/market/server"') > script.indexOf('archive "$sha"'))
+  assert.ok(script.indexOf('chmod -R a+rX "$release/market/server"') < script.indexOf('docker build'))
+})
 for (const file of ['deploy.sh']) {
   test(`${file} has valid Bash syntax`, () => {
     const result = spawnSync(bash, ['-n'], { input: read(file), encoding: 'utf8' })

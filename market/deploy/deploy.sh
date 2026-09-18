@@ -29,6 +29,9 @@ git -C "$repository" cat-file -e "$sha^{commit}"
 }
 release=$(mktemp -d "$deploy_root/releases/$sha.XXXXXX")
 git -C "$repository" archive "$sha" market/server | tar -x -C "$release"
+# umask 077 protects backups/config, but archived source must be readable by
+# Docker's non-root node user after COPY (which assigns root ownership).
+chmod -R a+rX "$release/market/server"
 image="tokenscowork-market:$sha"
 # New code is built before stopping the current service. No registry/Nginx changes.
 docker build --label "org.opencontainers.image.revision=$sha" -t "$image" "$release/market/server"
