@@ -138,7 +138,11 @@ for attempt in $(seq 1 12); do
   if health >/dev/null 2>&1; then healthy=true; break; fi
   sleep 5
 done
-[[ "$healthy" == true ]]
+if [[ "$healthy" != true ]]; then
+  health || true
+  docker inspect --format 'Container status: {{.State.Status}}; exit code: {{.State.ExitCode}}' "$container" || true
+  false
+fi
 [[ $(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$container") == "$sha" ]]
 trap - ERR
 printf '%s\n' "$sha" > "$deploy_root/current-sha"
