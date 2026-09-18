@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-09-17",
+  "reviewNote": "循环护栏覆盖的登记基线。锚点守护已在装配期生效:补丁层出现重复行即中断打包;行为验收见 verification。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "loopGuard": {
+      "commit": "00b6b2444c1540d8035cac70d8ce0fd3f15d98c0",
+      "version": "0.1.0",
+      "artifact": null,
+      "enabled": true
+    }
+  },
+  "entries": [
+    {
+      "id": "guard.repeat-reminder-disable",
+      "module": "guard",
+      "kind": "customization",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "loopGuard"
+      ],
+      "files": [
+        "build/modules/guard/loop-guard-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop cordis.patch.yml: 追加 `- id: repeat-tool-reminder, disabled: true`(上游注册行在 dsh-base cordis.patch.yml)"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "上游 repeat-tool-reminder 只做精确匹配且只提醒(阈值 3/5/8 后静默),实测会话中提醒被模型持续无视;产品 tokens-loop-guard 同时覆盖精确与近似重复并在高阈值硬阻断。两者同开会对同一次重复注入两条提醒,故内置插件启用时停用上游行;产品插件未启用时上游保持兜底。",
+      "retireWhen": "上游 repeat-tool-reminder 原生支持近似匹配与可配置硬阻断时,复查并移除该覆盖,回退到上游护栏。",
+      "verification": "2026-09-17:staging-prepare 装配通过,Desktop 补丁层含停用条目且无重复 id;tokens-loop-guard 插件 12 项 node --test 单测通过(精确/近似链计数、阈值提醒、硬阻断、排除与用户消息重置、配置校验);repo-layout-verify 与 market 目录校验通过。未执行完整打包与真实会话回归。"
+    }
+  ]
+}

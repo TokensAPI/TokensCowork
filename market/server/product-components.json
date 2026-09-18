@@ -32,6 +32,14 @@
       "version": "0.1.0",
       "commit": "b6f32e2f64f16cc666fff937d4c7569b72293bdb",
       "category": "builtin"
+    },
+    {
+      "id": "tokens-loop-guard",
+      "package": "@tokens/dsh-loop-guard",
+      "displayName": "循环护栏",
+      "version": "0.1.0",
+      "commit": "00b6b2444c1540d8035cac70d8ce0fd3f15d98c0",
+      "category": "builtin"
     }
   ]
 }
