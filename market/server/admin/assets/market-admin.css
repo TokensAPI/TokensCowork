@@ -281,6 +281,19 @@ main {
   background: #fff0eb;
   color: var(--danger);
 }
+.feedback[hidden] { display: none; }
+.feedback:not(:empty) {
+  position: fixed; inset: 20px auto auto 50%; transform: translateX(-50%);
+  z-index: 10000; width: max-content; max-width: min(480px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 14px;
+  border: 1px solid var(--line); box-shadow: 0 8px 28px #0003;
+  animation: market-toast-in .18s ease-out;
+}
+.toast-text { overflow-wrap: anywhere; }
+.toast-close { padding: 0; width: 24px; min-width: 24px; height: 24px; background: transparent; color: inherit; border: 0; font-size: 20px; }
+.toast-icon { font-weight: 700; }
+@keyframes market-toast-in { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .feedback:not(:empty) { animation: none; } }
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1052,3 +1065,26 @@ nav a[aria-current='page'] {
     flex-direction: column;
   }
 }
+/* Subject directory uses the existing theme and form primitives. */
+.subject-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap: 16px; }
+.subject-card { border: 1px solid var(--border, #ddd); border-radius: 12px; padding: 18px; display: grid; gap: 10px; overflow-wrap: anywhere; }
+.subject-dialog { width: min(720px,92vw); max-height: 88vh; overflow: auto; border-radius: 16px; padding: 24px; }
+.subject-dialog form { display: grid; gap: 14px; }
+.subject-dialog label { display: grid; gap: 6px; }
+.subject-options { max-height: 320px; overflow: auto; display: grid; gap: 10px; }
+.subject-options label { display: flex; align-items: center; gap: 10px; }
+.subject-options input { width: auto; }
+.subject-table-wrap { overflow-x: auto; }
+.subject-table-wrap table { min-width: 620px; }
+.subject-table-wrap small { display: block; color: var(--muted); margin-top: 4px; }
+.subject-dialog { width: min(920px,94vw); }
+.subject-dialog form { gap: 12px; }
+.subject-dialog form > p { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 0; }
+.subject-dialog textarea { min-height: 64px; }
+.subject-options { display: block; max-height: 380px; overflow: auto; border: 1px solid var(--line, #ddd); border-radius: 8px; }
+.subject-options th, .subject-options td { padding: 10px 12px; font-size: 13px; }
+.subject-options th { position: sticky; top: 0; background: var(--paper); }
+.subject-pager { display: flex; align-items: center; gap: 8px; padding: 12px; font-size: 13px; }
+.subject-pager span { margin-right: auto; }
+.subject-pager button, .subject-dialog-footer button { width: auto; min-width: 80px; padding: 8px 14px; }
+.subject-dialog-footer { display: flex; justify-content: flex-end; gap: 10px; position: sticky; bottom: -24px; background: var(--paper); padding: 14px 0; }

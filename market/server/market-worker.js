@@ -79,6 +79,7 @@ export default {
       '/admin/index.html',
       '/admin/access.html',
       '/admin/assets/market-admin.js',
+      '/admin/assets/market-subjects.js',
       '/admin/assets/market-api.js',
       '/admin/assets/market-model.js',
       '/admin/assets/market-admin.css',

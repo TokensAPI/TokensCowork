@@ -502,3 +502,61 @@ test('a package the Registry gates behind login still distributes once the backe
   assert.equal(db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(hidden.id).visibility, 'public')
   assert.equal((await call(path)).status, 200)
 })
+test('subject directory manages Key and organization grants without changing visibility', async t => {
+  const {call,db,env}=fixture(t)
+  env.MARKET_ORGANIZATIONS={resolveOrganization:async()=>null}
+  const admin='admin-secret'
+  await call('/api/admin/organizations',admin,{id:7,name:'Team',enabled:true})
+  await call('/api/admin/plugin-access',admin,{id:metadata.id,metadata,organizationIds:[7],apiKeys:[],keepFingerprints:[],objectKey:'private/tool.tgz'})
+  const directory=async()=>await (await call('/api/admin/subjects',admin)).json()
+  const payload=(s,plugins,snapshot)=>({...s,plugins,pluginRevisions:Object.fromEntries(snapshot.plugins.map(p=>[p.id,p.revision]))})
+  let state=await directory()
+  const create=await call('/api/admin/subjects',admin,payload({kind:'key',id:'',apiKey:'sk-subject-test',label:'Finance',notes:'customer',tags:['finance'],revision:0},[metadata.id],state))
+  assert.equal(create.status,200,await create.clone().text())
+  const {id}=await create.json()
+  assert.equal((await call('/downloads/'+metadata.id,'sk-subject-test')).status,200)
+  state=await directory();const key=state.keys.find(k=>k.id===id)
+  assert.equal(key.label,'Finance');assert.deepEqual(key.tags,['finance'])
+  assert.ok(!JSON.stringify(state).includes('sk-subject-test'))
+  assert.equal((await call('/api/admin/subjects',admin,payload(key,[],state))).status,200)
+  assert.equal((await call('/downloads/'+metadata.id,'sk-subject-test')).status,403)
+  assert.equal(db.prepare('SELECT count(*) n FROM market_org_grants').get().n,1)
+  assert.equal(db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(metadata.id).visibility,'restricted')
+  assert.equal((await call('/api/admin/subjects',admin,payload(key,[],state))).status,409)
+  state=await directory();const org=state.organizations[0]
+  assert.equal((await call('/api/admin/subjects',admin,payload({...org,label:'Local team',notes:'do not overwrite',tags:['team']},[],state))).status,200)
+  db.prepare('UPDATE market_organizations SET name=? WHERE id=7').run('Renamed upstream')
+  state=await directory();assert.equal(state.organizations[0].name,'Renamed upstream');assert.equal(state.organizations[0].label,'Local team')
+  assert.equal(db.prepare('SELECT count(*) n FROM market_org_grants').get().n,0)
+  assert.equal((await call('/api/admin/subjects',admin,payload(state.organizations[0],[metadata.id],state))).status,200)
+  assert.equal(db.prepare('SELECT count(*) n FROM market_org_grants').get().n,1)
+})
+
+test('subject endpoints enforce admin access and reject public grants and unknown Keys', async t=>{
+ const {call}=fixture(t)
+ assert.equal((await call('/api/admin/subjects','sk-user')).status,401)
+ const state=await(await call('/api/admin/subjects','admin-secret')).json()
+ const data={kind:'key',apiKey:'sk-subject-test',label:'Test',notes:'',tags:[],revision:0,plugins:[metadata.id],pluginRevisions:Object.fromEntries(state.plugins.map(p=>[p.id,p.revision]))}
+ assert.equal((await call('/api/admin/subjects','admin-secret',data)).status,400)
+ assert.equal((await call('/api/admin/subjects','admin-secret',{...data,plugins:[]},{Origin:'https://evil.example'})).status,403)
+ assert.equal((await call('/api/admin/plugin-access','admin-secret',{id:metadata.id,metadata,organizationIds:[],apiKeys:[],keepFingerprints:[],directoryFingerprints:['f'.repeat(64)]})).status,400)
+})
+
+test('directory selection reuses registered Keys; stale saves do not change grants', async t=>{
+ const {call,db}=fixture(t),admin='admin-secret'
+ let state=await(await call('/api/admin/subjects',admin)).json()
+ const base={kind:'key',id:'',apiKey:'sk-directory-test',label:'Directory',notes:'',tags:['test'],revision:0,plugins:[],pluginRevisions:{}}
+ const result=await call('/api/admin/subjects',admin,base);assert.equal(result.status,200)
+ const {id}=await result.json()
+ assert.equal((await call('/api/admin/subjects',admin,base)).status,409)
+ assert.equal((await call('/api/admin/plugin-access',admin,{id:metadata.id,metadata,organizationIds:[],apiKeys:[],keepFingerprints:[],directoryFingerprints:[id]})).status,200)
+ state=await(await call('/api/admin/subjects',admin)).json()
+ const subject=state.keys.find(k=>k.id===id);assert.deepEqual(subject.plugins,[metadata.id])
+ const save={...subject,plugins:[],pluginRevisions:{[metadata.id]:state.plugins[0].revision}}
+ db.prepare('UPDATE market_catalog SET revision=revision+1 WHERE id=?').run(metadata.id)
+ assert.equal((await call('/api/admin/subjects',admin,save)).status,409)
+ assert.equal(db.prepare('SELECT count(*) n FROM market_plugin_key_grants WHERE fingerprint=?').get(id).n,1)
+ const raw=db.prepare('SELECT encrypted_value FROM market_access_subjects WHERE id=?').get(id).encrypted_value
+ assert.ok(raw && !raw.includes('sk-directory-test'))
+ assert.ok(!JSON.stringify(db.prepare('SELECT * FROM market_admin_audit').all()).includes('sk-directory-test'))
+})

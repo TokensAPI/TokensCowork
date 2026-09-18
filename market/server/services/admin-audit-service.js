@@ -1,4 +1,5 @@
 function safeDetails(action, details) {
+  if (action === 'subject.access.updated') return { kind: details.kind === 'key' ? 'key' : 'organization', added: details.added, removed: details.removed }
   if (/^catalog\.(created|edit|publish|archive|trash|restore|purge)$/u.test(action)) return { state: details.state }
   // Explicit allowlists prevent later call sites from accidentally auditing credentials.
   if (action === 'plugin.access.updated') return {

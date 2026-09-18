@@ -1,4 +1,5 @@
 import { catalogEditor } from './market-catalog-editor.js'
+import { subjectManager } from './market-subjects.js'
 import { marketRequest } from './market-api.js'
 import {
   mergePlugins,
@@ -26,6 +27,7 @@ const button = (label, handler, className = 'secondary') => {
 const views = {
   plugins: ['插件与权限', '统一管理可选插件的访问范围。'],
   organizations: ['组织名录', '同步组织信息，按团队分配插件访问权限。'],
+  keys: ['API Key 管理', '按名称、标签管理 Key，从 Key 一次分配插件权限。'],
   verify: ['授权验证', '输入一个 Key，确认它实际能够访问哪些插件。'],
   activity: ['操作记录', '查看最近的权限变更和组织维护记录。'],
 }
@@ -42,6 +44,7 @@ let pluginBaseline = '',
   orgBaseline = '',
   currentView = 'plugins'
 const builtin = (p) => p.category === 'builtin'
+const subjects = subjectManager({ json, action, reload: load })
 const saved = (id) => state?.plugins.find((p) => p.id === id)
 const restricted = (p) =>
   !builtin(p) && saved(p.id)?.visibility === 'restricted'
@@ -67,9 +70,22 @@ const orgName = (id) => {
 }
 const formatTime = (value) =>
   new Date(value).toLocaleString('zh-CN', { hour12: false })
+let feedbackTimer
 function feedback(message = '', kind = 'success') {
-  $('message').textContent = message
-  $('message').dataset.kind = kind
+  clearTimeout(feedbackTimer)
+  const toast = $('message')
+  toast.hidePopover?.()
+  toast.replaceChildren()
+  toast.hidden = !message
+  if (!message) return
+  toast.dataset.kind = kind
+  toast.setAttribute('role', kind === 'error' ? 'alert' : 'status')
+  const close = node('button', '×', 'toast-close')
+  close.type = 'button'; close.setAttribute('aria-label', '关闭提示')
+  close.onclick = () => feedback()
+  toast.append(node('span', kind === 'error' ? '!' : '✓', 'toast-icon'), node('span', message, 'toast-text'), close)
+  toast.showPopover?.()
+  if (kind !== 'error') feedbackTimer = setTimeout(() => feedback(), 5000)
 }
 async function json(path, data) {
   try {
@@ -233,7 +249,7 @@ function renderPlugins() {
   $('plugin-grid').replaceChildren(...cards)
   $('empty').hidden = visible.length > 0
   $('plugin-result-count').textContent =
-    `显示 ${visible.length} / ${plugins.length} 项`
+    `显示 ${visible.length} / ${plugins.filter(p => category === 'deleted' ? p.state === 'deleted' : p.state !== 'deleted').length} 项${category === 'deleted' ? '（回收站）' : '（不含回收站）'}`
   $('stat-total').textContent = plugins.filter(
     (p) => p.state !== 'deleted',
   ).length
@@ -246,14 +262,14 @@ function renderPlugins() {
   $('stat-restricted').textContent = plugins.filter(
     (p) => p.state === 'archived',
   ).length
-  $('nav-plugins').textContent = plugins.length
+  $('nav-plugins').textContent = plugins.filter(p => p.state !== 'deleted').length
 }
 function renderOrganizations() {
   const query = $('org-search').value.trim().toLowerCase(),
     status = $('org-status-filter').value
   const visible = state.organizations.filter(
     (o) =>
-      `${o.name} ${o.id}`.toLowerCase().includes(query) &&
+      `${o.name} ${o.id} ${subjects.organizations().find(s => s.id === String(o.id))?.label || ''} ${subjects.organizations().find(s => s.id === String(o.id))?.tags.join(' ') || ''} ${subjects.organizations().find(s => s.id === String(o.id))?.notes || ''}`.toLowerCase().includes(query) &&
       (status === 'all' || (status === 'enabled') === !!o.enabled),
   )
   $('organization-list').replaceChildren(
@@ -271,6 +287,7 @@ function renderOrganizations() {
       const edit = button('编辑', () => openOrganization(org), 'quiet')
       edit.setAttribute('aria-label', `编辑组织 ${org.name}`)
       editCell.append(edit)
+      editCell.append(button('插件与标签', () => subjects.open('organization', org.id), 'quiet'))
       row.append(
         node('td', org.name),
         node('td', `#${org.id}`, 'muted'),
@@ -286,7 +303,7 @@ function renderOrganizations() {
 }
 function renderOperations() {
   const env = operations.environment
-  const label =
+  const label = env.preview ? '生产快照 · 本地' :
     env.name === 'production'
       ? '正式环境'
       : env.name === 'development'
@@ -299,7 +316,9 @@ function renderOperations() {
     (item) => item.action === 'organizations.synced',
   )
   $('provider-status').textContent =
-    `${env.origin || '组织服务未配置'} · ${state.organizationListReady ? '同步接口已配置' : '同步接口未配置'}${sync ? ` · 最近同步 ${formatTime(sync.createdAt)}` : ' · 点击同步可验证连接'}。切换环境前需核对组织 ID 与授权，不能直接复用不同环境的组织关系。`
+    env.preview ? `数据来自生产市场名录。${state.organizationListReady ? '可重新读取生产名录，只更新本地预览，不修改线上，也不触发线上 TokensAPI 同步。' : '当前未配置生产只读凭证，无法重新同步。'}` :
+    `${env.origin || '组织服务未配置'} · ${state.organizationListReady ? '同步接口已配置' : '同步接口未配置'}${sync ? ` · 最近同步 ${formatTime(sync.createdAt)}` : state.organizationListReady ? ' · 点击同步可验证连接' : ''}。切换环境前需核对组织 ID 与授权，不能直接复用不同环境的组织关系。`
+  $('sync-organizations').textContent = env.preview ? '同步生产名录' : '同步组织'
   const labels = {
     'catalog.created': '新建插件',
     'catalog.edit': '编辑插件',
@@ -310,6 +329,7 @@ function renderOperations() {
     'catalog.purge': '彻底删除插件',
     'plugin.access.updated': '更新插件权限',
     'organization.updated': '维护组织',
+    'subject.access.updated': '维护授权名录',
     'organizations.synced': '同步组织名录',
   }
   $('activity-list').replaceChildren(
@@ -353,12 +373,14 @@ function renderOperations() {
   $('activity-empty').hidden = operations.recentActions.length > 0
 }
 async function load() {
-  const [next, roster, ops] = await Promise.all([
+  const [next, roster, ops, directory] = await Promise.all([
     json('/api/admin/access'),
     json('/api/admin/catalog'),
     json('/api/admin/operations'),
+    json('/api/admin/subjects'),
   ])
   state = next
+  subjects.set(directory)
   plugins = mergePlugins(roster, next)
   operations = ops
   const privateRegistryOption = $('catalog-registry').querySelector('option[value="tokenscowork"]')
@@ -478,6 +500,7 @@ function renderKeys() {
       const row = node('div', '', 'saved-key-row'),
         value = keyValues.get(fp)
       row.append(
+        node('strong', subjects.keys().find(k => k.id === fp)?.label || '未命名 Key'),
         node(
           'code',
           value || `旧指纹 ${fp.slice(0, 10)}（重新录入原 Key 可补全）`,
@@ -518,6 +541,15 @@ function renderKeys() {
   )
   if (!retained.size)
     $('saved-keys').append(node('p', '尚未配置单独 Key。', 'muted'))
+  const search = node('input'); search.type = 'search'; search.placeholder = '搜索已有 Key 名称或标签'; search.setAttribute('aria-label', '搜索授权名录')
+  const picker = node('select'); picker.setAttribute('aria-label', '从名录选择 API Key')
+  const choices = () => {
+    picker.replaceChildren(new Option('选择已有 Key，无需重复粘贴', ''))
+    for (const key of subjects.keys().filter(k => !retained.has(k.id) && `${k.label} ${k.tags.join(' ')} ${k.id}`.toLowerCase().includes(search.value.toLowerCase()))) picker.append(new Option(`${key.label} · ${key.tags.join(' / ')} · ${key.id.slice(0, 8)}`, key.id))
+  }
+  search.oninput = choices; choices()
+  picker.onchange = () => { if (picker.value) { retained.add(picker.value); renderKeys(); updateScope() } }
+  $('saved-keys').append(search, picker)
 }
 async function openPlugin(plugin) {
   if (builtin(plugin)) return
@@ -580,6 +612,7 @@ function lock() {
   $('discard-dialog').close()
   pendingClose = null
   keyValues.clear()
+  subjects.clear()
   retained.clear()
   selectedOrgs.clear()
   for (const id of [
@@ -696,7 +729,8 @@ $('plugin-access-form').onsubmit = (event) => {
     objectKey: saved(p.id)?.object_key ?? null,
     organizationIds: [...selectedOrgs],
     apiKeys: added,
-    keepFingerprints: [...retained],
+    keepFingerprints: [...retained].filter(fp => keyGrants(state, p.id).includes(fp)),
+    directoryFingerprints: [...retained].filter(fp => !keyGrants(state, p.id).includes(fp)),
     confirmPublic: $('confirm-public').checked,
   }
   action(

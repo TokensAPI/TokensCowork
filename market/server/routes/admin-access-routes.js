@@ -14,6 +14,7 @@ import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
+import { accessSubjects, saveAccessSubject } from '../services/access-subject-service.js'
 function loginLimited(wait) {
   const response = reply({ error: '尝试次数过多，请稍后再试', retryAfter: wait }, 429)
   response.headers.set('retry-after', String(wait))
@@ -105,9 +106,11 @@ export async function accessRoute(request, env) {
       return reply({ keys: keys.results, grants: grants.results, plugins: plugins.results.map(p => ({ ...p, metadata: JSON.parse(p.metadata) })), ...await organizationState(env) })
     }
     if (request.method === 'GET' && url.pathname === '/api/admin/operations') return reply(await adminOperations(env))
+    if (request.method === 'GET' && url.pathname === '/api/admin/subjects') return reply(await accessSubjects(env))
     if (request.method !== 'PUT') return reply({ error: 'method not allowed' }, 405)
     let data
     try { data = await body(request) } catch { return reply({ error: '请求格式无效或超过 16 KB' }, 400) }
+    if (url.pathname === '/api/admin/subjects') return reply(await saveAccessSubject(env, data))
     if (url.pathname === '/api/admin/catalog') return reply(await catalogMutation(request,env,data))
     if (url.pathname === '/api/admin/access-preview') {
       if (!text(data.apiKey, 512) || !/^sk-\S+$/u.test(data.apiKey)) return reply({ error: '请输入有效的 API Key' }, 400)
@@ -168,6 +171,11 @@ export async function accessRoute(request, env) {
         }
         addedFingerprints=await Promise.all(data.apiKeys.map(k=>fingerprint(k,env.MARKET_HMAC_SECRET)))
         directFingerprints=[...new Set([...data.keepFingerprints,...addedFingerprints])]
+        if (data.directoryFingerprints !== undefined) {
+          const known = new Set((await accessSubjects(env)).keys.map(k => k.id))
+          if (!Array.isArray(data.directoryFingerprints) || data.directoryFingerprints.length > 100 || !data.directoryFingerprints.every(fp => known.has(fp))) return reply({error:'名录 Key 无效，请刷新后重试'},400)
+          directFingerprints = [...new Set([...directFingerprints, ...data.directoryFingerprints])]
+        }
         if(directFingerprints.length>100) return reply({error:'每个插件最多授权 100 个不同 API Key'},400)
         encryptedKeys=await Promise.all([...new Map(data.apiKeys.map((key,i)=>[addedFingerprints[i],key]))].map(async([fp,key])=>({fp,value:await sealKey(key,data.id,fp,env)})))
       } else if(orgMode) {

@@ -105,6 +105,44 @@ async function fixtureEnvironment() {
     wrap('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').bind(restricted.id, fp),
     wrap('INSERT INTO market_plugin_key_values(plugin_id,fingerprint,encrypted_value) VALUES(?,?,?)').bind(restricted.id, fp, encrypted),
   ])
+  if (process.env.MARKET_DEV_SNAPSHOT) {
+    // Explicit production metadata snapshot; never copy credentials or write to production.
+    const snapshot = JSON.parse(await readFile(resolve(process.env.MARKET_DEV_SNAPSHOT), 'utf8'))
+    db.exec('BEGIN')
+    try {
+      for (const table of ['market_plugin_key_values','market_plugin_key_grants','market_org_grants','market_org_policies','market_grants','market_keys','market_catalog','market_plugins','market_organizations']) db.exec(`DELETE FROM ${table}`)
+      for (const p of snapshot.access.plugins) db.prepare('INSERT INTO market_plugins(id,visibility,metadata,object_key) VALUES(?,?,?,?)').run(p.id,p.visibility,JSON.stringify(p.metadata),null)
+      for (const p of snapshot.catalog.items) db.prepare('INSERT INTO market_catalog(id,state,revision,version_mode,license_reference,reviewed_version) VALUES(?,?,?,?,?,?)').run(p.id,p.state,p.revision,p.versionMode || 'latest',p.licenseReference || '',p.reviewedVersion || '')
+      for (const o of snapshot.access.organizations) db.prepare('INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)').run(o.id,o.name,o.enabled)
+      for (const k of snapshot.access.keys) db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,?,?)').run(k.fingerprint,k.label,k.enabled,k.expires_at)
+      for (const p of snapshot.access.organizationPolicies) db.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?)').run(p.plugin_id)
+      for (const g of snapshot.access.organizationGrants) db.prepare('INSERT INTO market_org_grants(plugin_id,organization_id) VALUES(?,?)').run(g.plugin_id,g.organization_id)
+      for (const g of snapshot.access.directKeyGrants) db.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').run(g.plugin_id,g.fingerprint)
+      for (const g of snapshot.access.grants) db.prepare('INSERT INTO market_grants(plugin_id,fingerprint) VALUES(?,?)').run(g.plugin_id,g.fingerprint)
+      db.exec('COMMIT')
+    } catch(error) { db.exec('ROLLBACK'); throw error }
+    roster.items = snapshot.catalog.items
+    env.MARKET_PREVIEW_MODE = true
+    env.MARKET_ORGANIZATIONS_BASE_URL = 'https://tokensapi.ai'
+    // Only read the production market directory. No production mutation routes.
+    env.MARKET_ORGANIZATIONS = process.env.MARKET_DEV_PRODUCTION_ADMIN_TOKEN ? {
+      listOrganizations: async () => {
+        const response = await nativeFetch('https://market.tokensapi.ai/api/admin/access', {
+          headers: { Authorization: 'Bearer ' + process.env.MARKET_DEV_PRODUCTION_ADMIN_TOKEN },
+          redirect: 'error', signal: AbortSignal.timeout(15000),
+        })
+        if (!response.ok) throw new Error('Production directory read failed')
+        const data = await response.json()
+        return data.organizations.map(o => ({ id:o.id, name:o.name }))
+      },
+    } : {}
+    const assets = env.ASSETS.fetch.bind(env.ASSETS)
+    env.ASSETS.fetch = async input => {
+      const response = await assets(input)
+      if (!(response.headers.get('content-type') || '').startsWith('text/html')) return response
+      return new Response((await response.text()).replace('<main>', '<main><p class="notice" role="status">生产数据快照 · 本地预览：保存仅影响本地内存，不会修改线上，重启后重置。</p>'), {status:response.status,headers:response.headers})
+    }
+  }
   globalThis.fetch = async input => {
     const url = new URL(input instanceof Request ? input.url : input)
     // Registry responses are deterministic fixtures; unknown destinations are blocked.
@@ -203,7 +241,10 @@ if (process.argv.includes('--smoke')) {
   const app = await start(Number(process.env.MARKET_DEV_PORT || 8788))
   console.log(`Local market QA ready: ${app.origin}/admin/`)
   console.log(process.env.MARKET_DEV_ADMIN_TOKEN ? 'Login: configured in MARKET_DEV_ADMIN_TOKEN (hidden)' : 'Fixture login: market-test')
-  console.log('Fixture organization Key: sk-test-org | direct Key: sk-test-direct')
-  console.log('All organizations, credentials and packages are TEST FIXTURES. External network is blocked; memory data resets on restart.')
+  if (process.env.MARKET_DEV_SNAPSHOT) console.log('Production metadata snapshot loaded. Local-only edits; no production writes, no copied secrets. Memory resets on restart.')
+  else {
+    console.log('Fixture organization Key: sk-test-org | direct Key: sk-test-direct')
+    console.log('All organizations, credentials and packages are TEST FIXTURES. External network is blocked; memory data resets on restart.')
+  }
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)) })
 }

@@ -10,7 +10,6 @@
   </head>
   <body class="signed-out session-pending">
     <div class="theme-control">
-      <label for="theme-choice">外观</label>
       <select id="theme-choice" aria-label="主题外观">
         <option value="system">跟随系统</option>
         <option value="light">浅色</option>
@@ -32,6 +31,7 @@
         <a href="#organizations" data-view="organizations"
           ><span aria-hidden="true">◎</span>组织名录<b id="nav-orgs">—</b></a
         >
+        <a href="#keys" data-view="keys"><span aria-hidden="true">⌘</span>API Key 管理</a>
         <a href="#verify" data-view="verify"
           ><span aria-hidden="true">✓</span>授权验证</a
         >
@@ -63,6 +63,8 @@
       </header>
       <output
         id="message"
+        popover="manual"
+        hidden
         class="feedback"
         role="status"
         aria-live="polite"

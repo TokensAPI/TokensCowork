@@ -16,6 +16,7 @@ export async function adminOperations(env) {
   return {
     environment: {
       ...organizationEnvironment(env),
+      ...(env.MARKET_PREVIEW_MODE ? { preview: true } : {}),
       organizationReady: organizationProviderReady(env),
       organizationListReady: organizationListReady(env),
       keyDisplayReady: Boolean(env.MARKET_KEY_ENCRYPTION_SECRET),
