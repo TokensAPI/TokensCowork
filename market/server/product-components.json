@@ -1,12 +1,12 @@
 {
-  "productVersion": "0.5.9",
+  "productVersion": "0.5.10",
   "items": [
     {
       "id": "tokens-version-updates",
       "package": "@tokens/dsh-version-updates",
       "displayName": "TokensCowork 更新",
       "version": "0.1.0",
-      "commit": "3c19b2a218215f529585853f8396c234aa01f305",
+      "commit": "4d06dc81c0259330b26a7c576d025d35ffb2ac8d",
       "category": "builtin"
     },
     {
