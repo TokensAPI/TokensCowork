@@ -38,7 +38,7 @@
       "package": "@tokens/dsh-loop-guard",
       "displayName": "循环护栏",
       "version": "0.1.0",
-      "commit": "35ed973c248d38c0dbf9ecab4170bfc62c9be04e",
+      "commit": "00b6b2444c1540d8035cac70d8ce0fd3f15d98c0",
       "category": "builtin"
     }
   ]
