@@ -7,6 +7,19 @@
   },
   "entries": [
     {
+      "id": "platform.system-proxy",
+      "module": "platform",
+      "kind": "compatibility",
+      "state": "active",
+      "inputs": ["desktop"],
+      "files": ["build/modules/platform/system-proxy-overlay.mjs"],
+      "targets": ["Desktop main/host-process/host-process-entry; installed dsh-web-fetch-http/lib/index.js"],
+      "appliedBy": ["build/pipeline/staging-prepare.mjs", "build/pipeline/staging-runtime-patch.mjs"],
+      "reason": "仅网页抓取在无显式环境代理时接入 Electron 系统代理解析，含隔离 Host RPC；保留内网 IP 与 NO_PROXY 限制，不修改系统或全局代理。",
+      "retireWhen": "上游网页抓取在隔离 Host 中原生接入系统代理并通过相同回归后删除。",
+      "verification": "2026-09-18：Windows Electron 使用本机系统 HTTP 代理，原版抓取 GitHub/Hugging Face 均 WEB_BLOCKED_URL，修复后均 HTTP 200；隔离 utilityProcess 经 HostRpc 查询主进程系统代理后 GitHub HTTP 200，127.0.0.1 仍拒绝。外层回归含显式代理、NO_PROXY、取消和漂移检查。macOS 尚未真机验收；仅支持系统首选 HTTP/HTTPS 路由，SOCKS 不静默直连，不自动切换备用代理。"
+    },
+    {
       "id": "platform.windows-acl",
       "module": "platform",
       "kind": "workaround",

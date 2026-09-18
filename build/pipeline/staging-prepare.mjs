@@ -1,4 +1,5 @@
 import { pinDesktopMarketProvider } from '../modules/market/market-desktop-overlay.mjs'
+import { bridgeDesktopSystemProxy } from '../modules/platform/system-proxy-overlay.mjs'
 import { alignFsExtArchitecture } from '../modules/platform/desktop-packaging-overlay.mjs'
 import { applyMarketSourceOverlays } from '../modules/market/market-staging-overlay.mjs'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -142,6 +143,10 @@ mkdirSync(stageRoot, { recursive: true })
 assertGeneratedPath(stage)
 clearStageKeepingModules()
 copySource(desktopSource, stage)
+for (const [file, role] of [['main.ts', 'main'], ['host-process.ts', 'supervisor'], ['host-process-entry.ts', 'host']]) {
+  const path = resolve(stage, 'dsh-plugin-desktop/src', file)
+  writeFileSync(path, bridgeDesktopSystemProxy(readFileSync(path, 'utf8'), role))
+}
 prepareRuntimeVersion(stage, desktopRuntimeVersion)
 cpSync(
   resolve(root, 'build', 'modules', 'platform', 'mac-adhoc-sign.ts'),

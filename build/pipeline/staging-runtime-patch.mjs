@@ -1,5 +1,6 @@
 // Verify Desktop's preset patch; apply product runtime compatibility fixes once.
 import assert from 'node:assert/strict'
+import { bridgeWebFetchSystemProxy } from '../modules/platform/system-proxy-overlay.mjs'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +15,15 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const stage = productStage(resolve(import.meta.dirname, '..', '..'))
   let verified = 0
   let compactionPatched = 0
+  let fetchProxyPatched = 0
   for (const base of [resolve(stage, 'dsh-plugin-desktop'), stage]) {
+    const fetchPath = resolve(base, 'node_modules/@deepseek-ai/dsh-web-fetch-http/lib/index.js')
+    if (existsSync(fetchPath)) {
+      const source = readFileSync(fetchPath, 'utf8')
+      const patched = bridgeWebFetchSystemProxy(source)
+      if (patched !== source) writeFileSync(fetchPath, patched)
+      fetchProxyPatched++
+    }
     const compactionPath = resolve(base, 'node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js')
     if (existsSync(compactionPath)) {
       const source = readFileSync(compactionPath, 'utf8')
@@ -34,6 +43,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     verified++
   }
   assert.ok(verified > 0, 'agent-presets is not installed; run yarn install first')
+  assert.ok(fetchProxyPatched > 0, 'web-fetch-http is not installed; system proxy bridge cannot be verified')
   assert.ok(compactionPatched > 0, 'compaction-basic is not installed; run yarn install first')
   await verifyCompactionRuntime(resolve(stage, 'dsh-plugin-desktop'))
   console.log(`verify-runtime: ${verified} upstream asar-aware preset resolver(s) passed behavior checks`)
