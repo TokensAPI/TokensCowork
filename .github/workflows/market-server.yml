@@ -1,0 +1,88 @@
+name: Deploy Market Server
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'market/server/**'
+      - 'market/deploy/**'
+      - '.github/workflows/market-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: market-server-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: ${{ vars.MARKET_SSH_HOST || '5.223.77.54' }}
+  DEPLOY_PORT: ${{ vars.MARKET_SSH_PORT || '22' }}
+  DEPLOY_USER: ${{ vars.MARKET_SSH_USER || 'wsy' }}
+  DEPLOY_PATH: ${{ vars.MARKET_DEPLOY_PATH || '/home/wsy/TokensCowork' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm --prefix market/server run verify
+      - run: node --test market/deploy/*.test.mjs
+      - run: bash -n market/deploy/deploy.sh
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate administrator configuration
+        env:
+          DEPLOY_KEY: ${{ secrets.MARKET_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.MARKET_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOY_PATH" || -z "$DEPLOY_KEY" || -z "$KNOWN_HOSTS" || -z "$DEPLOY_HOST" || -z "$DEPLOY_USER" ]]; then
+            echo '::error::Market server deployment is not configured. See market/deploy/README.md; no deployment occurred.'
+            exit 1
+          fi
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "${DEPLOY_PORT:-22}" =~ ^[0-9]{1,5}$ ]]
+          [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9_./-]+$ && "$DEPLOY_PATH" != / ]]
+          mkdir -p "$RUNNER_TEMP/market-ssh"
+          chmod 700 "$RUNNER_TEMP/market-ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/market-ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/market-ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/market-ssh/"*
+      - name: Deploy exact tested commit using existing repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$RUNNER_TEMP/market-ssh/known_hosts" \
+            -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+            -i "$RUNNER_TEMP/market-ssh/key" -p "${DEPLOY_PORT:-22}" \
+            "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$GITHUB_SHA' '$DEPLOY_PATH'" < market/deploy/deploy.sh
+      - name: Verify public management asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/ -o /dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/assets/market-subjects.js -o /dev/null
+          echo "Market server deployed commit $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove ephemeral SSH credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- "$RUNNER_TEMP/market-ssh/key" "$RUNNER_TEMP/market-ssh/known_hosts"
