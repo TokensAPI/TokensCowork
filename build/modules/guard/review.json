@@ -5,7 +5,7 @@
   "baseline": {
     "desktop": "63e160ab4387988db894adef766865eab897cf80",
     "loopGuard": {
-      "commit": "00b6b2444c1540d8035cac70d8ce0fd3f15d98c0",
+      "commit": "c4ae69e195ff0d9c192838f9b80b97cda4b02246",
       "version": "0.1.0",
       "artifact": null,
       "enabled": true
