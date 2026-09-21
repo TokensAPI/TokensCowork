@@ -6,7 +6,7 @@
       "package": "@tokens/dsh-version-updates",
       "displayName": "TokensCowork 更新",
       "version": "0.1.0",
-      "commit": "4d06dc81c0259330b26a7c576d025d35ffb2ac8d",
+      "commit": "ba5f3455d71f53b4d4a4ab1d60954d3c6cbe4369",
       "category": "builtin"
     },
     {
@@ -21,8 +21,8 @@
       "id": "tokens-model-manager",
       "package": "@tokens/dsh-model-manager",
       "displayName": "TokensAPI 模型",
-      "version": "0.2.21",
-      "commit": "64782897b7446ca616bd2b643a6ad9cd118d4fad",
+      "version": "0.2.22",
+      "commit": "eb43bbb406f91fd2fddf129edf481686ab54219b",
       "category": "builtin"
     },
     {
@@ -30,7 +30,7 @@
       "package": "tokens-dsh-web-search",
       "displayName": "联网搜索",
       "version": "0.1.0",
-      "commit": "b6f32e2f64f16cc666fff937d4c7569b72293bdb",
+      "commit": "78540d762ad035abdeee31698dcb15aba81ad2aa",
       "category": "builtin"
     },
     {
