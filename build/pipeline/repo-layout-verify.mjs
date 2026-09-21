@@ -8,10 +8,12 @@ const packageManifest = JSON.parse(readFileSync(resolve(root, 'package.json'), '
 const canonicalVersion = readFileSync(resolve(root, 'VERSION'), 'utf8').trim()
 const fail = message => { throw new Error(`verify-layout: ${message}`) }
 const arguments_ = process.argv.slice(2)
-if (arguments_.some(argument => argument !== '--require-clean')) {
-  fail('expected optional --require-clean')
+if (arguments_.some(argument => !['--require-clean', '--working-tree'].includes(argument))) {
+  fail('expected optional --require-clean or --working-tree')
 }
 const requireClean = arguments_.includes('--require-clean')
+const workingTree = arguments_.includes('--working-tree')
+if (requireClean && workingTree) fail('--working-tree cannot be combined with --require-clean')
 const git = (cwd, ...args) => execFileSync('git', args, {
   cwd,
   encoding: 'utf8',
@@ -42,7 +44,9 @@ function containsTypescriptExport(value) {
 
 function assertGitlink(path, commit) {
   const [mode, object] = git(root, 'ls-files', '--stage', '--', path).split(/\s+/u)
-  if (mode !== '160000' || object !== commit) {
+  // Development still requires a registered submodule and validates its HEAD below.
+  // Only release/default verification requires the index pin to be synchronized.
+  if (mode !== '160000' || (!workingTree && object !== commit)) {
     fail(`${path} gitlink differs from product.json`)
   }
 }

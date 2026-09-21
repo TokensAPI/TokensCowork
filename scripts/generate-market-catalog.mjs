@@ -1,5 +1,5 @@
 // Deployment assets only. Plugin records live in D1, not a static roster.
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /* ------------------------------------------------------------
@@ -109,7 +109,12 @@ if (process.argv[1] === import.meta.filename) {
   const root = resolve(import.meta.dirname, '..')
   const config = JSON.parse(readFileSync(resolve(root, 'market', 'server', 'source.config.json'), 'utf8'))
   const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
-  writeFileSync(resolve(root,'market','server','source.json'),JSON.stringify(buildSourceManifest(config.origin),null,2)+'\n')
-  writeFileSync(resolve(root,'market','server','product-components.json'),JSON.stringify(buildProductComponents(product),null,2)+'\n')
+  const writeChanged = (name, value) => {
+    const target = resolve(root, 'market', 'server', name)
+    const content = JSON.stringify(value, null, 2) + '\n'
+    if (!existsSync(target) || readFileSync(target, 'utf8') !== content) writeFileSync(target, content)
+  }
+  writeChanged('source.json', buildSourceManifest(config.origin))
+  writeChanged('product-components.json', buildProductComponents(product))
   process.stdout.write('Generated market manifest and product component identities; no plugin snapshot.\n')
 }

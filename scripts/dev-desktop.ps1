@@ -104,9 +104,6 @@ function Clear-ConflictingApp {
   return $false
 }
 
-# 先拦一道，避免等装配/构建跑完数分钟后才发现被占用；启动前还会再查一次。
-if (-not (Clear-ConflictingApp)) { exit 1 }
-
 function Invoke-Step {
   param([string]$Label, [string]$Dir, [string]$Cmd)
   Write-Host "==> $Label" -ForegroundColor Cyan
@@ -119,6 +116,17 @@ function Invoke-Step {
     exit 1
   }
 }
+
+# 本地先同步派生清单；内容未变时不更新时间戳，避免触发重复装配。
+Invoke-Step '同步产品生成清单' $root 'node scripts\generate-market-catalog.mjs'
+
+# 与 CI 共用版本、Git pin、插件身份及生成清单校验。
+# 开发核对实际检出的提交，允许外层 Git 指针未暂存；CI 仍严格核对索引与洁净性。
+# 必须先校验，再关闭开发实例或改写 staging；失败时保留当前运行现场。
+Invoke-Step '验证产品输入（复用 CI 检查）' $root 'node build\pipeline\repo-layout-verify.mjs --working-tree'
+
+# 先拦一道，避免等装配/构建跑完数分钟后才发现被占用；启动前还会再查一次。
+if (-not (Clear-ConflictingApp)) { exit 1 }
 
 function Get-NewestWriteTimeUtc {
   param([System.IO.FileInfo[]]$Files)
@@ -257,16 +265,16 @@ if (-not $Sandbox) {
   Write-Host "    DSH home = $(Join-Path $HOME '.dsh')" -ForegroundColor DarkGray
 } else {
   $sandboxName = if ($StageName -eq 'desktop') { 'dev-sandbox' } else { "dev-sandbox-$StageName" }
-  $sandbox = Join-Path (Join-Path $root '.build') $sandboxName
-  $sandboxAppData = Join-Path $sandbox 'AppData'
-  $sandboxHome = Join-Path $sandbox 'home\.dsh'
+  $sandboxDirectory = Join-Path (Join-Path $root '.build') $sandboxName
+  $sandboxAppData = Join-Path $sandboxDirectory 'AppData'
+  $sandboxHome = Join-Path $sandboxDirectory 'home\.dsh'
   New-Item -ItemType Directory -Force $sandboxAppData | Out-Null
   New-Item -ItemType Directory -Force (Join-Path $sandboxAppData $productName) | Out-Null
   New-Item -ItemType Directory -Force $sandboxHome | Out-Null
   $env:APPDATA = $sandboxAppData
   $env:TOKENS_COWORK_DEV_APP_DATA = $sandboxAppData
   $env:DSH_HOME = $sandboxHome
-  Write-Host "==> 沙箱模式：数据在 $sandbox（删掉该目录即彻底重置）" -ForegroundColor Cyan
+  Write-Host "==> 沙箱模式：数据在 $sandboxDirectory（删掉该目录即彻底重置）" -ForegroundColor Cyan
 }
 
 # 装配/构建要几分钟，其间用户完全可能又把应用打开；此时 userData 相同，Electron

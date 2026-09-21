@@ -53,6 +53,8 @@ build/
 | `yarn product:dist:win / product:dist:mac:auto` | 本地完整打包；正常发布交给 GitHub |
 | `powershell -File scripts/dev-desktop.ps1 -Sandbox -StageName desktop-v050` | 隔离 Electron 功能测试 |
 
+本地启动先自动同步产品生成清单（内容不变则不改时间戳），再使用 `repo-layout-verify.mjs --working-tree` 核对实际检出提交，允许外层子模块指针未暂存；默认检查与 CI 仍要求 Git 索引指针及生成清单一致，CI 另检查源码洁净性。
+
 模块名同目录名。测试需要已检出的固定子模块；固定产物断言还需要已下载插件产物。
 独立装配使用 `PRODUCT_STAGE_NAME=desktop-<名称>`，不要覆盖其他任务正在使用的 staging。
 
