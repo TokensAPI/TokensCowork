@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.10",
+  "productVersion": "0.5.11",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -38,7 +38,7 @@
       "package": "@tokens/dsh-loop-guard",
       "displayName": "循环护栏",
       "version": "0.1.0",
-      "commit": "c4ae69e195ff0d9c192838f9b80b97cda4b02246",
+      "commit": "faa3cc317d3d51046c557218e6a8ee33a6ab13aa",
       "category": "builtin"
     }
   ]

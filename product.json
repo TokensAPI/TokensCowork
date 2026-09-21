@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.10"
+    "version": "0.5.11"
   },
   "desktop": {
     "path": "desktop",
@@ -86,7 +86,7 @@
       "description": "检测工具的精确重复与近似重复调用,先提醒后硬阻断,替代上游 repeat-tool-reminder。",
       "path": "plugins/tokens_DshLoopGuard_code",
       "repository": "https://github.com/TokensAPI/tokens_DshLoopGuard_code.git",
-      "commit": "c4ae69e195ff0d9c192838f9b80b97cda4b02246",
+      "commit": "faa3cc317d3d51046c557218e6a8ee33a6ab13aa",
       "package": "@tokens/dsh-loop-guard",
       "version": "0.1.0",
       "enabledByDefault": true,
