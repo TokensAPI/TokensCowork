@@ -22,15 +22,15 @@
       "package": "@tokens/dsh-model-manager",
       "displayName": "TokensAPI 模型",
       "version": "0.2.22",
-      "commit": "040894eb335b929e21eeee965df01747a8f37322",
+      "commit": "7dd71aac42532a66d5473972b244422ac2c140e8",
       "category": "builtin"
     },
     {
       "id": "tokens-dsh-web-search",
       "package": "tokens-dsh-web-search",
       "displayName": "联网搜索",
-      "version": "0.1.0",
-      "commit": "78540d762ad035abdeee31698dcb15aba81ad2aa",
+      "version": "0.2.0",
+      "commit": "c297f003118a2166682ce1107cbdeb9bbae67c13",
       "category": "builtin"
     },
     {
