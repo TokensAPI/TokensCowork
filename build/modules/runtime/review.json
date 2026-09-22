@@ -197,6 +197,19 @@
       "verification": "test:build runtime 含 URL 转换；staging CLI smoke、module-resolution tests 检查行为。"
     },
     {
+      "id": "runtime.open-external",
+      "module": "runtime",
+      "kind": "customization",
+      "state": "active",
+      "inputs": ["desktop"],
+      "files": ["build/modules/runtime/open-external-overlay.mjs"],
+      "targets": ["Desktop src/host-runtime-bridge.ts, src/runtime.ts：openExternal 桥"],
+      "appliedBy": ["build/pipeline/staging-prepare.mjs"],
+      "reason": "tokens-login 插件需要登录，而隔离 Host 下插件进程没有 shell 能力，故在 desktopRuntime 桥上加一个窄能力 openExternal：把部署站点自己的登录页交给用户默认浏览器打开（HTTPS；本机回环地址可用 HTTP，与插件 normalizeSite 同一口径，本地自建站点才能开发调试）。内嵌登录窗口已废弃：它承载不了钱包扩展与通行密钥，而浏览器能跑通站点提供的全部登录方式；交握走插件自己监听的 127.0.0.1 回调，此外不暴露任何 Electron 面。",
+      "retireWhen": "上游提供可用的外部打开能力，或产品改用服务端设备授权流程后移除。",
+      "verification": "2026-09-22：装配锚点与 CRLF 回归（open-external-overlay.test.mjs 7 项，均以钉住的上游源码为输入，含双侧接线与“只新增这一个能力”）。协议门禁改为直接调用装配出的实现来断言：HTTPS 与回环 HTTP 放行，站外 HTTP、file:、javascript:、ftp: 与非法 URL 一律拒绝。2026-09-22：本地自建 new-api（127.0.0.1:3000）真实 Electron 下走通：授权回调命中后 .dsh/.credentials.yaml 四个引用齐备、access token 经 /api/user/self 解析到本人、验证指纹与所存 key 相符，单次监听随即关闭；同一监听上 nonce 不符返回 403 且端口保持可用，非 /callback 返回 404。超时后重来由插件测试覆盖（监听到期即释放端口，过期 nonce 在新一次尝试上被拒）。真实 5 分钟到期的界面提示与 OIDC 返回路径尚未验收。"
+    },
+    {
       "id": "runtime.legacy-profile",
       "module": "runtime",
       "kind": "compatibility",

@@ -15,6 +15,7 @@ import {
   protectDesktopStderr,
   skipDesktopSetupWizard,
 } from '../modules/runtime/desktop-runtime-overlay.mjs'
+import { addDesktopOpenExternal } from '../modules/runtime/open-external-overlay.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../modules/updates/updates-overlay.mjs'
 import { disableUpstreamRepeatReminder } from '../modules/guard/loop-guard-overlay.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../modules/platform/windows-acl-overlay.mjs'
@@ -295,6 +296,16 @@ writeFileSync(desktopFsExtPreparePath, alignFsExtArchitecture(readFileSync(deskt
 /* -------------------- 修复 Windows ACL 启动链 -------------------- */
 windowsAclRunner = addWindowsAclHostConsole(windowsAclRunner)
 windowsPwshSandbox = addWindowsAclInfrastructureFuse(windowsPwshSandbox)
+
+/* --------------- 外部浏览器登录桥（tokens-login） ----------------- */
+const desktopBridgePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'host-runtime-bridge.ts')
+const desktopRuntimeTypesPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'runtime.ts')
+const desktopOpenExternal = addDesktopOpenExternal({
+  bridge: readFileSync(desktopBridgePath, 'utf8'),
+  runtime: readFileSync(desktopRuntimeTypesPath, 'utf8'),
+})
+writeFileSync(desktopBridgePath, desktopOpenExternal.bridge)
+writeFileSync(desktopRuntimeTypesPath, desktopOpenExternal.runtime)
 
 /* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
