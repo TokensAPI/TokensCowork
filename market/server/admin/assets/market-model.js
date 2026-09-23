@@ -3,9 +3,12 @@ const rows = (value) => (Array.isArray(value) ? value : [])
 
 /** Catalog API is authoritative. Never resurrect removed entries from ACL rows. */
 export function mergePlugins(catalog) {
-  return rows(Array.isArray(catalog) ? catalog : catalog?.items)
+  const components = rows(catalog?.components?.items).filter(p => p?.id).map(p => ({...p, category:'builtin', state:'builtin', productVersion:catalog.components.productVersion}))
+  const ids = new Set(components.map(p=>p.id)), packages = new Set(components.map(p=>p.package))
+  return [...components, ...rows(Array.isArray(catalog) ? catalog : catalog?.items)
     .filter((p) => p?.id && p.category !== 'builtin')
-    .map((p) => ({ ...p, category: 'optional' }))
+    .filter(p=>!ids.has(p.id) && !packages.has(p.package))
+    .map((p) => ({ ...p, category: 'optional' }))]
 }
 
 /** Returns explicit grants after migration, otherwise active, unexpired legacy grants. */

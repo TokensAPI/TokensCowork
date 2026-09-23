@@ -173,6 +173,7 @@ function renderPlugins() {
       node(
         'span',
         {
+          builtin: '随应用更新',
           draft: '草稿',
           published: '已上架',
           archived: '已下架',
@@ -203,12 +204,14 @@ function renderPlugins() {
         'v' +
           (p.npm && p.state === 'published' ? (p.npmLatestVersion || 'npm 暂无可用稳定版') : p.version) +
           ' · ' +
-          (p.npm ? '自动跟随 npm latest' : '固定版本'),
+          (builtin(p) ? `产品 ${p.productVersion} 内置版本` : p.npm ? '自动跟随 npm latest' : '固定版本'),
         'version',
       ),
     )
     const actions = node('div', '', 'catalog-actions')
-    if (p.state !== 'deleted') {
+    if (builtin(p)) {
+      actions.append(node('span', '由产品清单管理', 'muted'))
+    } else if (p.state !== 'deleted') {
       actions.append(
         button('编辑资料', () => editor.open(p), 'quiet'),
         button('配置权限', () => action(() => openPlugin(p)), 'secondary'),

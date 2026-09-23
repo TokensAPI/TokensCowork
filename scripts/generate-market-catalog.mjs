@@ -103,7 +103,7 @@ export function buildSourceManifest(origin) {
  * ------------------------------------------------------------ */
 
 export function buildProductComponents(product) {
-  return { productVersion: product.product.version, items: product.plugins.filter(p=>p.enabledByDefault && p.patch).map(p=>({ id:p.id,package:p.package,displayName:p.displayName,version:p.version,commit:p.commit,category:'builtin' })) }
+  return { productVersion: product.product.version, items: product.plugins.filter(p=>p.enabledByDefault && p.patch).map(p=>({ id:p.id,package:p.package,displayName:p.displayName,summary:p.description || '',repository:p.repository,version:p.version,commit:p.commit,category:'builtin' })) }
 }
 if (process.argv[1] === import.meta.filename) {
   const root = resolve(import.meta.dirname, '..')

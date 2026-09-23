@@ -13,6 +13,17 @@ test('built-in and ACL-only records never become editable market cards',()=>{
 
 const plugin = (id, fields = {}) => ({ id, displayName: id, package: '@example/' + id, summary: 'Plugin ' + id, version: '2.0.0', category: 'optional', ...fields })
 
+test('product components are read-only, deduplicated and separate from publication stages', () => {
+ const component=plugin('core',{category:'builtin'})
+ const result=mergePlugins({components:{productVersion:'1.2.3',items:[component]},items:[component,plugin('duplicate',{package:component.package}),plugin('tool',{state:'published'})]})
+ assert.equal(result.length,2)
+ assert.equal(result[0].state,'builtin')
+ assert.equal(result[0].productVersion,'1.2.3')
+ assert.deepEqual(filterPlugins(result,{}, {stage:'builtin'}).map(p=>p.id),['core'])
+ assert.deepEqual(filterPlugins(result,{}, {stage:'published'}).map(p=>p.id),['tool'])
+ assert.deepEqual(filterPlugins(result,{plugins:[{id:'core',visibility:'restricted'}]}, {visibility:'restricted'}),[])
+})
+
 test('release roster metadata wins over stale saved permission snapshots', () => {
   const roster = { items: [plugin('tool', { displayName: 'Current name', category: 'optional' })] }
   const state = { plugins: [{ id: 'tool', visibility: 'restricted', metadata: plugin('tool', { displayName: 'Old name', version: '1.0.0' }) }] }

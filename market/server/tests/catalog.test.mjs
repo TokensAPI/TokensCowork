@@ -35,6 +35,18 @@ function fixture(t) {
  const publicList=async(token='')=>(await (await call('/roster.json',undefined,token)).json()).items
  return {db,env,call,entry,change,create,publish,publicList,components}
 }
+test('admin sees product components separately without exposing install targets',async t=>{
+ const f=fixture(t)
+ const catalog=await(await f.call('/api/admin/catalog')).json()
+ assert.deepEqual(catalog.components,f.components)
+ assert.deepEqual(catalog.items,[])
+ assert.deepEqual(await f.publicList(),[])
+ assert.equal((await f.call('/api/admin/catalog',undefined,'')).status,401)
+ for(const component of catalog.components.items) {
+  assert.equal((await f.call('/api/admin/catalog',{operation:'edit',id:component.id,revision:1,metadata:component})).status,404)
+ }
+})
+
 test('new plugin is a draft; publishing requires explicit public confirmation, not a license checkbox',async t=>{
  const f=fixture(t)
  assert.equal((await f.create()).status,200);assert.equal(f.entry().state,'draft')

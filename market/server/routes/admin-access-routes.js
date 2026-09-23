@@ -9,7 +9,7 @@ import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from
 import { adminOperations } from '../services/admin-operations-service.js'
 import { auditStatements } from '../services/admin-audit-service.js'
 import { accessPreview } from '../services/access-preview-service.js'
-import { catalogRoster, catalogMutation, catalogEntry, revisionStatement } from '../services/catalog-service.js'
+import { catalogRoster, catalogMutation, catalogEntry, revisionStatement, productComponents } from '../services/catalog-service.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
@@ -86,7 +86,8 @@ export async function accessRoute(request, env) {
     if (request.method === 'GET' && ['/api/admin/roster','/api/admin/catalog'].includes(url.pathname)) {
       const roster = await catalogRoster(env,true)
       const resolved = await resolveNpmVersions(selectCatalogSources(roster.items, env, true), env)
-      return reply({...roster, items: resolved.map((item, i) => ({...item, registry: roster.items[i].registry, effectiveRegistry: item.registry ?? 'npm'}))})
+      const components = await productComponents(request, env)
+      return reply({...roster, components, items: resolved.map((item, i) => ({...item, registry: roster.items[i].registry, effectiveRegistry: item.registry ?? 'npm'}))})
     }
     if (request.method === 'GET' && url.pathname === '/api/admin/npm-package') {
       const packageInput = url.searchParams.get('package')
