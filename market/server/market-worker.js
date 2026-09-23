@@ -5,6 +5,7 @@ import { liveCatalog } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
 import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
+import { localizeCatalog } from './services/catalog-locale-service.js'
 
 const publicHeaders = {
   'access-control-allow-origin': '*',
@@ -28,6 +29,7 @@ export default {
       if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET)
         return reply({ error: '市场数据库未配置' }, 503, publicHeaders)
       try {
+        const locale = url.searchParams.get('locale') || 'zh-CN'
         const roster = await filterRoster(
           request,
           env,
@@ -42,6 +44,7 @@ export default {
         const declared = (request.headers.get('x-dsh-catalog-registries') ?? '').toLowerCase().split(/[\s,]+/u)
         roster.items = selectCatalogSources(roster.items, env, declared.includes('tokenscowork'))
         roster.items = await liveCatalog(roster.items, env)
+        roster.items = await localizeCatalog(roster.items, env, locale)
         if (url.pathname === '/roster.json')
           return reply({
             publisher: roster.publisher,

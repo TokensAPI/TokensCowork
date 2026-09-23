@@ -94,7 +94,7 @@ export function buildSourceManifest(origin) {
     homepage: 'https://github.com/TokensAPI/TokensCowork',
     attribution: { name: 'TokensAPI', url: 'https://github.com/TokensAPI' },
     transport: { kind: 'https-json', endpoint: `${origin}/v1/plugins`, method: 'GET' },
-    query: { supported: [], defaultLimit: 50, maxLimit: 50, sorts: [] },
+    query: { supported: ['locale'], defaultLimit: 50, maxLimit: 50, sorts: [] },
   }
 }
 

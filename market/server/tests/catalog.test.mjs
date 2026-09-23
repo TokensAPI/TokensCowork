@@ -160,7 +160,7 @@ test('published npm plugins automatically follow latest without changing stored 
  const f=fixture(t);await f.create();await f.publish()
  let calls=0;t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({latest:'9.0.0'})})
  const revision=f.entry().revision
- let catalog=await (await f.call('/v1/plugins',undefined,'')).json();assert.equal(catalog.items[0].latestVersion,'9.0.0');assert.equal(calls,1)
+ let catalog=await (await f.call('/v1/plugins',undefined,'')).json();assert.equal(catalog.items[0].latestVersion,'9.0.0');assert.equal(calls,2)
  assert.equal((await f.publicList())[0].version,'9.0.0')
  const admin=await(await f.call('/api/admin/catalog')).json()
  assert.equal(admin.items[0].version,'1.0.0');assert.equal(admin.items[0].npmLatestVersion,'9.0.0')
@@ -169,6 +169,21 @@ test('published npm plugins automatically follow latest without changing stored 
  await f.change('archive')
  const before=calls
  assert.deepEqual(await f.publicList(),[]);assert.equal(calls,before)
+})
+
+test('public catalog selects package translations for both catalog routes', async t => {
+ const f=fixture(t);await f.create();await f.publish()
+ t.mock.method(globalThis,'fetch',async url=>{
+  if(String(url).includes('dist-tags')) return Response.json({latest:'9.0.0'})
+  const name=decodeURIComponent(String(url).split('/').at(-2))
+  return Response.json({name,version:'9.0.0',tokenscowork:{displayName:{en:'Finance', 'zh-CN':'财务'},summary:{en:'English summary','zh-CN':'中文简介'}}})
+ })
+ for(const route of ['/v1/plugins','/roster.json']) {
+  const en=await(await f.call(route+'?locale=en-US',undefined,'')).json()
+  const zh=await(await f.call(route+'?locale=zh-CN',undefined,'')).json()
+  assert.equal(en.items[0].displayName,'Finance');assert.equal(zh.items[0].displayName,'财务')
+  assert.equal(en.items[0].id,zh.items[0].id)
+ }
 })
 
 test('npm links resolve to package identities, never arbitrary fetch destinations', () => {

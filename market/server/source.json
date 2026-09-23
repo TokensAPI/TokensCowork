@@ -14,7 +14,7 @@
     "method": "GET"
   },
   "query": {
-    "supported": [],
+    "supported": ["locale"],
     "defaultLimit": 50,
     "maxLimit": 50,
     "sorts": []

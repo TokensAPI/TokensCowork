@@ -120,3 +120,9 @@ export async function latestVersion(name, fallback) {
     return fallback
   }
 }
+export async function npmVersionManifest(name, version) {
+  if (!packageOK(name) || !versionOK(version)) throw invalid('Invalid package version')
+  const value = await registry(encodeURIComponent(name) + '/' + encodeURIComponent(version))
+  if (value.name !== name || value.version !== version) throw invalid('Invalid package manifest')
+  return value
+}
