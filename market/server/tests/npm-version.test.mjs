@@ -3,6 +3,23 @@ import assert from 'node:assert/strict'
 import { liveCatalog, resolveNpmVersions } from '../services/npm-version-service.js'
 
 const item={id:'fixture',package:'@fixture/tool',version:'1.0.0',state:'published',npm:true,versionMode:'pinned',summary:'Keep this'}
+test('version hints coalesce, expire and never cache failures or cross environments',async t=>{
+ const env={};let calls=0,now=1000,latest='2.0.0'
+ t.mock.method(Date,'now',()=>now)
+ t.mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({latest})})
+ const results=await Promise.all(Array.from({length:8},()=>liveCatalog([item],env)))
+ assert.equal(calls,1);assert.ok(results.every(result=>result[0].version==='2.0.0'))
+ latest='3.0.0';assert.equal((await liveCatalog([item],env))[0].version,'2.0.0')
+ now+=30001;assert.equal((await liveCatalog([item],env))[0].version,'3.0.0')
+ assert.equal(calls,2)
+ await liveCatalog([item],{});assert.equal(calls,3)
+ env.MARKET_PRIVATE_REGISTRY_TOKEN='changed-test-credential'
+ await liveCatalog([item],env);assert.equal(calls,4)
+ now+=30001;latest='invalid';assert.deepEqual(await liveCatalog([item],env),[])
+ latest='4.0.0';assert.equal((await liveCatalog([item],env))[0].version,'4.0.0')
+ assert.equal(calls,6)
+ assert.deepEqual(await liveCatalog([],env),[])
+})
 test('legacy npm pinned records also follow stable latest without mutating metadata',async t=>{
  let latest='2.0.0'
  t.mock.method(globalThis,'fetch',async()=>Response.json({latest}))

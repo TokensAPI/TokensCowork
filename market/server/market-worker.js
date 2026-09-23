@@ -1,7 +1,7 @@
 import { accessRoute } from './routes/admin-access-routes.js'
 import { filterRoster } from './services/plugin-access-service.js'
 import { catalogRoster } from './services/catalog-service.js'
-import { liveCatalog } from './services/npm-version-service.js'
+import { liveCatalog, invalidateVersionHints } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
 import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
@@ -18,7 +18,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url)
     const admin = await accessRoute(request, env)
-    if (admin) return admin
+    if (admin) {
+      if (admin.ok && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) invalidateVersionHints(env)
+      return admin
+    }
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
