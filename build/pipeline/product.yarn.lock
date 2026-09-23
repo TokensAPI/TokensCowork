@@ -6933,6 +6933,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@tokensapi/dsh-login@workspace:*, @tokensapi/dsh-login@workspace:dsh-plugin-desktop/product-plugins/tokens-login":
+  version: 0.0.0-use.local
+  resolution: "@tokensapi/dsh-login@workspace:dsh-plugin-desktop/product-plugins/tokens-login"
+  languageName: unknown
+  linkType: soft
+
 "@ts-morph/common@npm:~0.27.0":
   version: 0.27.0
   resolution: "@ts-morph/common@npm:0.27.0"
@@ -9287,6 +9293,7 @@ __metadata:
     "@tokens/dsh-loop-guard": "workspace:*"
     "@tokens/dsh-model-manager": "workspace:*"
     "@tokens/dsh-version-updates": "workspace:*"
+    "@tokensapi/dsh-login": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/mdast": "npm:^4.0.4"
     "@types/node": "npm:^22.20.0"

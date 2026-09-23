@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.12"
+    "version": "0.5.13"
   },
   "desktop": {
     "path": "desktop",
@@ -52,6 +52,18 @@
         "sha256": "710077b84b02ad8233391666707a30fa4cd6db2549db8b9f59663c2350a08a45"
       },
       "runtimeDependencies": {}
+    },
+    {
+      "id": "tokens-login",
+      "displayName": "TokensAPI 账户",
+      "description": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
+      "path": "plugins/tokens_DshLogin_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
+      "commit": "a0019053b223951a622aba11544e149f0dc73341",
+      "package": "@tokensapi/dsh-login",
+      "version": "0.1.5",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml"
     },
     {
       "id": "tokens-model-manager",

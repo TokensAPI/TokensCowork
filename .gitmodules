@@ -22,3 +22,6 @@
 [submodule "tokens-loop-guard"]
 	path = plugins/tokens_DshLoopGuard_code
 	url = https://github.com/TokensAPI/tokens_DshLoopGuard_code.git
+[submodule "tokens-login"]
+	path = plugins/tokens_DshLogin_code
+	url = https://github.com/TokensAPI/tokens_DshLogin_code.git

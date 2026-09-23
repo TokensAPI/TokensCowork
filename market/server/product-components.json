@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.12",
+  "productVersion": "0.5.13",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -15,6 +15,14 @@
       "displayName": "Tokens Cowork UI",
       "version": "0.2.22",
       "commit": "7f03733d36c7ee1bb37210e7362782a67af077b5",
+      "category": "builtin"
+    },
+    {
+      "id": "tokens-login",
+      "package": "@tokensapi/dsh-login",
+      "displayName": "TokensAPI 账户",
+      "version": "0.1.5",
+      "commit": "a0019053b223951a622aba11544e149f0dc73341",
       "category": "builtin"
     },
     {
