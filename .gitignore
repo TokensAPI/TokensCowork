@@ -3,6 +3,8 @@
 .yarn/
 .wrangler/
 /.market-dev.env
+/market/.market-dev.env
+/market/.market-production-snapshot.json
 /market/registry/.env
 /market/server/.env
 /market/server/market-d1-export.sql

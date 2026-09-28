@@ -118,8 +118,8 @@ const get = async (path, headers={}) => {
 await get('/admin/')
 await get('/source.json')
 const headers={Authorization:'Bearer '+process.env.MARKET_ADMIN_TOKEN}
-await get('/api/admin/access',headers)
-await get('/api/admin/subjects',headers)
+await get('/api/v1/plugins',headers)
+await get('/api/v1/keys',headers)
 NODE
 }
 rollback() {

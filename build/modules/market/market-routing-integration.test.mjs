@@ -19,6 +19,7 @@ test('shared registry: real SQLite, independent Key ACLs, tarball checks and rev
   const env = { MARKET_DB: db, MARKET_HMAC_SECRET: secret,
     MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.example/',
     MARKET_PRIVATE_REGISTRY_TOKEN: 'server-fixture',
+    ASSETS: { fetch: async () => Response.json({ items: [] }) },
     fetch: async (url, options) => {
       upstream++
       assert.equal(new Headers(options.headers).get('authorization'), 'Bearer server-fixture')
@@ -28,9 +29,7 @@ test('shared registry: real SQLite, independent Key ACLs, tarball checks and rev
     },
   }
   async function seed(id, name, visibility = 'restricted', state = 'published') {
-    await db.prepare('INSERT INTO market_plugins(id,visibility,metadata) VALUES(?,?,?)').bind(id, visibility, JSON.stringify({ package: name, npm: true, registry: 'tokenscowork' })).run()
-    await db.prepare('INSERT INTO market_catalog(id,state) VALUES(?,?)').bind(id, state).run()
-    await db.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?)').bind(id).run()
+    await db.prepare('INSERT INTO market_plugins(id,visibility,state,metadata) VALUES(?,?,?,?)').bind(id, visibility, state, JSON.stringify({ package: name, npm: true, registry: 'tokenscowork' })).run()
   }
   const request = (path, token = '') => registryRoute(new Request('https://market.example/registry/' + path, { headers: token ? { authorization: 'Bearer ' + token } : {} }), env)
   const originalFetch = globalThis.fetch
@@ -41,7 +40,8 @@ test('shared registry: real SQLite, independent Key ACLs, tarball checks and rev
     await seed('qa-open', 'qa-unscoped', 'public')
     await seed('qa-draft', '@tokensapi/qa-draft', 'public', 'draft')
     const fp = await fingerprint(key, secret)
-    await db.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').bind('qa-a', fp).run()
+    await db.prepare("INSERT INTO market_keys(fingerprint,label) VALUES(?,'fixture')").bind(fp).run()
+    await db.prepare("INSERT INTO market_grants(plugin_id,kind,subject) VALUES(?,'key',?)").bind('qa-a', fp).run()
     for (const path of ['by-package/%40tokensapi%2Fqa-a', 'by-package/@tokensapi/qa-a']) {
       assert.equal((await request(path)).status, 403)
       assert.equal((await request(path, 'sk-wrong')).status, 403)
@@ -58,7 +58,7 @@ test('shared registry: real SQLite, independent Key ACLs, tarball checks and rev
     assert.equal(upstream, before, 'unauthorized requests must not reach Registry')
     assert.equal((await request('by-package/qa-unscoped')).status, 200)
     assert.equal((await request('by-package/%ZZ')).status, 400)
-    await db.prepare('DELETE FROM market_plugin_key_grants WHERE plugin_id=?').bind('qa-a').run()
+    await db.prepare('DELETE FROM market_grants WHERE plugin_id=?').bind('qa-a').run()
     assert.equal((await request('by-package/%40tokensapi%2Fqa-a', key)).status, 403)
     assert.equal((await request('qa-a/%40tokensapi%2Fqa-a/1.0.0/tarball', key)).status, 403)
     await seed('qa-duplicate', 'qa-unscoped', 'public')

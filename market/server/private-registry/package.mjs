@@ -1,5 +1,5 @@
 import { npmPackageMetadata, npmReference } from '../integrations/npm-registry.js'
-import { invalid, packageOK, versionOK } from '../services/catalog-service.js'
+import { invalid, packageOK, versionOK } from '../services/plugins.js'
 import { createRegistryClient } from './client.mjs'
 import { registryConfig } from './config.mjs'
 

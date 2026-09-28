@@ -5,6 +5,7 @@ const root=resolve(import.meta.dirname,'..')
 function files(directory){
   return readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{
     const path=resolve(directory,entry.name)
+    if(entry.name==='vendor')return []
     return entry.isDirectory()?files(path):/\.(?:m?js)$/u.test(path)?[path]:[]
   })
 }

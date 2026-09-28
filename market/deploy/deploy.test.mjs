@@ -40,7 +40,7 @@ test('deployment safety contracts: backup before replacement, isolated existing 
   assert.match(script, /external: true/)
   assert.match(script, /127\.0\.0\.1:4880:8080/)
   assert.match(script, /--no-build --no-deps market/)
-  assert.match(script, /\/api\/admin\/subjects/)
+  assert.match(script, /\/api\/v1\/keys/)
   assert.match(script, /rollback_image/)
   assert.doesNotMatch(script, /docker compose[^\n]*\bdown\b/)
 })

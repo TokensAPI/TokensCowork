@@ -12,7 +12,7 @@ test('key validation distinguishes successful personal Keys from authentication 
     [()=>response({organization:{id:8,name:'Team',status:0}}),'disabled'],
   ]){
     const source=createTokensApiOrganizations(env,async()=>reply())
-    assert.deepEqual(await source.validateApiKey('sk-fixture'),{status,organization:null})
+    assert.deepEqual(await source.validateApiKey('sk-fixture'),{status,organization:null,user:null})
   }
   const source=createTokensApiOrganizations(env,async()=>new Response('offline',{status:503}))
   await assert.rejects(()=>source.validateApiKey('sk-fixture'))
@@ -74,4 +74,68 @@ test('redirects are rejected without forwarding credentials',async()=>{
   })
   await assert.rejects(()=>source.listOrganizations(),error=>error.providerCode==='HTTP_302')
   assert.equal(requests,1)
+})
+test('console login sends the pasted token and the account id it needs',async()=>{
+  const seen=[]
+  const source=createTokensApiOrganizations(env,async(url,options)=>{
+    seen.push(url)
+    // The pasted token, the id TokensAPI demands beside it, and no management token alongside.
+    assert.equal(options.headers.Authorization,'fixture-token')
+    assert.equal(options.headers['New-Api-User'],'5001')
+    assert.equal(options.headers.Cookie,undefined)
+    assert.equal(options.redirect,'manual')
+    return url.endsWith('/api/user/self')
+      ?response({id:5001,username:'owner',display_name:' 组织所有者 ',role:100,quota:9})
+      // GetMyOrg answers at the top level of data, unlike the API-key endpoint's wrapper.
+      :response({id:8,name:'Team',status:1,my_role:10,member_id:3})
+  })
+  const credential={accessToken:'fixture-token',userId:5001}
+  assert.deepEqual(await source.resolveAccount(credential),{id:5001,username:'owner',displayName:'组织所有者'})
+  assert.deepEqual(await source.resolveMyOrg(credential),{id:8,name:'Team',role:10})
+  assert.deepEqual(seen,['https://tokensapi.ai/api/user/self','https://tokensapi.ai/api/org/'])
+  // Display name falls back to the account name rather than becoming blank.
+  const bare=createTokensApiOrganizations(env,async()=>response({id:5001,username:'owner',display_name:'  '}))
+  assert.equal((await bare.resolveAccount(credential)).displayName,'owner')
+})
+test('a token that is wrong, in no organization or disabled is an answer, not an outage',async()=>{
+  const credential={accessToken:'fixture-token',userId:5001}
+  // TokensAPI answers a rejected console credential with 200 and success:false, not with 401.
+  const rejected=createTokensApiOrganizations(env,async()=>Response.json({success:false,message:'无效的访问令牌'}))
+  assert.equal(await rejected.resolveAccount(credential),null)
+  assert.equal(await rejected.resolveMyOrg(credential),null)
+  const signedOut=createTokensApiOrganizations(env,async()=>new Response('sensitive upstream body',{status:401}))
+  assert.equal(await signedOut.resolveAccount(credential),null)
+  assert.equal(await signedOut.resolveMyOrg(credential),null)
+  // 403 from the membership endpoint is "not a member", which is simply no seat.
+  assert.equal(await createTokensApiOrganizations(env,async()=>new Response('denied',{status:403})).resolveMyOrg(credential),null)
+  assert.equal(await createTokensApiOrganizations(env,async()=>response({id:8,name:'Team',status:0,my_role:100})).resolveMyOrg(credential),null)
+  // A half credential, or one that could smuggle a second header field, is refused before any
+  // call is made: the id is as mandatory as the token, and neither may carry a header break.
+  let calls=0
+  const guarded=createTokensApiOrganizations(env,async()=>{calls++;return response({})})
+  for(const value of [undefined,{},{accessToken:'fixture-token'},{userId:5001},
+    {accessToken:'fixture-token',userId:0},{accessToken:'fixture-token',userId:'5001'},
+    {accessToken:'',userId:5001},{accessToken:'a b',userId:5001},
+    {accessToken:'a\nX-Real: 1',userId:5001},{accessToken:'x'.repeat(4097),userId:5001}]){
+    assert.equal(await guarded.resolveAccount(value),null)
+    assert.equal(await guarded.resolveMyOrg(value),null)
+  }
+  assert.equal(calls,0)
+  // Everything else still fails closed: a missing role or an unreachable site is never a sign-in.
+  for(const reply of [()=>response({id:8,name:'Team',status:1}),()=>new Response('offline',{status:503})]){
+    await assert.rejects(()=>createTokensApiOrganizations(env,async()=>reply()).resolveMyOrg(credential))
+  }
+  await assert.rejects(()=>createTokensApiOrganizations(env,async()=>response({id:0,username:'owner'})).resolveAccount(credential))
+})
+test('the Key owner and the user search come back as id and display name only',async()=>{
+  const source=createTokensApiOrganizations(env,async url=>url.endsWith('/api/current/organization')
+    ?response({organization:{id:8,name:'Team',status:1},user:{id:102,username:'alice',display_name:'Alice',quota:9}})
+    :response({items:[{id:102,username:'alice',display_name:''},{id:103,username:'bob',display_name:'Bob',role:1}],total:2}))
+  assert.deepEqual(await source.resolveIdentity('sk-fixture'),{organization:{id:8,name:'Team'},user:{id:102,name:'Alice'}})
+  assert.deepEqual(await source.searchUsers('a b',2),{items:[{id:102,name:'alice',username:'alice'},{id:103,name:'Bob',username:'bob'}],total:2})
+  const legacy=createTokensApiOrganizations(env,async()=>response({organization:null}))
+  assert.deepEqual(await legacy.resolveIdentity('sk-fixture'),{organization:null,user:null})
+  const searched=[]
+  await createTokensApiOrganizations(env,async(url,options)=>{searched.push([url,options.headers.Authorization]);return response({items:[],total:0})}).searchUsers('a b',2)
+  assert.deepEqual(searched,[['https://tokensapi.ai/api/manage/users/search?keyword=a%20b&p=2&page_size=20','Bearer fixture-management-token']])
 })

@@ -1,6 +1,6 @@
-import { accessRoute } from './routes/admin-access-routes.js'
-import { filterRoster } from './services/plugin-access-service.js'
-import { catalogRoster } from './services/catalog-service.js'
+import { apiRoute } from './routes/api.js'
+import { filterRoster } from './services/access.js'
+import { catalogRoster } from './services/plugins.js'
 import { liveCatalog, invalidateVersionHints } from './services/npm-version-service.js'
 import { reply } from './http/response.js'
 import { registryRoute } from './private-registry/routes.js'
@@ -17,10 +17,10 @@ const publicHeaders = {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
-    const admin = await accessRoute(request, env)
-    if (admin) {
-      if (admin.ok && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) invalidateVersionHints(env)
-      return admin
+    const api = await apiRoute(request, env)
+    if (api) {
+      if (api.ok && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) invalidateVersionHints(env)
+      return api
     }
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
@@ -84,14 +84,23 @@ export default {
       '/admin/',
       '/admin/index.html',
       '/admin/access.html',
+      '/admin/api-docs.html',
+      '/admin/assets/api-docs.js',
+      '/admin/assets/api-docs.css',
+      '/admin/assets/openapi.json',
+      '/admin/assets/vendor/swagger-ui.css',
+      '/admin/assets/vendor/swagger-ui-bundle.js',
       '/admin/assets/market-admin.js',
-      '/admin/assets/market-subjects.js',
       '/admin/assets/market-api.js',
       '/admin/assets/market-model.js',
       '/admin/assets/market-admin.css',
       '/admin/assets/market-theme.js',
       '/admin/assets/market-theme.css',
       '/admin/assets/market-catalog-editor.js',
+      '/admin/assets/market-organizations.js',
+      '/admin/assets/market-keys.js',
+      '/admin/assets/market-users.js',
+      '/admin/assets/market-grants.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')

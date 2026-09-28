@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createD1Database, createPackagesStore, createAssets } from '../runtime/adapters.mjs'
+import { createD1Database, createAssets } from '../runtime/adapters.mjs'
 
 const migrations = resolve(import.meta.dirname, '../database/migrations')
 
@@ -24,23 +24,12 @@ test('the sqlite adapter honours the D1 contract and rolls batches back atomical
   assert.ok(results.length >= 4)
   assert.equal(await db.prepare('SELECT id FROM market_plugins WHERE id=?').bind('missing').first(), null)
   await assert.rejects(db.batch([
-    db.prepare('INSERT INTO market_keys(fingerprint,label,enabled,expires_at) VALUES(?,?,1,NULL)').bind('a'.repeat(64), 'batch'),
-    db.prepare('INSERT INTO market_grants(fingerprint,plugin_id) VALUES(?,?)').bind('b'.repeat(64), 'nonexistent-plugin'),
+    db.prepare('INSERT INTO market_keys(fingerprint,label,created_at) VALUES(?,?,0)').bind('a'.repeat(64), 'batch'),
+    // Rejected by the foreign key: there is no such organization, so the batch must roll back.
+    db.prepare('INSERT INTO market_org_hidden(organization_id,plugin_id) VALUES(?,?)').bind(4040, 'tokens-media-gen'),
   ]))
   assert.equal(await db.prepare('SELECT fingerprint FROM market_keys WHERE label=?').bind('batch').first(), null)
   db.close()
-})
-
-test('the packages store refuses traversal and serves only whitelisted keys', async t => {
-  const dir = scratch(t)
-  mkdirSync(join(dir, 'packages/fixtures'), { recursive: true })
-  writeFileSync(join(dir, 'packages/fixtures/test.tgz'), 'bytes')
-  writeFileSync(join(dir, 'secret.txt'), 'outside')
-  const store = createPackagesStore(join(dir, 'packages'))
-  assert.equal(String((await store.get('fixtures/test.tgz')).body), 'bytes')
-  for (const key of ['../secret.txt', 'fixtures/../../secret.txt', '/etc/passwd', 'fixtures//test.tgz', './fixtures/test.tgz', 'missing.tgz', 42]) {
-    assert.equal(await store.get(key), null, String(key))
-  }
 })
 
 test('the assets adapter serves admin pages with the security headers and confines paths', async t => {

@@ -1,0 +1,2798 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TokensCowork 市场管理 API",
+    "version": "2.0.0",
+    "description": "市场的唯一管理接口。后台页面和 TokensAPI 后端调同一套路由。\n\n市场只管插件；账号、组织和成员的事实来源都在 TokensAPI。市场按组织号、Key 指纹和用户号记录授权，不复制用户表。\n\n### 访问判定\n\n```\n可见  =  插件已上架  AND (\n          访问范围为公开\n       OR 这个 Key 被单独授权\n       OR Key 的所属用户被单独授权\n       OR（授予了用户所在组织 AND 该组织启用 AND 组织管理员没关掉）)\n```\n\n### 认证\n\n- `Authorization: Bearer <后台口令>`：平台管理员，可调全部接口（TokensAPI 后端、脚本、本页的 Authorize 都用它）。口令错误同一 IP 15 分钟内累计 8 次返回 `429`。\n- 后台会话 Cookie：平台管理员或组织管理员。组织管理员只能读自己的组织、改自己组织的插件开关，其余 `403`。Cookie 发起的写操作必须同源。\n\n### 幂等性\n\n插件的写操作都带 `revision`：同一个 `revision` 只会成功一次，重试拿到 `409` 而不是二次写入。\n\n完整说明见仓库内 `market/server/SERVICE-API.md`。"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "本站（打开本页的那个实例）"
+    }
+  ],
+  "security": [
+    {
+      "adminToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "会话",
+      "description": "后台登录与当前身份。"
+    },
+    {
+      "name": "插件",
+      "description": "插件资料、上下架与访问配置。平台管理员专用。"
+    },
+    {
+      "name": "组织",
+      "description": "组织名录与组织开关。"
+    },
+    {
+      "name": "Key",
+      "description": "单独授权用的 Key 名录。平台管理员专用。"
+    },
+    {
+      "name": "用户",
+      "description": "单独授权用的 TokensAPI 用户名录。平台管理员专用。"
+    },
+    {
+      "name": "诊断",
+      "description": "操作记录与 npm 查询。平台管理员专用。"
+    }
+  ],
+  "paths": {
+    "/session": {
+      "get": {
+        "tags": [
+          "会话"
+        ],
+        "summary": "当前是谁",
+        "description": "不需要凭据。未登录返回 `authenticated: false`；平台管理员额外带 `environment`。",
+        "responses": {
+          "200": {
+            "description": "当前会话",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "会话"
+        ],
+        "summary": "登录后台",
+        "description": "两种登录方式二选一：后台口令，或 TokensAPI 账号（只有组织管理员能进，普通成员一律 `401`）。成功后下发 `__Host-market_session` Cookie。\n\n必须同源（`Origin`），同一 IP 15 分钟内失败 8 次返回 `429`。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "credential"
+                    ],
+                    "properties": {
+                      "credential": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "tokensapi",
+                      "accessToken",
+                      "userId"
+                    ],
+                    "properties": {
+                      "tokensapi": {
+                        "const": true
+                      },
+                      "accessToken": {
+                        "type": "string"
+                      },
+                      "userId": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                ]
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "credential": "后台口令"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已登录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "会话"
+        ],
+        "summary": "退出登录",
+        "description": "清除会话 Cookie。必须同源。",
+        "responses": {
+          "200": {
+            "description": "已退出",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/plugins": {
+      "get": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "列出全部插件",
+        "description": "含草稿与回收站，每条带访问配置 `access`；`components` 是应用内置组件（只读）。",
+        "responses": {
+          "200": {
+            "description": "插件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "publisher",
+                    "components",
+                    "items"
+                  ],
+                  "properties": {
+                    "publisher": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "components": {
+                      "type": "object",
+                      "properties": {
+                        "productVersion": {
+                          "type": "string"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Component"
+                          }
+                        }
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Plugin"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "新建插件",
+        "description": "新建总是草稿、访问范围总是 `public`；草稿不会出现在任何人的目录里。与内置组件同 ID/包名、或 ID 已存在（含回收站）返回 `409`。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "metadata"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "$ref": "#/components/schemas/PluginMetadata"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "id": "example-tool",
+                    "metadata": {
+                      "id": "example-tool",
+                      "package": "@tokensapi/example-tool",
+                      "displayName": "示例插件",
+                      "summary": "说明插件解决什么问题",
+                      "version": "1.0.0",
+                      "npm": true,
+                      "registry": "npm",
+                      "repository": ""
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已创建为草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                },
+                "examples": {
+                  "示例": {
+                    "value": {
+                      "ok": true,
+                      "state": "draft",
+                      "revision": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "读取一个插件",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "插件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plugin"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "修改资料",
+        "description": "换包名、来源或版本会把插件退回草稿，需要重新上架。回收站里的插件先恢复再改。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision",
+                  "metadata"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  },
+                  "metadata": {
+                    "$ref": "#/components/schemas/PluginMetadata"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/access": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "put": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "写访问配置",
+        "description": "一次写完整访问配置：公开/受限，以及授权给哪些组织、Key 和用户（整表替换，传空数组即清空）。组织须已在名录里，Key、用户须已登记，否则 `400`。\n\n清空授权不会把受限插件变成公开；改成公开也不会删授权。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "visibility",
+                  "revision"
+                ],
+                "properties": {
+                  "visibility": {
+                    "$ref": "#/components/schemas/Visibility"
+                  },
+                  "organizations": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "keys": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Fingerprint"
+                    }
+                  },
+                  "users": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "须已在用户名录里。"
+                  },
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "visibility": "restricted",
+                    "organizations": [
+                      7
+                    ],
+                    "keys": [],
+                    "users": [],
+                    "revision": 3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/publish": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "上架",
+        "description": "草稿或已下架 → 已上架。npm 来源会先查一次稳定 `latest` 作为上架版本。访问范围为 `public` 时必须带 `confirmPublic: true`，否则 `409`。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  },
+                  "confirmPublic": {
+                    "type": "boolean"
+                  },
+                  "licenseReference": {
+                    "type": "string",
+                    "description": "可选的检查记录 HTTPS 链接。"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "revision": 3,
+                    "confirmPublic": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/archive": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "下架",
+        "description": "已上架 → 已下架。桌面目录里立即消失。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "revision": 3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/trash": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "移入回收站",
+        "description": "草稿或已下架 → 回收站。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "revision": 3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/restore": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "从回收站恢复",
+        "description": "回收站 → 草稿。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "revision": 3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/purge": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "post": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "彻底删除",
+        "description": "只能删回收站里的插件，且要带 `confirmId` 等于插件 ID。授权与组织开关一并删除，不可恢复。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "revision",
+                  "confirmId"
+                ],
+                "properties": {
+                  "revision": {
+                    "$ref": "#/components/schemas/Revision"
+                  },
+                  "confirmId": {
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "revision": 3,
+                    "confirmId": "example-tool"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已完成",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/organizations": {
+      "get": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "组织名录",
+        "description": "`syncReady` 表示能否从 TokensAPI 同步。",
+        "responses": {
+          "200": {
+            "description": "组织列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "syncReady"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrganizationSummary"
+                      }
+                    },
+                    "syncReady": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/organizations/sync": {
+      "post": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "从 TokensAPI 同步",
+        "description": "新增组织默认启用；已有组织只更新名称，不会重新启用本地停用的组织，也不删除任何授权。",
+        "responses": {
+          "200": {
+            "description": "已同步",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/organizations/{orgId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/orgId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "读取一个组织",
+        "description": "组织管理员只能读自己的组织。",
+        "responses": {
+          "200": {
+            "description": "组织",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "登记、改名或启停",
+        "description": "组织不存在时新建。停用后该组织的授权全部失效。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "enabled"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "name": "示例组织",
+                    "enabled": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/organizations/{orgId}/grants": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/orgId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "组织持有的插件",
+        "description": "单独授权给这个组织的插件，不含回收站里的。组织管理员可以读自己的组织，写只有平台管理员。",
+        "responses": {
+          "200": {
+            "description": "插件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grants"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "配置组织的插件",
+        "description": "整表替换这个组织持有的插件，传空数组即全部撤销，最多 500 个。插件须存在且不在回收站，否则 `400`。每个授权有变化的插件 `revision` 加一。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plugins"
+                ],
+                "properties": {
+                  "plugins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "plugins": [
+                      "example-tool"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/organizations/{orgId}/plugins": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/orgId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "组织能用的插件",
+        "description": "已上架的公开插件和授予本组织的插件，以及组织管理员的开关。组织管理员只能看自己的组织。",
+        "responses": {
+          "200": {
+            "description": "插件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "organizationId",
+                    "items"
+                  ],
+                  "properties": {
+                    "organizationId": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrganizationPlugin"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/organizations/{orgId}/plugins/{pluginId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/orgId"
+        },
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "put": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "组织开关",
+        "description": "组织管理员关掉（或重新打开）平台授予本组织的插件。只能收窄：公开插件和内置组件不受开关约束。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "enabled": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "enabled"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/keys": {
+      "get": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "Key 名录",
+        "description": "单独授权用的 `sk-` Key，含原文 `apiKey`。`displayReady` 表示本实例能否加密保存原文。",
+        "responses": {
+          "200": {
+            "description": "Key 列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "displayReady"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Key"
+                      }
+                    },
+                    "displayReady": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "登记 Key",
+        "description": "返回指纹，之后授权都用指纹。同一个 Key 重复登记返回 `409`。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^sk-"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "key": "sk-...",
+                    "label": "备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已登记",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "fingerprint"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "fingerprint": {
+                      "$ref": "#/components/schemas/Fingerprint"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/keys/{fingerprint}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/fingerprint"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "读取一个 Key",
+        "description": "含解密后的原文 `apiKey`；没存原文或解不开时为 `null`。",
+        "responses": {
+          "200": {
+            "description": "Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Key"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "改备注",
+        "description": "",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "label"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "label": "新备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "删除 Key",
+        "description": "同时撤掉它的全部单独授权。",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/keys/{fingerprint}/grants": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/fingerprint"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Key"
+        ],
+        "summary": " Key 持有的插件",
+        "description": "单独授权给这个 Key 的插件，不含回收站里的。",
+        "responses": {
+          "200": {
+            "description": "插件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grants"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Key"
+        ],
+        "summary": "配置 Key 的插件",
+        "description": "整表替换这个 Key 持有的插件，传空数组即全部撤销，最多 500 个。插件须存在且不在回收站，否则 `400`。每个授权有变化的插件 `revision` 加一。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plugins"
+                ],
+                "properties": {
+                  "plugins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "plugins": [
+                      "example-tool"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "用户名录",
+        "description": "单独授权过的 TokensAPI 用户。`searchReady` 表示本实例能否从 TokensAPI 搜索用户。",
+        "responses": {
+          "200": {
+            "description": "用户列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "searchReady"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    },
+                    "searchReady": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/users/search": {
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "在 TokensAPI 搜索用户",
+        "description": "转发到 TokensAPI 的用户搜索；未配置或上游不可用返回 `503`。结果不落库。",
+        "responses": {
+          "200": {
+            "description": "搜索结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "total"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "username"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "keyword",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "example": "alice"
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "example": 1
+        }
+      ]
+    },
+    "/users/{userId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/userId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "读取一个用户",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "登记或改名",
+        "description": "用户不存在时登记。只记用户号和显示名，账号本身在 TokensAPI。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "name": "Alice"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "移除用户",
+        "description": "同时撤掉它的全部单独授权。",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/users/{userId}/grants": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/userId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "用户持有的插件",
+        "description": "单独授权给这个用户的插件，不含回收站里的。",
+        "responses": {
+          "200": {
+            "description": "插件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grants"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "配置用户的插件",
+        "description": "整表替换这个用户持有的插件，传空数组即全部撤销，最多 500 个。插件须存在且不在回收站，否则 `400`。每个授权有变化的插件 `revision` 加一。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plugins"
+                ],
+                "properties": {
+                  "plugins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "plugins": [
+                      "example-tool"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantsResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "tags": [
+          "诊断"
+        ],
+        "summary": "操作记录",
+        "description": "最近 100 条，新的在前。只保留最近 5000 条。",
+        "responses": {
+          "200": {
+            "description": "操作记录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/npm-package": {
+      "get": {
+        "tags": [
+          "诊断"
+        ],
+        "summary": "查询 npm 包资料",
+        "description": "新建插件时从 npm（或自建 Registry）导入资料。",
+        "responses": {
+          "200": {
+            "description": "包资料",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "name",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "example": "@tokensapi/example-tool"
+        },
+        {
+          "name": "registry",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "npm",
+              "tokenscowork"
+            ]
+          }
+        },
+        {
+          "name": "version",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "example": "latest"
+        }
+      ]
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "adminToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "后台口令（`MARKET_ADMIN_TOKEN`），与后台登录用的是同一个。"
+      }
+    },
+    "parameters": {
+      "pluginId": {
+        "name": "pluginId",
+        "in": "path",
+        "required": true,
+        "description": "插件 ID。",
+        "schema": {
+          "type": "string"
+        },
+        "example": "example-tool"
+      },
+      "orgId": {
+        "name": "orgId",
+        "in": "path",
+        "required": true,
+        "description": "TokensAPI 的组织 ID。",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "example": 7
+      },
+      "userId": {
+        "name": "userId",
+        "in": "path",
+        "required": true,
+        "description": "TokensAPI 用户号。",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "example": 102
+      },
+      "fingerprint": {
+        "name": "fingerprint",
+        "in": "path",
+        "required": true,
+        "description": "Key 指纹。",
+        "schema": {
+          "$ref": "#/components/schemas/Fingerprint"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "请求体或字段无效",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "未登录，或后台口令无效",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "组织管理员越权，或 Cookie 写操作不同源",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "插件、组织、Key 或用户不存在",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "修订号冲突、状态顺序不对、或缺少明确确认",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "数据库或上游服务未配置 / 不可用",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "所有错误的统一形状。消息面向运维排障，**不要用它做程序分支**——请用状态码。",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": [
+              "插件不存在"
+            ]
+          },
+          "retryAfter": {
+            "type": "integer",
+            "description": "仅 `429`：还要等多少秒。"
+          }
+        }
+      },
+      "Ok": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        }
+      },
+      "Revision": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "插件的乐观锁。资料、生命周期、访问配置共用这一个修订号；写时带上读到的值，别人先改过就是 `409`。"
+      },
+      "Visibility": {
+        "type": "string",
+        "enum": [
+          "public",
+          "restricted"
+        ],
+        "description": "`public` 所有人可见；`restricted` 只对被授权的组织和 Key 可见。"
+      },
+      "State": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "published",
+          "archived",
+          "deleted"
+        ],
+        "description": "只有 `published` 会出现在桌面目录里；`deleted` 是回收站。"
+      },
+      "Environment": {
+        "type": "object",
+        "description": "本实例连着什么。只有布尔值和公开地址，不含任何秘密。",
+        "required": [
+          "origin",
+          "name",
+          "organizationReady",
+          "keyDisplayReady",
+          "privateRegistryReady"
+        ],
+        "properties": {
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "enum": [
+              "production",
+              "development",
+              "unconfigured"
+            ]
+          },
+          "preview": {
+            "const": true
+          },
+          "organizationReady": {
+            "type": "boolean"
+          },
+          "keyDisplayReady": {
+            "type": "boolean"
+          },
+          "privateRegistryReady": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Session": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "authenticated",
+              "tokensapiLogin"
+            ],
+            "properties": {
+              "authenticated": {
+                "const": false
+              },
+              "tokensapiLogin": {
+                "type": "boolean",
+                "description": "本实例能否用 TokensAPI 账号登录。"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authenticated",
+              "role",
+              "organizationId",
+              "organizationName",
+              "userId"
+            ],
+            "properties": {
+              "authenticated": {
+                "const": true
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "platform",
+                  "organization"
+                ],
+                "description": "`platform` 平台管理员（后台口令）；`organization` 组织管理员（TokensAPI 账号）。"
+              },
+              "organizationId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "organizationName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "userId": {
+                "type": [
+                  "string",
+                  "integer",
+                  "null"
+                ]
+              },
+              "environment": {
+                "$ref": "#/components/schemas/Environment"
+              }
+            }
+          }
+        ]
+      },
+      "PluginMetadata": {
+        "type": "object",
+        "description": "插件资料。`npm: true` 时 `registry` 取 `npm`（公开 npm）或 `tokenscowork`（自建仓库），版本跟随稳定 `latest`；`npm: false` 表示 GitHub 来源，必须给 `installSource.commit`（完整 40 位），版本固定不跟随。",
+        "required": [
+          "id",
+          "package",
+          "displayName",
+          "summary",
+          "version",
+          "npm"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "package": {
+            "type": "string",
+            "examples": [
+              "@tokensapi/example-tool"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "examples": [
+              "1.0.0"
+            ]
+          },
+          "npm": {
+            "type": "boolean"
+          },
+          "registry": {
+            "type": "string",
+            "enum": [
+              "npm",
+              "tokenscowork"
+            ]
+          },
+          "repository": {
+            "type": "string",
+            "description": "GitHub 仓库地址；npm 来源可以为空字符串。"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "optional",
+              "builtin"
+            ]
+          },
+          "installSource": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "github"
+              },
+              "commit": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          }
+        }
+      },
+      "Access": {
+        "type": "object",
+        "description": "受限插件授权给了谁。公开插件保留授权，改回受限时原样生效。",
+        "required": [
+          "organizations",
+          "keys",
+          "users"
+        ],
+        "properties": {
+          "organizations": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Fingerprint"
+            }
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "TokensAPI 用户号。"
+          }
+        }
+      },
+      "Grants": {
+        "type": "object",
+        "required": [
+          "plugins"
+        ],
+        "description": "一个组织、Key 或用户持有的插件（不含回收站里的）。",
+        "properties": {
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "GrantsResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "plugins"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "plugins"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "TokensAPI 用户号。"
+          },
+          "name": {
+            "type": "string",
+            "description": "登记时记下的显示名。"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "单独授权给这个用户的插件。"
+          }
+        }
+      },
+      "Fingerprint": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$",
+        "description": "Key 的 HMAC 指纹。市场只按指纹匹配 Key。"
+      },
+      "Plugin": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PluginMetadata"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "visibility",
+              "state",
+              "revision",
+              "access"
+            ],
+            "properties": {
+              "visibility": {
+                "$ref": "#/components/schemas/Visibility"
+              },
+              "state": {
+                "$ref": "#/components/schemas/State"
+              },
+              "revision": {
+                "$ref": "#/components/schemas/Revision"
+              },
+              "versionMode": {
+                "type": "string",
+                "enum": [
+                  "latest",
+                  "pinned"
+                ]
+              },
+              "licenseReference": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reviewedVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updatedAt": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "access": {
+                "$ref": "#/components/schemas/Access"
+              },
+              "effectiveRegistry": {
+                "type": "string",
+                "description": "仅列表：本实例实际给桌面的来源。"
+              },
+              "npmLatestVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "仅列表：已上架 npm 插件当前的稳定 latest。"
+              }
+            }
+          }
+        ]
+      },
+      "Component": {
+        "type": "object",
+        "description": "应用内置组件，随客户端发布，只读，不受市场规则约束。",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "package": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "category": {
+            "const": "builtin"
+          }
+        }
+      },
+      "StateResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "state"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived",
+              "deleted",
+              "purged"
+            ]
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Revision"
+          }
+        }
+      },
+      "AccessResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "visibility",
+          "revision"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/Revision"
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "enabled"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "停用后组织授权全部失效，组织管理员也登录不了。"
+          }
+        }
+      },
+      "OrganizationSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Organization"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "granted": {
+                "type": "integer",
+                "description": "授予该组织的插件数。"
+              },
+              "hidden": {
+                "type": "integer",
+                "description": "该组织管理员关掉的插件数。"
+              }
+            }
+          }
+        ]
+      },
+      "OrganizationPlugin": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "switchable",
+          "enabled",
+          "visible"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "package": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "public",
+              "organization"
+            ],
+            "description": "公开插件，还是平台授予本组织的。"
+          },
+          "switchable": {
+            "type": "boolean",
+            "description": "只有组织授权的插件能被组织管理员关掉。"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "本组织成员现在是否能看到。"
+          }
+        }
+      },
+      "Key": {
+        "type": "object",
+        "required": [
+          "fingerprint",
+          "apiKey",
+          "label",
+          "createdAt",
+          "stored",
+          "plugins"
+        ],
+        "properties": {
+          "fingerprint": {
+            "$ref": "#/components/schemas/Fingerprint"
+          },
+          "apiKey": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "解密后的 Key 原文；没存原文或解不开时为 `null`。"
+          },
+          "label": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stored": {
+            "type": "boolean",
+            "description": "是否加密存了原文（可复制回来）。"
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "单独授权给这个 Key 的插件。"
+          }
+        }
+      },
+      "AuditEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "target",
+          "actor",
+          "details",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "examples": [
+              "plugin.access.updated"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "organizationId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          },
+          "details": {
+            "type": "object",
+            "description": "按操作类型记录的少量非敏感字段，不含任何 Key 或口令。"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

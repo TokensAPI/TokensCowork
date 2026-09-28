@@ -4,26 +4,23 @@
  * mirror ops/market-dev.mjs, which pioneered these shapes for local QA; this
  * module persists to disk instead of fabricating fixtures.
  */
-import { readFileSync, readdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve, sep, extname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { migrate } from '../database/migrate.mjs'
 
 const runStatement = Symbol('run local prepared statement')
 
 /**
  * D1-compatible facade over a SQLite file. Only the methods the worker uses
- * exist: prepare().bind().first()/all()/run() and batch(). Migrations are the
- * same idempotent files CI replays against D1 on every deploy, so replaying
- * them on every boot is safe and keeps a restored volume schema-current.
+ * exist: prepare().bind().first()/all()/run() and batch(). Pending migrations
+ * are applied on open, so a restored volume comes up schema-current.
  */
 export function createD1Database(path, migrationsDir) {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA journal_mode=WAL')
   db.exec('PRAGMA foreign_keys=ON')
-  for (const name of readdirSync(migrationsDir).filter(file => file.endsWith('.sql')).sort()) {
-    db.exec(readFileSync(resolve(migrationsDir, name), 'utf8'))
-  }
+  migrate(db, migrationsDir)
   const wrap = (sql, values = []) => ({
     bind: (...next) => wrap(sql, next),
     first: async () => db.prepare(sql).get(...values) ?? null,
@@ -34,6 +31,10 @@ export function createD1Database(path, migrationsDir) {
   return {
     prepare: wrap,
     close: () => db.close(),
+    // The handle underneath. The worker never touches it; the local QA harness uses it to load
+    // fixtures in bulk, which is what lets that harness run this very adapter instead of a
+    // second copy of it.
+    database: db,
     batch: async statements => {
       // Execute synchronously inside one transaction, so concurrent HTTP requests
       // cannot interleave transactions while awaited D1-compatible methods run.
@@ -43,22 +44,6 @@ export function createD1Database(path, migrationsDir) {
         db.exec('COMMIT')
         return results
       } catch (error) { db.exec('ROLLBACK'); throw error }
-    },
-  }
-}
-
-// Same shape the admin routes accept for object_key writes; anything else 404s.
-const objectKey = /^[a-zA-Z0-9/_.-]{1,240}$/u
-
-/** R2-compatible read-only store over a directory of uploaded packages. */
-export function createPackagesStore(root) {
-  return {
-    get: async key => {
-      if (typeof key !== 'string' || !objectKey.test(key)) return null
-      if (key.split('/').some(part => ['', '.', '..'].includes(part))) return null
-      const path = resolve(root, key)
-      if (!path.startsWith(root + sep)) return null
-      try { return { body: await readFile(path) } } catch { return null }
     },
   }
 }

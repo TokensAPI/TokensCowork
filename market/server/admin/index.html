@@ -24,25 +24,26 @@
       <div class="nav-label">工作空间</div>
       <nav aria-label="后台导航">
         <a href="#plugins" data-view="plugins"
-          ><span aria-hidden="true">▦</span>插件与权限<b id="nav-plugins"
-            >—</b
-          ></a
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="nav-text">插件</span><b id="nav-plugins">—</b></a
         >
         <a href="#organizations" data-view="organizations"
-          ><span aria-hidden="true">◎</span>组织名录<b id="nav-orgs">—</b></a
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h4M8 11h4M8 15h4M2 21h20"/></svg><span id="nav-org-label" class="nav-text">组织</span><b id="nav-orgs">—</b></a
         >
-        <a href="#keys" data-view="keys"><span aria-hidden="true">⌘</span>API Key 管理</a>
-        <a href="#verify" data-view="verify"
-          ><span aria-hidden="true">✓</span>授权验证</a
+        <a href="#users" data-view="users"
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg><span class="nav-text">用户</span><b id="nav-users">—</b></a
+        >
+        <a href="#keys" data-view="keys"
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20 3M16 7l3 3M14 9l2 2"/></svg><span class="nav-text">Key</span><b id="nav-keys">—</b></a
         >
         <a href="#activity" data-view="activity"
-          ><span aria-hidden="true">≡</span>操作记录</a
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span class="nav-text">操作记录</span></a
         >
       </nav>
       <div class="sidebar-bottom">
         <span class="live-dot"></span
         ><span id="sidebar-environment">服务配置</span>
-        <p>组织与 Key 独立授权</p>
+        <p>账号与组织来自 TokensAPI</p>
+        <p id="api-docs-link"><a href="/admin/api-docs.html">API 文档</a></p>
       </div>
     </aside>
 
@@ -50,9 +51,9 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">工作空间 / 插件市场</p>
-          <h1 id="page-title">插件与权限</h1>
+          <h1 id="page-title">插件</h1>
           <p id="page-description" class="muted">
-            统一管理可选插件的访问范围。
+            管理插件资料、上架状态和访问范围。
           </p>
         </div>
         <div id="session-actions" class="header-actions" hidden>
@@ -78,27 +79,59 @@
         <h1>欢迎回来</h1>
         <p class="muted">登录后管理插件、组织与访问权限。</p>
         <p id="session-loading" class="notice">正在恢复登录状态…</p>
-        <form id="login-form">
-          <label for="admin-token">管理凭证</label
+        <form id="tenant-login-form">
+          <p class="muted">
+            用你在 TokensAPI 的账号登录：访问令牌在「个人设置 →
+            系统访问令牌」生成，用户 ID 在同一页。只有组织管理员可以登录，且只能配置自己的组织。
+          </p>
+          <label for="tokensapi-user">TokensAPI 用户 ID</label
+          ><input
+            id="tokensapi-user"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]+"
+            autocomplete="username"
+            maxlength="12"
+            required
+            placeholder="例如 10086"
+          /><label for="tokensapi-token">TokensAPI 访问令牌</label
+          ><input
+            id="tokensapi-token"
+            type="password"
+            autocomplete="off"
+            maxlength="4096"
+            required
+            placeholder="个人设置 → 系统访问令牌"
+          /><button type="submit">
+            登录 TokensAPI 账号 <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <form id="login-form" hidden>
+          <label for="admin-token">后台口令</label
           ><input
             id="admin-token"
             type="password"
             autocomplete="current-password"
             maxlength="512"
             required
-            placeholder="输入管理凭证"
+            placeholder="输入后台口令"
           /><button type="submit">
             登录管理后台 <span aria-hidden="true">→</span>
           </button>
         </form>
-        <p class="login-foot">登录保持 7 天 · 凭证不保存在本地存储</p>
+        <p class="login-switch">
+          <button id="login-switch" class="quiet" type="button">改用后台口令登录</button>
+        </p>
+        <p class="login-foot">
+          登录保持 7 天 · 凭证不保存在本地存储 · 账号与组织由 TokensAPI 管理
+        </p>
       </section>
 
       <div id="workspace" hidden>
         <section id="plugins-panel" data-panel="plugins">
           <div class="section-heading">
             <p class="muted">
-              插件资料、状态和权限均由后台管理，无需修改代码发布。
+              插件资料、上架状态和访问范围均在此管理，无需修改代码发布。
             </p>
             <button id="new-plugin">新建插件</button>
           </div>
@@ -159,28 +192,22 @@
             <button id="reset-filters" class="secondary">重置筛选</button>
           </div>
           <p class="footnote">
-            访问范围控制本市场的展示与私有下载入口。公开 npm / GitHub
+            访问范围控制本市场的展示与自建 Registry 下载。公开 npm / GitHub
             包仍可从原地址下载。
           </p>
         </section>
 
         <section id="organizations-panel" data-panel="organizations" hidden>
-          <div class="panel">
+          <div id="org-directory" class="panel">
             <div class="section-heading">
               <div>
                 <h2>组织名录</h2>
-                <p class="muted">
-                  同步 TokensAPI 组织，在插件配置中分配访问范围。
-                </p>
+                <p id="org-directory-note" class="muted"></p>
               </div>
               <div class="button-row">
                 <button id="new-organization" class="secondary">手动登记</button
                 ><button id="sync-organizations">同步组织</button>
               </div>
-            </div>
-            <div class="connection-strip">
-              <span class="live-dot"></span>
-              <p id="provider-status"></p>
             </div>
             <div class="toolbar">
               <input
@@ -188,24 +215,15 @@
                 type="search"
                 placeholder="搜索组织名称或 ID"
                 aria-label="搜索组织名录"
-              /><select id="org-status-filter" aria-label="组织状态筛选">
-                <option value="all">全部状态</option>
-                <option value="enabled">已启用</option>
-                <option value="disabled">已停用</option>
-              </select>
+              />
             </div>
-            <div
-              class="table-scroll"
-              tabindex="0"
-              role="region"
-              aria-label="组织名录表格"
-            >
+            <div class="table-scroll" tabindex="0" role="region" aria-label="组织名录表格">
               <table>
                 <thead>
                   <tr>
                     <th scope="col">组织</th>
                     <th scope="col">组织 ID</th>
-                    <th scope="col">授权插件</th>
+                    <th scope="col">组织授权</th>
                     <th scope="col">状态</th>
                     <th scope="col"><span class="sr-only">操作</span></th>
                   </tr>
@@ -214,60 +232,99 @@
               </table>
             </div>
             <p id="org-empty" class="empty" hidden>
-              暂无匹配组织。可同步 TokensAPI 名录或手动登记。
+              暂无组织。可同步 TokensAPI 名录或手动登记。
+            </p>
+          </div>
+          <div id="org-detail" class="panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2 id="org-detail-title">组织</h2>
+                <p class="muted">
+                  公开插件对所有人可见，不受这里约束。平台授权给本组织的插件可在这里对本组织成员关闭，关闭只影响本组织。
+                </p>
+              </div>
+              <button id="org-back" class="secondary">返回组织名录</button>
+            </div>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="组织可用插件">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">插件</th>
+                    <th scope="col">来源</th>
+                    <th scope="col">本组织成员</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="org-plugin-list"></tbody>
+              </table>
+            </div>
+            <p id="org-plugin-empty" class="empty" hidden>
+              暂无本组织可用的插件。
             </p>
           </div>
         </section>
 
-        <section id="verify-panel" data-panel="verify" hidden>
-          <div class="panel verify-panel">
-            <p class="eyebrow">只读自测</p>
-            <h2>验证一个 Key 能看到什么</h2>
-            <p class="muted">
-              使用当前环境的 API Key
-              查询组织，并检查已保存的授权规则。不会保存测试
-              Key，也不会修改权限。
-            </p>
-            <form id="verify-form">
-              <label for="verify-key">待验证 API Key</label>
-              <div class="verify-input">
-                <input
-                  id="verify-key"
-                  type="password"
-                  autocomplete="off"
-                  spellcheck="false"
-                  maxlength="512"
-                  placeholder="sk-…"
-                  required
-                /><button type="submit">验证访问范围</button>
+        <section id="keys-panel" data-panel="keys" hidden>
+          <div class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>Key 名录</h2>
+                <p id="keys-note" class="muted"></p>
               </div>
-            </form>
-            <output id="verify-error" class="error" role="alert"></output>
-            <div id="verify-result" hidden>
-              <div
-                id="verify-summary"
-                class="notice"
-                role="status"
-                aria-live="polite"
-              ></div>
-              <div
-                class="table-scroll"
-                tabindex="0"
-                role="region"
-                aria-label="授权验证结果表格"
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">插件</th>
-                      <th scope="col">结果</th>
-                      <th scope="col">匹配依据</th>
-                    </tr>
-                  </thead>
-                  <tbody id="verify-plugins"></tbody>
-                </table>
-              </div>
+              <button id="new-key">登记 Key</button>
             </div>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Key 名录表格">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">备注</th>
+                    <th scope="col">API Key</th>
+                    <th scope="col">授权插件</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="key-list"></tbody>
+              </table>
+            </div>
+            <p id="key-empty" class="empty" hidden>
+              暂无登记的 Key。登记后可在插件的「访问范围」里直接勾选。
+            </p>
+          </div>
+        </section>
+
+        <section id="users-panel" data-panel="users" hidden>
+          <div class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>用户名录</h2>
+                <p id="users-note" class="muted"></p>
+              </div>
+              <button id="new-user">添加用户</button>
+            </div>
+            <div class="toolbar">
+              <input
+                id="user-directory-search"
+                type="search"
+                placeholder="搜索用户名称或 ID"
+                aria-label="搜索用户名录"
+              />
+            </div>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="用户名录表格">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">用户</th>
+                    <th scope="col">用户 ID</th>
+                    <th scope="col">授权插件</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="user-list"></tbody>
+              </table>
+            </div>
+            <p id="user-empty" class="empty" hidden>
+              暂无用户。添加后可单独给该用户授权插件，对其名下所有 Key 生效。
+            </p>
           </div>
         </section>
 
@@ -277,15 +334,12 @@
               <div>
                 <h2>最近操作</h2>
                 <p class="muted">
-                  显示最近 50 条管理变更，服务端最多保留 1000 条，不记录 API Key
-                  明文。
+                  显示最近 100 条管理变更，服务端最多保留 5000 条，不记录 API Key 明文。
                 </p>
               </div>
             </div>
             <div id="activity-list"></div>
-            <p id="activity-empty" class="empty" hidden>
-              暂无操作记录。此功能启用后的管理变更会出现在这里。
-            </p>
+            <p id="activity-empty" class="empty" hidden>暂无操作记录。</p>
           </div>
         </section>
       </div>
@@ -298,77 +352,56 @@
       <form id="plugin-access-form">
         <div class="dialog-heading">
           <div>
-            <p class="eyebrow">插件访问范围</p>
-            <h2 id="plugin-title">配置权限</h2>
+            <p class="eyebrow">访问范围</p>
+            <h2 id="plugin-title">访问范围</h2>
             <p id="plugin-package" class="package"></p>
           </div>
-          <button
-            id="cancel-plugin"
-            class="quiet"
-            type="button"
-            aria-label="关闭权限配置"
-          >
+          <button id="cancel-plugin" class="quiet" type="button" aria-label="关闭访问范围">
             ✕
           </button>
         </div>
         <div class="notice">
-          <b>组织或单独 Key 任一命中即可访问。</b
-          ><br />两项都留空表示上架后公开；保存权限不会改变插件的上架状态。
+          公开插件所有人可见。受限插件只对下面勾选的组织（且该组织没有自行关闭）、勾选的 Key 或勾选的用户可见，任一命中即可。保存不会改变上架状态。
         </div>
         <section class="grant-section">
-          <div class="section-heading">
-            <h3>01 / 可见组织</h3>
-            <span id="selected-org-count" class="muted"></span>
+          <div id="visibility-choice" role="radiogroup" aria-label="访问范围">
+            <label><input type="radio" name="plugin-visibility" value="public" />公开 · 所有人可见</label>
+            <label><input type="radio" name="plugin-visibility" value="restricted" />受限 · 仅下列组织、Key 或用户可见</label>
           </div>
-          <input
-            id="organization-search"
-            type="search"
-            placeholder="搜索组织名称或 ID"
-            aria-label="搜索可选组织"
-          />
-          <div id="organization-options"></div>
-          <p class="muted">
-            已停用的组织暂不获得访问权限，重新启用后原授权恢复。
-          </p>
         </section>
         <section class="grant-section">
           <div class="section-heading">
-            <h3>02 / 单独 API Key</h3>
-            <span id="saved-key-count" class="muted"></span>
+            <h3>组织</h3>
+            <span id="selected-org-count" class="muted"></span>
           </div>
-          <p class="muted">
-            Key 加密存储，登录后完整显示。旧指纹需重新录入原 Key 才能补全。
-          </p>
-          <div id="saved-keys"></div>
-          <label for="api-keys">新增 Key</label
-          ><textarea
-            id="api-keys"
-            rows="3"
-            autocomplete="off"
-            spellcheck="false"
-            aria-describedby="key-input-help plugin-error"
-            placeholder="每行一个 sk- 开头的 API Key"
-          ></textarea>
-          <p id="key-input-help" class="muted"></p>
+          <input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索可选组织" />
+          <div id="organization-options"></div>
         </section>
-        <p id="legacy-note" class="notice" hidden>
-          已保留原有效 Key，保存后统一使用此处的组织与 Key 规则。
-        </p>
-        <p id="public-confirmation" class="warning" hidden>
-          <label
-            ><input
-              id="confirm-public"
-              type="checkbox"
-            />确认清空授权并将此插件改为所有人可见</label
-          >
-        </p>
+        <section class="grant-section">
+          <div class="section-heading">
+            <h3>Key</h3>
+            <span id="selected-key-count" class="muted"></span>
+          </div>
+          <input id="key-search" type="search" placeholder="搜索 Key 备注或原文" aria-label="搜索可选 Key" />
+          <div id="key-options"></div>
+          <p class="muted">新的 Key 请先在「Key」页登记。</p>
+        </section>
+        <section class="grant-section">
+          <div class="section-heading">
+            <h3>用户</h3>
+            <span id="selected-user-count" class="muted"></span>
+          </div>
+          <input id="user-search" type="search" placeholder="搜索用户名称或 ID" aria-label="搜索可选用户" />
+          <div id="user-options"></div>
+          <p class="muted">用户授权对该用户名下所有 Key 生效。新用户请先在「用户」页添加。</p>
+        </section>
         <output id="plugin-error" class="error" role="alert"></output>
         <div class="dialog-footer">
           <div>
             <small>保存后的访问范围</small>
             <p id="permission-summary"></p>
           </div>
-          <button type="submit" id="save-plugin">保存权限</button>
+          <button type="submit" id="save-plugin">保存</button>
         </div>
       </form>
     </dialog>
@@ -402,13 +435,76 @@
             id="organization-enabled"
             type="checkbox"
             checked
-          />启用此组织的插件授权</label
+          />启用此组织</label
         >
-        <p id="organization-impact" class="notice"></p>
+        <p class="notice">停用后该组织的组织授权全部暂停、其管理员无法登录；单独 Key 授权不受影响。</p>
         <output id="org-error" class="error" role="alert"></output>
         <div class="dialog-footer">
           <span class="muted">组织 ID 保存后不可修改</span
           ><button type="submit">保存组织</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="key-dialog" aria-labelledby="key-dialog-title">
+      <form id="key-form">
+        <div class="dialog-heading">
+          <h2 id="key-dialog-title">登记 Key</h2>
+          <button id="cancel-key" class="quiet" type="button" aria-label="关闭 Key 编辑">✕</button>
+        </div>
+        <label id="key-value-label" for="key-value">API Key</label
+        ><input id="key-value" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" />
+        <label for="key-label">备注</label
+        ><input id="key-label" maxlength="120" placeholder="例如 某客户测试 Key" />
+        <output id="key-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span id="key-dialog-note" class="muted"></span><button type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="user-dialog" aria-labelledby="user-dialog-title">
+      <form id="user-form">
+        <div class="dialog-heading">
+          <h2 id="user-dialog-title">添加用户</h2>
+          <button id="cancel-user" class="quiet" type="button" aria-label="关闭用户编辑">✕</button>
+        </div>
+        <div id="user-lookup-row">
+          <label for="user-lookup">在 TokensAPI 搜索</label>
+          <div class="verify-input">
+            <input id="user-lookup" type="search" maxlength="100" placeholder="用户名或显示名" /><button
+              id="user-lookup-button"
+              type="button"
+              class="secondary"
+            >
+              搜索
+            </button>
+          </div>
+          <div id="user-lookup-results" class="button-row"></div>
+        </div>
+        <label for="user-id">TokensAPI 用户 ID</label
+        ><input id="user-id" type="number" min="1" max="9007199254740991" step="1" required />
+        <label for="user-name">显示名称</label
+        ><input id="user-name" maxlength="200" required />
+        <output id="user-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span class="muted">只记用户 ID 和名称，账号本身在 TokensAPI</span><button type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="grants-dialog" aria-labelledby="grants-title">
+      <form id="grants-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">授权插件</p>
+            <h2 id="grants-title">授权插件</h2>
+          </div>
+          <button id="cancel-grants" class="quiet" type="button" aria-label="关闭授权插件">✕</button>
+        </div>
+        <p class="notice">勾选的受限插件对它可见。公开插件本来就所有人可见；插件的公开/受限在「插件」页设置。</p>
+        <input id="grant-search" type="search" placeholder="搜索插件名称或包名" aria-label="搜索可授权插件" />
+        <div id="grant-options"></div>
+        <output id="grants-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span id="grant-count" class="muted"></span><button type="submit">保存</button>
         </div>
       </form>
     </dialog>
@@ -528,7 +624,7 @@
         </div>
         <output id="catalog-error" class="error" role="alert"></output>
         <div class="dialog-footer">
-          <span class="muted">下一步：配置权限 → 上架</span
+          <span class="muted">下一步：访问范围 → 上架</span
           ><button type="submit">保存插件</button>
         </div>
       </form>

@@ -1,11 +1,14 @@
-/** Same-origin, bounded requests; mutations are never automatically retried. */
-export async function marketRequest(path, data) {
+/**
+ * Same-origin, bounded requests; mutations are never automatically retried. A request with data
+ * is a PUT unless another method is named; a DELETE may carry no data at all.
+ */
+export async function marketRequest(path, data, method = data === undefined ? 'GET' : 'PUT') {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 25000)
   try {
     const mutation = data !== undefined
     const response = await fetch(path, {
-      method: mutation ? 'PUT' : 'GET',
+      method,
       credentials: 'same-origin',
       cache: 'no-store',
       redirect: 'error',

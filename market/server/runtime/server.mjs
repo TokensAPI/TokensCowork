@@ -9,7 +9,7 @@ import { createServer } from 'node:http'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import worker from '../_worker.js'
-import { createAssets, createD1Database, createPackagesStore } from './adapters.mjs'
+import { createAssets, createD1Database } from './adapters.mjs'
 
 const serverRoot = resolve(import.meta.dirname, '..')
 const dataDir = process.env.MARKET_HOST_DATA_DIR || '/data'
@@ -22,12 +22,11 @@ if (publicOrigin.protocol !== 'https:' || publicOrigin.username || publicOrigin.
   throw new Error('MARKET_HOST_PUBLIC_ORIGIN must be a bare credential-free HTTPS origin')
 }
 
-mkdirSync(resolve(dataDir, 'packages'), { recursive: true })
+mkdirSync(dataDir, { recursive: true })
 const env = {
   // Every MARKET_* variable passes through verbatim; the bindings are replaced.
   ...Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('MARKET_'))),
   MARKET_DB: createD1Database(resolve(dataDir, 'market.sqlite'), resolve(serverRoot, 'database/migrations')),
-  MARKET_PACKAGES: createPackagesStore(resolve(dataDir, 'packages')),
   ASSETS: createAssets(serverRoot),
 }
 

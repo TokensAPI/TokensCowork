@@ -25,10 +25,10 @@ tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：
   `MARKET_HOST_PUBLIC_ORIGIN` 固定，不从请求头推导；陌生 `Host` 一律 403（防 DNS
   rebinding）；登录限流的客户端标识只信任 `X-Edge-Client-IP`（边缘代理）或
   `X-Real-IP`（Nginx），并删除客户端自带的 `cf-connecting-ip`。
-- `runtime/adapters.mjs`：三个 Cloudflare 绑定的落盘替身——D1→`/data/market.sqlite`
-  （node:sqlite，batch 走事务；启动时重放 `database/migrations/*.sql`，全部幂等）、
-  R2→`/data/packages/` 目录、静态资产→镜像内的 `market/server/` 副本（含 `_headers`
-  中 `/admin/*` 的安全响应头）。
+- `runtime/adapters.mjs`：两个 Cloudflare 绑定的落盘替身——D1→`/data/market.sqlite`
+  （node:sqlite，batch 走事务；启动时按顺序执行尚未记录的 `database/migrations/*.sql`）、
+  静态资产→镜像内的 `market/server/` 副本（含 `_headers` 中 `/admin/*` 的安全响应头）。
+  插件包一律由自建 Registry 提供，市场不存包。
 - 运行时零 npm 依赖，镜像没有安装步骤。
 
 ## 部署
@@ -53,7 +53,7 @@ Nginx：在现有 `npm.tokensapi.ai` 的 server 块里、默认 `location /`（V
     location = /v1/plugins/ { include snippets/tokenscowork-market.conf; }
     location = /roster.json { include snippets/tokenscowork-market.conf; }
     location = /source.json { include snippets/tokenscowork-market.conf; }
-    location ^~ /api/admin/ { include snippets/tokenscowork-market.conf; }
+    location ^~ /api/v1/    { include snippets/tokenscowork-market.conf; }
     # 名为 admin/registry/downloads 的 npm 包保留元数据与 tarball 路径；
     # 浏览器访问 /admin 则跳到市场后台。
     location = /admin {

@@ -32,10 +32,10 @@ globalThis.fetch = async (url, options) => {
   assert.equal(new Headers(options.headers).get('authorization'), 'Bearer fixture-service')
   return String(url).endsWith('.tgz') ? new Response(bytes) : Response.json(fixture)
 }
-await db.prepare('INSERT INTO market_plugins(id,visibility,metadata) VALUES(?,?,?)').bind(id, 'restricted', JSON.stringify({ npm: true, registry: 'tokenscowork', package: name })).run()
-await db.prepare('INSERT INTO market_catalog(id,state) VALUES(?,?)').bind(id, 'published').run()
-await db.prepare('INSERT INTO market_org_policies(plugin_id) VALUES(?)').bind(id).run()
-await db.prepare('INSERT INTO market_plugin_key_grants(plugin_id,fingerprint) VALUES(?,?)').bind(id, await fingerprint(key, env.MARKET_HMAC_SECRET)).run()
+await db.prepare('INSERT INTO market_plugins(id,visibility,state,metadata) VALUES(?,?,?,?)').bind(id, 'restricted', 'published', JSON.stringify({ npm: true, registry: 'tokenscowork', package: name })).run()
+const fp = await fingerprint(key, env.MARKET_HMAC_SECRET)
+await db.prepare("INSERT INTO market_keys(fingerprint,label) VALUES(?,'fixture')").bind(fp).run()
+await db.prepare("INSERT INTO market_grants(plugin_id,kind,subject) VALUES(?,'key',?)").bind(id, fp).run()
 const seen = []
 const server = createServer(async (req, res) => {
   try {
@@ -69,7 +69,7 @@ try {
   assert.equal(JSON.parse(await readFile(join(root, 'node_modules', name, 'package.json'), 'utf8')).version, selected.version)
   assert.ok(seen.some(r => r.path.startsWith('/registry/by-package/') && r.authenticated && r.status === 200))
   assert.ok(seen.some(r => r.path.endsWith('/tarball') && r.authenticated && r.status === 200), 'pnpm must send the Key to the actual tarball route')
-  await db.prepare('DELETE FROM market_plugin_key_grants WHERE plugin_id=?').bind(id).run()
+  await db.prepare('DELETE FROM market_grants WHERE plugin_id=?').bind(id).run()
   const tarballPath = seen.find(r => r.path.endsWith('/tarball')).path
   assert.equal((await originalFetch(origin + tarballPath, { headers: { authorization: 'Bearer ' + key } })).status, 403)
   assert.equal((await originalFetch(origin + '/registry/by-package/' + encodeURIComponent(name))).status, 403)

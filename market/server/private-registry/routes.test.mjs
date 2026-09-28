@@ -4,26 +4,24 @@ import { registryRoute } from './routes.js'
 
 function env({ registry = false, fetchImpl, granted = true } = {}) {
   const row = { id: 'private-plugin', metadata: JSON.stringify({ npm: true, registry: 'tokenscowork', package: '@fixture/private' }), visibility: 'restricted', state: 'published' }
-  const db = {
-    prepare(sql) {
-      return {
-        bind(...values) {
-          return {
-            async first() {
-              if (sql.includes('FROM market_plugins') && values[0] === 'private-plugin') return row
-              if (sql.includes('market_org_policies')) return null
-              if (sql.includes('market_keys')) return granted ? { fingerprint: 'fixture' } : null
-              return null
-            },
-            async all() { return { results: [] } },
-          }
-        },
-      }
+  // Aggregate reads run unbound, so bind() has to return the same statement rather than a
+  // narrower object.
+  const statement = (sql, values = []) => ({
+    bind: (...next) => statement(sql, next),
+    async first() {
+      if (sql.includes('FROM market_plugins') && values[0] === 'private-plugin') return row
+      return null
     },
-  }
+    async all() {
+      if (sql.includes("kind='key'")) return { results: granted ? [{ plugin_id: 'private-plugin' }] : [] }
+      return { results: [] }
+    },
+  })
+  const db = { prepare: sql => statement(sql) }
   return {
     MARKET_DB: db,
     MARKET_HMAC_SECRET: 'fixture-secret',
+    ASSETS: { fetch: async () => Response.json({ items: [] }) },
     MARKET_PRIVATE_REGISTRY_ENABLED: registry ? 'true' : undefined,
     MARKET_PRIVATE_REGISTRY_URL: registry ? 'https://registry.example.test/' : undefined,
     MARKET_PRIVATE_REGISTRY_TOKEN: registry ? 'server-only-token' : undefined,

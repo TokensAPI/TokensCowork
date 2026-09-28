@@ -22,9 +22,12 @@ for (const suffix of ['', '-wal', '-shm']) {
 }
 const db = new DatabaseSync(target)
 db.exec(readFileSync(dump, 'utf8'))
-db.exec('DELETE FROM market_admin_sessions')
-db.exec('DELETE FROM market_admin_login_limits')
-for (const table of ['market_plugins', 'market_keys', 'market_grants', 'market_organizations']) {
+// A dump taken before or after the 007 redesign names these tables differently; clear whichever exist.
+const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(row => row.name))
+for (const table of ['market_sessions', 'market_admin_sessions', 'market_tenant_sessions', 'market_login_limits', 'market_admin_login_limits']) {
+  if (tables.has(table)) db.exec(`DELETE FROM ${table}`)
+}
+for (const table of ['market_plugins', 'market_keys', 'market_organizations'].filter(name => tables.has(name))) {
   const { n } = db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()
   console.log(`${table}: ${n}`)
 }

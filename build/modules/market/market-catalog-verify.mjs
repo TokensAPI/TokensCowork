@@ -11,7 +11,7 @@ const db=new DatabaseSync(':memory:')
 try {
   const dir=resolve(root,'market/server/database/migrations')
   for(const file of readdirSync(dir).filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync(resolve(dir,file),'utf8'))
-  const items=db.prepare("SELECT metadata FROM market_plugins p JOIN market_catalog c ON p.id=c.id WHERE c.state='published'").all().map(p=>JSON.parse(p.metadata))
+  const items=db.prepare("SELECT metadata FROM market_plugins WHERE state='published'").all().map(p=>JSON.parse(p.metadata))
   buildCatalogPage({publisher:{name:'TokensAPI',url:'https://github.com/TokensAPI'},items})
   const builtins=buildProductComponents(product).items
   if(items.some(p=>builtins.some(b=>b.id===p.id)))throw new Error('Built-ins must not be marketplace entries')

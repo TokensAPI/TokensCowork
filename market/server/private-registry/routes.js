@@ -1,6 +1,6 @@
 import { reply } from '../http/response.js'
-import { allowed } from '../services/plugin-access-service.js'
-import { packageOK, versionOK } from '../services/catalog-service.js'
+import { allowed } from '../services/access.js'
+import { packageOK, versionOK } from '../services/plugins.js'
 import { createRegistryClient } from './client.mjs'
 import { canServeRegistryPackage } from '../services/catalog-source-service.js'
 
@@ -13,16 +13,16 @@ function pathParts(url) {
 
 async function privatePackage(request, env, id, name) {
   if (!pluginId.test(id) || !packageOK(name)) return undefined
-  const row = await env.MARKET_DB.prepare("SELECT p.*,c.state FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE p.id=? AND c.state='published'").bind(id).first()
+  const row = await env.MARKET_DB.prepare("SELECT * FROM market_plugins WHERE id=? AND state='published'").bind(id).first()
   if (!row) return undefined
   let metadata
   try { metadata = JSON.parse(row.metadata) } catch { return undefined }
   if (!canServeRegistryPackage(metadata) || metadata.package !== name) return undefined
-  // Visibility is decided in the admin backend, nowhere else: a public entry is
-  // served to everyone and a restricted one needs a market grant. The Registry is
+  // Visibility is decided in the admin backend, nowhere else, and through the same
+  // function the catalog uses so installing can never diverge from listing. The Registry is
   // storage — the proxy always fetches with the service account, so which scope
   // hosts the package never affects who can install the plugin.
-  if (row.visibility !== 'public' && !await allowed(request, env, id)) return undefined
+  if (!await allowed(request, env, id)) return undefined
   return { id, name, metadata }
 }
 
@@ -83,7 +83,7 @@ export async function registryRoute(request, env) {
     // plugin ID so every archive request repeats the same ACL check.
     const name = parts.join('/')
     if (!packageOK(name)) return reply({ error: 'Invalid package name' }, 400)
-    const { results } = await env.MARKET_DB.prepare("SELECT p.id FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE c.state='published' AND json_extract(p.metadata,'$.package')=? LIMIT 2").bind(name).all()
+    const { results } = await env.MARKET_DB.prepare("SELECT id FROM market_plugins WHERE state='published' AND json_extract(metadata,'$.package')=? LIMIT 2").bind(name).all()
     if (results.length !== 1) return reply({ error: '插件不存在或没有下载权限' }, 403)
     id = results[0].id
     return metadataResponse(request, env, id, name)

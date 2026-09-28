@@ -8,7 +8,7 @@ export function patchRegistryRoutes(source) {
     // Metadata requests only. Returned tarball URLs retain the real plugin ID.
     const name = parts.join('/')
     if (!packageOK(name)) return reply({ error: 'Invalid package name' }, 400)
-    const { results } = await env.MARKET_DB.prepare("SELECT p.id FROM market_plugins p JOIN market_catalog c ON c.id=p.id WHERE c.state='published' AND json_extract(p.metadata,'$.package')=? LIMIT 2").bind(name).all()
+    const { results } = await env.MARKET_DB.prepare("SELECT id FROM market_plugins WHERE state='published' AND json_extract(metadata,'$.package')=? LIMIT 2").bind(name).all()
     if (results.length !== 1) return reply({ error: '插件不存在或没有下载权限' }, 403)
     id = results[0].id
     // metadataResponse performs the original per-plugin authorization check.

@@ -1,4 +1,4 @@
-import { packageOK, stable, versionOK, invalid } from '../services/catalog-service.js'
+import { packageOK, stable, versionOK, invalid } from '../services/plugins.js'
 import { readmeSummary } from './npm-readme.js'
 
 export function npmReference(input, version = 'latest') {
