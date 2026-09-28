@@ -99,7 +99,10 @@ async function sync(env, principal) {
 }
 
 async function dispatch(request, env, url, principal) {
-  const [head, second, third, fourth] = url.pathname.slice('/api/v1/'.length).split('/').filter(Boolean)
+  const segments = url.pathname.slice('/api/v1/'.length).split('/').filter(Boolean)
+  // No route is deeper than four segments; a longer path must not match a shorter route.
+  if (segments.length > 4) throw invalid('not found', 404)
+  const [head, second, third, fourth] = segments
   const method = request.method
   const actor = principal.actor
 

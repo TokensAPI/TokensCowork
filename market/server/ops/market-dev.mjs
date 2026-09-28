@@ -77,7 +77,7 @@ async function fixtureEnvironment() {
     'dev-disabled': { account: { id: 5004, username: 'disabled', displayName: '停用组织管理员 · 测试' },
       organization: { ...organizations[2], role: 100 } },
   }
-  // Key owners for user grants. TokensAPI does not report them yet; these stand in until it does.
+  // Key owners for user grants, as TokensAPI reports them beside the organization.
   const users = [
     { id: 6001, name: '测试用户甲', username: 'user-a' },
     { id: 6002, name: '测试用户乙', username: 'user-b' },

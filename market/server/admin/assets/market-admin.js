@@ -378,6 +378,8 @@ function showEnvironment() {
   $('sidebar-environment').textContent = label
   $('environment-badge').title = platform() ? env.origin || '尚未配置 TokensAPI 地址' : ''
   $('nav-org-label').textContent = platform() ? '组织' : '我的组织'
+  // An organization administrator has exactly one organization; a count means nothing there.
+  $('nav-orgs').hidden = !platform()
   $('api-docs-link').hidden = !platform()
 }
 async function load() {

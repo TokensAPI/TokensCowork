@@ -264,6 +264,7 @@ test('organization administration rejects invalid input; sync is admin-only and 
     assert.equal((await admin('/organizations/1', body)).status, 400, JSON.stringify(body))
   assert.equal((await call('/api/v1/organizations/1', 'sk-customer', { name: 'Org', enabled: true })).status, 401)
   assert.equal((await admin('/organizations/1')).status, 404)
+  assert.equal((await admin('/organizations/1/plugins/test-tool/extra', { enabled: false })).status, 404)
   assert.equal((await access({ organizations: [999] })).status, 400)
   assert.equal((await call('/api/v1/organizations/sync', 'sk-customer', {}, {}, 'POST')).status, 401)
   assert.equal((await admin('/organizations/sync', {}, 'POST')).status, 503)
