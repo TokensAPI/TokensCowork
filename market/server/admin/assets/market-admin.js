@@ -381,7 +381,6 @@ function showEnvironment() {
   $('nav-org-label').textContent = platform() ? '组织' : '我的组织'
   // An organization administrator has exactly one organization; a count means nothing there.
   $('nav-orgs').hidden = !platform()
-  $('api-docs-link').hidden = !platform()
 }
 async function load() {
   const next = await json('/api/v1/session')

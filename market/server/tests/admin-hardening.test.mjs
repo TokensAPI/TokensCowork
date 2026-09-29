@@ -249,6 +249,10 @@ test('every console module the page loads is on the asset allowlist', async t =>
   assert.doesNotMatch(docs, /<script(?![^>]*\ssrc=)[^>]*>|<style|\sstyle="/u)
   // Swagger UI phones home to draw a validation badge unless it is told not to.
   assert.match(read('assets/api-docs.js'), /validatorUrl: null/u)
+  // "Try it out" runs as the console session, and the dev pre-authorization names a scheme the document declares.
+  assert.doesNotMatch(read('assets/api-docs.js'), /credentials/u)
+  const scheme = /preauthorizeApiKey\('([^']+)'/u.exec(read('assets/api-docs.js'))[1]
+  assert.ok(JSON.parse(read('assets/openapi.json')).components.securitySchemes[scheme], scheme)
   // The page pre-authorizes from a path only the loopback QA server answers; the worker must never serve it.
   assert.equal((await call('/__dev/docs-credential')).status, 404)
   assert.ok(readFileSync(new URL('../admin/assets/vendor/swagger-ui-bundle.js', import.meta.url), 'utf8').length > 500000)

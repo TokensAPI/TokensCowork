@@ -10,8 +10,9 @@
 由 `admin/assets/openapi.json` 渲染。渲染器（Swagger UI 5.33.0）整份放在 `admin/assets/vendor/`，
 页面只加载同源文件，断网也能打开，也不会把文档地址交给任何第三方校验服务。
 文档页本身不含任何凭据，公开可读，接口地址用相对路径 `/api/v1`，即总是调用打开它的那个实例。
-本地开发实例（`npm run dev`）会从仅它才有的 `/__dev/docs-credential` 自动预填口令，打开即可「Try it out」；
-线上没有这个路径，点「Authorize」粘后台口令即可，只存在于当前标签页。
+文档页默认沿用后台的登录会话：先在后台登录（口令，或 TokensAPI 用户 ID + 访问令牌），再打开文档页，「Try it out」就以该身份调用，
+页面顶部会写明当前身份。组织管理员同样可用，只是平台接口返回 `403`。也可以点「Authorize」粘后台口令，只存在于当前标签页，
+带了口令时以口令为准。本地开发实例（`npm run dev`）会从仅它才有的 `/__dev/docs-credential` 自动预填口令。
 
 `/v1/plugins`、`/roster.json`、`/source.json`、`/registry/*` 是给桌面端的消费接口，不在本文范围内，形状保持不变。
 
