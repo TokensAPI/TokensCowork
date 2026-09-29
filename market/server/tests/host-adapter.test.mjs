@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createD1Database, createAssets } from '../runtime/adapters.mjs'
@@ -38,7 +38,13 @@ test('the assets adapter serves admin pages with the security headers and confin
   assert.equal(page.status, 200)
   assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8')
   assert.equal(page.headers.get('cache-control'), 'no-store')
-  assert.ok(page.headers.get('content-security-policy').includes("default-src 'self'"))
+  const csp = page.headers.get('content-security-policy')
+  assert.ok(csp.includes("default-src 'self'"))
+  // The self-hosted server and the Pages _headers file must send the same policy. data: is allowed
+  // for images only (Swagger UI's icons); scripts and styles stay same-origin.
+  assert.equal(csp, /Content-Security-Policy: (.+)/u.exec(readFileSync(resolve(import.meta.dirname, '../_headers'), 'utf8'))[1].trim())
+  assert.match(csp, /img-src 'self' data:;/u)
+  assert.match(csp, /script-src 'self';.*style-src 'self';/u)
   const manifest = await assets.fetch('https://market.example/source.json')
   assert.equal(manifest.headers.get('content-type'), 'application/json; charset=utf-8')
   assert.equal((await manifest.json()).manifestVersion, '1.0.0')

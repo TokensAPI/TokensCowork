@@ -92,7 +92,7 @@ PUT /api/v1/session {tokensapi:true, userId, accessToken}   （同源 Origin 校
 
 ## TokensAPI 调用市场
 
-反方向的接口是同一套 `/api/v1`：TokensAPI 后端带 `Authorization: Bearer <后台口令>` 调用，身份等同平台管理员，完整契约见 [管理 API](SERVICE-API.md)。市场不再签发单独的服务凭据。
+反方向的接口是同一套 `/api/v1`：TokensAPI 后端带 `Authorization: Bearer <后台口令>` 调用，身份等同平台管理员，常用的几步见 [接入速查](SERVICE-API.md#tokensapi-接入速查)，完整契约见 [管理 API](SERVICE-API.md)。市场不再签发单独的服务凭据。
 
 两个方向的认证互不相通：上面的 `MARKET_ORGANIZATIONS_TOKEN` 是市场调 TokensAPI 用的，后台口令是 TokensAPI 调市场用的，不要互相复用。
 

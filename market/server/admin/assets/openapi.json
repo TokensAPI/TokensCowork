@@ -3,7 +3,7 @@
   "info": {
     "title": "TokensCowork 市场管理 API",
     "version": "2.0.0",
-    "description": "市场的唯一管理接口。后台页面和 TokensAPI 后端调同一套路由。\n\n市场只管插件；账号、组织和成员的事实来源都在 TokensAPI。市场按组织号、Key 指纹和用户号记录授权，不复制用户表。\n\n### 访问判定\n\n```\n可见  =  插件已上架  AND (\n          访问范围为公开\n       OR 这个 Key 被单独授权\n       OR Key 的所属用户被单独授权\n       OR（授予了用户所在组织 AND 该组织启用 AND 组织管理员没关掉\n           AND（没指定成员 OR 用户在名单里）))\n```\n\n### 认证\n\n- `Authorization: Bearer <后台口令>`：平台管理员，可调全部接口（TokensAPI 后端、脚本、本页的 Authorize 都用它）。口令错误同一 IP 15 分钟内累计 8 次返回 `429`。\n- 后台会话 Cookie：平台管理员或组织管理员。组织管理员只能读自己的组织、改自己组织的插件开关与指定成员，其余 `403`。Cookie 发起的写操作必须同源。本页默认沿用后台登录，以 TokensAPI 账号登录的组织管理员打开本页即以自己的身份调用；同时带了 Bearer 时以 Bearer 为准。\n\n### 幂等性\n\n插件的写操作都带 `revision`：同一个 `revision` 只会成功一次，重试拿到 `409` 而不是二次写入。\n\n完整说明见仓库内 `market/server/SERVICE-API.md`。"
+    "description": "市场的唯一管理接口。后台页面和 TokensAPI 后端调同一套路由。\n\n市场只管插件；账号、组织和成员的事实来源都在 TokensAPI。市场按组织号、Key 指纹和用户号记录授权，不复制用户表。\n\n### TokensAPI 接入速查\n\n所有请求带 `Authorization: Bearer <后台口令>`，身份等同平台管理员，口令只能放在服务端。常用的就这几步：\n\n| 要做的事 | 请求 |\n| --- | --- |\n| 看有哪些插件 | `GET /plugins` → `items[].id`，`items[].visibility` 为 `public` 或 `restricted` |\n| 登记组织 | `POST /organizations/sync`（从 TokensAPI 拉全量），或 `PUT /organizations/{orgId}` `{\"name\":\"…\",\"enabled\":true}` |\n| 给组织配插件 | `PUT /organizations/{orgId}/grants` `{\"plugins\":[\"a\",\"b\"]}` |\n| 给某个用户配插件 | 先 `PUT /users/{userId}` `{\"name\":\"…\"}` 登记，再 `PUT /users/{userId}/grants` `{\"plugins\":[\"a\"]}` |\n| 查组织实际能用哪些 | `GET /organizations/{orgId}/plugins`，`visible` 为 `true` 的就是 |\n| 代组织管理员开关、指定成员 | `PUT /organizations/{orgId}/plugins/{pluginId}` `{\"enabled\":false}` 或 `{\"members\":[102]}` |\n\n- `grants` 是**全量替换**：传的就是最终名单，空数组即全部撤销。组织、用户须先登记，否则 `404`。\n- 授权只对**受限**插件起作用，公开插件人人可见；公开/受限由 `PUT /plugins/{pluginId}/access` 或后台设置。\n- 标着「后台专用」的接口（登录、退出、导入 npm 资料）是后台页面自己用的，TokensAPI 不需要调。\n\n### 访问判定\n\n```\n可见  =  插件已上架  AND (\n          访问范围为公开\n       OR 这个 Key 被单独授权\n       OR Key 的所属用户被单独授权\n       OR（授予了用户所在组织 AND 该组织启用 AND 组织管理员没关掉\n           AND（没指定成员 OR 用户在名单里）))\n```\n\n### 认证\n\n- `Authorization: Bearer <后台口令>`：平台管理员，可调全部接口（TokensAPI 后端、脚本、本页的 Authorize 都用它）。口令错误同一 IP 15 分钟内累计 8 次返回 `429`。\n- 后台会话 Cookie：平台管理员或组织管理员。组织管理员只能读自己的组织、改自己组织的插件开关与指定成员，其余 `403`。Cookie 发起的写操作必须同源。本页默认沿用后台登录，以 TokensAPI 账号登录的组织管理员打开本页即以自己的身份调用；同时带了 Bearer 时以 Bearer 为准。\n\n### 幂等性\n\n插件的写操作都带 `revision`：同一个 `revision` 只会成功一次，重试拿到 `409` 而不是二次写入。\n\n完整说明见仓库内 `market/server/SERVICE-API.md`。"
   },
   "servers": [
     {
@@ -67,7 +67,7 @@
         "tags": [
           "会话"
         ],
-        "summary": "登录后台",
+        "summary": "登录后台（后台专用）",
         "description": "两种登录方式二选一：后台口令，或 TokensAPI 账号（只有组织管理员能进，普通成员一律 `401`）。成功后下发 `__Host-market_session` Cookie。\n\n必须同源（`Origin`），同一 IP 15 分钟内失败 8 次返回 `429`。",
         "requestBody": {
           "required": true,
@@ -143,7 +143,7 @@
         "tags": [
           "会话"
         ],
-        "summary": "退出登录",
+        "summary": "退出登录（后台专用）",
         "description": "清除会话 Cookie。必须同源。",
         "responses": {
           "200": {
@@ -2085,7 +2085,7 @@
         "tags": [
           "诊断"
         ],
-        "summary": "查询 npm 包资料",
+        "summary": "查询 npm 包资料（后台专用）",
         "description": "新建插件时从 npm（或自建 Registry）导入资料。",
         "responses": {
           "200": {

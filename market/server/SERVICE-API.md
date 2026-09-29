@@ -16,6 +16,23 @@
 
 `/v1/plugins`、`/roster.json`、`/source.json`、`/registry/*` 是给桌面端的消费接口，不在本文范围内，形状保持不变。
 
+## TokensAPI 接入速查
+
+所有请求带 `Authorization: Bearer <后台口令>`（见下文「认证」），身份等同平台管理员，口令只能放在服务端。常用的就这几步：
+
+| 要做的事 | 请求 |
+| --- | --- |
+| 看有哪些插件 | `GET /plugins` → `items[].id`，`items[].visibility` 为 `public` 或 `restricted` |
+| 登记组织 | `POST /organizations/sync`（从 TokensAPI 拉全量），或 `PUT /organizations/{orgId}` `{"name":"…","enabled":true}` |
+| 给组织配插件 | `PUT /organizations/{orgId}/grants` `{"plugins":["a","b"]}` |
+| 给某个用户配插件 | 先 `PUT /users/{userId}` `{"name":"…"}` 登记，再 `PUT /users/{userId}/grants` `{"plugins":["a"]}` |
+| 查组织实际能用哪些 | `GET /organizations/{orgId}/plugins`，`visible` 为 `true` 的就是 |
+| 代组织管理员开关、指定成员 | `PUT /organizations/{orgId}/plugins/{pluginId}` `{"enabled":false}` 或 `{"members":[102]}` |
+
+- `grants` 是**全量替换**：传的就是最终名单，空数组即全部撤销。组织、用户须先登记，否则 `404`。
+- 授权只对**受限**插件起作用，公开插件人人可见；公开/受限由 `PUT /plugins/{pluginId}/access` 或后台设置。
+- 标着「后台专用」的接口（登录、退出、导入 npm 资料）是后台页面自己用的，TokensAPI 不需要调。
+
 ## 认证
 
 两种方式，服务端按请求决定身份：
