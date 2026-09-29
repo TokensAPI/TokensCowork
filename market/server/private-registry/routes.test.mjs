@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { registryRoute } from './routes.js'
 
-function env({ registry = false, fetchImpl, granted = true } = {}) {
+function env({ registry = false, fetchImpl, granted = true, offered = false } = {}) {
   const row = { id: 'private-plugin', metadata: JSON.stringify({ npm: true, registry: 'tokenscowork', package: '@fixture/private' }), visibility: 'restricted', state: 'published' }
   // Aggregate reads run unbound, so bind() has to return the same statement rather than a
   // narrower object.
@@ -14,6 +14,7 @@ function env({ registry = false, fetchImpl, granted = true } = {}) {
     },
     async all() {
       if (sql.includes("kind='key'")) return { results: granted ? [{ plugin_id: 'private-plugin' }] : [] }
+      if (sql.includes("kind IN ('org','user')")) return { results: offered ? [{ plugin_id: 'private-plugin' }] : [] }
       return { results: [] }
     },
   })
@@ -41,5 +42,16 @@ test('private Registry route checks market access before contacting the upstream
   const request = new Request('https://tokenscowork-market.pages.dev/registry/private-plugin/%40fixture%2Fprivate', { headers: { Authorization: 'Bearer sk-fixture' } })
   const response = await registryRoute(request, env({ registry: true, granted: false, fetchImpl: async () => { requests += 1; throw new Error('must not fetch') } }))
   assert.equal(response.status, 403)
+  assert.equal(requests, 0)
+})
+
+test('private Registry route answers an unavailable TokensAPI with 503, never a download', async () => {
+  let requests = 0
+  const request = new Request('https://tokenscowork-market.pages.dev/registry/private-plugin/%40fixture%2Fprivate', { headers: { Authorization: 'Bearer sk-fixture' } })
+  const fixture = env({ registry: true, granted: false, offered: true, fetchImpl: async () => { requests += 1; throw new Error('must not fetch') } })
+  fixture.MARKET_ORGANIZATIONS = { resolveIdentity: async () => { throw new Error('provider down') } }
+  const response = await registryRoute(request, fixture)
+  assert.equal(response.status, 503)
+  assert.match(await response.text(), /授权服务暂时不可用/)
   assert.equal(requests, 0)
 })

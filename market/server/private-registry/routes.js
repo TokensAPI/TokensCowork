@@ -71,7 +71,14 @@ async function tarballResponse(request, env, id, name, version) {
   })
 }
 
+// A download whose authorization cannot be decided -- TokensAPI or the database unavailable -- is
+// refused as an outage, the same answer the catalog gives, never as a grant.
 export async function registryRoute(request, env) {
+  try { return await route(request, env) }
+  catch { return reply({ error: '授权服务暂时不可用' }, 503) }
+}
+
+async function route(request, env) {
   const url = new URL(request.url)
   if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405)
   if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET) return reply({ error: '授权服务未配置' }, 503)
