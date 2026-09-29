@@ -57,6 +57,7 @@
 | PUT | `/organizations/:orgId/grants` | ✗ |
 | GET | `/organizations/:orgId/plugins` | ✓（限本组织） |
 | PUT | `/organizations/:orgId/plugins/:pluginId` | ✓（限本组织） |
+| GET | `/organizations/:orgId/members?keyword=` | ✓（限本组织） |
 | GET / POST | `/keys` | ✗ |
 | GET / PATCH / DELETE | `/keys/:fingerprint` | ✗ |
 | GET / PUT | `/keys/:fingerprint/grants` | ✗ |
@@ -196,15 +197,23 @@ PUT /api/v1/users/102/grants
 ```json
 { "organizationId": 7, "items": [
   { "id": "example-tool", "displayName": "示例插件", "package": "@tokensapi/example-tool", "summary": "…",
-    "version": "1.0.0", "source": "organization", "switchable": true, "enabled": true, "visible": true } ] }
+    "version": "1.0.0", "source": "organization", "switchable": true, "enabled": true,
+    "members": [ { "id": 102, "name": "Alice" } ], "visible": true } ] }
 ```
 
 列出该组织成员能看到的已上架插件：`source` 为 `public`（公开，不可关）或 `organization`（授给本组织，可关）；
-`visible` 是开关与组织启用状态合起来的结果，即该组织成员实际会被下发的插件。这条接口按组织号回答，
+`visible` 是开关与组织启用状态合起来的结果，即该组织会拿到的插件；`members` 为空表示全员可见，
+不为空时只有名单里的成员能看到（有单独 Key 或用户授权的人不受名单限制）。这条接口按组织号回答，
 不需要任何成员 Key，适合 TokensAPI 自己的界面直接展示。
 
-`PUT /organizations/:orgId/plugins/:pluginId` 体为 `{ "enabled": false }` → `{ ok: true, enabled: false }`。
+`PUT /organizations/:orgId/plugins/:pluginId` 体为 `{ "enabled": false }`、`{ "members": [102, 103] }` 或两者一起，
+→ `{ ok: true, enabled, members: [{ id, name }] }`。`members` 是可见成员的用户 ID（不重复，最多 200 个），整体替换原名单，
+空数组恢复全员可见；新加入名单的用户须经 TokensAPI 确认属于本组织，否则 `400`，未配置用户搜索时 `503`。
 公开插件、没授给本组织的插件返回 `400`；内置组件返回 `409`；插件不存在或未上架返回 `404`。
+
+`GET /organizations/:orgId/members?keyword=alice` → `{ items: [{ id, name, username }], more }`：在 TokensAPI 按用户名、
+显示名或用户 ID 搜索，只返回本组织成员，供指定成员时挑选。一次读 100 条匹配结果再过滤，`more` 为 `true` 时换更具体的关键词；
+结果不落库，未配置或上游不可用 `503`。
 
 ### Key
 

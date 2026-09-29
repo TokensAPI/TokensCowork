@@ -100,7 +100,7 @@ async function fixture(t) {
     MARKET_ORGANIZATIONS: {
       listOrganizations: async () => [{ id: 7, name: 'Seven' }, { id: 9, name: 'Nine' }],
       resolveOrganization: async key => key === 'sk-seven' ? { id: 7, name: 'Seven' } : null,
-      searchUsers: async () => ({ items: [{ id: 102, name: 'Alice', username: 'alice' }], total: 1 }),
+      searchUsers: async () => ({ items: [{ id: 102, name: 'Alice', username: 'alice', organizationId: 7 }], total: 1 }),
       resolveAccount: async c => c.userId === 501 ? { id: 501, displayName: 'Owner' } : null,
       resolveMyOrg: async c => c.userId === 501 ? { id: 7, name: 'Seven', role: 100 } : null,
     },
@@ -127,7 +127,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 24)
+  assert.equal(paths.length, 25)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -140,7 +140,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 34)
+  assert.equal(checked, 35)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -190,6 +190,11 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/organizations/7/plugins', '/organizations/{orgId}/plugins', 200, undefined, tenant],
     ['PUT', '/organizations/7/plugins/beta', '/organizations/{orgId}/plugins/{pluginId}', 200, { enabled: false }, tenant],
     ['PUT', '/organizations/7/plugins/beta', '/organizations/{orgId}/plugins/{pluginId}', 400, {}],
+    ['GET', '/organizations/7/members?keyword=al', '/organizations/{orgId}/members', 200, undefined, tenant],
+    ['GET', '/organizations/7/members', '/organizations/{orgId}/members', 400],
+    ['PUT', '/organizations/7/plugins/beta', '/organizations/{orgId}/plugins/{pluginId}', 200, { members: [102] }, tenant],
+    ['GET', '/organizations/7/plugins', '/organizations/{orgId}/plugins', 200],
+    ['PUT', '/organizations/7/plugins/beta', '/organizations/{orgId}/plugins/{pluginId}', 200, { members: [] }],
     ['GET', '/keys', '/keys', 200],
     ['POST', '/keys', '/keys', 409, { key: 'sk-direct' }],
     ['GET', `/keys/${key}`, '/keys/{fingerprint}', 200],

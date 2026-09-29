@@ -137,11 +137,12 @@ export function createTokensApiOrganizations(env,fetchImpl=globalThis.fetch.bind
       return items
     }
     // The console's user picker. TokensAPI answers one page of matches; the market keeps only
-    // the users an administrator actually grants something to.
-    provider.searchUsers=async(keyword,page)=>{
-      const data=await request(`/api/manage/users/search?keyword=${encodeURIComponent(keyword)}&p=${page}&page_size=20`,env.MARKET_ORGANIZATIONS_TOKEN)
+    // the users an administrator actually grants something to. Each match names its organization
+    // (org_id, 0 for none), which is how an organization's own members are told apart.
+    provider.searchUsers=async(keyword,page,size=20)=>{
+      const data=await request(`/api/manage/users/search?keyword=${encodeURIComponent(keyword)}&p=${page}&page_size=${size}`,env.MARKET_ORGANIZATIONS_TOKEN)
       if(!data||!Array.isArray(data.items)||data.items.length>100||!Number.isSafeInteger(data.total)||data.total<0)throw new Error('Invalid user list')
-      return {items:data.items.map(account),total:data.total}
+      return {items:data.items.map(value=>({...account(value),organizationId:Number.isSafeInteger(value.org_id)&&value.org_id>0?value.org_id:null})),total:data.total}
     }
   }
   return provider

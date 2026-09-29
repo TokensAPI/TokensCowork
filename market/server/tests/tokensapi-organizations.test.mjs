@@ -130,12 +130,14 @@ test('a token that is wrong, in no organization or disabled is an answer, not an
 test('the Key owner and the user search come back as id and display name only',async()=>{
   const source=createTokensApiOrganizations(env,async url=>url.endsWith('/api/current/organization')
     ?response({organization:{id:8,name:'Team',status:1},user:{id:102,username:'alice',display_name:'Alice',quota:9}})
-    :response({items:[{id:102,username:'alice',display_name:''},{id:103,username:'bob',display_name:'Bob',role:1}],total:2}))
+    :response({items:[{id:102,username:'alice',display_name:'',org_id:0},{id:103,username:'bob',display_name:'Bob',role:1,org_id:8}],total:2}))
   assert.deepEqual(await source.resolveIdentity('sk-fixture'),{organization:{id:8,name:'Team'},user:{id:102,name:'Alice'}})
-  assert.deepEqual(await source.searchUsers('a b',2),{items:[{id:102,name:'alice',username:'alice'},{id:103,name:'Bob',username:'bob'}],total:2})
+  assert.deepEqual(await source.searchUsers('a b',2),{items:[{id:102,name:'alice',username:'alice',organizationId:null},{id:103,name:'Bob',username:'bob',organizationId:8}],total:2})
   const legacy=createTokensApiOrganizations(env,async()=>response({organization:null}))
   assert.deepEqual(await legacy.resolveIdentity('sk-fixture'),{organization:null,user:null})
   const searched=[]
   await createTokensApiOrganizations(env,async(url,options)=>{searched.push([url,options.headers.Authorization]);return response({items:[],total:0})}).searchUsers('a b',2)
-  assert.deepEqual(searched,[['https://tokensapi.ai/api/manage/users/search?keyword=a%20b&p=2&page_size=20','Bearer fixture-management-token']])
+  await createTokensApiOrganizations(env,async(url,options)=>{searched.push([url,options.headers.Authorization]);return response({items:[],total:0})}).searchUsers('7',1,100)
+  assert.deepEqual(searched,[['https://tokensapi.ai/api/manage/users/search?keyword=a%20b&p=2&page_size=20','Bearer fixture-management-token'],
+    ['https://tokensapi.ai/api/manage/users/search?keyword=7&p=1&page_size=100','Bearer fixture-management-token']])
 })

@@ -240,7 +240,7 @@
               <div>
                 <h2 id="org-detail-title">组织</h2>
                 <p class="muted">
-                  公开插件对所有人可见，不受这里约束。平台授权给本组织的插件可在这里对本组织成员关闭，关闭只影响本组织。
+                  公开插件对所有人可见，不受这里约束。平台授权给本组织的插件默认本组织全员可见，可在这里关闭，或指定只给哪些成员；只影响本组织。
                 </p>
               </div>
               <button id="org-back" class="secondary">返回组织名录</button>
@@ -505,6 +505,35 @@
         <output id="grants-error" class="error" role="alert"></output>
         <div class="dialog-footer">
           <span id="grant-count" class="muted"></span><button type="submit">保存</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="members-dialog" aria-labelledby="members-title">
+      <form id="members-form">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">指定成员</p>
+            <h2 id="members-title">指定成员</h2>
+          </div>
+          <button id="cancel-members" class="quiet" type="button" aria-label="关闭指定成员">✕</button>
+        </div>
+        <p class="notice">不指定成员时本组织全员可见；指定后只有名单里的成员可见。清空名单即恢复全员可见。</p>
+        <label for="member-lookup">搜索本组织成员</label>
+        <div class="verify-input">
+          <input id="member-lookup" type="search" maxlength="100" placeholder="用户名、显示名或用户 ID" /><button
+            id="member-lookup-button"
+            type="button"
+            class="secondary"
+          >
+            搜索
+          </button>
+        </div>
+        <div id="member-lookup-results" class="button-row"></div>
+        <p class="eyebrow">可见成员（点击移除）</p>
+        <div id="member-list" class="button-row"></div>
+        <output id="members-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span id="member-count" class="muted"></span><button type="submit">保存</button>
         </div>
       </form>
     </dialog>

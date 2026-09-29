@@ -317,7 +317,7 @@ const ACTIONS = {
   'plugin.access.updated': '更新访问范围',
   'organization.updated': '维护组织',
   'organizations.synced': '同步组织名录',
-  'tenant.plugin.updated': '组织插件开关',
+  'tenant.plugin.updated': '组织插件设置',
   'key.added': '登记 Key',
   'key.updated': '修改 Key 备注',
   'key.deleted': '删除 Key',
@@ -360,6 +360,7 @@ function renderActivity() {
     if (d.count != null) facts.push(`${d.count} 个组织`)
     if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
     if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')
+    if (d.memberCount != null) facts.push(d.memberCount ? `指定 ${d.memberCount} 位成员可见` : '全员可见')
     const target = targetText(event)
     detail.append(node('strong', `${ACTIONS[event.action] || '管理变更'}${target ? ' · ' + target : ''}`), node('p', facts.join(' · ') || '已保存', 'muted'))
     row.append(node('span', '✓', 'activity-mark'), detail, node('span', actorText(event.actor), 'activity-actor muted'), node('time', formatTime(event.createdAt), 'muted'))

@@ -220,7 +220,7 @@ TokensAPI 组织即租户。上表由平台决定「插件提供给哪些组织�
 
 ### 数据库
 
-SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`。业务表 9 张，另有两张迁移记录表：
+SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`。业务表 10 张，另有两张迁移记录表：
 
 | 表 | 作用 | 关键列 |
 | --- | --- | --- |
@@ -228,6 +228,7 @@ SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`�
 | `market_grants` | **全部授权都在这一张表** | `plugin_id`、`kind`（org / key / user）、`subject`，三列联合主键 |
 | `market_organizations` | 从 TokensAPI 同步来的组织 | `id`、`name`、`enabled` |
 | `market_org_hidden` | 组织管理员关掉的插件，有行即关 | `organization_id`、`plugin_id` |
+| `market_org_members` | 组织管理员给某个插件指定的可见成员；没有行 = 全员可见 | `organization_id`、`plugin_id`、`user_id`、`name` |
 | `market_keys` | Key 名录 | `fingerprint`（HMAC 指纹，主键）、`label`、`encrypted_value`（加密原文，仅供后台展示） |
 | `market_users` | 可被授权的 TokensAPI 用户 | `id`、`name` |
 | `market_sessions` | 后台会话 | `token_hash`、`organization_id`（平台管理员为 NULL）、`user_id`、`expires_at` |
@@ -236,7 +237,7 @@ SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`�
 
 - `market_grants.subject`：组织存组织 ID，用户存用户 ID，Key 存指纹。Key 原文从不作查询条件。
 - 授权对象必须先在名录里：组织要先同步，用户要先加入用户名录，Key 要先登记。
-- 清理：删除插件时，其授权和组织开关由外键级联删除；删除 Key 或用户时，其授权在同一事务内一并删除。组织只同步不删除，停用即可。
+- 清理：删除插件时，其授权、组织开关和指定成员由外键级联删除；删除 Key 或用户时，其授权在同一事务内一并删除。组织只同步不删除，停用即可。
 - 并发：插件的 `revision` 是唯一的乐观锁，改资料、上下架、改访问范围、改授权都会加 1，版本号不符返回 409。
 
 ### 两种管理员
@@ -245,7 +246,7 @@ SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`�
 | --- | --- | --- |
 | 认证 | 后台口令：`Authorization: Bearer <口令>`，或用口令登录后台 | TokensAPI 用户 ID + 访问令牌登录 |
 | 准入 | 口令正确 | TokensAPI 确认账号有效、组织角色 ≥ 10（Admin/Owner），且该组织已在市场登记并启用 |
-| 能做什么 | 全部：插件、访问范围、授权、组织同步与启停、Key 与用户名录、操作记录 | 只看本组织，对平台授给本组织的插件开 / 关（只能收窄） |
+| 能做什么 | 全部：插件、访问范围、授权、组织同步与启停、Key 与用户名录、操作记录 | 只看本组织，对平台授给本组织的插件开 / 关，或指定只给哪些成员（只能收窄） |
 | 代码限制 | — | 平台接口经 `onlyPlatform()` 返回 403；组织接口经 `organizationId()`，只能访问会话里的那个组织 |
 
 - 会话有效期 7 天。组织在市场被停用后，该组织的会话立即失效；更换后台口令或 HMAC 密钥，所有会话失效。
@@ -260,7 +261,8 @@ Key 能看到插件 P  ⇔  P 已上架，且满足任意一条：
   ② P 授给了这个 Key                       market_grants(kind='key',  subject=Key 指纹)
   ③ P 授给了这个 Key 的所属用户             market_grants(kind='user', subject=用户 ID)
   ④ P 授给了这个 Key 的所属组织              market_grants(kind='org',  subject=组织 ID)
-       且该组织 enabled=1，且 market_org_hidden 中没有 (组织, P)
+       且该组织 enabled=1，且 market_org_hidden 中没有 (组织, P)，
+       且 market_org_members 中 (组织, P) 没有行，或有这个 Key 所属用户的行
 ```
 
 判断分两步，尽量少问 TokensAPI：
@@ -277,7 +279,7 @@ Key 能看到插件 P  ⇔  P 已上架，且满足任意一条：
 | --- | --- | --- |
 | `GET /api/current/organization` | 用户的 `sk-` Key | 查 Key 的所属组织和所属用户，用于 ③④ |
 | `GET /api/organizations/all` | 市场的管理令牌（仅服务端） | 后台「同步组织」 |
-| `GET /api/manage/users/search` | 同上 | 后台添加用户时搜索 |
+| `GET /api/manage/users/search` | 同上 | 后台添加用户时搜索；指定组织成员时按返回的 `org_id` 只保留本组织的人 |
 | `GET /api/user/self` | 组织管理员粘贴的访问令牌 | 登录时确认账号 |
 | `GET /api/org/` | 同上 | 登录时取组织与角色（`my_role`） |
 

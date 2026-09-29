@@ -1179,27 +1179,44 @@
         "tags": [
           "组织"
         ],
-        "summary": "组织开关",
-        "description": "组织管理员关掉（或重新打开）平台授予本组织的插件。只能收窄：公开插件和内置组件不受开关约束。",
+        "summary": "组织开关与指定成员",
+        "description": "组织管理员对平台授予本组织的插件做两种收窄：`enabled` 关掉（或重新打开），`members` 指定可见的成员（空数组恢复全员可见）。两项可只传其一。新加入名单的用户须经 TokensAPI 确认属于本组织。公开插件和内置组件不受约束。",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "enabled"
-                ],
                 "properties": {
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "members": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "可见成员的用户 ID，最多 200 个；空数组 = 全员可见"
                   }
                 }
               },
               "examples": {
-                "示例": {
+                "关闭": {
                   "value": {
                     "enabled": false
+                  }
+                },
+                "只给指定成员": {
+                  "value": {
+                    "members": [
+                      102,
+                      103
+                    ]
+                  }
+                },
+                "恢复全员可见": {
+                  "value": {
+                    "members": []
                   }
                 }
               }
@@ -1215,7 +1232,8 @@
                   "type": "object",
                   "required": [
                     "ok",
-                    "enabled"
+                    "enabled",
+                    "members"
                   ],
                   "properties": {
                     "ok": {
@@ -1223,6 +1241,12 @@
                     },
                     "enabled": {
                       "type": "boolean"
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrganizationMember"
+                      }
                     }
                   }
                 }
@@ -1243,6 +1267,90 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/organizations/{orgId}/members": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/orgId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "组织"
+        ],
+        "summary": "搜索本组织成员",
+        "description": "按用户名、显示名或用户 ID 在 TokensAPI 搜索，只返回属于本组织的成员，供指定成员时选择。一次读取 100 条匹配结果再按组织过滤，`more` 为 true 时请换更具体的关键词。未配置或上游不可用返回 `503`。结果不落库。",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "1-100 个字符"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "本组织成员",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "more"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "username"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "more": {
+                      "type": "boolean",
+                      "description": "匹配结果超过一次读取的数量"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         }
       }
@@ -2662,6 +2770,7 @@
           "source",
           "switchable",
           "enabled",
+          "members",
           "visible"
         ],
         "properties": {
@@ -2695,9 +2804,16 @@
           "enabled": {
             "type": "boolean"
           },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMember"
+            },
+            "description": "指定成员。为空表示本组织全员可见；不为空时只有这些成员可见。"
+          },
           "visible": {
             "type": "boolean",
-            "description": "本组织成员现在是否能看到。"
+            "description": "本组织是否拿到该插件（公开，或组织授权且未关闭）。指定成员时只有名单内的人能看到。"
           }
         }
       },
@@ -2790,6 +2906,22 @@
           },
           "createdAt": {
             "type": "integer"
+          }
+        }
+      },
+      "OrganizationMember": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "TokensAPI 用户 ID"
+          },
+          "name": {
+            "type": "string"
           }
         }
       }

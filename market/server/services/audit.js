@@ -21,7 +21,10 @@ const ACTIONS = {
   'organization.updated': [ORGANIZATION, d => ({ enabled: d.enabled === true })],
   'organizations.synced': [/^(production|development|unconfigured)$/u, d => ({ count: d.count })],
   // Organization switches are addressed by organization and plugin together; keep the pair greppable.
-  'tenant.plugin.updated': [/^[1-9][0-9]*:[a-z0-9][a-z0-9-]{0,79}$/u, d => ({ enabled: d.enabled === true })],
+  'tenant.plugin.updated': [/^[1-9][0-9]*:[a-z0-9][a-z0-9-]{0,79}$/u, d => ({
+    ...(typeof d.enabled === 'boolean' ? { enabled: d.enabled } : {}),
+    ...(Number.isSafeInteger(d.memberCount) ? { memberCount: d.memberCount } : {}),
+  })],
   'key.added': [FINGERPRINT, () => ({})],
   'key.updated': [FINGERPRINT, () => ({})],
   'key.deleted': [FINGERPRINT, d => ({ grantCount: d.grantCount })],

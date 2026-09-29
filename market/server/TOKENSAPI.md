@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | GET /api/current/organization | 客户的 API Key | 消费端按组织、按用户判定可见性 |
 | GET /api/organizations/all | 服务端列表 Token | 后台「同步组织」 |
-| GET /api/manage/users/search | 服务端列表 Token | 后台「用户」页添加用户时搜索 |
+| GET /api/manage/users/search | 服务端列表 Token | 后台「用户」页添加用户时搜索；组织页指定可见成员时搜索本组织成员 |
 | GET /api/user/self | 本人的访问令牌 | 控制台登录：这是谁 |
 | GET /api/org/ | 本人的访问令牌 | 控制台登录：属于哪个组织、什么角色 |
 
@@ -47,14 +47,15 @@
 **2. `GET /api/manage/users/search?keyword=&p=&page_size=`**
 
 用与 `/api/organizations/all` 相同的服务端 Token（`MARKET_ORGANIZATIONS_TOKEN`，`Authorization: Bearer`）鉴权，
-按用户名 / 邮箱 / 显示名模糊匹配，纯数字时也精确匹配用户 ID；`p` 从 1 开始，市场每次取 `page_size=20`：
+按用户名 / 邮箱 / 显示名模糊匹配，纯数字时也精确匹配用户 ID；`p` 从 1 开始，市场「用户」页每次取 `page_size=20`，搜索组织成员时取 `page_size=100`：
 
 ```json
 { "success": true, "data": { "page": 1, "page_size": 20, "total": 1,
   "items": [ { "id": 102, "username": "alice", "display_name": "Alice", "email": "…", "org_id": 0 } ] } }
 ```
 
-- 每页最多 100 条，`total` 为匹配总数；市场只取 `id`、`username`、`display_name`，其余字段（邮箱等）直接丢弃、不落库。
+- 每页最多 100 条，`total` 为匹配总数；市场只取 `id`、`username`、`display_name` 和 `org_id`，其余字段（邮箱等）直接丢弃、不落库。
+- `org_id` 是用户所属组织（0 = 无组织）。组织页指定可见成员时只保留 `org_id` 等于本组织的用户；名单保存时再用用户 ID 查一次确认，存下用户 ID 和显示名。之后用户换了组织，名单里的行不再起作用（其 Key 解析出的组织已不是本组织）。
 - 未配置或失败时市场后台显示「未配置 TokensAPI 用户搜索」，仍可手填用户 ID 添加。
 
 ## 组织管理员身份

@@ -93,13 +93,35 @@ async function lookupIdentity(apiKey, env) {
 export function userSearchReady(env) {
   return typeof provider(env)?.searchUsers === 'function'
 }
-export async function searchUsers(env, keyword, page) {
+async function lookupUsers(env, keyword, page, size) {
   if (!userSearchReady(env)) throw Object.assign(new Error('未配置 TokensAPI 用户搜索'), { status: 503 })
   let result
-  try { result = await bounded(() => provider(env).searchUsers(keyword, page)) }
+  try { result = await bounded(() => provider(env).searchUsers(keyword, page, size)) }
   catch { throw Object.assign(new Error('TokensAPI 用户搜索暂不可用'), { status: 503 }) }
   if (!result || !Array.isArray(result.items) || !result.items.every(validUser)) throw Object.assign(new Error('TokensAPI 用户搜索返回无效'), { status: 503 })
-  return { items: result.items.map(user => ({ id: user.id, name: user.name, username: user.username ?? '' })), total: result.total ?? result.items.length }
+  return result
+}
+const listed = user => ({ id: user.id, name: user.name, username: user.username ?? '' })
+export async function searchUsers(env, keyword, page) {
+  const result = await lookupUsers(env, keyword, page, 20)
+  return { items: result.items.map(listed), total: result.total ?? result.items.length }
+}
+// The same site-wide search, answered for one organization: TokensAPI names each match's
+// organization and only that organization's own members are returned, so an organization
+// administrator never sees anyone else. One page of 100 is read; `more` asks for a sharper keyword.
+export async function searchOrganizationMembers(env, organizationId, keyword) {
+  const result = await lookupUsers(env, keyword, 1, 100)
+  return {
+    items: result.items.filter(user => user.organizationId === organizationId).map(listed),
+    more: (result.total ?? 0) > result.items.length,
+  }
+}
+// Whether one user belongs to the organization, asked by user number (TokensAPI matches a numeric
+// keyword against the id exactly). Null when TokensAPI does not place the user there.
+export async function organizationMember(env, organizationId, userId) {
+  const result = await lookupUsers(env, String(userId), 1, 100)
+  const user = result.items.find(item => item.id === userId && item.organizationId === organizationId)
+  return user ? { id: user.id, name: user.name } : null
 }
 
 // The two console-login lookups. The forwarded site cookie lives only for the duration of these

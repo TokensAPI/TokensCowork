@@ -3,7 +3,7 @@ import { body, bearer } from '../http/request.js'
 import { resolvePrincipal, isPlatform, login, logout } from '../services/auth.js'
 import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from '../security/admin-login-limit.js'
 import { pluginRows, pluginRow, pluginView, pluginGrants, noGrants, createPlugin, changePlugin, setPluginAccess, subjectGrants, setSubjectGrants, productComponents, publisher, invalid } from '../services/plugins.js'
-import { listOrganizations, getOrganization, saveOrganization, syncOrganizations, organizationProviderReady, organizationSessionReady, searchUsers } from '../services/organizations.js'
+import { listOrganizations, getOrganization, saveOrganization, syncOrganizations, organizationProviderReady, organizationSessionReady, searchUsers, searchOrganizationMembers } from '../services/organizations.js'
 import { organizationPlugins, setOrganizationPlugin } from '../services/access.js'
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
 import { listUsers, getUser, saveUser, deleteUser } from '../services/users.js'
@@ -42,12 +42,16 @@ async function grants(request, env, method, kind, subject, actor) {
   methods(method, ['GET', 'PUT'])
   return method === 'GET' ? subjectGrants(env, kind, subject) : setSubjectGrants(env, kind, subject, await payload(request), actor)
 }
-function userLookup(url, env) {
+function searchKeyword(url) {
   const keyword = url.searchParams.get('keyword') ?? ''
-  const page = Number(url.searchParams.get('page') || '1')
   if (!keyword.trim() || keyword.length > 100) throw invalid('请输入 1-100 个字符的搜索词')
+  return keyword.trim()
+}
+function userLookup(url, env) {
+  const keyword = searchKeyword(url)
+  const page = Number(url.searchParams.get('page') || '1')
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000) throw invalid('页码无效')
-  return searchUsers(env, keyword.trim(), page)
+  return searchUsers(env, keyword, page)
 }
 const methods = (method, allowed) => { if (!allowed.includes(method)) throw invalid('method not allowed', 405) }
 
@@ -158,6 +162,12 @@ async function dispatch(request, env, url, principal) {
     if (third === 'plugins' && fourth) {
       methods(method, ['PUT'])
       return setOrganizationPlugin(request, env, id, fourth, await payload(request), actor)
+    }
+    // Finding this organization's own members to narrow a plugin to.
+    if (third === 'members' && !fourth) {
+      methods(method, ['GET'])
+      await getOrganization(env, id)
+      return searchOrganizationMembers(env, id, searchKeyword(url))
     }
   }
 

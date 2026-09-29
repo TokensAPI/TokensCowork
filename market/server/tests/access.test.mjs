@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import worker from '../_worker.js'
 import { fingerprint } from '../security/key-fingerprint.js'
 import { createAssets } from '../runtime/adapters.mjs'
+import { allowed } from '../services/access.js'
 
 // Independent fixtures: no production credentials, npm or organization requests.
 const metadata = { id: 'private-tool', package: '@example/tool', displayName: '工具', summary: '企业工具', repository: 'https://example.com/repo', version: '1.0.0', npm: false }
@@ -370,6 +371,99 @@ test('organization administrators sign in with TokensAPI and manage only their o
   // Disabling the organization ends the session.
   assert.equal((await organization(7, false)).status, 200)
   assert.equal((await call('/session').then(r => r.json())).authenticated, false)
+})
+
+test('an organization grant reaches every member until the organization names members', async t => {
+  const { env, db, access, organization, visible, call, admin } = fixture(t)
+  await organization(7); await organization(8)
+  // Three Keys of organization 7 owned by users 102, 103 and 104; one of organization 8 owned by 105.
+  const owners = { 'sk-a': [7, 102], 'sk-b': [7, 103], 'sk-c': [7, 104], 'sk-other': [8, 105] }
+  const directory = [[102, 'Alice', 7], [103, 'Bob', 7], [104, 'Carol', 7], [105, 'Dave', 8], [106, 'Eve', null]]
+  let searches = []
+  env.MARKET_ORGANIZATIONS = {
+    resolveIdentity: async raw => ({ organization: { id: owners[raw][0], name: 'Org' }, user: { id: owners[raw][1], name: 'U' } }),
+    searchUsers: async (keyword, page, size) => {
+      searches.push([keyword, page, size])
+      const items = directory.filter(([id, name]) => String(id) === keyword || name.toLowerCase().includes(keyword.toLowerCase()))
+        .map(([id, name, organizationId]) => ({ id, name, username: name.toLowerCase(), organizationId }))
+      return { items, total: items.length }
+    },
+  }
+  assert.equal((await access({ organizations: [7, 8] })).status, 200)
+  const seen = async () => Object.fromEntries(await Promise.all(Object.keys(owners).map(async k => [k, (await visible(k)).includes(metadata.id)])))
+  assert.deepEqual(await seen(), { 'sk-a': true, 'sk-b': true, 'sk-c': true, 'sk-other': true })
+  const set = data => admin(`/organizations/7/plugins/${metadata.id}`, data)
+  // Only organization 7's own members are found; organization 8 and the organization-less user are not.
+  assert.deepEqual(await (await call('/api/v1/organizations/7/members?keyword=e', 'admin-secret')).json(),
+    { items: [{ id: 102, name: 'Alice', username: 'alice' }], more: false })
+  assert.deepEqual(searches, [['e', 1, 100]])
+  assert.equal((await call('/api/v1/organizations/7/members', 'admin-secret')).status, 400)
+  // Naming members narrows organization 7 to them; organization 8 is untouched.
+  let response = await set({ members: [102, 104] })
+  assert.equal(response.status, 200)
+  assert.deepEqual(await response.json(), { ok: true, enabled: true, members: [{ id: 102, name: 'Alice' }, { id: 104, name: 'Carol' }] })
+  assert.deepEqual(await seen(), { 'sk-a': true, 'sk-b': false, 'sk-c': true, 'sk-other': true })
+  // The Registry answers the same way as the catalog.
+  const registry = raw => allowed(new Request(ORIGIN + '/registry', { headers: { Authorization: 'Bearer ' + raw } }), env, metadata.id)
+  assert.deepEqual([await registry('sk-a'), await registry('sk-b')], [true, false])
+  const listed = (await (await admin('/organizations/7/plugins')).json()).items[0]
+  assert.deepEqual([listed.enabled, listed.visible, listed.members.map(m => m.id)], [true, true, [102, 104]])
+  // A user TokensAPI does not place in the organization cannot be named; nothing changes.
+  for (const id of [105, 106, 999]) assert.equal((await set({ members: [102, id] })).status, 400, String(id))
+  for (const bad of [[0], [102, 102], 'x', Array.from({ length: 201 }, (_, i) => i + 1)]) assert.equal((await set({ members: bad })).status, 400)
+  assert.equal((await set({})).status, 400)
+  // Kept members are not asked about again; only a newcomer is.
+  searches = []
+  assert.equal((await set({ members: [104, 103] })).status, 200)
+  assert.deepEqual(searches, [['103', 1, 100]])
+  assert.deepEqual(await seen(), { 'sk-a': false, 'sk-b': true, 'sk-c': true, 'sk-other': true })
+  // The switch still wins over the list, and the list survives it.
+  assert.equal((await set({ enabled: false })).status, 200)
+  assert.deepEqual(await seen(), { 'sk-a': false, 'sk-b': false, 'sk-c': false, 'sk-other': true })
+  assert.equal((await set({ enabled: true })).status, 200)
+  assert.deepEqual(await seen(), { 'sk-a': false, 'sk-b': true, 'sk-c': true, 'sk-other': true })
+  // A user grant still reaches a member left off the list.
+  assert.equal((await admin('/users/102', { name: 'Alice' })).status, 200)
+  assert.equal((await admin('/users/102/grants', { plugins: [metadata.id] })).status, 200)
+  assert.equal((await seen())['sk-a'], true)
+  assert.equal((await admin('/users/102', undefined, 'DELETE')).status, 200)
+  // An empty list is every member again.
+  assert.equal((await set({ members: [] })).status, 200)
+  assert.deepEqual(await seen(), { 'sk-a': true, 'sk-b': true, 'sk-c': true, 'sk-other': true })
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_org_members').get().n, 0)
+  // Without the user search, a list cannot be started; clearing one needs no lookup.
+  delete env.MARKET_ORGANIZATIONS.searchUsers
+  assert.equal((await set({ members: [102] })).status, 503)
+  assert.equal((await call('/api/v1/organizations/7/members?keyword=a', 'admin-secret')).status, 503)
+})
+
+test('an organization administrator names members of its own organization only', async t => {
+  const { env, db, access, organization, visible } = fixture(t)
+  await organization(7); await organization(8)
+  env.MARKET_ORGANIZATIONS = {
+    resolveAccount: async c => c.userId === 501 ? { id: 501, displayName: 'Owner' } : null,
+    resolveMyOrg: async c => c.userId === 501 ? { id: 7, name: 'Org 7', role: 100 } : null,
+    resolveIdentity: async raw => ({ organization: { id: 7, name: 'Org 7' }, user: { id: raw === 'sk-a' ? 102 : 103, name: 'U' } }),
+    searchUsers: async keyword => ({ items: [{ id: 102, name: 'Alice', username: 'alice', organizationId: 7 }, { id: 105, name: 'Dave', username: 'dave', organizationId: 8 }]
+      .filter(u => String(u.id) === keyword || u.name.toLowerCase().includes(keyword)), total: 2 }),
+  }
+  assert.equal((await access({ organizations: [7, 8] })).status, 200)
+  const login = await worker.fetch(new Request(ORIGIN + '/api/v1/session', { method: 'PUT', headers: { Origin: ORIGIN },
+    body: JSON.stringify({ tokensapi: true, accessToken: 'owner', userId: 501 }) }), env, {})
+  const cookie = login.headers.get('set-cookie').split(';')[0]
+  const call = (path, data) => worker.fetch(new Request(ORIGIN + '/api/v1' + path, { method: data === undefined ? 'GET' : 'PUT',
+    headers: { Cookie: cookie, Origin: ORIGIN }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) }), env, {})
+  assert.deepEqual((await (await call('/organizations/7/members?keyword=a')).json()).items.map(u => u.id), [102])
+  assert.equal((await call('/organizations/8/members?keyword=a')).status, 403)
+  assert.equal((await call(`/organizations/8/plugins/${metadata.id}`, { members: [105] })).status, 403)
+  assert.equal((await call(`/organizations/7/plugins/${metadata.id}`, { members: [105] })).status, 400)
+  assert.equal((await call(`/organizations/7/plugins/${metadata.id}`, { members: [102] })).status, 200)
+  assert.deepEqual([(await visible('sk-a')).includes(metadata.id), (await visible('sk-b')).includes(metadata.id)], [true, false])
+  const audit = db.prepare("SELECT actor_kind,details FROM market_audit_events WHERE action='tenant.plugin.updated' ORDER BY id DESC").get()
+  assert.deepEqual([audit.actor_kind, JSON.parse(audit.details)], ['tenant', { memberCount: 1 }])
+  // Purging the plugin or losing the organization takes the list with it.
+  db.prepare('DELETE FROM market_plugins WHERE id=?').run(metadata.id)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_org_members').get().n, 0)
 })
 
 // The Registry is storage only: it holds public and restricted plugins side by
