@@ -135,17 +135,18 @@ test('organization OR Key grants allow access and revoke independently', async t
   const { env, access, key, organization, visible, admin, db, revision } = fixture(t)
   for (const id of [1, 2]) assert.equal((await organization(id)).status, 200)
   let lookups = 0
-  env.MARKET_ORGANIZATIONS = { resolveOrganization: async raw => { lookups++; return ['sk-first', 'sk-second'].includes(raw) ? { id: 1, name: 'Org' } : raw === 'sk-other' ? { id: 2, name: 'Org' } : null } }
+  env.MARKET_ORGANIZATIONS = { resolveOrganization: async raw => { lookups++; return ['sk-first', 'sk-second', 'sk-third'].includes(raw) ? { id: 1, name: 'Org' } : raw === 'sk-other' ? { id: 2, name: 'Org' } : null } }
   const fp = await key('sk-direct')
   assert.equal((await access({ organizations: [1], keys: [fp] })).status, 200)
   for (const raw of [undefined, 'sk-first', 'sk-second', 'sk-other', 'sk-revoked', 'sk-direct'])
     assert.equal((await visible(raw)).length, ['sk-first', 'sk-second', 'sk-direct'].includes(raw) ? 1 : 0, raw)
   // A client-supplied organization never overrides the provider.
   assert.deepEqual(await visible('sk-other', '/roster.json?organizationId=1'), [])
-  // Several restricted plugins still cost one identity lookup per catalog request.
+  // Several restricted plugins still cost one identity lookup per catalog request,
   seedTestPlugin(db, { ...metadata, id: 'another-tool' })
   assert.equal((await access({ organizations: [1] }, 'another-tool')).status, 200)
-  lookups = 0; await visible('sk-first'); assert.equal(lookups, 1)
+  // and a Key's owner is asked once, then remembered for a while.
+  lookups = 0; await visible('sk-third'); await visible('sk-third'); assert.equal(lookups, 1)
   // Dropping the organization leaves the Key grant, and the reverse.
   assert.equal((await access({ keys: [fp] })).status, 200)
   assert.deepEqual(await visible('sk-first'), ['another-tool'])
@@ -171,7 +172,7 @@ test('a user grant follows the Key owner; per-subject grant lists replace and bu
   seedTestPlugin(db, { ...metadata, id: 'another-tool' })
   assert.equal((await access({}, 'another-tool')).status, 200)
   let lookups = 0
-  const owners = { 'sk-alice': 102, 'sk-alice-2': 102, 'sk-bob': 103 }
+  const owners = { 'sk-alice': 102, 'sk-alice-2': 102, 'sk-alice-3': 102, 'sk-bob': 103 }
   env.MARKET_ORGANIZATIONS = { resolveIdentity: async raw => { lookups++
     return { organization: raw === 'sk-bob' ? { id: 1, name: 'Org 1' } : null, user: owners[raw] ? { id: owners[raw], name: 'U' } : null } } }
   // A user must be in the directory before it can be granted anything.
@@ -187,7 +188,7 @@ test('a user grant follows the Key owner; per-subject grant lists replace and bu
   assert.deepEqual(await visible('sk-alice-2'), [metadata.id])
   assert.deepEqual(await visible('sk-bob'), [])
   assert.deepEqual(await visible(), [])
-  lookups = 0; await visible('sk-alice'); assert.equal(lookups, 1)
+  lookups = 0; await visible('sk-alice-3'); await visible('sk-alice-3'); assert.equal(lookups, 1)
   // The same grants edited from the subject's side: a full replace, with a revision step per change.
   const before = { a: revision(), b: revision('another-tool') }
   assert.equal((await admin('/users/102/grants', { plugins: ['another-tool', 'missing'] })).status, 400)
@@ -245,6 +246,33 @@ test('a direct Key survives an unavailable organization provider; others fail cl
   assert.equal((await call('/roster.json', 'sk-nothing')).status, 503)
   env.MARKET_ORGANIZATIONS = { resolveOrganization: async () => ({ id: 'not-a-number', name: 'Bad' }) }
   assert.equal((await call('/roster.json', 'sk-nothing')).status, 503)
+})
+
+test('a Key owner is remembered for a minute; failures and a new provider are asked again', async t => {
+  const { env, access, organization, visible, call } = fixture(t)
+  await organization(1)
+  assert.equal((await access({ organizations: [1] })).status, 200)
+  let lookups = 0, down = true, member = true
+  env.MARKET_ORGANIZATIONS = { resolveIdentity: async () => { lookups++
+    if (down) throw new Error('provider down')
+    return { organization: member ? { id: 1, name: 'Org' } : null, user: null } } }
+  assert.equal((await call('/roster.json', 'sk-member')).status, 503)
+  down = false
+  assert.deepEqual(await visible('sk-member'), [metadata.id])
+  assert.equal(lookups, 2)
+  // The owner changes in TokensAPI: the old answer holds until it expires.
+  member = false
+  assert.deepEqual(await visible('sk-member'), [metadata.id])
+  const now = Date.now
+  Date.now = () => now() + 61_000
+  try { assert.deepEqual(await visible('sk-member'), []) } finally { Date.now = now }
+  assert.equal(lookups, 3)
+  // Grants never wait for the cache.
+  member = true
+  env.MARKET_ORGANIZATIONS = { ...env.MARKET_ORGANIZATIONS }
+  assert.deepEqual(await visible('sk-member'), [metadata.id])
+  assert.equal((await access({})).status, 200)
+  assert.deepEqual(await visible('sk-member'), [])
 })
 
 test('database errors and a missing binding never fall back to a static catalog', async t => {

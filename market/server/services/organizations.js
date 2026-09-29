@@ -1,5 +1,6 @@
 import { createTokensApiOrganizations } from '../integrations/tokensapi-organizations.js'
 import { auditStatements } from './audit.js'
+import { fingerprint } from '../security/key-fingerprint.js'
 // Dependency injection is retained for isolated tests. HTTP configuration is server-only.
 const provider=env=>env.MARKET_ORGANIZATIONS??createTokensApiOrganizations(env)
 export const validOrganizationId = value => Number.isSafeInteger(value) && value > 0
@@ -46,9 +47,39 @@ export async function resolveOrganization(apiKey, env) {
   return { id: organization.id, name: organization.name }
 }
 const validUser = user => user && validOrganizationId(user.id) && typeof user.name === 'string' && user.name.length <= 200
-// Who a Key belongs to: its organization and its owner, from one upstream call. A provider that
-// only knows organizations answers with no user, so user grants simply never match.
+// Who a Key belongs to is asked on every catalog and Registry request a user or organization
+// grant could change, so each answer is kept for a minute per process: grants and switches still
+// apply at once, only a change of owner in TokensAPI takes up to a minute. Entries are keyed by the
+// Key's fingerprint, never its value; a failure is not kept, and a new provider starts afresh.
+const IDENTITY_TTL = 60_000
+const identities = new WeakMap()
 export async function resolveIdentity(apiKey, env) {
+  let cache = identities.get(env)
+  if (!cache || cache.source !== env.MARKET_ORGANIZATIONS) {
+    cache = { source: env.MARKET_ORGANIZATIONS, entries: new Map() }
+    identities.set(env, cache)
+  }
+  const id = await fingerprint(apiKey, env.MARKET_HMAC_SECRET)
+  const previous = cache.entries.get(id)
+  if (previous && (previous.pending || previous.expires > Date.now())) return previous.promise
+  if (cache.entries.size >= 4096) {
+    for (const [key, entry] of cache.entries) {
+      if (!entry.pending) cache.entries.delete(key)
+      if (cache.entries.size < 4096) break
+    }
+  }
+  const entry = { pending: true, expires: 0 }
+  entry.promise = lookupIdentity(apiKey, env).then(value => {
+    entry.pending = false
+    entry.expires = Date.now() + IDENTITY_TTL
+    return value
+  }, error => { cache.entries.delete(id); throw error })
+  cache.entries.set(id, entry)
+  return entry.promise
+}
+// One upstream call names the Key's organization and its owner. A provider that only knows
+// organizations answers with no user, so user grants simply never match.
+async function lookupIdentity(apiKey, env) {
   const source = provider(env)
   if (typeof source?.resolveIdentity !== 'function') return { organization: await resolveOrganization(apiKey, env), user: null }
   const identity = await bounded(() => source.resolveIdentity(apiKey))
