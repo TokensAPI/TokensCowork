@@ -122,7 +122,7 @@ function navigate(view) {
   }
   const [title, description] = platform() || currentView !== 'organizations'
     ? views[currentView]
-    : ['我的组织', '平台提供给本组织的插件；受限插件可以对本组织成员关闭。']
+    : ['我的组织', '平台提供给本组织的插件；受限插件可以对本组织关闭，或指定只给哪些成员。']
   $('page-title').textContent = title
   $('page-description').textContent = description
 }

@@ -8,6 +8,8 @@
  * one that drifts. Set MARKET_DEV_DATA_DIR to run against a real data directory (a copy of
  * the production volume's market.sqlite) instead of a throwaway database.
  * Usage: npm --prefix market/server run dev   |   npm --prefix market/server run dev:check
+ * `--offline` serves the fixtures with the fixture console accounts instead of the live TokensAPI
+ * sign-in (and without the production snapshot), for scripted browser checks.
  */
 import { createServer } from 'node:http'
 import { existsSync, readdirSync } from 'node:fs'
@@ -32,7 +34,7 @@ const nativeFetch = globalThis.fetch.bind(globalThis)
 // Console sign-in asks the real TokensAPI, because that is the part worth testing by hand.
 // The smoke run keeps the fixture site instead, so it stays offline and deterministic.
 const SITE = process.env.MARKET_DEV_TOKENSAPI || 'https://tokensapi.ai'
-const LIVE_SITE = !process.argv.includes('--smoke')
+const LIVE_SITE = !process.argv.includes('--smoke') && !process.argv.includes('--offline')
 // Once a production directory snapshot has been pulled (npm --prefix market/server run pull),
 // local QA runs against it by default: one inventory to reason about instead of fixtures that
 // quietly disagree with production. MARKET_DEV_SNAPSHOT points elsewhere; --smoke ignores both,
@@ -77,12 +79,16 @@ async function fixtureEnvironment() {
     'dev-disabled': { account: { id: 5004, username: 'disabled', displayName: '停用组织管理员 · 测试' },
       organization: { ...organizations[2], role: 100 } },
   }
-  // Key owners for user grants, as TokensAPI reports them beside the organization.
+  // Key owners for user grants, as TokensAPI reports them beside the organization. 乙 and 丙 are
+  // members of organization 101, which is what the user search reports as org_id.
   const users = [
-    { id: 6001, name: '测试用户甲', username: 'user-a' },
-    { id: 6002, name: '测试用户乙', username: 'user-b' },
+    { id: 6001, name: '测试用户甲', username: 'user-a', organizationId: null },
+    { id: 6002, name: '测试用户乙', username: 'user-b', organizationId: 101 },
+    { id: 6003, name: '测试用户丙', username: 'user-c', organizationId: 101 },
   ]
-  const keyOwners = { 'sk-test-personal': users[0], 'sk-test-org': users[1] }
+  const keyOwners = { 'sk-test-personal': users[0], 'sk-test-org': users[1], 'sk-test-org-2': users[2] }
+  const keyOrganization = key => ['sk-test-org', 'sk-test-org-2'].includes(key) ? organizations[0]
+    : key === 'sk-test-other' ? organizations[1] : key === 'sk-test-disabled' ? organizations[2] : null
   const owner = key => keyOwners[key] ? { id: keyOwners[key].id, name: keyOwners[key].name } : null
   // The pair is checked as a pair, the way TokensAPI does it: a real token under someone else’s
   // account id is nobody.
@@ -102,10 +108,8 @@ async function fixtureEnvironment() {
       // everything the market asks upstream about a person signing in to the console.
       resolveAccount: async credential => fixtureAccount(credential)?.account ?? null,
       resolveMyOrg: async credential => fixtureAccount(credential)?.organization ?? null,
-      resolveOrganization: async key => key === 'sk-test-org' ? organizations[0]
-        : key === 'sk-test-other' ? organizations[1] : key === 'sk-test-disabled' ? organizations[2] : null,
-      resolveIdentity: async key => ({ organization: key === 'sk-test-org' ? organizations[0]
-        : key === 'sk-test-other' ? organizations[1] : key === 'sk-test-disabled' ? organizations[2] : null, user: owner(key) }),
+      resolveOrganization: async key => keyOrganization(key),
+      resolveIdentity: async key => ({ organization: keyOrganization(key), user: owner(key) }),
       searchUsers: async keyword => {
         const items = users.filter(user => user.name.includes(keyword) || user.username.includes(keyword) || String(user.id) === keyword)
         return { items: items.map(user => ({ ...user })), total: items.length }
@@ -347,7 +351,23 @@ async function smoke() {
     assert.deepEqual([seat.role, seat.organizationId, seat.userId], ['organization', 101, '5001'])
     // The seat is narrowed on the server: its own organization, and nothing of the platform's.
     const offered = await read('/api/v1/organizations/101/plugins', undefined, tenantCookie)
-    assert.equal(offered.items.find(item => item.id === id).visible, true)
+    assert.deepEqual([offered.items.find(item => item.id === id).visible, offered.items.find(item => item.id === id).members], [true, []])
+    // Naming members: the search finds only organization 101's own people, a named list narrows
+    // the plugin to them, an outsider cannot be named, and an empty list is everyone again.
+    assert.equal(await visible('sk-test-org-2'), true)
+    const members = await read('/api/v1/organizations/101/members?keyword=' + encodeURIComponent('测试用户'), undefined, tenantCookie)
+    assert.deepEqual(members.items.map(user => user.id), [6002, 6003])
+    assert.equal((await call('/api/v1/organizations/102/members?keyword=user', undefined, tenantCookie)).status, 403)
+    assert.equal((await call(`/api/v1/organizations/101/plugins/${id}`, { members: [6001] }, tenantCookie)).status, 400)
+    assert.deepEqual((await read(`/api/v1/organizations/101/plugins/${id}`, { members: [6003] }, tenantCookie)).members, [{ id: 6003, name: '测试用户丙' }])
+    assert.deepEqual([await visible('sk-test-org'), await visible('sk-test-org-2'), await visible('sk-test-personal')], [false, true, true])
+    const registry = async apiKey => (await nativeFetch(`${app.origin}/registry/${id}/${encodeURIComponent(app.restricted.package)}`,
+      { headers: { Authorization: `Bearer ${apiKey}` } })).status
+    assert.deepEqual([await registry('sk-test-org'), await registry('sk-test-org-2')], [403, 503])
+    assert.equal((await read('/api/v1/organizations/101/plugins', undefined, cookie)).items.find(item => item.id === id).members.length, 1)
+    assert.deepEqual((await read('/api/v1/audit', undefined, cookie)).items[0].details, { memberCount: 1 })
+    await read(`/api/v1/organizations/101/plugins/${id}`, { members: [] }, tenantCookie)
+    assert.deepEqual([await visible('sk-test-org'), await visible('sk-test-org-2')], [true, true])
     await read(`/api/v1/organizations/101/plugins/${id}`, { enabled: false }, tenantCookie)
     assert.equal(await visible('sk-test-org'), false)
     for (const path of ['/api/v1/organizations/102', '/api/v1/organizations', '/api/v1/plugins', '/api/v1/keys'])
@@ -355,7 +375,7 @@ async function smoke() {
     assert.equal((await call('/v1/plugins')).status, 200)
     assert.equal((await call('/server/services/auth.js')).status, 404)
     await assert.rejects(globalThis.fetch('https://tokensapi.ai/api/organizations/all'), /External network/u)
-    console.log('Local market QA smoke passed: login (credential and TokensAPI account), session, organization/Key/user access, access save, user grants, organization switch, audit, catalog, and network isolation.')
+    console.log('Local market QA smoke passed: login (credential and TokensAPI account), session, organization/Key/user access, access save, user grants, organization members, organization switch, audit, catalog, and network isolation.')
   } finally { await app.close() }
 }
 
@@ -368,7 +388,8 @@ if (process.argv.includes('--smoke')) {
   if (SNAPSHOT) console.log('Production metadata snapshot loaded. Local-only edits; no production writes, no copied secrets. Memory resets on restart.')
   else {
     console.log('Fixture organization Key: sk-test-org | direct Key: sk-test-direct')
-    console.log(`TokensAPI console login is live against ${SITE}: sign in with your own user ID and access token. The organization it answers with is registered in this throwaway database on the way in.`)
+    if (!LIVE_SITE) console.log('Offline: console sign-in uses the fixture accounts (user 5001 with token dev-owner is an organization administrator).')
+    else console.log(`TokensAPI console login is live against ${SITE}: sign in with your own user ID and access token. The organization it answers with is registered in this throwaway database on the way in.`)
     console.log('All organizations, credentials and packages are TEST FIXTURES. Apart from that sign-in, external network is blocked; memory data resets on restart.')
   }
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)) })
