@@ -3,7 +3,7 @@
 > 自建 npm 仓库存放插件包，市场后台管理上架和权限，桌面应用负责下载安装。
 > 普通可选插件首次在后台登记，后续发布新版由市场发现，不需要每次修改桌面代码或重新打包。
 
-面向插件开发者、市场管理员、运维和项目负责人。最后核对：2026-09-23（仓库实现与配置核对，不代表完整客户端生产验收）。
+面向插件开发者、市场管理员、运维和项目负责人。最后核对：2026-09-29（仓库实现与配置核对，不代表完整客户端生产验收）。
 已知问题见[验收状态](#验收状态)，不要把架构说明当作全部功能已经验收通过。
 
 ## 服务入口与职责
@@ -198,6 +198,100 @@ TokensAPI 组织即租户。上表由平台决定「插件提供给哪些组织�
 - `/roster.json` 仅为兼容 HTTP 路径，不是需要开发者维护的文件。
 
 详见[新旧客户端来源兼容](server/CLIENT-SOURCES.md)。
+
+## 内部实现：权限、数据库与 TokensAPI
+
+一句话分工：**TokensAPI 管人**（谁是谁、属于哪个组织、是不是管理员），**市场管授权**（哪个插件给谁）。
+授权、组织启停和组织开关都存在市场自己的数据库里，改完下一次请求立即生效。
+
+### 代码分层
+
+| 文件 | 职责 |
+| --- | --- |
+| `server/market-worker.js` | 总路由：目录 `/v1/plugins`、`/roster.json`，下载 `/registry/*`，管理接口 `/api/v1/*`，后台静态页 |
+| `server/routes/api.js` | `/api/v1` 路由，每个接口先判定调用者能不能用 |
+| `server/private-registry/routes.js` | 插件下载，先过权限判断，再用市场的服务账号去私有 Registry 取包 |
+| `server/services/auth.js` | 调用者是谁：平台管理员 / 组织管理员，登录与会话 |
+| `server/services/access.js` | **唯一的可见性判断**，目录和下载共用 |
+| `server/services/plugins.js` | 插件资料、生命周期、访问范围与授权写入 |
+| `server/services/organizations.js` | 对接 TokensAPI：同步组织、查 Key 归属（带缓存）、组织管理员登录校验 |
+| `server/services/keys.js`、`users.js`、`audit.js` | Key 名录、用户名录、操作记录 |
+| `server/integrations/tokensapi-organizations.js` | 对 TokensAPI 的 HTTP 调用与响应校验 |
+
+### 数据库
+
+SQLite（自托管 runtime，保留 D1 接口形状），开启 `foreign_keys`。业务表 9 张，另有两张迁移记录表：
+
+| 表 | 作用 | 关键列 |
+| --- | --- | --- |
+| `market_plugins` | 插件，一行一个 | `id`、`visibility`（public / restricted）、`state`（draft / published / archived / deleted）、`metadata`（目录资料 JSON）、`revision` |
+| `market_grants` | **全部授权都在这一张表** | `plugin_id`、`kind`（org / key / user）、`subject`，三列联合主键 |
+| `market_organizations` | 从 TokensAPI 同步来的组织 | `id`、`name`、`enabled` |
+| `market_org_hidden` | 组织管理员关掉的插件，有行即关 | `organization_id`、`plugin_id` |
+| `market_keys` | Key 名录 | `fingerprint`（HMAC 指纹，主键）、`label`、`encrypted_value`（加密原文，仅供后台展示） |
+| `market_users` | 可被授权的 TokensAPI 用户 | `id`、`name` |
+| `market_sessions` | 后台会话 | `token_hash`、`organization_id`（平台管理员为 NULL）、`user_id`、`expires_at` |
+| `market_audit_events` | 操作记录，只增不删，与变更同事务写入 | 操作者、动作、对象、详情 |
+| `market_login_limits` | 登录失败限流 | |
+
+- `market_grants.subject`：组织存组织 ID，用户存用户 ID，Key 存指纹。Key 原文从不作查询条件。
+- 授权对象必须先在名录里：组织要先同步，用户要先加入用户名录，Key 要先登记。
+- 清理：删除插件时，其授权和组织开关由外键级联删除；删除 Key 或用户时，其授权在同一事务内一并删除。组织只同步不删除，停用即可。
+- 并发：插件的 `revision` 是唯一的乐观锁，改资料、上下架、改访问范围、改授权都会加 1，版本号不符返回 409。
+
+### 两种管理员
+
+| | 平台管理员 | 组织管理员 |
+| --- | --- | --- |
+| 认证 | 后台口令：`Authorization: Bearer <口令>`，或用口令登录后台 | TokensAPI 用户 ID + 访问令牌登录 |
+| 准入 | 口令正确 | TokensAPI 确认账号有效、组织角色 ≥ 10（Admin/Owner），且该组织已在市场登记并启用 |
+| 能做什么 | 全部：插件、访问范围、授权、组织同步与启停、Key 与用户名录、操作记录 | 只看本组织，对平台授给本组织的插件开 / 关（只能收窄） |
+| 代码限制 | — | 平台接口经 `onlyPlatform()` 返回 403；组织接口经 `organizationId()`，只能访问会话里的那个组织 |
+
+- 会话有效期 7 天。组织在市场被停用后，该组织的会话立即失效；更换后台口令或 HMAC 密钥，所有会话失效。
+- 组织管理员的角色只在登录时向 TokensAPI 核对。在 TokensAPI 撤掉其管理员身份后，已有会话要等到期或退出才结束。
+- 用会话 cookie 发起的写操作必须来自后台同源页面；Bearer 口令调用不受此限。
+
+### 可见性判断（`services/access.js`）
+
+```text
+Key 能看到插件 P  ⇔  P 已上架，且满足任意一条：
+  ① P 公开
+  ② P 授给了这个 Key                       market_grants(kind='key',  subject=Key 指纹)
+  ③ P 授给了这个 Key 的所属用户             market_grants(kind='user', subject=用户 ID)
+  ④ P 授给了这个 Key 的所属组织              market_grants(kind='org',  subject=组织 ID)
+       且该组织 enabled=1，且 market_org_hidden 中没有 (组织, P)
+```
+
+判断分两步，尽量少问 TokensAPI：
+
+1. 只查本库：算出 Key 指纹，取它的单独授权（②），以及“哪些插件授给过任何组织或用户”。
+2. 只有存在受限插件没被 ② 命中、而它又授给过组织或用户时，才向 TokensAPI 查 Key 归属，每次请求最多查一次；再判断 ③④。
+
+目录（`filterRoster`）和下载（`allowed`）调用同一个 `decide()`，看得到就下载得了，看不到就下载不了。
+内置组件由应用管理，不经过这里。
+
+### 与 TokensAPI 的联动
+
+| TokensAPI 接口 | 凭证 | 用途 |
+| --- | --- | --- |
+| `GET /api/current/organization` | 用户的 `sk-` Key | 查 Key 的所属组织和所属用户，用于 ③④ |
+| `GET /api/organizations/all` | 市场的管理令牌（仅服务端） | 后台「同步组织」 |
+| `GET /api/manage/users/search` | 同上 | 后台添加用户时搜索 |
+| `GET /api/user/self` | 组织管理员粘贴的访问令牌 | 登录时确认账号 |
+| `GET /api/org/` | 同上 | 登录时取组织与角色（`my_role`） |
+
+- **Key 归属缓存**：成功结果按 Key 指纹在进程内缓存 60 秒，失败不缓存。只有 TokensAPI 中 Key 换了组织或所属用户，市场最多晚 1 分钟生效。
+- **超时与故障**：单次调用最多等 8 秒。TokensAPI 不可用时，持有单独 Key 授权的 Key 仍按 ② 返回；其余依赖 ③④ 的请求，目录和下载都返回 503，宁可报错也不多放行。
+- **Key 或组织在 TokensAPI 停用**：该 Key 视为既无组织也无所属用户，③④ 都不命中。② 只认 Key 本身，不向 TokensAPI 核对。
+- **同步组织**：只新增和改名，不会重新启用市场里停用的组织，也不会因某次同步缺少某个组织而删除它的授权；返回数据无效时整次放弃。
+- 组织管理员的访问令牌只用于登录这两次调用，不保存、不缓存、不记录。
+
+### 一次请求的路径
+
+桌面端带 `sk-` Key 读 `/v1/plugins`：取全部已上架插件 → `filterRoster` 按上面两步逐个 `decide()` →
+按客户端声明的来源能力过滤（兼容旧桌面）→ 补最新版本号，查不到版本的 npm 插件不列出 → 本地化 → 返回。
+安装时走 `/registry/<插件ID>/<包名>`，先过同一个 `allowed()`，通过后由市场用服务账号从私有 Registry 取包，用户拿不到 Registry 凭证。
 
 ## 工程和部署边界
 
