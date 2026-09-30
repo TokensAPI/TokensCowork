@@ -327,6 +327,8 @@ const ACTIONS = {
 }
 function actorText(actor) {
   if (actor?.kind === 'tenant') return `组织管理员 · 用户 ${actor.id}${actor.organizationId ? ` · 组织 #${actor.organizationId}` : ''}`
+  if (actor?.kind === 'root' && actor.id?.startsWith('tokensapi:'))
+    return `平台口令 · TokensAPI 代用户 ${actor.id.slice('tokensapi:'.length)}${actor.organizationId ? ` · 组织 #${actor.organizationId}` : ''}`
   if (actor?.kind === 'root') return actor.id === 'token' ? '平台管理员 · 口令' : '平台管理员 · 会话'
   return '历史记录'
 }

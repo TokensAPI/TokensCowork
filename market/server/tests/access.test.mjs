@@ -368,9 +368,52 @@ test('organization administrators sign in with TokensAPI and manage only their o
   assert.equal((await call('/organizations/7', { name: 'Renamed', enabled: true })).status, 403)
   assert.equal((await call(`/organizations/7/plugins/${metadata.id}`, { enabled: true })).status, 200)
   assert.deepEqual(await visible('sk-seven'), [metadata.id])
-  // Disabling the organization ends the session.
+  // Disabling the organization ends the session; switching it on again revives none.
   assert.equal((await organization(7, false)).status, 200)
   assert.equal((await call('/session').then(r => r.json())).authenticated, false)
+  assert.equal((await organization(7)).status, 200)
+  assert.equal((await call('/session').then(r => r.json())).authenticated, false)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_sessions WHERE organization_id=7').get().n, 0)
+})
+
+test('losing an organization grant drops its switch and member list; operator headers are only recorded', async t => {
+  const { env, db, access, organization, admin, call, visible } = fixture(t)
+  await organization(7); await organization(8)
+  env.MARKET_ORGANIZATIONS = {
+    resolveIdentity: async raw => ({ organization: { id: raw === 'sk-a' ? 7 : 8, name: 'Org' }, user: { id: raw === 'sk-a' ? 102 : 105, name: 'U' } }),
+    searchUsers: async keyword => ({ items: [{ id: 102, name: 'Alice', username: 'alice', organizationId: 7 }, { id: 105, name: 'Dave', username: 'dave', organizationId: 8 }]
+      .filter(u => String(u.id) === keyword), total: 1 }),
+  }
+  assert.equal((await access({ organizations: [7, 8] })).status, 200)
+  const narrow = () => Promise.all([admin(`/organizations/7/plugins/${metadata.id}`, { enabled: false, members: [102] }),
+    admin(`/organizations/8/plugins/${metadata.id}`, { members: [105] })])
+  const state = async id => {
+    const item = (await (await admin(`/organizations/${id}/plugins`)).json()).items.find(p => p.id === metadata.id)
+    return item && [item.enabled, item.members.map(m => m.id)]
+  }
+  const hidden = () => db.prepare('SELECT organization_id FROM market_org_hidden ORDER BY 1').all().map(r => r.organization_id)
+  // From the organization's side: organization 7 loses the grant, organization 8 keeps its list.
+  await narrow()
+  assert.equal((await admin('/organizations/7/grants', { plugins: [] })).status, 200)
+  assert.deepEqual([hidden(), await state(8)], [[], [true, [105]]])
+  assert.deepEqual((await (await admin('/organizations')).json()).items.map(o => [o.id, o.granted, o.hidden]), [[7, 0, 0], [8, 1, 0]])
+  assert.equal((await admin('/organizations/7/grants', { plugins: [metadata.id] })).status, 200)
+  assert.deepEqual(await state(7), [true, []])
+  assert.deepEqual(await visible('sk-a'), [metadata.id])
+  // From the plugin's side: the access dialog drops organization 7; going public keeps both.
+  await narrow()
+  assert.equal((await access({ visibility: 'public', organizations: [7, 8] })).status, 200)
+  assert.deepEqual(hidden(), [7])
+  assert.equal((await access({ organizations: [8] })).status, 200)
+  assert.deepEqual([hidden(), await state(8)], [[], [true, [105]]])
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_org_members WHERE organization_id=7').get().n, 0)
+  // TokensAPI naming its operator changes the audit line, never the answer.
+  const op = (headers, data) => call(`/api/v1/organizations/8/plugins/${metadata.id}`, 'admin-secret', data, headers)
+  assert.equal((await op({ 'X-TokensAPI-Operator-Id': '5001', 'X-TokensAPI-Operator-Org-Id': '8' }, { members: [] })).status, 200)
+  assert.equal((await op({ 'X-TokensAPI-Operator-Id': 'x', 'X-TokensAPI-Operator-Org-Id': '8' }, { enabled: true })).status, 200)
+  assert.equal((await call('/api/v1/plugins', 'wrong', undefined, { 'X-TokensAPI-Operator-Id': '5001' })).status, 401)
+  const actors = db.prepare("SELECT actor_kind,actor_id,organization_id FROM market_audit_events WHERE action='tenant.plugin.updated' ORDER BY id DESC LIMIT 2").all()
+  assert.deepEqual(actors.map(a => [a.actor_kind, a.actor_id, a.organization_id]), [['root', 'token', null], ['root', 'tokensapi:5001', 8]])
 })
 
 test('an organization grant reaches every member until the organization names members', async t => {

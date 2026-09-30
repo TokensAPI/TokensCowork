@@ -21,7 +21,15 @@ const version = env => digest(env.MARKET_HMAC_SECRET + '\0' + env.MARKET_ADMIN_T
 const cookieValue = request => request.headers.get('cookie')?.split(';').map(s => s.trim()).find(s => s.startsWith(NAME + '='))?.slice(NAME.length + 1) ?? ''
 const cookie = (value, age) => NAME + '=' + value + '; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=' + age
 
-const platform = via => ({ role: 'platform', organizationId: null, via, actor: { kind: 'root', id: via === 'bearer' ? 'token' : 'session', organizationId: null } })
+const platform = (via, operator = null) => ({ role: 'platform', organizationId: null, via,
+  actor: { kind: 'root', id: operator?.id ?? (via === 'bearer' ? 'token' : 'session'), organizationId: operator?.organizationId ?? null } })
+const positive = value => /^[1-9][0-9]{0,15}$/u.test(value ?? '') && Number.isSafeInteger(Number(value)) ? Number(value) : null
+// TokensAPI calling with the admin token may name the person it acts for. The claim is only written
+// to the audit log and never grants or narrows anything: the token alone decides what is allowed.
+function operator(request) {
+  const id = positive(request.headers.get('x-tokensapi-operator-id'))
+  return id ? { id: 'tokensapi:' + id, organizationId: positive(request.headers.get('x-tokensapi-operator-org-id')) } : null
+}
 const organization = (organizationId, userId) => ({ role: 'organization', organizationId, via: 'session',
   actor: { kind: 'tenant', id: String(userId ?? ''), organizationId } })
 export const isPlatform = principal => principal?.role === 'platform'
@@ -37,7 +45,7 @@ export async function adminTokenMatches(value, env) {
  */
 export async function resolvePrincipal(request, env) {
   const token = bearer(request)
-  if (token) return await adminTokenMatches(token, env) ? platform('bearer') : null
+  if (token) return await adminTokenMatches(token, env) ? platform('bearer', operator(request)) : null
   const value = cookieValue(request)
   if (!/^[a-f0-9]{64}$/u.test(value) || !env.MARKET_ADMIN_TOKEN) return null
   // The organization comes from the session row, and disabling it ends the session.

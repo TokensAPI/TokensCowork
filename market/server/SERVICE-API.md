@@ -29,8 +29,9 @@
 | 查组织实际能用哪些 | `GET /organizations/{orgId}/plugins`，`visible` 为 `true` 的就是 |
 | 代组织管理员开关、指定成员 | `PUT /organizations/{orgId}/plugins/{pluginId}` `{"enabled":false}` 或 `{"members":[102]}` |
 
-- `grants` 是**全量替换**：传的就是最终名单，空数组即全部撤销。组织、用户须先登记，否则 `404`。
+- `grants` 是**全量替换**：传的就是最终名单，空数组即全部撤销。组织、用户须先登记，否则 `404`。撤掉某个组织的授权时，该组织对这个插件的开关和成员名单一并清掉，再授予即从全员可见重新开始。
 - 授权只对**受限**插件起作用，公开插件人人可见；公开/受限由 `PUT /plugins/{pluginId}/access` 或后台设置。
+- 可选：代某个组织管理员操作时带上 `X-TokensAPI-Operator-Id`（操作人用户号）和 `X-TokensAPI-Operator-Org-Id`（其组织号），操作记录会写成「TokensAPI 代用户 N · 组织 #M」。这两个头只作记录，不影响权限：市场只认口令，操作人是否该组织的管理员由 TokensAPI 自己把关。
 - 标着「后台专用」的接口（登录、退出、导入 npm 资料）是后台页面自己用的，TokensAPI 不需要调。
 
 ## 认证

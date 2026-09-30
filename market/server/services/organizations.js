@@ -156,13 +156,15 @@ export async function getOrganization(env, id) {
   if (!row) fail('组织不存在', 404)
   return { ...row, enabled: row.enabled === 1 }
 }
-// Registering an organization by hand, renaming it, or switching it off for the whole market.
+// Registering an organization by hand, renaming it, or switching it off for the whole market;
+// switching it off also signs its administrators out, so switching it on again revives no session.
 export async function saveOrganization(env, id, data, actor) {
   if (!validOrganizationId(id) || !(typeof data?.name === 'string' && data.name.trim() && data.name.length <= 200)
     || typeof data?.enabled !== 'boolean') fail('请填写有效的组织名称和启用状态')
   await env.MARKET_DB.batch([
     env.MARKET_DB.prepare(`INSERT INTO market_organizations(id,name,enabled) VALUES(?,?,?)
       ON CONFLICT(id) DO UPDATE SET name=excluded.name,enabled=excluded.enabled`).bind(id, data.name.trim(), Number(data.enabled)),
+    ...(data.enabled ? [] : [env.MARKET_DB.prepare('DELETE FROM market_sessions WHERE organization_id=?').bind(id)]),
     ...auditStatements(env, 'organization.updated', id, { enabled: data.enabled }, actor),
   ])
   return { ok: true }

@@ -262,6 +262,12 @@ const subjectList = (kind, value, label) => {
   return [...new Set(value)]
 }
 
+// An organization's switch and member list only narrow its grant; losing the grant takes them
+// along, so granting the plugin again starts afresh with every member.
+const dropUngranted = (env, pluginId) => ['market_org_hidden', 'market_org_members'].map(table =>
+  env.MARKET_DB.prepare(`DELETE FROM ${table} WHERE plugin_id=? AND organization_id NOT IN
+    (SELECT CAST(subject AS INTEGER) FROM market_grants WHERE plugin_id=? AND kind='org')`).bind(pluginId, pluginId))
+
 // The whole access configuration in one write: the scope, and who a restricted plugin is
 // granted to. A public plugin keeps its grants, so switching back to restricted restores them.
 export async function setPluginAccess(env, id, data, actor) {
@@ -277,6 +283,7 @@ export async function setPluginAccess(env, id, data, actor) {
       .bind(data.visibility, entry.revision + 1, Date.now(), id),
     env.MARKET_DB.prepare('DELETE FROM market_grants WHERE plugin_id=?').bind(id),
     ...Object.entries(chosen).flatMap(([kind, values]) => values.map(value => grant(kind, value))),
+    ...dropUngranted(env, id),
     ...auditStatements(env, 'plugin.access.updated', id, { visibility: data.visibility,
       organizationCount: chosen.org.length, keyCount: chosen.key.length, userCount: chosen.user.length }, actor),
   ])
@@ -309,6 +316,7 @@ export async function setSubjectGrants(env, kind, subject, data, actor) {
   await env.MARKET_DB.batch([
     ...removed.map(id => env.MARKET_DB.prepare('DELETE FROM market_grants WHERE plugin_id=? AND kind=? AND subject=?').bind(id, kind, String(subject))),
     ...added.map(id => env.MARKET_DB.prepare('INSERT INTO market_grants(plugin_id,kind,subject) VALUES(?,?,?)').bind(id, kind, String(subject))),
+    ...(kind === 'org' ? removed.flatMap(id => dropUngranted(env, id)) : []),
     ...changed.map(id => env.MARKET_DB.prepare('UPDATE market_plugins SET revision=revision+1,updated_at=? WHERE id=?').bind(now, id)),
     ...auditStatements(env, 'grants.updated', `${kind}:${subject}`, { pluginCount: wanted.size, added: added.length, removed: removed.length }, actor),
   ])
