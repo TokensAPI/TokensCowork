@@ -21,6 +21,13 @@ test('web-search slash command supplies a lazy description without changing its 
   assert.throws(() => alignWebSearchCommandDescription(source.replace('切换搜索引擎', 'new contract')), /changed/)
   assert.throws(() => alignWebSearchCommandDescription(source.replace('command.register', 'different.register')), /changed/)
 
+  const localized = 'commandUi.register({ name: "tokens-dsh-web-search", description: () => t("description"), available: () => true, ui: { kind: "popupSelect" } })'
+  assert.equal(alignWebSearchCommandDescription(localized), localized)
+  new Function('commandUi', 't', localized)({ register: value => { contribution = value } }, () => 'Switch search engine')
+  assert.equal(contribution.description(), 'Switch search engine')
+  assert.equal(contribution.ui.kind, 'popupSelect')
+  assert.throws(() => alignWebSearchCommandDescription(localized.replace('() => t("description")', '"static"')), /changed/)
+
   const root = resolve(import.meta.dirname, '../../..')
   const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
   const plugin = product.plugins.find(item => item.id === 'tokens-dsh-web-search')

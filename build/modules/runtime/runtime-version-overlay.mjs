@@ -63,14 +63,16 @@ export function alignRuntimeResolutions(resolutions, version) {
   return result
 }
 
-/** Pinned web-search client predates DSH's lazy command-description contract. */
+/** Adapt legacy search commands; the current commandUi client already supplies localized lazy copy. */
 export function alignWebSearchCommandDescription(source) {
   const old = 'description: "切换搜索引擎 / Switch web search engine",'
   const current = 'description: () => "切换搜索引擎 / Switch web search engine",'
-  const registration = /command\.register\(\{\s*name: "tokens-dsh-web-search",/g
+  const registration = /(?:command|commandUi)\.register\(\{\s*name: "tokens-dsh-web-search",/g
   if ([...source.matchAll(registration)].length !== 1) {
     throw new Error('Web-search command registration changed; review plugin compatibility')
   }
+  const localized = 'description: () => t("description"),'
+  if (source.includes('commandUi.register({') && source.split(localized).length - 1 === 1) return source
   const oldCount = source.split(old).length - 1
   const currentCount = source.split(current).length - 1
   if (oldCount === 0 && currentCount === 1) return source
