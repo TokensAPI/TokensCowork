@@ -59,9 +59,9 @@
       "description": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
       "path": "plugins/tokens_DshLogin_code",
       "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
-      "commit": "a0019053b223951a622aba11544e149f0dc73341",
+      "commit": "e4abce1c9f0b43dd3e71bdd0364fba12e8382196",
       "package": "@tokensapi/dsh-login",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
