@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { requiredReleaseSections, validateReleaseNotes } from './validate-release-notes.mjs'
+import { fullNotes } from './full-release-notes-fixture.mjs'
 
 function validNotes(version = '0.1.0') {
   return [
@@ -50,4 +51,17 @@ test('rejects title, section, placeholder, and planning residue errors', () => {
   assert.ok(errors.includes('missing required section: ## 下载说明'))
   assert.ok(errors.includes('template placeholders must be resolved'))
   assert.ok(errors.includes('TODO/TBD markers are not allowed'))
+})
+
+test('full template accepts filled bilingual notes and rejects incomplete structure', () => {
+  const validate = content => validateReleaseNotes({ content, version: '0.5.14', fullTemplate: true })
+  const notes = fullNotes()
+  assert.deepEqual(validate(notes), [])
+  assert.deepEqual(validate(notes.replaceAll('\n', '\r\n')), [])
+  assert.ok(validate(notes.slice(0, notes.indexOf("## What's New"))).length > 0)
+  assert.ok(validate(notes.replace('### 🐛 Bug Fixes', '### Not a category')).some(error => error.includes('both languages')))
+  assert.ok(validate(notes.replaceAll('TokensCowork-0.5.14-windows', 'TokensCowork-0.5.13-windows')).some(error => error.includes('asset link')))
+  assert.ok(validate(notes.replace('### 从旧版本升级', '### 其他')).some(error => error.includes('installation subsection')))
+  assert.ok(validate(notes + '\n## 本次更新\n\nDuplicate.').some(error => error.includes('without duplicates')))
+  assert.ok(validate(notes.replace(/## 已知限制[^]*?(?=## 完整变更)/, '## 已知限制\n\n')).some(error => error.includes('must contain content')))
 })

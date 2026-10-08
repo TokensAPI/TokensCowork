@@ -7,9 +7,10 @@
 ## 发布方式
 
 - **本地手动打包**：在当前操作系统生成验证用安装包，不会自动创建 GitHub Release。
-- **正式发布**：推送 `v*` Tag，由 GitHub Actions 构建 Windows AMD64、macOS ARM64 和 macOS AMD64，通过后自动创建 Release 并更新下载页。
+- **构建预发布**：推送 `v*` Tag，由 GitHub Actions 构建 Windows AMD64、macOS ARM64 和 macOS AMD64，通过后创建预发布并更新下载页。
+- **晋级正式发布**：验收已有预发布并补齐上一正式版以来的完整说明后，运行 `Promote Desktop Release`，输入原标签；复用已验收的安装包，不重新构建。
 
-新增插件后需要对外发布时，使用第二种方式。
+新增插件后先构建预发布，完成验收后再晋级。
 
 ## 1. 准备环境
 
@@ -76,10 +77,10 @@ corepack yarn product:refresh-lock
 
 ## 5. 设置产品版本
 
-`VERSION` 是唯一可手动设置的版本源。例如发布 `0.3.1`：
+`VERSION` 是唯一可手动设置的版本源。例如发布 `0.5.14`：
 
 ```powershell
-$env:VERSION = "0.3.1"
+$env:VERSION = "0.5.14"
 bash scripts/set-version.sh
 Remove-Item Env:VERSION
 corepack yarn product:version-check
@@ -89,10 +90,12 @@ corepack yarn product:version-check
 
 ## 6. 编写发布说明
 
-创建 `docs/releases/v0.3.1.md`，首行必须是：
+先复制 [完整发布模板](releases/TEMPLATE.md)，按 [模板填写规范](releases/TEMPLATE-GUIDE.md) 编写中英文更新、下载、安装升级和验证信息。无内容的更新分类可以删除，验证状态必须与实际执行范围一致。
+
+创建 `docs/releases/v0.5.14.md`，首行必须是：
 
 ```markdown
-# TokensCowork v0.3.1
+# TokensCowork v0.5.14
 ```
 
 文件必须包含以下章节：
@@ -110,8 +113,8 @@ corepack yarn product:version-check
 
 ```powershell
 node scripts/validate-release-notes.mjs `
-  --version 0.3.1 `
-  --file docs/releases/v0.3.1.md
+  --version 0.5.14 `
+  --file docs/releases/v0.5.14.md --format full
 
 corepack yarn test:release-notes
 ```
@@ -157,16 +160,16 @@ git add .gitmodules plugins/tokens_NewPlugin_code product.json build/pipeline/pr
 git commit -m "feat(product): bundle new plugin" `
   -m "登记并默认启用新插件，同步固定提交和产品依赖锁。"
 
-git add VERSION package.json product.json docs/releases/v0.3.1.md
-git commit -m "build(release): prepare 0.3.1" `
-  -m "同步 0.3.1 产品版本与发布说明，为正式构建做好准备。"
+git add VERSION package.json product.json docs/releases/v0.5.14.md
+git commit -m "build(release): prepare 0.5.14" `
+  -m "同步 0.5.14 产品版本与发布说明，为正式构建做好准备。"
 
 git push origin master
 ```
 
 不要把本地缓存、安装包、密钥、签名证书或与本次发布无关的修改带入提交。
 
-## 9. 创建 Tag 并自动发布
+## 9. 创建 Tag 并构建预发布
 
 确认 `master` 已经推送，且 `HEAD` 正是要发布的提交：
 
@@ -179,8 +182,8 @@ git ls-remote origin refs/heads/master
 创建并推送 Tag：
 
 ```powershell
-git tag -a v0.3.1 -m "TokensCowork v0.3.1"
-git push origin v0.3.1
+git tag -a v0.5.14 -m "TokensCowork v0.5.14"
+git push origin v0.5.14
 ```
 
 Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release.yml) 会自动：
@@ -197,7 +200,29 @@ Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/acti
 - [GitHub Releases](https://github.com/TokensAPI/TokensCowork/releases)
 - [TokensCowork 下载页](https://tokensapi.github.io/TokensCowork/)
 
-## 10. 失败处理
+## 10. 晋级正式发布
+
+完成候选版验收后，先更新对应版本 Markdown，汇总上一正式版以来的变化，并将中英文“完整变更”链接改为该正式版至当前版本的范围。提交并推送说明，再执行：
+
+```powershell
+node scripts/promote-release.mjs v0.5.14
+gh workflow run promote-release.yml --ref master -f tag=v0.5.14
+```
+
+第一个命令仅预检，第二个工作流复用现有标签和安装包，更新说明并晋级为正式版。缺失平台附件、说明不完整或版本低于最新正式版时拒绝晋级。不要为变更发布状态移动标签或重新构建。
+
+## 11. 历史版本保留
+
+`v0.4.0` 之前的 `v0.1.x`、`v0.2.x`、`v0.3.x` 各保留版本号最新的三个已发布 Release，并同步保留对应 Markdown。Git 标签和提交历史保留。
+
+```powershell
+node scripts/prune-legacy-releases.mjs
+node scripts/prune-legacy-releases.mjs --apply
+```
+
+第一个命令仅列出清理计划；第二个命令删除旧 Releases 及其附件和 Markdown，执行前在 `.build/diagnostics/` 保存元数据与 Markdown。该备份不包含安装包；需要保留旧二进制时应先自行归档。脚本不清理草稿、带候选后缀的版本或 `v0.4.0` 及后续版本。
+
+## 12. 失败处理
 
 - 构建失败后先查看失败 Job 和具体 Step，不要只重试失败流程。
 - 尚未创建 Release 时，修复代码后仍需要让 Tag 指向新的已验证提交；这会改写远程 Tag，必须先确认没有人已经下载或基于旧 Tag 继续工作。

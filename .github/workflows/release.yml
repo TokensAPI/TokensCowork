@@ -2,12 +2,6 @@ name: Build Desktop
 
 on:
   workflow_dispatch:
-    inputs:
-      prerelease:
-        description: "Publish as a GitHub Pre-release"
-        required: false
-        default: true
-        type: boolean
   push:
     tags:
       - "v*"
@@ -47,9 +41,10 @@ jobs:
           tag="v${version}"
           release_notes="docs/releases/v${version}.md"
           bash scripts/set-version.sh --check
-          node scripts/validate-release-notes.mjs --version "${version}" --file "${release_notes}"
+          node scripts/validate-release-notes.mjs --version "${version}" --file "${release_notes}" --format full
           node --test scripts/validate-release-notes.test.mjs
           node --test scripts/generate-plugin-manifest.test.mjs
+          node --test scripts/release-notes-display.test.mjs
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
             echo "Release tag ${GITHUB_REF_NAME} does not match VERSION=${version}" >&2
             exit 1
@@ -62,11 +57,8 @@ jobs:
           printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
           printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
           printf 'release_notes=%s\n' "${release_notes}" >> "${GITHUB_OUTPUT}"
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${{ inputs.prerelease }}" == "false" ]]; then
-            printf 'prerelease=false\n' >> "${GITHUB_OUTPUT}"
-          else
-            printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
-          fi
+          # Build once as a candidate; Promote Desktop Release reuses its assets.
+          printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
 
   windows-amd64:
     name: Verify product and build Windows amd64 installer

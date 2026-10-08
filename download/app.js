@@ -274,7 +274,7 @@
 
   function visibleReleaseBody(markdown) {
     var skippedLevel = 0;
-    return String(markdown || "").split(/\r?\n/).filter(function (line) {
+    return window.TokensReleaseNotes.selectLanguage(markdown, currentLanguage).split(/\r?\n/).filter(function (line) {
       var heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
       if (heading) {
         var level = heading[1].length;
@@ -441,19 +441,7 @@
   }
 
   function releaseIntroduction(body) {
-    var lines = visibleReleaseBody(body).split(/\r?\n/);
-    var paragraph = [];
-    for (var i = 0; i < lines.length; i += 1) {
-      var line = lines[i].trim();
-      if (!line) {
-        if (paragraph.length) break;
-        continue;
-      }
-      if (/^#\s+/.test(line) && !paragraph.length) continue;
-      if (/^(#{1,6}\s|[-*+]\s|\d+\.\s|\x60\x60\x60|>|\|)/.test(line)) break;
-      paragraph.push(line);
-    }
-    return paragraph.join(" ").replace(/^(?:本次更新|本版本|本次发布)(?:[：:]\s*|\s*)/, "").trim();
+    return window.TokensReleaseNotes.introduction(body, currentLanguage);
   }
 
   function renderUpgradeSummary(release) {
@@ -912,6 +900,8 @@
     return (Array.isArray(releases) ? releases : []).filter(function (item) {
       return item && !item.draft;
     }).sort(function (left, right) {
+      var versionOrder = window.TokensReleaseNotes.compareVersions(right.tag_name, left.tag_name);
+      if (versionOrder) return versionOrder;
       return new Date(right.published_at || right.created_at) - new Date(left.published_at || left.created_at);
     });
   }
