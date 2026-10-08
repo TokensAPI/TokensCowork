@@ -175,3 +175,16 @@ Build and test records: [{{WORKFLOW_NAME}}]({{WORKFLOW_URL}}).
 ## Full Changelog
 
 [View all commits from v{{PREVIOUS_VERSION}} to v{{VERSION}}](https://github.com/TokensAPI/TokensCowork/compare/v{{PREVIOUS_VERSION}}...v{{VERSION}})
+
+<!--
+填写规则（仅供维护者阅读，发布页面不显示）：
+1. 预发布与稳定版共用本模板。保留首行版本标题、直接描述变化的摘要及六个中英文主章节；两种语言内容一致。
+2. 更新按新增、修复、优化、其他分类；无内容的分类可删除，同一变化只写一次。描述用户可见的行为，不编造功能、贡献者或验证结论。
+3. 组件信息核对当前标签的 product.json，仅列实际内置组件。下载链接、处理器架构、系统要求及签名状态以当前产物为准。
+4. 安装说明覆盖 Windows、macOS、旧版升级，以及数据保留、迁移、重启和授权要求。无需操作时明确写明。
+5. 验证章节区分构建、自动测试和真机验收，未执行的写“未验证”；测试数量、源码提交和工作流链接放在这里。已知限制写具体影响和当前验证边界。
+6. 预发布写相对上一个版本的变化；转稳定版前合并上一稳定版以来的内容、去重，并同步中英文完整变更链接的起止标签。发布脚本不会自动合并内容。
+7. 转稳定版使用 Promote Desktop Release 工作流，复用已有标签和安装包。发布状态由 GitHub 元数据管理，不写入摘要；下载页只展示版本改动。
+8. 保留两个语言锚点和导航链接。GitHub Release 不生成标题锚点，会为 name 添加 user-content- 前缀；下载页按钮切换所显示的语言。
+9. 发布前解析全部占位符，并通过完整模板校验；空章节不能发布。具体发布操作见 docs/manual-release.md。
+-->
