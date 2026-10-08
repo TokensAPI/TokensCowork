@@ -2,7 +2,9 @@
 
 {{SUMMARY_ZH_用一两句话直接描述主要功能与修复}}
 
-[中文](#本次更新) | [English](#whats-new)
+[中文](#user-content-release-notes-zh) | [English](#user-content-release-notes-en)
+
+<a name="release-notes-zh"></a>
 
 ## 本次更新
 
@@ -87,6 +89,8 @@
 [查看 v{{PREVIOUS_VERSION}}...v{{VERSION}} 的全部提交](https://github.com/TokensAPI/TokensCowork/compare/v{{PREVIOUS_VERSION}}...v{{VERSION}})
 
 ---
+
+<a name="release-notes-en"></a>
 
 ## What's New
 

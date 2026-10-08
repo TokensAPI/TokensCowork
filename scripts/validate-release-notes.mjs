@@ -36,6 +36,17 @@ export function validateReleaseNotes({ content, version, fullTemplate = false })
     }
   }
   if (fullTemplate) {
+    // GitHub Releases do not generate heading IDs; named anchors are prefixed by its sanitizer.
+    for (const [language, heading] of [['zh', '本次更新'], ['en', "What's New"]]) {
+      const anchor = `<a name="release-notes-${language}"></a>`
+      if (!content.includes(`${anchor}\n\n## ${heading}`) && !content.includes(`${anchor}\r\n\r\n## ${heading}`)) {
+        errors.push(`missing language anchor before heading: ${language}`)
+      }
+    }
+    if (!content.includes('[中文](#user-content-release-notes-zh) | [English](#user-content-release-notes-en)')) {
+      errors.push('language navigation must link to the explicit GitHub language anchors')
+    }
+
     const english = ["What's New", 'Downloads', 'Installation', 'Verification', 'Known Limitations', 'Full Changelog']
     const expected = [...requiredReleaseSections, ...english]
     if (JSON.stringify(headings.map(heading => heading.name)) !== JSON.stringify(expected)) {

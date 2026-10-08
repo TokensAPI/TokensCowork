@@ -57,6 +57,9 @@ test('full template accepts filled bilingual notes and rejects incomplete struct
   const validate = content => validateReleaseNotes({ content, version: '0.5.14', fullTemplate: true })
   const notes = fullNotes()
   assert.deepEqual(validate(notes), [])
+  assert.ok(validate(notes.replace('<a name="release-notes-en"></a>', '')).some(error => error.includes('language anchor')))
+  assert.ok(validate(notes.replace('#user-content-release-notes-en', '#whats-new')).some(error => error.includes('language navigation')))
+
   assert.deepEqual(validate(notes.replaceAll('\n', '\r\n')), [])
   assert.ok(validate(notes.slice(0, notes.indexOf("## What's New"))).length > 0)
   assert.ok(validate(notes.replace('### 🐛 Bug Fixes', '### Not a category')).some(error => error.includes('both languages')))

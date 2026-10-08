@@ -14,3 +14,14 @@ test('bilingual notes display one language and both summaries remain readable', 
   assert.equal(introduction(body.replaceAll('\n', '\r\n'), 'en'), 'English summary.')
   assert.equal(introduction('# TokensCowork v0.1.0\n\n旧说明。', 'en'), '旧说明。')
 })
+
+
+test('GitHub language anchors do not leak into download notes or summaries', () => {
+  const body = '# TokensCowork v0.5.14\n\n中文摘要。\n\n[中文](#user-content-release-notes-zh) | [English](#user-content-release-notes-en)\n\n<a name="release-notes-zh"></a>\n\n## 本次更新\n\n- 中文变化\n\n---\n\n<a name="release-notes-en"></a>\n\n## What\'s New\n\nEnglish summary.'
+  for (const language of ['zh', 'en']) {
+    assert.ok(!selectLanguage(body, language).includes('<a '))
+    assert.ok(!selectLanguage(body, language).includes('#user-content-'))
+  }
+  assert.equal(introduction(body, 'zh'), '中文摘要。')
+  assert.equal(introduction(body, 'en'), 'English summary.')
+})

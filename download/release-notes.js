@@ -25,7 +25,7 @@
     return 0;
   }
   function selectLanguage(body, language) {
-    var text = String(body || '').replace(/<!--[^]*?-->/g, '');
+    var text = String(body || '').replace(/<!--[^]*?-->/g, '').replace(/<a (?:name|id)="release-notes-(?:zh|en)"><\/a>/g, '');
     var boundary = /^## What's New\s*$/m.exec(text);
     if (!boundary) return text; // Legacy monolingual notes remain readable.
     if (language === 'en') return text.slice(boundary.index);
