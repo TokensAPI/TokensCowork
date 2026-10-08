@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.13",
+  "productVersion": "0.5.14",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -27,8 +27,8 @@
       "displayName": "TokensAPI 账户",
       "summary": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
       "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
-      "version": "0.1.5",
-      "commit": "a0019053b223951a622aba11544e149f0dc73341",
+      "version": "0.1.6",
+      "commit": "e4abce1c9f0b43dd3e71bdd0364fba12e8382196",
       "category": "builtin"
     },
     {
@@ -38,7 +38,7 @@
       "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
       "version": "0.2.22",
-      "commit": "7dd71aac42532a66d5473972b244422ac2c140e8",
+      "commit": "1b956429e10697107e63f1f0ce968c5d2ae25e54",
       "category": "builtin"
     },
     {
