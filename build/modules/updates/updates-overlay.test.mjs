@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
+import { updateMessages } from '../../../plugins/tokens_DshVersionUpdates_code/messages.js'
 import { alignProductUpdateCommand, disableUpstreamUpdates, verifyProductUpdateMenu, verifyDisabledUpdateMenu, configureProductUpdates } from './updates-overlay.mjs'
 
 const read = path => readFileSync(new URL(`../../../desktop/dsh-plugin-desktop/${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n')
@@ -22,13 +23,14 @@ test('product and clean menu predicates accept only their intended tray entries'
 })
 
 const pluginSource = readFileSync(new URL('../../../plugins/tokens_DshVersionUpdates_code/index.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
-function registerCommand(source, invoke) {
+function registerCommand(source, invoke, locale = 'en') {
   const start = source.indexOf('    const registration = ctx.desktopRuntime.registerTrayItem({')
   const end = source.indexOf('\n    refreshTray = registration.refresh', start)
   assert.ok(start >= 0 && end > start, 'pinned plugin registration contract')
   let command
   runInNewContext(source.slice(start, end), {
-    ctx: { desktopRuntime: { registerTrayItem(item) { command = item; return {} } } },
+    ctx: { desktopRuntime: { locale, registerTrayItem(item) { command = item; return {} } } },
+    updateMessages,
     downloadingVersion: undefined, availableVersion: undefined, checking: false,
     productName: 'TokensCowork', runManualCheck: invoke,
   })
@@ -51,6 +53,9 @@ test('actual compatibility menu routes to the product plugin manual check', asyn
   const command = registerCommand(alignProductUpdateCommand(pluginSource), invoke)
   assert.equal(command.id, 'check-for-updates')
   assert.equal(command.label(), 'Check Updates…')
+  const chineseCommand = registerCommand(alignProductUpdateCommand(pluginSource), invoke, 'zh-CN')
+  assert.equal(chineseCommand.label(), '检查更新…')
+  assert.equal(chineseCommand.id, command.id, 'locale must preserve the compatibility command identity')
   await run(command)
   assert.equal(checks, 1)
   await command.invoke()
