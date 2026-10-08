@@ -65,8 +65,6 @@
       checksumProvided: "每个版本均提供 SHA-256 校验文件",
       releaseNotes: "查看发布说明",
       releaseChanges: "版本改动",
-      upgradeSummary: "升级摘要",
-      upgradeSince: "相比 {version}",
       releaseChangesSource: "内容来自 GitHub Release",
       noReleaseChanges: "该版本暂未提供更新说明",
       bundledPlugins: "内置插件",
@@ -140,8 +138,6 @@
       checksumProvided: "Every release includes SHA-256 checksums",
       releaseNotes: "View release notes",
       releaseChanges: "What's changed",
-      upgradeSummary: "Upgrade summary",
-      upgradeSince: "Since {version}",
       releaseChangesSource: "From the GitHub Release",
       noReleaseChanges: "No release notes are available for this version.",
       bundledPlugins: "Bundled plugins",
@@ -440,41 +436,7 @@
     }
   }
 
-  function releaseIntroduction(body) {
-    return window.TokensReleaseNotes.introduction(body, currentLanguage);
-  }
-
-  function renderUpgradeSummary(release) {
-    var section = document.getElementById("upgrade-summary");
-    var list = document.getElementById("upgrade-summary-items");
-    var range = document.getElementById("upgrade-summary-range");
-    if (!section || !list || !range) return;
-    section.hidden = true;
-    list.innerHTML = "";
-    range.textContent = "";
-    if (!isStableRelease(release)) return;
-    var start = cachedReleases.findIndex(function (item) { return item.tag_name === release.tag_name; });
-    if (start < 0) return;
-    var end = start + 1;
-    while (end < cachedReleases.length && !isStableRelease(cachedReleases[end])) end += 1;
-    // No comparison summary without a previous stable release.
-    if (end === cachedReleases.length) return;
-    var seen = new Set();
-    cachedReleases.slice(start, end).forEach(function (item) {
-      var introduction = releaseIntroduction(item.body);
-      if (!introduction || seen.has(introduction)) return;
-      seen.add(introduction);
-      var entry = document.createElement("li");
-      appendInlineMarkdown(entry, introduction);
-      list.appendChild(entry);
-    });
-    if (!list.children.length) return;
-    range.textContent = translate("upgradeSince", { version: cachedReleases[end].tag_name });
-    section.hidden = false;
-  }
-
   function renderReleaseChanges(release) {
-    renderUpgradeSummary(release);
     var section = document.getElementById("release-changes");
     var content = document.getElementById("release-changes-content");
     if (!section || !content) return;
