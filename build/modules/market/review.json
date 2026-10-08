@@ -217,23 +217,20 @@
       "verification": "test:build market 验证主题规则、原生 fixed 定位及已下载的固定产物；仍需肉眼检查弹窗。"
     },
     {
-      "id": "market.legacy-managed-update",
+      "id": "market.installed-home",
       "module": "market",
-      "kind": "compatibility",
-      "state": "inactive",
-      "inputs": [
-        "desktop"
-      ],
+      "kind": "customization",
+      "state": "active",
+      "inputs": ["desktop"],
       "files": [
-        "build/modules/market/market-source-overlay.mjs"
+        "build/modules/market/market-home-overlay.mjs",
+        "build/modules/market/market-home-ui-tests.inc"
       ],
-      "targets": [
-        "旧导出 enableManagedPluginUpdate；当前没有装配调用"
-      ],
-      "appliedBy": [],
-      "reason": "历史托管插件独立更新覆盖仍在文件中，但不进入产品。",
-      "retireWhen": "本次只登记；独立清理时确认无调用和测试依赖后删除，禁止误认为正在生效。",
-      "verification": "通过入口检索识别为未接入；不声称有运行效果。"
+      "targets": ["MarketSurface default and inventory/catalog partition, unchanged native InstalledView receipts and market CSS, bilingual copy, existing market-settings-tab behavior tests"],
+      "appliedBy": ["build/modules/market/market-staging-overlay.mjs"],
+      "reason": "首次打开展示已安装可选插件，恢复 desktop 原生单列列表及样式；可安装排除实际已装包，发现沿用原生授权目录展示。",
+      "retireWhen": "上游支持默认本地安装页并覆盖相同行为时移除。",
+      "verification": "2026-10-08：已删除新增卡片、图标、简介、已安装搜索栏及专用 CSS，生成的市场 styles.ts 与 desktop 原生文件逐字节相同；入口依赖加载及更新覆盖测试 6 项通过，完整 staging 市场 check 通过构建、类型、导出、loader 与 24 个测试文件（290 passed、9 原有 skipped）。现有 settings-tab 回归覆盖原生单列列表、中英文更新操作、首次打开、空清单、离线、切换及操作同步。未验收真实宿主主题。"
     }
   ],
   "diagnostics": [

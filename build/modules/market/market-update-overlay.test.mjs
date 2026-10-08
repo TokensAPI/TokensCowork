@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from './market-update-overlay.mjs'
+import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests } from './market-update-overlay.mjs'
 import { pinProductMarketSource, skipUpstreamSourceDescriptionTests, allowMarketSourceSyntheticProxy } from './market-source-overlay.mjs'
 import { addMarketAuth } from './market-auth-overlay.mjs'
 
@@ -60,6 +60,11 @@ test('the actual staging entry point invokes update assembly and tests', () => {
   assert.doesNotMatch(entry, /separateInstalledSystemComponents|market-installed-ui-overlay/)
 })
 
+test('the staging entry point imports all overlay dependencies successfully', async () => {
+  const entry = await import('./market-staging-overlay.mjs')
+  assert.equal(typeof entry.applyMarketSourceOverlays, 'function')
+})
+
 // Focused verification assembly: no whole-tree rebuild, dependency install, or installer packaging.
 if (process.argv.includes('--stage') || process.argv.includes('--stage-client')) {
   const stage = resolve(root, '.build/desktop/dsh-community-market')
@@ -69,7 +74,7 @@ if (process.argv.includes('--stage') || process.argv.includes('--stage-client'))
   }
   writeFileSync(resolve(stage, 'src/client/api.ts'), addMarketUpdateChecks(read('src/client/api.ts')))
   writeFileSync(resolve(stage, 'tests/market-settings-tab.spec.tsx'), addMarketUpdateUiTests(installedTests))
-  writeFileSync(resolve(stage, 'tests/client-api.spec.ts'), addMarketUpdateApiTests(read('tests/client-api.spec.ts')))
+  writeFileSync(resolve(stage, 'tests/client-api.spec.ts'), read('tests/client-api.spec.ts'))
   copyFileSync(resolve(root, 'build/modules/market/market-update.spec.ts'), resolve(stage, 'tests/market-update.spec.ts'))
 }
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'

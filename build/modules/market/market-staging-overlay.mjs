@@ -1,6 +1,7 @@
 import { cpSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
+import { addMarketHome, adaptMarketHomeTests } from './market-home-overlay.mjs'
 import { brandMarketCopy } from './market-source-overlay.mjs'
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from './market-update-overlay.mjs'
@@ -108,6 +109,14 @@ export function applyMarketSourceOverlays({ root, stage }) {
   const marketClientApiPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'api.ts')
   writeFileSync(marketClientApiPath, addMarketUpdateChecks(readFileSync(marketClientApiPath, 'utf8')))
   writeFileSync(marketSettingsTabTestsPath, addMarketUpdateUiTests(readFileSync(marketSettingsTabTestsPath, 'utf8')))
+  const marketHome = addMarketHome({
+    settingsTab: readFileSync(marketSettingsTabPath, 'utf8'),
+    locales: readFileSync(marketLocalesPath, 'utf8'),
+  })
+  writeFileSync(marketSettingsTabPath, marketHome.settingsTab)
+  writeFileSync(marketLocalesPath, marketHome.locales)
+  writeFileSync(marketSettingsTabTestsPath, adaptMarketHomeTests(readFileSync(marketSettingsTabTestsPath, 'utf8'))
+    + readFileSync(resolve(root, 'build', 'modules', 'market', 'market-home-ui-tests.inc'), 'utf8'))
   const marketClientApiTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-api.spec.ts')
   writeFileSync(marketClientApiTestsPath, addMarketUpdateApiTests(readFileSync(marketClientApiTestsPath, 'utf8')))
   cpSync(resolve(root, 'build', 'modules', 'market', 'market-update.spec.ts'),

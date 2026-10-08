@@ -11,7 +11,7 @@ test('shared package registry resolves each plugin and preserves individual auth
     first: async () => rows.find(row => row.id === value),
   }; } }; } };
   const factory = new Function('reply', 'allowed', 'packageOK', 'versionOK', 'createRegistryClient', 'canServeRegistryPackage',
-    source.replace(/^import .*\n/gm, '').replace('export async function registryRoute', 'async function registryRoute') + '\nreturn registryRoute');
+    source.replace(/^import [^\r\n]*\r?\n/gm, '').replace('export async function registryRoute', 'async function registryRoute') + '\nreturn registryRoute');
   const route = factory((data, status = 200) => Response.json(data, { status }), async (request, env, id) => request.headers.get('authorization') === `Bearer ${id}`,
     name => /^@tokensapi\/[a-z]+$/.test(name), () => true,
     () => ({ status: () => ({ ready: true }), metadata: async name => ({ ok: true, data: { name, versions: { '1.0.0': { name, version: '1.0.0', dist: { tarball: 'https://registry.example/file.tgz' } } } } }) }), () => true);
