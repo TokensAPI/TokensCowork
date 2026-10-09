@@ -1,49 +1,111 @@
-// Applied after the update overlay: local inventory is the default market page.
+// Product navigation and inventory badges; native layouts stay intact.
 function replace(source, anchor, value) {
-  if (source.split(anchor).length !== 2) throw new Error(`market-home: upstream anchor changed: ${anchor}`)
+  if (source.split(anchor).length !== 2) throw new Error('market-home: upstream anchor changed: ' + anchor)
   return source.replace(anchor, value)
 }
 
 export function addMarketHome({ settingsTab, locales }) {
   settingsTab = settingsTab.replaceAll('\r\n', '\n')
   locales = locales.replaceAll('\r\n', '\n')
-  settingsTab = replace(settingsTab, "initialView = 'installable'", "initialView = 'installed'")
+  settingsTab = replace(settingsTab, "initialView = 'installable'", "initialView = 'discover'")
   settingsTab = replace(settingsTab,
-    'const [installationsLoading, setInstallationsLoading] = useState(false)',
-    "const [installationsLoading, setInstallationsLoading] = useState(initialView === 'installed')")
-  // Invalidate any in-flight inventory/update read after a successful operation.
-  // Re-read Host inventory instead of inventing an installation from catalog data.
+    `          <Pill active={view === 'installable'} aria-pressed={view === 'installable'} onClick={() => selectMarketView('installable')}>
+            <IconDownloadOutline16 size={14} /><span>{t('installable')}</span>
+          </Pill>
+`, '')
+  // Inventory never blocks catalog discovery and never comes from catalog metadata.
+  settingsTab = replace(settingsTab, '  const items = useMemo(', `  useEffect(() => {
+    if (view === 'discover') void loadInstallations(false)
+  }, [view, loadInstallations])
+
+  const items = useMemo(`)
   settingsTab = replace(settingsTab,
     "      if (result.action === 'uninstall' && viewRef.current === 'installed') {\n        void loadInstallations()\n      }",
     "      if (result.action !== 'update') void loadInstallations()")
-  settingsTab = replace(settingsTab,
-    "      <p>{props.t('desktopUnavailable')}</p>\n    </div>\n  )\n  if (!props.loaded && props.loading)",
-    "      <p>{props.t('desktopUnavailable')}</p>\n      <Button variant=\"outline\" onClick={props.onRetry}>{props.t('retry')}</Button>\n    </div>\n  )\n  if (!props.loaded && props.loading)")
-  for (const [old, next] of [
-    ["这里显示当前 Profile 的直接插件依赖，包括通过其他插件市场或命令行安装的插件。可卸载的插件只提供卸载操作。", '这里显示已安装的可选插件，可检查更新或卸载。内置组件不在此列表中。'],
-    ['Direct plugin dependencies in the active Profile appear here, including plugins installed by other markets or the CLI. Removable plugins offer uninstall only.', 'Installed optional plugins appear here. Check for updates or uninstall them. Built-in components are excluded.'],
-    ['当前配置中没有可显示的插件。', '当前配置中没有可显示的插件。前往“可安装”或“发现”查找新插件。'],
-    ['There are no plugins to show in the active profile.', 'There are no plugins to show in the active profile. Use Installable or Discover to find new plugins.'],
-  ]) locales = replace(locales, old, next)
-  return addMarketLists({ settingsTab, locales })
-}
-
-function addMarketLists({ settingsTab, locales }) {
-  // Keep the native views and styles. Only partition the real installation inventory.
-  settingsTab = replace(settingsTab, '      const response = await readMarketInstallable(readLocale(), {',
-    '      const [response, inventory] = await Promise.all([readMarketInstallable(readLocale(), {')
-  settingsTab = replace(settingsTab, '      }, request.signal)\n      if (request.signal.aborted || installableRequest.current !== request) return',
-    '      }, request.signal), readMarketInstallations(request.signal)])\n      if (request.signal.aborted || installableRequest.current !== request) return\n      setInstallations(inventory.installations)\n      setInstallationsLoaded(true)')
-  settingsTab = replace(settingsTab,
-    '() => (installableIndex?.items ?? []).map(item => ({ item, source: installableIndex!.source, stale: false })),\n    [installableIndex],',
-    '() => (installableIndex?.items ?? []).filter(item => !installations.some(local => local.packageName === item.package?.name)).map(item => ({ item, source: installableIndex!.source, stale: false })),\n    [installableIndex, installations],')
   settingsTab = replace(settingsTab, '            installations={installations}',
     "            installations={installations.filter(item => item.action === 'uninstall')}")
-  locales = replace(locales, '这里显示当前来源中提供 npm 安装目标的插件。安装前会从 npm 获取最新稳定版并确认它是 DSH 插件。',
-    '这里显示当前账号可安装但尚未安装的插件。已安装插件请前往“已安装”。')
-  locales = replace(locales, 'This view shows source entries with an npm install target. Before installation, Desktop resolves npm latest and confirms that it is a DSH plugin.',
-    'Plugins available to your account that are not installed appear here. Manage installed plugins under Installed.')
+  settingsTab = replace(settingsTab,
+    "      <p>{props.t('desktopUnavailable')}</p>\n    </div>\n  )\n  if (!props.loaded && props.loading)",
+    `      <p>{props.t('desktopUnavailable')}</p>
+      <Button variant="outline" onClick={props.onRetry}>{props.t('retry')}</Button>
+    </div>
+  )
+  if (!props.loaded && props.loading)`)
+  settingsTab = replace(settingsTab, '            items={items}', `            items={items}
+            installations={installations}
+            inventoryError={installationsError}
+            onRetryInventory={() => { void loadInstallations(false) }}`)
+  const discoverStart = settingsTab.indexOf('function DiscoverView(')
+  const discoverEnd = settingsTab.indexOf('\nfunction InstallableView(', discoverStart)
+  let discover = settingsTab.slice(discoverStart, discoverEnd)
+  discover = replace(discover, '  items: readonly VisibleItem[]', `  items: readonly VisibleItem[]
+  installations: readonly MarketInstallationView[]
+  inventoryError?: string | undefined
+  onRetryInventory: () => void`)
+  discover = replace(discover, '      {props.partialFailure &&', `      {props.inventoryError !== undefined && <div className="dshMarketBanner" role="alert">
+        <StateDot state="warning" /><span>{props.inventoryError}</span>
+        <Button variant="outline" size="sm" onClick={props.onRetryInventory}>{props.t('retry')}</Button>
+      </div>}
+      {props.partialFailure &&`)
+  discover = replace(discover, 'value={value} onClick={() => props.onSelect(value)}',
+    'value={value} installation={matchingInstallation(value, props.installations)} onClick={() => props.onSelect(value)}')
+  settingsTab = settingsTab.slice(0, discoverStart) + discover + settingsTab.slice(discoverEnd)
+  const cardStart = settingsTab.indexOf('function PluginCard(')
+  const cardEnd = settingsTab.indexOf('\nfunction SourceAttribution(', cardStart)
+  let card = settingsTab.slice(cardStart, cardEnd)
+  card = replace(card, 'value, actionLabel, disabled', 'value, installation, actionLabel, disabled')
+  card = replace(card, '  value: VisibleItem', '  value: VisibleItem\n  installation?: MarketInstallationView | undefined')
+  card = replace(card, '      className="dshMarketCard"',
+    '      className="dshMarketCard"\n      data-installed={installation !== undefined ? "true" : undefined}')
+  card = replace(card, '        {actionLabel !== undefined &&',
+    `        {installation !== undefined && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
+        {actionLabel !== undefined &&`)
+  settingsTab = settingsTab.slice(0, cardStart) + card + settingsTab.slice(cardEnd)
+  for (const [old, next] of [
+    ['这里显示当前 Profile 的直接插件依赖，包括通过其他插件市场或命令行安装的插件。可卸载的插件只提供卸载操作。', '这里显示已安装的可选插件，可检查更新或卸载。内置组件不在此列表中。'],
+    ['Direct plugin dependencies in the active Profile appear here, including plugins installed by other markets or the CLI. Removable plugins offer uninstall only.', 'Installed optional plugins appear here. Check for updates or uninstall them. Built-in components are excluded.'],
+    ['当前配置中没有可显示的插件。', '当前配置中没有可显示的插件。前往“发现”查找新插件。'],
+    ['There are no plugins to show in the active profile.', 'There are no plugins to show in the active profile. Use Discover to find new plugins.'],
+  ]) locales = replace(locales, old, next)
   return { settingsTab, locales }
+}
+
+export function addMarketHomeStyles(styles) {
+  // Gray the whole installed card without changing layout or disabling it.
+  return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCard[data-installed="true"] {
+  filter: grayscale(1);
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 12%, var(--dsw-alias-bg-layer-3));
+}
+
+.dshMarketCard[data-installed="true"]:hover {
+  background: color-mix(in srgb, var(--dsw-alias-label-primary) 18%, var(--dsw-alias-bg-layer-3));
+}
+
+.dshMarketInstalledBadge {
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dshMarketCard:hover {`)
+}
+
+export function adaptMarketHomeTestSetup(setup) {
+  // The real static Pill forwards className; preserve that contract in its mock.
+  return replace(setup.replaceAll('\r\n', '\n'),
+    'props.onClick === undefined ? <span>{children}</span>',
+    'props.onClick === undefined ? <span className={props.className}>{children}</span>')
+}
+
+export function adaptMarketHomeOverlayTests(tests) {
+  tests = replace(tests.replaceAll('\r\n', '\n'), "describe('community market overlay',", `// These regressions exercise catalog requests; inventory has its own endpoint.
+function withLocalInventory(request: typeof fetch): typeof fetch {
+  return async (input, init) => String(input).includes('/api/community-market/installations')
+    ? response({ installations: [] })
+    : request(input, init)
+}
+
+describe('community market overlay',`)
+  return tests.replaceAll("vi.stubGlobal('fetch', request)", "vi.stubGlobal('fetch', withLocalInventory(request))")
 }
 
 export function adaptMarketHomeTests(tests) {
@@ -54,22 +116,52 @@ export function adaptMarketHomeTests(tests) {
 })
 
 const t = ((key:`)
-  // Retain upstream Installable startup/race tests with an explicit view.
-  tests = replace(tests, "it('opens on Installable by default'", "it('opens on Installable when explicitly requested'")
-  tests = tests.replaceAll("{ t, readLocale: () => 'en' } as MarketSettingsTabProps", "{ initialView: 'installable', t, readLocale: () => 'en' } as MarketSettingsTabProps")
-  tests = replace(tests,
-    "expect(readMarketInstallations).toHaveBeenCalledOnce()\n      expect(readMarketState)",
-    "expect(readMarketInstallations).toHaveBeenCalledTimes(3)\n      expect(readMarketState)")
-  // Inventory is now resolved before Installable cards are shown. Preserve the
-  // late detail-selection regression through Discover, where reads stay lazy.
+  // Keep native Installable API/explicit-view regressions even though its tab is gone.
+  const legacyStart = tests.indexOf("  it('loads verified installable items by remote page")
+  const legacyEnd = tests.indexOf("\n  it(", legacyStart + 1)
+  if (legacyStart < 0 || legacyEnd < 0) throw new Error('market-home: legacy test boundary changed')
+  let legacy = tests.slice(legacyStart, legacyEnd)
+  legacy = replace(legacy, 'render(<MarketSettingsTab {...props} />)', 'render(<MarketSettingsTab {...props} initialView="installable" />)')
+  legacy = replace(legacy, "    expect(await screen.findByRole('button', { name: /Browse Only/u })).toBeTruthy()\n", '')
+  legacy = replace(legacy, "expect(screen.getByRole('button', { name: en.installable })).toBeTruthy()", "expect(screen.queryByRole('button', { name: en.installable })).toBeNull()")
+  legacy = replace(legacy, "    fireEvent.click(screen.getByRole('button', { name: en.installable }))\n", '')
+  legacy = legacy.replace('loads verified installable items by remote page', 'supports an explicit legacy Installable view with remote pages')
+  tests = tests.slice(0, legacyStart) + legacy + tests.slice(legacyEnd)
+  const validationStart = tests.indexOf("  it('fails closed without offering locally guessed candidates")
+  const validationEnd = tests.indexOf("\n  it(", validationStart + 1)
+  let validation = tests.slice(validationStart, validationEnd)
+  validation = replace(validation, 'render(<MarketSettingsTab {...props} />)', 'render(<MarketSettingsTab {...props} initialView="installable" />)')
+  validation = replace(validation, "    await screen.findByRole('button', { name: /Installable Plugin/u })\n    fireEvent.click(screen.getByRole('button', { name: en.installable }))\n", '')
+  tests = tests.slice(0, validationStart) + validation + tests.slice(validationEnd)
+  const firstStart = tests.indexOf("  it('opens on Installable by default'")
+  const firstEnd = tests.indexOf("\n  it('shows a persisted first page", firstStart)
+  let startup = tests.slice(firstStart, firstEnd)
+  startup = startup.replaceAll("vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([]))", "vi.mocked(readMarketInstallable).mockResolvedValue(installableResponse([]))\n    vi.mocked(readMarketCatalog).mockResolvedValue(catalog)")
+  startup = startup.replaceAll("name: en.installable", "name: en.discover")
+  startup = startup.replaceAll('expect(readMarketInstallable).toHaveBeenCalledOnce()', 'expect(readMarketCatalog).toHaveBeenCalledOnce()')
+  startup = replace(startup, 'expect(readMarketCatalog).not.toHaveBeenCalled()', 'expect(readMarketInstallable).not.toHaveBeenCalled()')
+  startup = startup.replace('opens on Installable by default', 'opens on Discover by default')
+  startup = startup.replace('loads the catalog when leaving the default Installable view for Discover', 'loads the default Discover catalog')
+  // Start this source-state race on Sources so navigation still triggers the race.
+  const timingStart = startup.indexOf("  it.each(['pending'")
+  let timing = startup.slice(timingStart)
+  timing = replace(timing, "{ t, readLocale: () => 'en' } as MarketSettingsTabProps", "{ initialView: 'sources', t, readLocale: () => 'en' } as MarketSettingsTabProps")
+  startup = startup.slice(0, timingStart) + timing
+  tests = tests.slice(0, firstStart) + startup + tests.slice(firstEnd)
+  // Installation actions now come from Discover cards, preserving the native flow.
+  tests = tests.replaceAll("    fireEvent.click(screen.getByRole('button', { name: en.installable }))\n", '')
+  tests = tests.replaceAll("    fireEvent.click(await screen.findByRole('button', { name: en.installable }))\n", '')
+  for (const name of ['item', 'firstItem', 'secondItem']) {
+    tests = tests.replaceAll('name: `${en.install}: ${' + name + '.displayName}`', 'name: new RegExp(' + name + '.displayName)')
+  }
+  tests = replace(tests, 'expect(readMarketInstallable).toHaveBeenCalledTimes(2)', 'expect(readMarketInstallable).not.toHaveBeenCalled()')
+  tests = replace(tests, 'expect(readMarketInstallations).toHaveBeenCalledOnce()\n      expect(readMarketState)', 'expect(readMarketInstallations).toHaveBeenCalledTimes(2)\n      expect(readMarketState)')
+  // The background badge read must not consume either selection-race fixture.
   const raceStart = tests.indexOf("  it('ignores a late inventory result")
   const raceEnd = tests.indexOf("\n  it(", raceStart + 1)
   let race = tests.slice(raceStart, raceEnd)
-  race = replace(race, "    fireEvent.click(await screen.findByRole('button', { name: en.installable }))\n", '')
-  race = replace(race, '`${en.install}: ${firstItem.displayName}`', 'new RegExp(firstItem.displayName)')
-  race = replace(race, '`${en.install}: ${secondItem.displayName}`', 'new RegExp(secondItem.displayName)')
+  race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
-  tests = replace(tests, 'expect(readMarketInstallations).not.toHaveBeenCalled()', 'expect(readMarketInstallations).toHaveBeenCalledOnce()')
   tests = replace(tests, `    const pluginCard = screen.getByRole('heading', { name: '@tokensapi/tool' }).closest('.dshMarketReceipt')
     const coreCard = screen.getByRole('heading', { name: 'dsh-plugin-desktop' }).closest('.dshMarketReceipt')
     expect(pluginCard?.parentElement).toBe(coreCard?.parentElement)
@@ -77,14 +169,5 @@ const t = ((key:`)
     `    const pluginCard = screen.getByRole('heading', { name: '@tokensapi/tool' }).closest('.dshMarketReceipt')
     expect(pluginCard?.parentElement?.className).toBe('dshMarketReceipts')
     expect(screen.queryByRole('heading', { name: 'dsh-plugin-desktop' })).toBeNull()`)
-  const start = tests.indexOf("  it('opens and closes the shared Market surface")
-  if (start < 0) throw new Error('market-home: sidebar test anchor changed')
-  const end = tests.indexOf("\ndescribe('product market update UI'", start)
-  if (end < 0) throw new Error('market-home: update tests anchor changed')
-  const before = tests.slice(0, start)
-  let sidebar = tests.slice(start, end)
-  sidebar = replace(sidebar, 'vi.mocked(readMarketState).mockResolvedValue(emptyState)',
-    "vi.mocked(readMarketState).mockResolvedValue(emptyState)\n    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ kind: 'profile', bundleId: 'launcher-plugin', packageName: '@tokensapi/launcher-plugin', status: 'active', action: 'uninstall' }] })")
-  sidebar = replace(sidebar, 'name: en.emptyTitle', "name: '@tokensapi/launcher-plugin'")
-  return before + sidebar + tests.slice(end)
+  return tests
 }

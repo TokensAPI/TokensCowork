@@ -169,8 +169,10 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
             preview`)
 
   // Keep the existing JSON API and confirmation/restart flow; update is an explicit action.
+  settingsTab = replace(settingsTab, 'const loadInstallations = useCallback(async ():',
+    "const loadInstallations = useCallback(async (checkUpdates = viewRef.current === 'installed'):")
   settingsTab = replace(settingsTab, '      return { installations: response.installations }', `      // Render local inventory before any network update discovery.
-      if (viewRef.current !== 'installed') return { installations: response.installations }
+      if (!checkUpdates) return { installations: response.installations }
       try {
         const updates = await readMarketInstallations(request.signal, true)
         if (request.signal.aborted || installationsRequest.current !== request) return
@@ -209,6 +211,49 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
     }
     settingsTab = settingsTab.slice(0, start) + block + settingsTab.slice(end)
   }
+  // Discover details share the native installed receipt and confirmation flow.
+  // Read local inventory first; check versions only after selecting a managed plugin.
+  settingsTab = replace(settingsTab, '      if (installation !== undefined) setSelectedInstallation(installation)\n      else beginInstallPreview()', `      if (installation !== undefined) {
+        setSelectedInstallation(installation)
+        if (installation.action === 'uninstall') void loadInstallations(true)
+      } else beginInstallPreview()`)
+  settingsTab = replace(settingsTab, '          installation={selectedInstallation}',
+    '          installation={selectedInstallation === undefined ? undefined : matchingInstallation(selected, installations)}')
+  settingsTab = replace(settingsTab, '          inventoryLoading={selectedInventoryLoading}',
+    '          inventoryLoading={selectedInventoryLoading || (selectedInstallation !== undefined && installationsLoading)}')
+  settingsTab = replace(settingsTab, '          inventoryError={selectedInventoryError}',
+    '          inventoryError={selectedInventoryError ?? (selectedInstallation === undefined ? undefined : installationsError)}\n          onRetryInventory={() => openItem(selected)}')
+  settingsTab = replace(settingsTab, `          onUninstall={bundleId => {
+            selectedKeyRef.current = undefined
+            setSelected(undefined)
+            setSelectedInstallation(undefined)
+            void beginOperationPreview({ action: 'uninstall', bundleId })
+          }}`, `          onUpdate={bundleId => { void beginOperationPreview({ action: 'update', bundleId }) }}
+          onUninstall={bundleId => { void beginOperationPreview({ action: 'uninstall', bundleId }) }}`)
+  settingsTab = replace(settingsTab, '      {selected !== undefined && (',
+    "      {selected !== undefined && (operationPreview === undefined || operationPreview.action === 'install') && (")
+  settingsTab = replace(settingsTab, '      {selected === undefined && operationPreview !== undefined && (',
+    "      {operationPreview !== undefined && (selected === undefined || operationPreview.action !== 'install') && (")
+  const detailStart = settingsTab.indexOf('function ItemActionModal(')
+  const nextDetailFunction = settingsTab.indexOf('\nfunction ', detailStart + 1)
+  const detailEnd = nextDetailFunction === -1 ? settingsTab.length : nextDetailFunction
+  let detail = settingsTab.slice(detailStart, detailEnd)
+  detail = replace(detail, '  onUninstall,\n  t,', '  onUninstall,\n  onUpdate,\n  onRetryInventory,\n  t,')
+  detail = replace(detail, '  onUninstall: (bundleId: string) => void',
+    '  onUninstall: (bundleId: string) => void\n  onUpdate?: ((bundleId: string) => void) | undefined\n  onRetryInventory?: (() => void) | undefined')
+  detail = replace(detail, '                <span>{inventoryError}</span>',
+    '                <span>{inventoryError}</span>\n                {onRetryInventory && <Button variant="outline" size="sm" onClick={onRetryInventory}>{t("retry")}</Button>}')
+  detail = replace(detail, '                  onUninstall={onUninstall}',
+    '                  onUninstall={onUninstall}\n                  onUpdate={onUpdate}')
+  // Only failed automatic checks need a retry action in Discover details.
+  detail = replace(detail, '                  t={t}\n                />', `                  t={t}
+                />
+                {installation.action === 'uninstall' && installation.updateStatus === 'failed' && inventoryError === undefined && onRetryInventory && <Button
+                  variant="outline" size="sm" disabled={pending || inventoryLoading}
+                  onClick={onRetryInventory}>{t('retry')}</Button>}`)
+  detail = replace(detail, '            {!inventoryLoading && inventoryError === undefined && installation === undefined && checking && (',
+    '            {installation !== undefined && operationError !== undefined && <div className="dshMarketError" role="alert">{operationError}</div>}\n            {!inventoryLoading && inventoryError === undefined && installation === undefined && checking && (')
+  settingsTab = settingsTab.slice(0, detailStart) + detail + settingsTab.slice(detailEnd)
   settingsTab = replace(settingsTab, "  const installing = preview.action === 'install'", "  const updating = preview.action === 'update'\n  const installing = preview.action !== 'uninstall'")
   const start = settingsTab.indexOf('function OperationConfirmModal(')
   const end = settingsTab.indexOf('\nfunction OperationSuccessModal', start)

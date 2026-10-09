@@ -226,11 +226,11 @@
         "build/modules/market/market-home-overlay.mjs",
         "build/modules/market/market-home-ui-tests.inc"
       ],
-      "targets": ["MarketSurface default and inventory/catalog partition, unchanged native InstalledView receipts and market CSS, bilingual copy, existing market-settings-tab behavior tests"],
+      "targets": ["MarketSurface default Discover and navigation, Discover inventory badges, native Installed receipts and detail update controls, bilingual copy, existing market-settings-tab behavior tests"],
       "appliedBy": ["build/modules/market/market-staging-overlay.mjs"],
-      "reason": "首次打开展示已安装可选插件，恢复 desktop 原生单列列表及样式；可安装排除实际已装包，发现沿用原生授权目录展示。",
-      "retireWhen": "上游支持默认本地安装页并覆盖相同行为时移除。",
-      "verification": "2026-10-08：已删除新增卡片、图标、简介、已安装搜索栏及专用 CSS，生成的市场 styles.ts 与 desktop 原生文件逐字节相同；入口依赖加载及更新覆盖测试 6 项通过，完整 staging 市场 check 通过构建、类型、导出、loader 与 24 个测试文件（290 passed、9 原有 skipped）。现有 settings-tab 回归覆盖原生单列列表、中英文更新操作、首次打开、空清单、离线、切换及操作同步。未验收真实宿主主题。"
+      "reason": "首次打开原生发现卡片页，隐藏可安装页签；真实本地安装清单驱动已安装卡片整体灰度及灰色背景，悬停保持灰色且仍可点击管理。发现详情自动检查更新，不为每个插件显示手动检查按钮，仅检查失败时提供重试；复用原生更新/卸载确认及重启流程，保留已安装页的统一检查入口与离线管理。",
+      "retireWhen": "上游提供相同发现入口、安装标识和详情更新操作并通过产品回归时移除。",
+      "verification": "2026-10-09：市场 overlay 测试 15 项通过，完整 staging check 通过构建、类型、导出、loader 与 24 个测试文件（295 passed、9 原有 skipped）；追加整张卡片灰度样式后再次运行完整 staging check，结果相同。移除发现详情手动检查按钮后，针对性 overlay 测试 9 项及完整 staging check 再次通过（295 passed、9 原有 skipped）；局部装配同步沿用运行时 peer 断言适配。现有 settings-tab 扩展覆盖中英文发现入口、原生布局、安装标识、详情自动检查且无手动检查按钮、失败时才显示重试、更新确认/取消/失败、内置组件限制、离线与操作同步；原生弹窗测试补齐本地 inventory 路由响应，保留目录请求及错误重试断言。未验收真实宿主界面及灰度视觉效果。"
     }
   ],
   "diagnostics": [

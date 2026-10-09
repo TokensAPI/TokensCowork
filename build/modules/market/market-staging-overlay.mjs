@@ -1,13 +1,13 @@
 import { cpSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
-import { addMarketHome, adaptMarketHomeTests } from './market-home-overlay.mjs'
+import { addMarketHome, addMarketHomeStyles, adaptMarketHomeTests, adaptMarketHomeTestSetup, adaptMarketHomeOverlayTests } from './market-home-overlay.mjs'
 import { brandMarketCopy } from './market-source-overlay.mjs'
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests, addMarketUpdateApiTests } from './market-update-overlay.mjs'
 import { addRequiredSourceRepairTest, allowMarketSourceSyntheticProxy, awaitProductSourceMigrationInLifecycleTest, pinProductMarketSource, skipUpstreamAddSourceOverlayTests, skipUpstreamBuiltInRuntimeTests, skipUpstreamBuiltInSourceTests, skipUpstreamSourceDescriptionTests } from './market-source-overlay.mjs'
 
-/** Source → auth → updates → private registry → matching product tests. */
+/** Source → auth → updates → private registry → home → matching product tests. */
 export function applyMarketSourceOverlays({ root, stage }) {
   /* -------------------------- 配置插件市场 --------------------------- */
   // 产品插件源部署在 market/server/source.config.json 声明的 origin；为其加入
@@ -115,6 +115,11 @@ export function applyMarketSourceOverlays({ root, stage }) {
   })
   writeFileSync(marketSettingsTabPath, marketHome.settingsTab)
   writeFileSync(marketLocalesPath, marketHome.locales)
+  const marketStylesPath = resolve(stage, 'dsh-community-market', 'src', 'client', 'styles.ts')
+  writeFileSync(marketStylesPath, addMarketHomeStyles(readFileSync(marketStylesPath, 'utf8')))
+  const marketTestSetupPath = resolve(stage, 'dsh-community-market', 'tests', 'setup.tsx')
+  writeFileSync(marketTestSetupPath, adaptMarketHomeTestSetup(readFileSync(marketTestSetupPath, 'utf8')))
+  writeFileSync(marketOverlayTestsPath, adaptMarketHomeOverlayTests(readFileSync(marketOverlayTestsPath, 'utf8')))
   writeFileSync(marketSettingsTabTestsPath, adaptMarketHomeTests(readFileSync(marketSettingsTabTestsPath, 'utf8'))
     + readFileSync(resolve(root, 'build', 'modules', 'market', 'market-home-ui-tests.inc'), 'utf8'))
   const marketClientApiTestsPath = resolve(stage, 'dsh-community-market', 'tests', 'client-api.spec.ts')
