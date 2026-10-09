@@ -1,0 +1,46 @@
+name: Test Product Plugins
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Product tag or commit to test'
+        required: true
+        default: 'v0.5.19'
+        type: string
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  plugins:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Set up pinned package manager
+        run: npm install --global corepack@0.35.0
+      - name: Test pinned plugins
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT_REF: ${{ inputs.ref }}
+        run: node scripts/test-product-plugins.mjs --ref "${PRODUCT_REF}"
+      - name: Preserve plugin regression reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-regression-${{ github.run_id }}
+          path: .build/plugin-tests/*/report.json
+          if-no-files-found: ignore

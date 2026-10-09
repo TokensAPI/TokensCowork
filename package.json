@@ -12,6 +12,7 @@
   "scripts": {
     "product:check": "node build/pipeline/repo-layout-verify.mjs",
     "test:build": "node build/pipeline/build-verify.mjs",
+    "test:plugins": "node scripts/test-product-plugins.mjs",
     "product:plan": "node build/build.mjs win --plan",
     "product:overlays": "node build/pipeline/overlay-review.mjs",
     "market:check": "node build/modules/market/market-catalog-verify.mjs",

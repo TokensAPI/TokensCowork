@@ -16,7 +16,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plugin-tests:
+    uses: ./.github/workflows/plugin-regression.yml
+    with:
+      ref: ${{ inputs.tag }}
   promote:
+    needs: plugin-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
