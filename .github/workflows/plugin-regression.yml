@@ -19,7 +19,8 @@ permissions:
 
 jobs:
   plugins:
-    runs-on: ubuntu-24.04
+    # 更新插件使用真实宿主平台选择安装包；产品支持 Windows/macOS。
+    runs-on: windows-2025
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PRODUCT_REF: ${{ inputs.ref }}
-        run: node scripts/test-product-plugins.mjs --ref "${PRODUCT_REF}"
+        run: node scripts/test-product-plugins.mjs --ref "$env:PRODUCT_REF"
       - name: Preserve plugin regression reports
         if: always()
         uses: actions/upload-artifact@v7

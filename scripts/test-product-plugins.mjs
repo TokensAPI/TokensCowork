@@ -127,6 +127,12 @@ export async function main(args = process.argv.slice(2)) {
       run(command, args, directory)
       const env = { ...process.env, TOKENS_OUTER_ROOT: outerRoot, TOKENS_HARNESS_ROOT: outerRoot, DSH_RUNTIME_ROOT: runtimeRoot }
       run('npm', ['run', plugin.script], directory, env, true)
+      const functionalReport = join(directory, 'test-output', 'functional-cases-latest.json')
+      if (existsSync(functionalReport)) {
+        const details = JSON.parse(readFileSync(functionalReport, 'utf8'))
+        result.caseSummary = details.summary
+        result.testSummary = details.vitest
+      }
       result.status = 'passed'
     } catch (error) {
       result.status = 'failed'
