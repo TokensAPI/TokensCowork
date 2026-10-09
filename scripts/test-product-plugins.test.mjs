@@ -3,7 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { assertCompleteTestOutput, installCommand, parseOptions, testScript } from './test-product-plugins.mjs'
+import { assertCompleteTestOutput, installCommand, parseOptions, testEnvironment, testScript } from './test-product-plugins.mjs'
+
+test('host fixtures use the isolated workspace drive instead of the system temporary drive', () => {
+  const env = testEnvironment('D:/workspace/outer', 'D:/workspace/tmp')
+  for (const key of ['TEMP', 'TMP', 'TMPDIR']) assert.equal(env[key], 'D:/workspace/tmp')
+  assert.equal(env.TOKENS_OUTER_ROOT, 'D:/workspace/outer')
+  assert.equal(env.DSH_RUNTIME_ROOT, join('D:/workspace/outer', 'desktop', 'deepseek-harness', 'apps', 'cli'))
+})
 
 test('exit zero with skipped or incomplete tests cannot satisfy the promotion gate', () => {
   assertCompleteTestOutput('72/72 cases passed; all passed.\n# skipped 0\n# todo 0')

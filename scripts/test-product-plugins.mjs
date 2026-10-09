@@ -27,6 +27,19 @@ export function assertCompleteTestOutput(output) {
   }
 }
 
+/** Windows 宿主测试不能跨盘加载夹具；所有临时文件留在生成工作区。 */
+export function testEnvironment(outerRoot, temporaryRoot) {
+  return {
+    ...process.env,
+    TOKENS_OUTER_ROOT: outerRoot,
+    TOKENS_HARNESS_ROOT: outerRoot,
+    DSH_RUNTIME_ROOT: join(outerRoot, 'desktop', 'deepseek-harness', 'apps', 'cli'),
+    TEMP: temporaryRoot,
+    TMP: temporaryRoot,
+    TMPDIR: temporaryRoot,
+  }
+}
+
 function run(command, args, cwd, env = process.env, testRun = false) {
   // Windows 的 npm/corepack 是 cmd shim；参数由本脚本生成，不拼接用户命令。
   const windowsShim = process.platform === 'win32' && ['npm', 'corepack'].includes(command)
@@ -92,6 +105,8 @@ export async function main(args = process.argv.slice(2)) {
   const generated = join(root, '.build', 'plugin-tests')
   mkdirSync(generated, { recursive: true })
   const runRoot = mkdtempSync(join(generated, 'run-'))
+  const temporaryRoot = join(runRoot, 'tmp')
+  mkdirSync(temporaryRoot)
   const outerRoot = join(runRoot, 'outer')
   snapshot(root, commit, outerRoot)
   const results = []
@@ -99,7 +114,6 @@ export async function main(args = process.argv.slice(2)) {
   // 宿主集成用例需要真实固定 Harness；准备隔离副本，不能写源码子模块。
   const hostPlugins = new Set(['tokens-dsh-web-search', 'tokens-model-manager'])
   let hostError
-  const runtimeRoot = join(outerRoot, 'desktop', 'deepseek-harness', 'apps', 'cli')
   if (plan.some(plugin => hostPlugins.has(plugin.id) && plugin.script)) {
     try {
       const desktop = join(outerRoot, 'desktop')
@@ -125,7 +139,7 @@ export async function main(args = process.argv.slice(2)) {
       snapshot(join(root, plugin.path), plugin.commit, directory)
       const [command, args] = installCommand(directory, plugin.manifest)
       run(command, args, directory)
-      const env = { ...process.env, TOKENS_OUTER_ROOT: outerRoot, TOKENS_HARNESS_ROOT: outerRoot, DSH_RUNTIME_ROOT: runtimeRoot }
+      const env = testEnvironment(outerRoot, temporaryRoot)
       run('npm', ['run', plugin.script], directory, env, true)
       const functionalReport = join(directory, 'test-output', 'functional-cases-latest.json')
       if (existsSync(functionalReport)) {
