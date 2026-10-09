@@ -33,7 +33,7 @@ jobs:
             return JSON.parse(result.stdout)
           }
           const history = query(['history'])
-          const submissions = (history.history ?? []).filter(item => /TokensCowork/i.test(item.name ?? '')).sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate))).slice(0, 10)
+          const submissions = (history.history ?? []).filter(item => /TokensCowork|^signed-app\.zip$/i.test(item.name ?? '')).sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate))).slice(0, 10)
           const rows = ['## TokensCowork Apple notarization', '', '| Submission ID | Created (UTC) | Status |', '| --- | --- | --- |']
           for (const submission of submissions) {
             const info = query(['info', submission.id])
