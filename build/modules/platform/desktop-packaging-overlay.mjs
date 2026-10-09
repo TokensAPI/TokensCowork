@@ -37,8 +37,13 @@ export function alignMacReleaseChecks(releaseMac) {
   if (!releaseMac.includes(upstreamReleaseCheck)) {
     throw new Error('configure-product: cannot locate redundant macOS release check')
   }
+  const builder = "    'exec', 'electron-builder', '--mac', 'dmg', '--universal',"
+  if (releaseMac.split(builder).length !== 2) {
+    throw new Error('configure-product: cannot locate unique macOS packaging command')
+  }
   return releaseMac.replace(upstreamReleaseCheck,
     '  // TokensCowork product assembly owns the release quality gates before packaging.\n')
+    .replace(builder, `${builder}\n    '--publish', 'never',`)
 }
 
 /** Preserve the explicit native architecture selected by the outer build. */
