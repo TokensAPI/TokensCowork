@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.18",
+  "productVersion": "0.5.19",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -27,8 +27,8 @@
       "displayName": "TokensAPI 账户",
       "summary": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
       "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
-      "version": "0.1.7",
-      "commit": "0856f5d0959be7850951bc49d483cca31d62f9d8",
+      "version": "0.1.8",
+      "commit": "b3084412b1db4aede18efe8bee9bc35bf7f64f6f",
       "category": "builtin"
     },
     {
