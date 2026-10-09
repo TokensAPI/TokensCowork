@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: '24'
       - name: Set up pinned package manager
-        run: npm install --global corepack@0.35.0
+        run: npm install --global corepack@0.35.0 --force
       - name: Test pinned plugins
         env:
           GH_TOKEN: ${{ github.token }}
