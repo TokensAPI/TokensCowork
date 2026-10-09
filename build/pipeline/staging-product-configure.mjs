@@ -1,4 +1,4 @@
-import { alignMacReleaseChecks, configureDesktopPackage } from '../modules/platform/desktop-packaging-overlay.mjs'
+import { alignMacReleaseChecks, alignMacReleaseVerification, configureDesktopPackage } from '../modules/platform/desktop-packaging-overlay.mjs'
 import { productStage } from './paths.mjs'
 /* ====================================================================
  * 产品配置（打包前）
@@ -108,7 +108,7 @@ applyWindowsInstallerGuard({
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(
   verifyMacReleasePath,
-  verifyMacRelease.replace(
+  alignMacReleaseVerification(verifyMacRelease).replace(
     upstreamProductName,
     `productName: ${JSON.stringify(product.name)},`,
   ),
@@ -129,6 +129,7 @@ writeFileSync(
   releaseMacPath,
   configuredMacRelease,
 )
+writeFileSync(resolve(desktopRoot, 'scripts', 'product-notarize.mjs'), readFileSync(resolve(root, 'build/modules/platform/mac-notarization.mjs'), 'utf8'))
 if (hasProductUpdatePlugin) {
   writeFileSync(desktopPatchPath, configureProductUpdates(
     readFileSync(desktopPatchPath, 'utf8'),

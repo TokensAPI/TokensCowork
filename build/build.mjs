@@ -253,12 +253,14 @@ if (mode === 'check') {
   /* ----------------------- 正式 macOS 安装包 ----------------------- */
   // 通用质量门禁由同一次工作流的 Windows 任务负责；产品配置会移除上游
   // macOS 发布脚本中的重复 check，发布任务会等待全部平台构建通过。
-  assertNativeMacArchitecture()
+  const signedArch = assertNativeMacArchitecture()
   configureBuildAndVerifyProduct(buildEnvironment)
-  prepareMacNativeRuntime(['arm64', 'x64'], buildEnvironment)
+  prepareMacNativeRuntime([signedArch], buildEnvironment)
   const releaseEnvironment = {
     ...(planOnly ? process.env : adaptAppleReleaseEnvironment(process.env)),
     DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
+    DSH_MAC_ARCH: signedArch,
+    TOKENS_MAC_RECOVERY_DIR: resolve(root, '.build', 'mac-recovery', signedArch),
   }
   run(
     'corepack',

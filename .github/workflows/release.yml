@@ -60,11 +60,28 @@ jobs:
           # Build once as a candidate; Promote Desktop Release reuses its assets.
           printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
 
-  windows-amd64:
-    name: Verify product and build Windows amd64 installer
+  packages:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }} installer
     needs: metadata
-    runs-on: windows-2022
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: windows
+            arch: amd64
+            runner: windows-2022
+          - platform: macos
+            arch: arm64
+            runner: macos-14
+            electron_arch: arm64
+            binary_arch: arm64
+          - platform: macos
+            arch: amd64
+            runner: macos-15-intel
+            electron_arch: x64
+            binary_arch: x86_64
     steps:
       - name: Check out all pinned sources
         uses: actions/checkout@v7
@@ -101,11 +118,13 @@ jobs:
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
 
       - name: Run complete product gates and build unsigned Windows installer
+        if: matrix.platform == 'windows'
         run: |
           corepack yarn test:uninstall
           corepack yarn product:dist:win
 
       - name: Smoke test Windows locked-file upgrade recovery
+        if: matrix.platform == 'windows'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -201,6 +220,7 @@ jobs:
           Write-Host "Windows upgrade smoke: $previousVersion -> $currentVersion, $installedFiles files in $([math]::Round($elapsed.TotalSeconds, 1)) seconds"
 
       - name: Prepare Windows release files
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           $version = "${{ needs.metadata.outputs.version }}"
@@ -223,6 +243,7 @@ jobs:
           ) | Set-Content -Encoding ascii "$dist/TokensCowork-$version-windows-amd64-BUILD-INFO.txt"
 
       - name: Upload Windows package
+        if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-windows-amd64-${{ needs.metadata.outputs.version }}
@@ -234,59 +255,8 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  macos:
-    name: Build macOS ${{ matrix.arch }} DMG
-    needs: metadata
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-14
-            electron_arch: arm64
-            binary_arch: arm64
-          - arch: amd64
-            runner: macos-15-intel
-            electron_arch: x64
-            binary_arch: x86_64
-    steps:
-      - name: Check out all pinned sources
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-          submodules: recursive
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.23.2
-
-      - name: Check out product Harness override
-        shell: bash
-        run: |
-          set -euo pipefail
-          commit="$(node -p "require('./product.json').desktop.deepseekHarnessCommit")"
-          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
-          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
-          git -C desktop/deepseek-harness checkout --detach "$commit"
-          git -C desktop/deepseek-harness submodule update --init --recursive
-
-      - name: Restore build caches
-        uses: actions/cache@v5
-        continue-on-error: true
-        with:
-          path: |
-            ~/.yarn/berry/cache
-            ~/AppData/Local/Yarn/Berry/cache
-            ~/Library/Caches/electron
-            ~/Library/Caches/electron-builder
-            ~/AppData/Local/electron/Cache
-            ~/AppData/Local/electron-builder/Cache
-          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
-
       - name: Select macOS signing mode
+        if: matrix.platform == 'macos'
         id: signing
         shell: bash
         env:
@@ -298,6 +268,7 @@ jobs:
         run: printf 'mode=%s\n' "$(node build/modules/platform/mac-signing-resolve.mjs)" >> "${GITHUB_OUTPUT}"
 
       - name: Build macOS DMG
+        if: matrix.platform == 'macos'
         shell: bash
         env:
           APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
@@ -307,7 +278,20 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: DSH_MAC_ARCH="${{ matrix.electron_arch }}" corepack yarn product:dist:mac:auto
 
+      - name: Preserve signed app and notarization submission
+        if: always() && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mac-notarization-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}
+          path: |
+            .build/mac-recovery/${{ matrix.electron_arch }}/signed-app.zip
+            .build/mac-recovery/${{ matrix.electron_arch }}/notarization.json
+          if-no-files-found: ignore
+          retention-days: 14
+          compression-level: 0
+
       - name: Verify and prepare macOS release files
+        if: matrix.platform == 'macos'
         shell: bash
         run: |
           set -euo pipefail
@@ -315,8 +299,9 @@ jobs:
           arch="${{ matrix.arch }}"
           signing="${{ steps.signing.outputs.mode }}"
           dist=".build/desktop/dsh-plugin-desktop/dist"
-          packages=("${dist}"/*.dmg)
-          if [[ ! -e "${packages[0]}" || "${#packages[@]}" -ne 1 ]]; then
+          packages=()
+          while IFS= read -r -d '' package; do packages+=("${package}"); done < <(find "${dist}" -type f -name '*.dmg' -print0)
+          if [[ "${#packages[@]}" -ne 1 ]]; then
             echo "Expected exactly one macOS DMG" >&2
             exit 1
           fi
@@ -349,6 +334,7 @@ jobs:
           } > "${dist}/TokensCowork-${version}-macos-${arch}-BUILD-INFO.txt"
 
       - name: Upload macOS package
+        if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v7
         with:
           name: desktop-macos-${{ matrix.arch }}-${{ needs.metadata.outputs.version }}
@@ -362,7 +348,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub Release
-    needs: [metadata, windows-amd64, macos]
+    needs: [metadata, packages]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -463,7 +449,7 @@ jobs:
   summary:
     name: Publish build summary
     if: always()
-    needs: [metadata, windows-amd64, macos]
+    needs: [metadata, packages]
     runs-on: ubuntu-24.04
     steps:
       - name: Write job summary
@@ -474,8 +460,9 @@ jobs:
             echo
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'
-            echo '| Product quality + Windows amd64 | `${{ needs.windows-amd64.result }}` | `desktop-windows-amd64-${{ needs.metadata.outputs.version }}` |'
-            echo '| macOS arm64 + amd64 | `${{ needs.macos.result }}` | `desktop-macos-{arm64,amd64}-${{ needs.metadata.outputs.version }}` |'
+            echo '| Three platform packages | `${{ needs.packages.result }}` | `desktop-{windows-amd64,macos-arm64,macos-amd64}-${{ needs.metadata.outputs.version }}` |'
+            echo
+            echo 'If any package fails, remaining matrix jobs are cancelled and the release is not published.'
             echo
             echo 'macOS uses Developer ID signing and notarization when the complete secret set exists; otherwise it uses ad-hoc signing. BUILD-INFO files record the selected mode.'
           } >> "${GITHUB_STEP_SUMMARY}"

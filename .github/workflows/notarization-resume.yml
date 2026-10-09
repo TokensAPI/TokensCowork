@@ -1,0 +1,84 @@
+name: Resume Apple Notarization
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Original Build Desktop run ID containing saved signed apps
+        required: true
+        type: string
+      architecture:
+        description: Architecture to recover without compiling or submitting again
+        required: true
+        default: both
+        type: choice
+        options: [both, arm64, amd64]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: notarization-resume-${{ inputs.source_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      version: ${{ steps.source.outputs.version }}
+      matrix: ${{ steps.source.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+      - id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          TARGET_ARCHITECTURE: ${{ inputs.architecture }}
+        run: node build/modules/platform/mac-notarization.mjs source "$SOURCE_RUN_ID" "$TARGET_ARCHITECTURE"
+
+  recover:
+    name: Recover macOS ${{ matrix.arch }} installer
+    needs: source
+    timeout-minutes: 40
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.source.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.source.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run_id }}
+          name: mac-notarization-${{ matrix.arch }}-${{ needs.source.outputs.version }}
+          path: recovery
+      - name: Complete original submission and package saved app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
+          TARGET_ARCH: ${{ matrix.electron_arch }}
+        run: node build/modules/platform/mac-notarization.mjs resume recovery product.json "$SOURCE_COMMIT" "$TARGET_ARCH"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-macos-${{ matrix.arch }}-${{ needs.source.outputs.version }}
+          path: |
+            recovery/*-installer.dmg
+            recovery/*-SHA256SUMS.txt
+            recovery/*-BUILD-INFO.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

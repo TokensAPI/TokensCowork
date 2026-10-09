@@ -93,7 +93,8 @@
       ],
       "files": [
         "build/modules/platform/mac-adhoc-sign.ts",
-        "build/modules/platform/mac-signing-resolve.mjs"
+        "build/modules/platform/mac-signing-resolve.mjs",
+        "build/modules/platform/mac-notarization.mjs"
       ],
       "targets": [
         "staged Desktop scripts/mac-unsigned-after-pack.ts（覆盖上游 afterPack 回调）",
@@ -102,11 +103,13 @@
       "appliedBy": [
         "build/pipeline/staging-prepare.mjs",
         "build/pipeline/macos-build.mjs",
-        ".github/workflows/release.yml"
+        ".github/workflows/release.yml",
+        ".github/workflows/notarization-resume.yml",
+        "build/pipeline/staging-product-configure.mjs"
       ],
-      "reason": "凭据完整时正式签名，否则走 ad-hoc；复制的回调承担未签名包收尾与校验。",
+      "reason": "凭据完整时正式签名，否则走 ad-hoc；afterSign 保存已签名应用和公证提交，恢复只查询原提交并打包，不重复编译或提交。",
       "retireWhen": "上游能提供等效的未签名/正式签名接口后复用；始终保留签名凭据隔离和原生架构验证。",
-      "verification": "test:build platform 验证模式选择；macOS 实际签名、回调及安装需原生 runner 验收。"
+      "verification": "2026-10-09：platform 回归覆盖模式选择、原生架构、公证状态/超时、恢复来源与摘要校验、无重提交流程；macOS 实际签名、回调及安装需原生 runner 验收。"
     }
   ],
   "diagnostics": [

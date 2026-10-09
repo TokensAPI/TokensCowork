@@ -20,6 +20,8 @@ export function configureDesktopPackage(desktopPackage, product, packagingTarget
   desktopPackage.description = `${product.name} desktop application`
   desktopPackage.build.appId = product.appId
   desktopPackage.build.productName = product.name
+  if (desktopPackage.build.afterSign) throw new Error('configure-product: unexpected upstream afterSign hook')
+  desktopPackage.build.afterSign = './scripts/product-notarize.mjs'
   desktopPackage.build.win.artifactName = `${product.name}-\${version}-\${arch}-Portable.\${ext}`
   desktopPackage.build.nsis.guid = product.windowsInstallerGuid
   desktopPackage.build.nsis.shortcutName = product.name
@@ -41,9 +43,39 @@ export function alignMacReleaseChecks(releaseMac) {
   if (releaseMac.split(builder).length !== 2) {
     throw new Error('configure-product: cannot locate unique macOS packaging command')
   }
+  const runtime = `      prepareFsExtForElectron({ platform: 'darwin', arch: 'arm64', desktopRoot })
+      prepareFsExtForElectron({ platform: 'darwin', arch: 'x64', desktopRoot })
+      prepareInstalledMacUniversalRuntime(desktopRoot)`
+  if (!releaseMac.includes(runtime)) throw new Error('configure-product: cannot locate universal runtime preparation')
   return releaseMac.replace(upstreamReleaseCheck,
     '  // TokensCowork product assembly owns the release quality gates before packaging.\n')
-    .replace(builder, `${builder}\n    '--publish', 'never',`)
+    .replace(builder, "    'exec', 'electron-builder', '--mac', 'dmg', `--${releaseEnvironment.DSH_MAC_ARCH}`,\n    '--publish', 'never',")
+    .replace("'--config.mac.notarize=true'", "'--config.mac.notarize=false'")
+    .replace("import { rmSync } from 'node:fs'", "import { rmSync, existsSync, chmodSync } from 'node:fs'")
+    .replace("import { prepareInstalledMacUniversalRuntime }", "import { MACOS_UNIVERSAL_NATIVE_ENTRIES, FORBIDDEN_MACOS_UNIVERSAL_ENTRIES }")
+    .replace(runtime, `      const arch = process.env.DSH_MAC_ARCH
+      if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')
+      prepareFsExtForElectron({ platform: 'darwin', arch, desktopRoot })
+      for (const entry of FORBIDDEN_MACOS_UNIVERSAL_ENTRIES) {
+        if (existsSync(resolve(desktopRoot, entry))) throw new Error('Unexpected generated native runtime: ' + entry)
+      }
+      for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.arch === (arch === 'x64' ? 'x86_64' : 'arm64'))) {
+        const file = resolve(desktopRoot, entry.path)
+        if (!existsSync(file)) throw new Error('Missing native runtime: ' + entry.path)
+        if (entry.path.endsWith('/spawn-helper')) chmodSync(file, 0o755)
+      }`)
+}
+
+/** Validate the selected native package, retaining every signature/notarization gate. */
+export function alignMacReleaseVerification(source) {
+  const main = "    options.run('lipo', [executablePath, '-verify_arch', 'x86_64'])\n    options.run('lipo', [executablePath, '-verify_arch', 'arm64'])"
+  const entries = 'for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES)'
+  if (source.split(main).length !== 2 || source.split(entries).length !== 2) throw new Error('configure-product: macOS verification anchors changed')
+  return source.replace(main, `    const arch = process.env.DSH_MAC_ARCH
+    if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')
+    const binaryArch = arch === 'x64' ? 'x86_64' : 'arm64'
+    options.run('lipo', [executablePath, '-verify_arch', binaryArch])`)
+    .replace(entries, 'for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.arch === binaryArch))')
 }
 
 /** Preserve the explicit native architecture selected by the outer build. */
