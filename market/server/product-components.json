@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.5.19",
+  "productVersion": "0.5.20",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -38,7 +38,7 @@
       "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
       "version": "0.2.22",
-      "commit": "1b956429e10697107e63f1f0ce968c5d2ae25e54",
+      "commit": "d12af8309d4f1cc56d3d0d9dfce8dff603962e7c",
       "category": "builtin"
     },
     {
@@ -48,7 +48,7 @@
       "summary": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
       "version": "0.2.0",
-      "commit": "3b3acbfcadb6b781ca3a2a617ea021b97315a668",
+      "commit": "9b14218a04ab6cc3b9e4d4e571edba544fa507bb",
       "category": "builtin"
     },
     {
