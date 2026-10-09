@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { relative, resolve } from 'node:path'
 import { productStage } from './pipeline/paths.mjs'
+import { adaptAppleReleaseEnvironment } from './modules/platform/mac-signing-resolve.mjs'
 
 /* ====================================================================
  * TokensCowork 桌面产品构建入口
@@ -23,6 +24,7 @@ if (!['check', 'win', 'mac', 'mac-unsigned'].includes(mode)) {
 // 未签名或本地 macOS 构建不得继承正式发布凭据，避免构建工具自动选择
 // Developer ID 签名、钥匙串身份或公证流程。
 const MAC_RELEASE_VARIABLES = [
+  'APPLE_CERT_BASE64', 'APPLE_CERT_PASSWORD', 'APPLE_APP_PASSWORD',
   'APPLE_API_ISSUER', 'APPLE_API_KEY', 'APPLE_API_KEY_ID',
   'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_ID', 'APPLE_KEYCHAIN',
   'APPLE_KEYCHAIN_PROFILE', 'APPLE_TEAM_ID', 'CSC_IDENTITY_AUTO_DISCOVERY',
@@ -255,7 +257,7 @@ if (mode === 'check') {
   configureBuildAndVerifyProduct(buildEnvironment)
   prepareMacNativeRuntime(['arm64', 'x64'], buildEnvironment)
   const releaseEnvironment = {
-    ...process.env,
+    ...(planOnly ? process.env : adaptAppleReleaseEnvironment(process.env)),
     DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
   }
   run(

@@ -59,3 +59,11 @@ build/
 独立装配使用 `PRODUCT_STAGE_NAME=desktop-<名称>`，不要覆盖其他任务正在使用的 staging。
 
 升级时先看 [上游升级检查指南](../docs/upstream-upgrade.md)，覆盖台账见 [模块复查说明](modules/README.md)。结构测试与装配一致不代表跨平台安装和模型功能已验收，不能替代 CI、许可证门禁或真机测试。
+
+macOS 正式发布在 GitHub Actions Repository Secrets 中配置五项：
+`APPLE_CERT_BASE64`（含私钥的 Developer ID Application `.p12` 的 Base64）、
+`APPLE_CERT_PASSWORD`（导出密码）、`APPLE_ID`（开发者账号邮箱）、
+`APPLE_APP_PASSWORD`（该账号的 App 专用密码）、`APPLE_TEAM_ID`（团队 ID）。
+证书名称从 `.p12` 自动读取并核对团队，无需另设签名身份 Secret。
+五项均未配置时使用 ad-hoc 签名；部分配置时报错，完整配置时执行正式签名和公证。
+私钥只由签名工具导入，解析名称仅提取公开证书；不要将凭据写入源码或日志。
