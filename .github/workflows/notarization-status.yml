@@ -1,0 +1,46 @@
+name: Inspect Apple Notarization
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Read TokensCowork notarization status
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - name: Query Apple without submitting software
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { spawnSync } from 'node:child_process'
+          import { appendFileSync } from 'node:fs'
+          const auth = ['--apple-id', process.env.APPLE_ID, '--password', process.env.APPLE_APP_PASSWORD, '--team-id', process.env.APPLE_TEAM_ID]
+          if (auth.some(value => !value)) throw new Error('Missing Apple notarization credentials')
+          function query(args) {
+            const result = spawnSync('xcrun', ['notarytool', ...args, ...auth, '--output-format', 'json'], { encoding: 'utf8', timeout: 120000 })
+            if (result.error || result.status !== 0) {
+              const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+              const reason = /401|Invalid credentials/i.test(output) ? 'Apple authentication rejected (401)' : /403/i.test(output) ? 'Apple authorization rejected (403)' : 'Apple status query failed or timed out'
+              throw new Error(reason)
+            }
+            return JSON.parse(result.stdout)
+          }
+          const history = query(['history'])
+          const submissions = (history.history ?? []).filter(item => /TokensCowork/i.test(item.name ?? '')).sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate))).slice(0, 10)
+          const rows = ['## TokensCowork Apple notarization', '', '| Submission ID | Created (UTC) | Status |', '| --- | --- | --- |']
+          for (const submission of submissions) {
+            const info = query(['info', submission.id])
+            const row = `| ${submission.id} | ${info.createdDate ?? submission.createdDate} | ${info.status ?? submission.status} |`
+            rows.push(row)
+            console.log(row)
+          }
+          if (!submissions.length) rows.push('', 'No TokensCowork submissions were found for this team.')
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${rows.join('\n')}\n`)
+          NODE
