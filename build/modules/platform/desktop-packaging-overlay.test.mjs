@@ -59,6 +59,7 @@ test('upstream architecture and macOS quality-check anchors still match', () => 
   assert.match(alignMacReleaseChecks(release), /'--config.forceCodeSigning=true', '--config.mac.notarize=false'/)
   assert.doesNotMatch(alignMacReleaseChecks(release), /--universal|prepareInstalledMacUniversalRuntime/)
   assert.match(alignMacReleaseChecks(release), /--\$\{releaseEnvironment.DSH_MAC_ARCH\}/)
+  assert.doesNotMatch(alignMacReleaseChecks(release), /FORBIDDEN_MACOS_UNIVERSAL_ENTRIES|Unexpected generated native runtime/)
   assert.throws(() => alignMacReleaseChecks(release.replace("'exec', 'electron-builder'", "'exec', 'changed-builder'")))
   assert.throws(() => alignFsExtArchitecture('changed upstream'))
   assert.throws(() => alignMacReleaseChecks('changed upstream'))

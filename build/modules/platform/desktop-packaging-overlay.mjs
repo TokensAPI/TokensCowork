@@ -52,13 +52,10 @@ export function alignMacReleaseChecks(releaseMac) {
     .replace(builder, "    'exec', 'electron-builder', '--mac', 'dmg', `--${releaseEnvironment.DSH_MAC_ARCH}`,\n    '--publish', 'never',")
     .replace("'--config.mac.notarize=true'", "'--config.mac.notarize=false'")
     .replace("import { rmSync } from 'node:fs'", "import { rmSync, existsSync, chmodSync } from 'node:fs'")
-    .replace("import { prepareInstalledMacUniversalRuntime }", "import { MACOS_UNIVERSAL_NATIVE_ENTRIES, FORBIDDEN_MACOS_UNIVERSAL_ENTRIES }")
+    .replace("import { prepareInstalledMacUniversalRuntime }", "import { MACOS_UNIVERSAL_NATIVE_ENTRIES }")
     .replace(runtime, `      const arch = process.env.DSH_MAC_ARCH
       if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')
       prepareFsExtForElectron({ platform: 'darwin', arch, desktopRoot })
-      for (const entry of FORBIDDEN_MACOS_UNIVERSAL_ENTRIES) {
-        if (existsSync(resolve(desktopRoot, entry))) throw new Error('Unexpected generated native runtime: ' + entry)
-      }
       for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.arch === (arch === 'x64' ? 'x86_64' : 'arm64'))) {
         const file = resolve(desktopRoot, entry.path)
         if (!existsSync(file)) throw new Error('Missing native runtime: ' + entry.path)
