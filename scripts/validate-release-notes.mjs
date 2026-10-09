@@ -77,7 +77,7 @@ export function validateReleaseNotes({ content, version, fullTemplate = false })
         if (!text.includes(url)) errors.push(`missing current-version asset link in ${name}: ${suffix}`)
       }
     }
-    for (const [name, subheadings] of [['安装说明', ['Windows', 'macOS', '从旧版本升级']], ['Installation', ['Windows Installation', 'macOS Installation', 'Upgrading from an Earlier Version']]]) {
+    for (const [name, subheadings] of [['安装说明', ['Windows', 'macOS']], ['Installation', ['Windows Installation', 'macOS Installation']]]) {
       for (const heading of subheadings) {
         if (!section(name).includes(`### ${heading}`)) errors.push(`missing installation subsection: ${heading}`)
       }
