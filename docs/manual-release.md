@@ -199,18 +199,19 @@ git log -1 --oneline
 git ls-remote origin refs/heads/master
 ```
 
-创建并推送 Tag：
+推荐在 `master` 手动启动构建，成功后工作流自动创建版本 Tag：
 
 ```powershell
-git tag -a v0.5.14 -m "TokensCowork v0.5.14"
-git push origin v0.5.14
+gh workflow run release-desktop.yml --ref master -f operation=build
 ```
 
-Tag 推送后，[`发布 · 桌面应用`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release-desktop.yml) 会自动：
+该入口首次构建后会保存默认分支缓存，后续版本可复用依赖、Electron 与打包工具下载缓存。也保留推送 `v*` Tag 的自动构建入口，但不同 Tag 的缓存互相隔离；同一版本选择一个触发入口。
+
+[`发布 · 桌面应用`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release-desktop.yml) 会自动：
 
 1. 校验版本号和发布说明。
-2. 并行执行固定内置插件回归与 Windows AMD64、macOS ARM64、macOS AMD64 构建；构建中校验产品组装和生产依赖许可证。任一任务失败取消其余任务，插件回归首个失败后停止后续插件；macOS 尽可能保存已签名应用和原公证编号。
-3. 四项全部通过后创建预发布 GitHub Release，上传三个安装包、SHA-256 和插件清单。
+2. 并行构建 Windows AMD64、macOS ARM64、macOS AMD64；任一安装包失败取消其余构建。预发布不执行全量插件功能回归，仍校验产品组装、生产依赖许可证、包内容、安装及签名公证；macOS 尽可能保存已签名应用和原公证编号。
+3. 三个平台全部通过后创建预发布 GitHub Release，上传三个安装包、SHA-256 和插件清单。
 4. 触发 [`部署 · 下载页`](https://github.com/TokensAPI/TokensCowork/actions/workflows/deploy-download-page.yml) 同步下载页数据。
 
 发布入口：
@@ -228,7 +229,7 @@ node scripts/promote-release.mjs v0.5.14
 gh workflow run release-desktop.yml --ref master -f operation=promote -f tag=v0.5.14
 ```
 
-第一个命令仅预检，第二个工作流复用现有标签和安装包，更新说明并晋级为正式版。缺失平台附件、说明不完整或版本低于最新正式版时拒绝晋级。不要为变更发布状态移动标签或重新构建。
+第一个命令仅预检，第二个工作流先对原 tag 固定的插件执行全量功能回归，全部通过后复用现有标签和安装包，更新说明并晋级为正式版。回归失败、缺失平台附件、说明不完整或版本低于最新正式版时拒绝晋级。不要为变更发布状态移动标签或重新构建。
 
 直接编辑说明或删除 GitHub Release 后，手动刷新下载页：
 

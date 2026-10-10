@@ -16,7 +16,7 @@ on:
 permissions:
   contents: read
 
-# 手动回归、发布矩阵与晋级共用回归锁；不同于发布锁，避免调用者自锁。
+# 手动回归与晋级共用回归锁；不同于发布锁，避免调用者自锁。
 concurrency:
   group: product-plugin-regression
   cancel-in-progress: false
@@ -40,6 +40,24 @@ jobs:
           node-version: '24'
       - name: 准备 · 配置固定包管理器
         run: npm install --global corepack@0.35.0 --force
+      - name: 准备 · 固定 Harness 提交
+        # 测试目标可能是旧 tag，必须使用该目标的产品 pin，不能取 master 的 pin。
+        shell: bash
+        env:
+          PRODUCT_REF: ${{ inputs.ref || github.sha }}
+        run: |
+          set -euo pipefail
+          commit="$(node --input-type=module -e '
+            import { execFileSync } from "node:child_process";
+            import { parseOptions } from "./scripts/test-product-plugins.mjs";
+            const { ref } = parseOptions(["--ref", process.env.PRODUCT_REF]);
+            const product = JSON.parse(execFileSync("git", ["show", `${ref}:product.json`], { encoding: "utf8" }));
+            process.stdout.write(product.desktop.deepseekHarnessCommit);
+          ')"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
+          git -C desktop/deepseek-harness checkout --detach "$commit"
+          git -C desktop/deepseek-harness submodule update --init --recursive
       - name: 检查 · 固定内置插件
         env:
           GH_TOKEN: ${{ github.token }}

@@ -118,28 +118,27 @@ test('promotion runs the tag regression gate before applying Release changes', (
   assert.doesNotMatch(promotion, /if: always\(\)|continue-on-error/)
 })
 
-test('plugin regression and all installers share one fail-fast matrix before publication', () => {
+test('prerelease builds only three installers with fail-fast publication gating', () => {
   const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
-  const parallel = workflowJob(workflow, 'build-and-test')
+  const parallel = workflowJob(workflow, 'build-packages')
   assert.match(parallel, /needs: metadata\s+if: needs.metadata.outputs.operation == 'build'/)
   assert.match(parallel, /fail-fast: true/)
-  assert.deepEqual([...parallel.matchAll(/^          - task: (\w+)$/gm)].map(match => match[1]), ['plugins', 'package', 'package', 'package'])
-  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2025', 'windows-2022', 'macos-14', 'macos-15-intel'])
-  assert.match(parallel, /PRODUCT_REF: \$\{\{ needs.metadata.outputs.commit \}\}/)
-  assert.match(parallel, /corepack yarn test:plugins --ref "\$env:PRODUCT_REF" --fail-fast/)
-  assert.match(parallel, /if: always\(\) && matrix.task == 'plugins'/)
+  assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows', 'macos', 'macos'])
+  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'macos-14', 'macos-15-intel'])
+  assert.doesNotMatch(parallel, /test:plugins|matrix.task|task: plugins/)
+  assert.match(parallel, /ref: \$\{\{ needs.metadata.outputs.commit \}\}/)
   assert.match(parallel, /if: always\(\) && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'/)
   const publication = workflowJob(workflow, 'publish-release')
-  assert.match(publication, /needs: \[metadata, build-and-test\]/)
+  assert.match(publication, /needs: \[metadata, build-packages\]/)
   assert.doesNotMatch(publication, /if:|continue-on-error:/)
-  // 只有缓存可忽略失败，回归、编译、签名、公证和附件校验均不可放宽。
+  // 只有缓存可忽略失败，编译、签名、公证和附件校验均不可放宽。
   assert.equal((parallel.match(/continue-on-error: true/g) ?? []).length, 1)
-  assert.match(parallel, /if: matrix.task == 'package'\s+uses: actions\/cache@v5\s+continue-on-error: true/)
+  assert.match(parallel, /uses: actions\/cache@v5\s+continue-on-error: true/)
 })
 
-test('fresh release checkout fetches the product Harness pin before isolated plugin regression', () => {
+test('fresh package and regression checkouts fetch the target Harness pin before use', () => {
   const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
-  const parallel = workflowJob(workflow, 'build-and-test')
+  const parallel = workflowJob(workflow, 'build-packages')
   const pin = parallel.split('      - name: 准备 · 固定 Harness 提交\n')[1]?.split('      - name:')[0]
   assert.ok(pin, 'Harness preparation must exist in the release matrix')
   assert.doesNotMatch(pin, /if:|continue-on-error:/)
@@ -147,7 +146,16 @@ test('fresh release checkout fetches the product Harness pin before isolated plu
   assert.match(pin, /git -C desktop\/deepseek-harness fetch --no-tags --no-recurse-submodules origin "\$commit"/)
   assert.match(pin, /git -C desktop\/deepseek-harness checkout --detach "\$commit"/)
   assert.match(pin, /submodule update --init --recursive/)
-  assert.ok(parallel.indexOf('准备 · 固定 Harness 提交') < parallel.indexOf('corepack yarn test:plugins'))
+  assert.ok(parallel.indexOf('准备 · 固定 Harness 提交') < parallel.indexOf('corepack yarn product:dist:win'))
+  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
+  const prepare = regression.split('      - name: 准备 · 固定 Harness 提交\n')[1]?.split('      - name:')[0]
+  assert.ok(prepare, 'Promotion/manual regression must prepare the pinned Harness on fresh runners')
+  assert.match(prepare, /PRODUCT_REF: \$\{\{ inputs.ref \|\| github.sha \}\}/)
+  assert.match(prepare, /parseOptions\(\["--ref", process.env.PRODUCT_REF\]\)/)
+  assert.match(prepare, /execFileSync\("git", \["show", `\$\{ref\}:product.json`\]/)
+  assert.match(prepare, /product.desktop.deepseekHarnessCommit/)
+  assert.match(prepare, /checkout --detach "\$commit"/)
+  assert.ok(regression.indexOf('准备 · 固定 Harness 提交') < regression.indexOf('corepack yarn test:plugins'))
 })
 
 test('regression shares its own lock while release requests cannot cancel an active release', () => {
@@ -155,9 +163,9 @@ test('regression shares its own lock while release requests cannot cancel an act
   const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
   assert.match(release, /group: product-release\s+cancel-in-progress: false/)
   assert.match(regression, /group: product-plugin-regression\s+cancel-in-progress: false/)
-  assert.match(release, /matrix.task == 'plugins' && 'product-plugin-regression' \|\| format\('product-package-/)
+  assert.match(release, /group: product-package-\$\{\{ github.run_id \}\}-\$\{\{ matrix.platform \}\}-\$\{\{ matrix.arch \}\}/)
   // 取消后重试保留原报告，避免同名附件冲突再次触发失败。
-  for (const workflow of [release, regression]) assert.match(workflow, /name: plugin-regression-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}/)
+  assert.match(regression, /name: plugin-regression-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}/)
 })
 
 test('download deployment has one release trigger and no release-event redispatch loop', () => {
