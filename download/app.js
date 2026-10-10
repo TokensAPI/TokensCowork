@@ -842,8 +842,6 @@
     configureRecommended(urls, fallback);
 
     var version = releaseVersion(release);
-    var legacyVersion = document.getElementById("header-version");
-    if (legacyVersion) legacyVersion.textContent = "v" + version;
     var statusKey = isPure ? "pureVersion" : (isStable ? "stableVersion" : (release.tag_name === latestReleaseTag ? "latestVersion" : "selectedVersion"));
     document.getElementById("release-status").textContent = translate(statusKey, {
       version: version,
