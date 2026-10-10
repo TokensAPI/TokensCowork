@@ -2,17 +2,13 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { withoutPnpLoader } from '../build/pipeline/node-environment.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** Yarn 命令入口会注入根项目 PnP loader；独立 npm/pnpm 副本必须使用自己的依赖树。 */
 export function isolatedPackageEnvironment(environment) {
-  const env = { ...environment, COREPACK_ENABLE_PROJECT_SPEC: '0' }
-  if (env.NODE_OPTIONS) {
-    env.NODE_OPTIONS = env.NODE_OPTIONS.replace(/(?:--require(?:=|\s+)|-r\s+|--experimental-loader(?:=|\s+)|--loader(?:=|\s+)|--import(?:=|\s+))(?:(?:"[^"]*\.pnp\.(?:cjs|loader\.mjs)")|(?:'[^']*\.pnp\.(?:cjs|loader\.mjs)')|(?:[^\s]*\.pnp\.(?:cjs|loader\.mjs)))(?=\s|$)/gu, '').trim()
-    if (!env.NODE_OPTIONS) delete env.NODE_OPTIONS
-  }
-  return env
+  return { ...withoutPnpLoader(environment), COREPACK_ENABLE_PROJECT_SPEC: '0' }
 }
 
 /** 复用插件已有入口，没有测试脚本时明确排除，不伪造通过。 */

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { relative, resolve } from 'node:path'
 import { productStage } from './pipeline/paths.mjs'
+import { withoutPnpLoader } from './pipeline/node-environment.mjs'
 import { adaptAppleReleaseEnvironment } from './modules/platform/mac-signing-resolve.mjs'
 
 /* ====================================================================
@@ -55,7 +56,7 @@ function run(command, args, cwd, env = process.env) {
   const resolvedArgs = windowsCorepack
     ? ['/d', '/s', '/c', `corepack ${args.map(quoteCmdArgument).join(' ')}`]
     : args
-  const result = spawnSync(executable, resolvedArgs, { cwd, env, stdio: 'inherit' })
+  const result = spawnSync(executable, resolvedArgs, { cwd, env: withoutPnpLoader(env), stdio: 'inherit' })
   if (result.error !== undefined) throw result.error
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} exited with ${String(result.status)}`)
 }

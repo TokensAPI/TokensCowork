@@ -1,13 +1,37 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { currentInputs, loadCatalog, reviewEntries, validateCatalog } from './overlay-review.mjs'
+import { withoutPnpLoader } from './node-environment.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const catalog = loadCatalog()
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
+test('a staging subprocess resolves its own dependencies after removing outer PnP injection', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'staging-node-'))
+  try {
+    mkdirSync(resolve(directory, 'node_modules', 'staging-fixture'), { recursive: true })
+    writeFileSync(resolve(directory, 'node_modules', 'staging-fixture', 'index.js'), 'module.exports = 42')
+    const loader = resolve(directory, '.pnp.cjs')
+    writeFileSync(loader, "throw new Error('outer PnP loader injected')")
+    const source = { ...process.env, NODE_OPTIONS: `--require "${loader.replaceAll('\\', '/')}" --max-old-space-size=4096`, COREPACK_ENABLE_PROJECT_SPEC: '1', APPLE_TEAM_ID: 'test-team' }
+    const args = ['-e', "console.log(require('staging-fixture'))"]
+    const contaminated = spawnSync(process.execPath, args, { cwd: directory, env: source, encoding: 'utf8' })
+    assert.notEqual(contaminated.status, 0)
+    assert.match(contaminated.stderr, /outer PnP loader injected/)
+    const clean = withoutPnpLoader(source)
+    assert.equal(clean.NODE_OPTIONS, '--max-old-space-size=4096')
+    assert.equal(clean.COREPACK_ENABLE_PROJECT_SPEC, '1')
+    assert.equal(clean.APPLE_TEAM_ID, 'test-team')
+    assert.ok(source.NODE_OPTIONS.includes('.pnp.cjs'))
+    const result = spawnSync(process.execPath, args, { cwd: directory, env: clean, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout.trim(), '42')
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+})
 test('every module implementation is registered with purpose, callers, tests and removal criteria', () => {
   validateCatalog(catalog)
 })
