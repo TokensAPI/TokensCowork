@@ -92,7 +92,7 @@ Windows 最终验收（`build/pipeline/packaged-app-verify.mjs`）除品牌与�
 
 普通 master 提交不会打安装包。直接编辑或删除 GitHub Release 后，手动运行下载页部署；正常发布和晋级会自动刷新。
 
-插件发布包检查由 [插件体检项目](https://github.com/TokensAPI/tokens_DshPluginCheck_code) 提供手动入口。
+插件 npm 发布流程自动调用 [插件体检项目](https://github.com/TokensAPI/tokens_DshPluginCheck_code) 检查刚发布的准确版本；手动入口用于补查。此检查独立于产品内置插件功能回归，需配置只读 `PLUGIN_CHECK_REGISTRY_TOKEN`。
 
 操作细节见 [手动构建与发布指南](docs/manual-release.md)，市场配置见 [市场说明](market/README.md)。
 
