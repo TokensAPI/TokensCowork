@@ -137,6 +137,19 @@ test('plugin regression and all installers share one fail-fast matrix before pub
   assert.match(parallel, /if: matrix.task == 'package'\s+uses: actions\/cache@v5\s+continue-on-error: true/)
 })
 
+test('fresh release checkout fetches the product Harness pin before isolated plugin regression', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
+  const parallel = workflowJob(workflow, 'build-and-test')
+  const pin = parallel.split('      - name: 准备 · 固定 Harness 提交\n')[1]?.split('      - name:')[0]
+  assert.ok(pin, 'Harness preparation must exist in the release matrix')
+  assert.doesNotMatch(pin, /if:|continue-on-error:/)
+  assert.match(pin, /product\.json.*desktop\.deepseekHarnessCommit/)
+  assert.match(pin, /git -C desktop\/deepseek-harness fetch --no-tags --no-recurse-submodules origin "\$commit"/)
+  assert.match(pin, /git -C desktop\/deepseek-harness checkout --detach "\$commit"/)
+  assert.match(pin, /submodule update --init --recursive/)
+  assert.ok(parallel.indexOf('准备 · 固定 Harness 提交') < parallel.indexOf('corepack yarn test:plugins'))
+})
+
 test('regression shares its own lock while release requests cannot cancel an active release', () => {
   const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
   const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')

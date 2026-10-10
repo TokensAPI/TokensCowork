@@ -123,6 +123,17 @@ jobs:
         with:
           node-version: ${{ matrix.task == 'plugins' && '24' || '22.23.2' }}
 
+      - name: 准备 · 固定 Harness 提交
+        # Desktop gitlink 可能不同于产品 pin；全新检出必须在宿主回归前获取固定对象。
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit="$(node -p "require('./product.json').desktop.deepseekHarnessCommit")"
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
+          git -C desktop/deepseek-harness checkout --detach "$commit"
+          git -C desktop/deepseek-harness submodule update --init --recursive
+
       - name: 准备 · 固定插件测试包管理器
         if: matrix.task == 'plugins'
         shell: pwsh
@@ -143,17 +154,6 @@ jobs:
           name: plugin-regression-${{ github.run_id }}-${{ github.run_attempt }}
           path: .build/plugin-tests/*/report.json
           if-no-files-found: ignore
-
-      - name: 准备 · 固定 Harness 提交
-        if: matrix.task == 'package'
-        shell: bash
-        run: |
-          set -euo pipefail
-          commit="$(node -p "require('./product.json').desktop.deepseekHarnessCommit")"
-          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
-          git -C desktop/deepseek-harness fetch --no-tags --no-recurse-submodules origin "$commit"
-          git -C desktop/deepseek-harness checkout --detach "$commit"
-          git -C desktop/deepseek-harness submodule update --init --recursive
 
       - name: 准备 · 恢复构建缓存
         if: matrix.task == 'package'
