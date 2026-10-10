@@ -67,7 +67,7 @@ test('upstream architecture and macOS quality-check anchors still match', () => 
 
 test('release matrix builds native macOS packages and preserves recovery artifacts', () => {
   const workflow = readFileSync(new URL('../../../.github/workflows/release-desktop.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
-  const packages = workflow.slice(workflow.indexOf('  build-and-test:\n'), workflow.indexOf('  publish-release:\n'))
+  const packages = workflow.slice(workflow.indexOf('  build-packages:\n'), workflow.indexOf('  publish-release:\n'))
   assert.equal((packages.match(/platform: windows/g) ?? []).length, 1)
   assert.equal((packages.match(/platform: macos/g) ?? []).length, 2)
   assert.match(packages, /electron_arch: arm64\n            binary_arch: arm64/)

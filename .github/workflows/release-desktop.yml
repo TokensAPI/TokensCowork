@@ -132,14 +132,21 @@ jobs:
         uses: actions/cache@v5
         continue-on-error: true
         with:
+          # 仅缓存下载内容；源码、依赖安装树和已签名产物每次重新生成。
           path: |
             ~/.yarn/berry/cache
             ~/AppData/Local/Yarn/Berry/cache
+            ~/.cache/node-gyp
+            ~/Library/Caches/node-gyp
+            ~/AppData/Local/node-gyp/Cache
+            ~/.electron-gyp
             ~/Library/Caches/electron
             ~/Library/Caches/electron-builder
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
+          restore-keys: |
+            desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-
 
       - name: 构建 · Windows 检查与打包
         if: matrix.platform == 'windows'

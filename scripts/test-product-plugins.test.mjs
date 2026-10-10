@@ -158,6 +158,17 @@ test('fresh package and regression checkouts fetch the target Harness pin before
   assert.ok(regression.indexOf('准备 · 固定 Harness 提交') < regression.indexOf('corepack yarn test:plugins'))
 })
 
+test('download cache fallback stays platform-specific and excludes generated applications', () => {
+  const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
+  const cache = workflowJob(release, 'build-packages').split('      - name: 准备 · 恢复构建缓存')[1]?.split('      - name:')[0]
+  assert.ok(cache)
+  assert.match(cache, /key: desktop-build-v1-\$\{\{ runner.os \}\}-\$\{\{ runner.arch \}\}-\$\{\{ hashFiles\('build\/pipeline\/product.yarn.lock'\) \}\}/)
+  assert.match(cache, /restore-keys: \|\s+desktop-build-v1-\$\{\{ runner.os \}\}-\$\{\{ runner.arch \}\}-/)
+  assert.match(cache, /Library\/Caches\/node-gyp/)
+  assert.match(cache, /~\/\.electron-gyp/)
+  assert.doesNotMatch(cache, /node_modules|signed-app|mac-recovery|dist\//)
+})
+
 test('regression shares its own lock while release requests cannot cancel an active release', () => {
   const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
   const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')

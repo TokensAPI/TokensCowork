@@ -77,6 +77,10 @@ for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
     }
     if (mode === 'mac') assert.ok(output.includes('dist:mac'))
     if (mode === 'mac-unsigned') assert.ok(output.includes('--config.mac.identity=null'))
+    if (mode !== 'check') {
+      assert.ok(output.indexOf('workspace dsh-community-market build') < output.indexOf('workspace dsh-plugin-desktop build'))
+      assert.doesNotMatch(output, /corepack yarn run build|dsh-plugin-desktop-beta/)
+    }
   })
 }
 

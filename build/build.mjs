@@ -71,9 +71,11 @@ function configureProduct(environment = process.env, packagingTarget = 'default'
   )
 }
 
-/** 编译 staging 中完整的桌面产品 workspace。 */
+/** 编译实际交付的市场与 Desktop，避免上游总构建重复编译 Beta 产品。 */
 function buildProduct(environment = process.env) {
-  run('corepack', ['yarn', 'run', 'build'], stage, environment)
+  for (const workspace of ['dsh-community-market', 'dsh-plugin-desktop']) {
+    run('corepack', ['yarn', 'workspace', workspace, 'build'], stage, environment)
+  }
 }
 
 /** 为指定 macOS 架构编译与 Electron ABI 一致的 fs-ext 原生绑定。 */
