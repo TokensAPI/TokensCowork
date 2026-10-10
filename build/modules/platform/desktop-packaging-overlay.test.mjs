@@ -65,14 +65,14 @@ test('upstream architecture and macOS quality-check anchors still match', () => 
   assert.throws(() => alignMacReleaseChecks('changed upstream'))
 })
 
-test('all three packages share fail-fast and release waits for their combined success', () => {
+test('release matrix builds native macOS packages and preserves recovery artifacts', () => {
   const workflow = readFileSync(new URL('../../../.github/workflows/release-desktop.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
-  const packages = workflow.slice(workflow.indexOf('  packages:\n'), workflow.indexOf('  publish-release:\n'))
-  assert.match(packages, /fail-fast: true/)
-  assert.equal((packages.match(/- platform:/g) ?? []).length, 3)
-  assert.equal((packages.match(/- platform: macos/g) ?? []).length, 2)
-  assert.match(workflow, /name: 发布 · 预发布版本\n    needs: \[metadata, packages\]/)
-  assert.doesNotMatch(workflow, /^  (windows-amd64|macos):/m)
+  const packages = workflow.slice(workflow.indexOf('  build-and-test:\n'), workflow.indexOf('  publish-release:\n'))
+  assert.equal((packages.match(/platform: windows/g) ?? []).length, 1)
+  assert.equal((packages.match(/platform: macos/g) ?? []).length, 2)
+  assert.match(packages, /electron_arch: arm64\n            binary_arch: arm64/)
+  assert.match(packages, /electron_arch: x64\n            binary_arch: x86_64/)
+  assert.match(packages, /DSH_MAC_ARCH="\$\{\{ matrix.electron_arch \}\}" corepack yarn product:dist:mac:auto/)
   assert.match(packages, /if: always\(\).*steps.signing.outputs.mode == 'signed'/)
   assert.match(packages, /find "\$\{dist\}" -type f -name '\*\.dmg'/)
 })

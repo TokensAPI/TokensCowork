@@ -20,7 +20,7 @@
 corepack yarn test:plugins --ref v0.5.19
 ```
 
-不传 `--ref` 时使用当前 HEAD 的产品清单；加 `--plan` 可只查看版本和测试入口。先递归初始化子模块，并准备 Node.js、npm、Corepack 与 tar。
+不传 `--ref` 时使用当前 HEAD 的产品清单；加 `--plan` 可只查看版本和测试入口，`--fail-fast` 在首个失败后停止；手动回归默认继续收集各插件结果。先递归初始化子模块，并准备 Node.js、npm、Corepack 与 tar。
 
 命令优先调用插件已有的 `test:cases`，没有该入口则调用 `test`；没有测试脚本的插件列为 `not-configured`，暂时不补测试，也不算测试通过。固定提交的隔离检出、依赖安装、宿主夹具和报告全部位于 `.build/plugin-tests/`，不会改动源码子模块。联网搜索和模型插件所需的固定 Harness 依赖与宿主运行时也会自动准备。
 
@@ -209,10 +209,9 @@ git push origin v0.5.14
 Tag 推送后，[`发布 · 桌面应用`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release-desktop.yml) 会自动：
 
 1. 校验版本号和发布说明。
-2. 执行固定内置插件的已有测试，通过后校验产品组装和生产依赖许可证。
-3. 构建 Windows AMD64、macOS ARM64 和 macOS AMD64 安装包，任一失败停止其余构建。
-4. 创建预发布 GitHub Release，上传三个安装包、SHA-256 和插件清单。
-5. 触发 [`部署 · 下载页`](https://github.com/TokensAPI/TokensCowork/actions/workflows/deploy-download-page.yml) 同步下载页数据。
+2. 并行执行固定内置插件回归与 Windows AMD64、macOS ARM64、macOS AMD64 构建；构建中校验产品组装和生产依赖许可证。任一任务失败取消其余任务，插件回归首个失败后停止后续插件；macOS 尽可能保存已签名应用和原公证编号。
+3. 四项全部通过后创建预发布 GitHub Release，上传三个安装包、SHA-256 和插件清单。
+4. 触发 [`部署 · 下载页`](https://github.com/TokensAPI/TokensCowork/actions/workflows/deploy-download-page.yml) 同步下载页数据。
 
 发布入口：
 

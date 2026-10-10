@@ -68,29 +68,44 @@ jobs:
   plugin-tests:
     name: 检查 · 内置插件回归
     needs: metadata
+    if: needs.metadata.outputs.operation == 'promote'
     uses: ./.github/workflows/test-builtin-plugins.yml
     with:
       ref: ${{ needs.metadata.outputs.commit }}
 
-  packages:
-    name: 构建 · ${{ matrix.platform }} ${{ matrix.arch }} 安装包
-    needs: [metadata, plugin-tests]
+  build-and-test:
+    name: ${{ matrix.name }}
+    needs: metadata
     if: needs.metadata.outputs.operation == 'build'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    timeout-minutes: ${{ matrix.task == 'plugins' && 60 || 90 }}
+    concurrency:
+      # 回归与手动/晋级共用锁；安装包按运行和架构隔离，互不阻塞。
+      group: ${{ matrix.task == 'plugins' && 'product-plugin-regression' || format('product-package-{0}-{1}-{2}', github.run_id, matrix.platform, matrix.arch) }}
+      cancel-in-progress: false
     strategy:
+      # 同一矩阵才能联动取消：插件回归或任一安装包失败，停止其余任务。
       fail-fast: true
       matrix:
         include:
-          - platform: windows
+          - task: plugins
+            name: 测试 · 内置插件功能
+            runner: windows-2025
+          - task: package
+            name: 构建 · Windows AMD64 安装包
+            platform: windows
             arch: amd64
             runner: windows-2022
-          - platform: macos
+          - task: package
+            name: 构建 · macOS ARM64 安装包
+            platform: macos
             arch: arm64
             runner: macos-14
             electron_arch: arm64
             binary_arch: arm64
-          - platform: macos
+          - task: package
+            name: 构建 · macOS AMD64 安装包
+            platform: macos
             arch: amd64
             runner: macos-15-intel
             electron_arch: x64
@@ -106,9 +121,31 @@ jobs:
       - name: 准备 · 配置 Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.23.2
+          node-version: ${{ matrix.task == 'plugins' && '24' || '22.23.2' }}
+
+      - name: 准备 · 固定插件测试包管理器
+        if: matrix.task == 'plugins'
+        shell: pwsh
+        run: npm install --global corepack@0.35.0 --force
+
+      - name: 测试 · 固定内置插件
+        if: matrix.task == 'plugins'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT_REF: ${{ needs.metadata.outputs.commit }}
+        run: corepack yarn test:plugins --ref "$env:PRODUCT_REF" --fail-fast
+
+      - name: 报告 · 保存插件回归结果
+        if: always() && matrix.task == 'plugins'
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-regression-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .build/plugin-tests/*/report.json
+          if-no-files-found: ignore
 
       - name: 准备 · 固定 Harness 提交
+        if: matrix.task == 'package'
         shell: bash
         run: |
           set -euo pipefail
@@ -119,6 +156,7 @@ jobs:
           git -C desktop/deepseek-harness submodule update --init --recursive
 
       - name: 准备 · 恢复构建缓存
+        if: matrix.task == 'package'
         uses: actions/cache@v5
         continue-on-error: true
         with:
@@ -362,7 +400,7 @@ jobs:
 
   publish-release:
     name: 发布 · 预发布版本
-    needs: [metadata, packages]
+    needs: [metadata, build-and-test]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -491,7 +529,7 @@ jobs:
   summary:
     name: 报告 · 发布结果
     if: always()
-    needs: [metadata, plugin-tests, packages, publish-release, promote-release]
+    needs: [metadata, plugin-tests, build-and-test, publish-release, promote-release]
     runs-on: ubuntu-24.04
     steps:
       - name: 报告 · 汇总发布结果
@@ -502,12 +540,12 @@ jobs:
             echo
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'
-            echo '| Three platform packages | `${{ needs.packages.result }}` | `desktop-{windows-amd64,macos-arm64,macos-amd64}-${{ needs.metadata.outputs.version }}` |'
-            echo '| Plugin regression | `${{ needs.plugin-tests.result }}` | 固定源码提交 `${{ needs.metadata.outputs.commit }}` |'
+            echo '| Build plugin regression and three platform packages | `${{ needs.build-and-test.result }}` | `plugin-regression-${{ github.run_id }}-${{ github.run_attempt }}` / `desktop-{windows-amd64,macos-arm64,macos-amd64}-${{ needs.metadata.outputs.version }}` |'
+            echo '| Promotion plugin regression | `${{ needs.plugin-tests.result }}` | 固定源码提交 `${{ needs.metadata.outputs.commit }}` |'
             echo '| Pre-release publication | `${{ needs.publish-release.result }}` | `${{ needs.metadata.outputs.tag }}` |'
             echo '| Stable promotion | `${{ needs.promote-release.result }}` | 复用已有安装包 |'
             echo
-            echo 'If any package fails, remaining matrix jobs are cancelled and the release is not published.'
+            echo 'Plugin regression and three package jobs run in parallel. If any task fails, remaining matrix jobs are cancelled and the release is not published. Saved macOS recovery artifacts retain the original notarization submission.'
             echo
             echo 'macOS uses Developer ID signing and notarization when the complete secret set exists; otherwise it uses ad-hoc signing. BUILD-INFO files record the selected mode.'
           } >> "${GITHUB_STEP_SUMMARY}"

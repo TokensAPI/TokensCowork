@@ -75,14 +75,33 @@ function snapshot(source, commit, target) {
 }
 
 export function parseOptions(args) {
-  const options = { ref: 'HEAD', plan: false }
+  const options = { ref: 'HEAD', plan: false, failFast: false }
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--plan') options.plan = true
+    else if (args[i] === '--fail-fast') options.failFast = true
     else if (args[i] === '--ref' && args[i + 1] && !args[i + 1].startsWith('-')) options.ref = args[++i]
-    else throw new Error('Usage: test-product-plugins.mjs [--ref <tag>] [--plan]')
+    else throw new Error('Usage: test-product-plugins.mjs [--ref <tag>] [--plan] [--fail-fast]')
   }
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(options.ref)) throw new Error('Invalid Git ref')
   return options
+}
+
+/** 发布时首个失败停止后续插件；手动全量回归保留全部诊断，未执行项明确记录。 */
+export function runPluginTests(plan, execute, report, { failFast = false } = {}) {
+  const results = plan.map(({ id, version, commit, script }) => ({ id, version, commit, script, status: script ? 'not-run' : 'not-configured' }))
+  for (const [index, plugin] of plan.entries()) {
+    if (!plugin.script) continue
+    const result = results[index]
+    try {
+      Object.assign(result, execute(plugin), { status: 'passed' })
+    } catch (error) {
+      result.status = 'failed'
+      result.error = error.message
+    }
+    report(results)
+    if (failFast && result.status === 'failed') break
+  }
+  return results
 }
 
 export async function main(args = process.argv.slice(2)) {
@@ -115,11 +134,10 @@ export async function main(args = process.argv.slice(2)) {
   mkdirSync(temporaryRoot)
   const outerRoot = join(runRoot, 'outer')
   snapshot(root, commit, outerRoot)
-  const results = []
-  const report = () => writeFileSync(join(runRoot, 'report.json'), JSON.stringify({ ref: options.ref, commit, results }, null, 2) + '\n')
+  let hostError
+  const report = results => writeFileSync(join(runRoot, 'report.json'), JSON.stringify({ ref: options.ref, commit, preparationError: hostError, results }, null, 2) + '\n')
   // 宿主集成用例需要真实固定 Harness；准备隔离副本，不能写源码子模块。
   const hostPlugins = new Set(['tokens-dsh-web-search', 'tokens-model-manager'])
-  let hostError
   if (plan.some(plugin => hostPlugins.has(plugin.id) && plugin.script)) {
     try {
       const desktop = join(outerRoot, 'desktop')
@@ -132,37 +150,32 @@ export async function main(args = process.argv.slice(2)) {
       if (plan.some(plugin => plugin.id === 'tokens-model-manager' && plugin.script)) {
         run('corepack', ['pnpm@11.7.0', 'run', 'build:lib:host'], harness)
       }
-    } catch (error) { hostError = error.message }
-  }
-  for (const plugin of plan) {
-    const result = { id: plugin.id, version: plugin.version, commit: plugin.commit, script: plugin.script, status: 'not-configured' }
-    results.push(result)
-    if (!plugin.script) { report(); continue }
-    console.log(`\n==> ${plugin.id}@${plugin.version}: ${plugin.script} (${plugin.commit})`)
-    try {
-      if (hostPlugins.has(plugin.id) && hostError) throw new Error(`Host preparation failed: ${hostError}`)
-      const directory = join(outerRoot, plugin.path)
-      snapshot(join(root, plugin.path), plugin.commit, directory)
-      const [command, args] = installCommand(directory, plugin.manifest)
-      run(command, args, directory)
-      const env = testEnvironment(outerRoot, temporaryRoot)
-      run('npm', ['run', plugin.script], directory, env, true)
-      const functionalReport = join(directory, 'test-output', 'functional-cases-latest.json')
-      if (existsSync(functionalReport)) {
-        const details = JSON.parse(readFileSync(functionalReport, 'utf8'))
-        result.caseSummary = details.summary
-        result.testSummary = details.vitest
-      }
-      result.status = 'passed'
     } catch (error) {
-      result.status = 'failed'
-      result.error = error.message
+      hostError = error.message
+      if (options.failFast) {
+        report([])
+        throw new Error(`Host preparation failed: ${hostError}`)
+      }
     }
-    report()
   }
+  const results = runPluginTests(plan, plugin => {
+    console.log(`\n==> ${plugin.id}@${plugin.version}: ${plugin.script} (${plugin.commit})`)
+    if (hostPlugins.has(plugin.id) && hostError) throw new Error(`Host preparation failed: ${hostError}`)
+    const directory = join(outerRoot, plugin.path)
+    snapshot(join(root, plugin.path), plugin.commit, directory)
+    const [command, args] = installCommand(directory, plugin.manifest)
+    run(command, args, directory)
+    const env = testEnvironment(outerRoot, temporaryRoot)
+    run('npm', ['run', plugin.script], directory, env, true)
+    const functionalReport = join(directory, 'test-output', 'functional-cases-latest.json')
+    if (existsSync(functionalReport)) {
+      const details = JSON.parse(readFileSync(functionalReport, 'utf8'))
+      return { caseSummary: details.summary, testSummary: details.vitest }
+    }
+  }, report, options)
   console.log(`\nReport: ${join(runRoot, 'report.json')}`)
   for (const result of results) console.log(`${result.id}: ${result.status}${result.error ? ' — ' + result.error : ''}`)
-  if (results.some(result => result.status === 'failed')) throw new Error('Plugin regression failed; promotion is blocked')
+  if (results.some(result => result.status === 'failed')) throw new Error('Plugin regression failed; release is blocked')
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

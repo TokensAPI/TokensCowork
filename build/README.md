@@ -33,7 +33,7 @@ build/
 ```
 
 - Windows 承担 Fabric、Market、Windows 包测试，再完成产品编译、品牌、类型、CLI、Loader、Profile 检查与 NSIS 打包。包测试所需的上游身份编译与后续产品编译仍保留。
-- macOS 在原生 runner 只构建对应的 arm64 或 x64 包，完成配置、编译、品牌、原生依赖与签名检查；共享质量检查由同次 Windows 任务承担。三个平台共用 fail-fast 矩阵，任一包失败会取消其余构建，全部成功才发布。
+- macOS 在原生 runner 只构建对应的 arm64 或 x64 包，完成配置、编译、品牌、原生依赖与签名检查；共享质量检查由同次 Windows 任务承担。三平台构建与插件回归共用 fail-fast 矩阵并行执行，任一任务失败取消其余任务，全部成功才发布。
 - `check` 不生成安装包；本地开发脚本根据输入变化决定装配 / 编译，不调用安装包流程。
 - 运行时检查包含摘要保护回归：只用内存中的测试会话，不联网、不读取 Key；真实模型测试需显式执行。
 - 市场服务部署入口 `modules/market/market-routing-prepare.mjs` 独立生成服务副本，Desktop 打包不会调用它或部署市场。

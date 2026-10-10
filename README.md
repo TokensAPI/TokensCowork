@@ -85,10 +85,10 @@ Windows 最终验收（`build/pipeline/packaged-app-verify.mjs`）除品牌与�
 | [deploy-download-page.yml](.github/workflows/deploy-download-page.yml) | 部署 · 下载页 | 发布成功或下载页文件变更后更新 GitHub Pages，也可手动刷新 |
 | [deploy-plugin-market.yml](.github/workflows/deploy-plugin-market.yml) | 部署 · 插件市场 | 市场服务及生成输入变更后测试并部署，也可手动运行 |
 | [release-desktop.yml](.github/workflows/release-desktop.yml) | 发布 · 桌面应用 | 推送 `v*` tag，或手动选择 `build` 构建预发布、`promote` 转稳定版 |
-| [test-builtin-plugins.yml](.github/workflows/test-builtin-plugins.yml) | 测试 · 内置插件功能 | 执行固定内置插件的已有测试；发布调用一次，也可手动指定产品 tag/提交 |
+| [test-builtin-plugins.yml](.github/workflows/test-builtin-plugins.yml) | 测试 · 内置插件功能 | 手动指定产品 tag/提交执行回归，转稳定版时自动调用；新版构建在发布矩阵中执行同一测试命令 |
 | [inspect-resume-macos-notarization.yml](.github/workflows/inspect-resume-macos-notarization.yml) | 查询/恢复 · macOS 公证 | 手动 `inspect` 查询状态；`resume` 从已保存应用恢复原公证提交 |
 
-新版依次执行发布校验、一次插件回归和三平台构建；任一安装包失败会取消其余构建，全部成功才发布。转稳定版需填写原 tag、补齐累计说明并重新通过插件回归，复用原安装包。
+新版先校验发布目标，再并行执行一次插件回归与三平台构建；回归或任一安装包失败会取消其余任务，全部成功才发布。转稳定版需填写原 tag、补齐累计说明并重新通过插件回归，复用原安装包。
 
 普通 master 提交不会打安装包。直接编辑或删除 GitHub Release 后，手动运行下载页部署；正常发布和晋级会自动刷新。
 

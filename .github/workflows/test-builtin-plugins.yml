@@ -16,7 +16,7 @@ on:
 permissions:
   contents: read
 
-# 独立运行与发布调用共用回归锁；不同于发布锁，避免调用者自锁。
+# 手动回归、发布矩阵与晋级共用回归锁；不同于发布锁，避免调用者自锁。
 concurrency:
   group: product-plugin-regression
   cancel-in-progress: false
@@ -49,6 +49,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: plugin-regression-${{ github.run_id }}
+          name: plugin-regression-${{ github.run_id }}-${{ github.run_attempt }}
           path: .build/plugin-tests/*/report.json
           if-no-files-found: ignore
