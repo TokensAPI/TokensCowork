@@ -1,14 +1,20 @@
-name: Resume Apple Notarization
+name: 查询/恢复 · macOS 公证
 
 on:
   workflow_dispatch:
     inputs:
-      source_run_id:
-        description: Original Build Desktop run ID containing saved signed apps
+      operation:
+        description: '操作：inspect 查询；resume 恢复原公证与安装包'
         required: true
+        default: inspect
+        type: choice
+        options: [inspect, resume]
+      source_run_id:
+        description: 恢复时填写原产品发布运行 ID；查询时留空
+        required: false
         type: string
       architecture:
-        description: Architecture to recover without compiling or submitting again
+        description: '恢复架构；查询状态时忽略，不重新编译或提交公证'
         required: true
         default: both
         type: choice
@@ -19,11 +25,33 @@ permissions:
   actions: read
 
 concurrency:
-  group: notarization-resume-${{ inputs.source_run_id }}
+  group: macos-notarization-${{ inputs.operation }}-${{ inputs.source_run_id || 'history' }}
   cancel-in-progress: false
 
 jobs:
+  inspect:
+    name: 查询 · Apple 公证状态
+    if: inputs.operation == 'inspect'
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.23.2
+      - name: 查询 · 最近公证提交
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: node build/modules/platform/mac-notarization.mjs history
   source:
+    name: 准备 · 核对原运行及保存产物
+    if: inputs.operation == 'resume'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -31,11 +59,14 @@ jobs:
       version: ${{ steps.source.outputs.version }}
       matrix: ${{ steps.source.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
-      - id: source
+      - name: 检查 · 原运行与可恢复产物
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
@@ -43,7 +74,7 @@ jobs:
         run: node build/modules/platform/mac-notarization.mjs source "$SOURCE_RUN_ID" "$TARGET_ARCHITECTURE"
 
   recover:
-    name: Recover macOS ${{ matrix.arch }} installer
+    name: 恢复 · macOS ${{ matrix.arch }} 安装包
     needs: source
     timeout-minutes: 40
     runs-on: ${{ matrix.runner }}
@@ -51,20 +82,23 @@ jobs:
       fail-fast: true
       matrix: ${{ fromJSON(needs.source.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v7
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
         with:
           ref: ${{ needs.source.outputs.commit }}
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
-      - uses: actions/download-artifact@v8
+      - name: 准备 · 获取保存产物
+        uses: actions/download-artifact@v8
         with:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.source_run_id }}
           name: mac-notarization-${{ matrix.arch }}-${{ needs.source.outputs.version }}
           path: recovery
-      - name: Complete original submission and package saved app
+      - name: 恢复 · 等待原公证并生成安装包
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -72,7 +106,8 @@ jobs:
           SOURCE_COMMIT: ${{ needs.source.outputs.commit }}
           TARGET_ARCH: ${{ matrix.electron_arch }}
         run: node build/modules/platform/mac-notarization.mjs resume recovery product.json "$SOURCE_COMMIT" "$TARGET_ARCH"
-      - uses: actions/upload-artifact@v7
+      - name: 报告 · 保存构建产物
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-macos-${{ matrix.arch }}-${{ needs.source.outputs.version }}
           path: |

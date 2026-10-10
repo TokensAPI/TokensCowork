@@ -48,6 +48,12 @@ build/
 | `yarn product:prepare` | 获取产物并装配；后续仍须 immutable 安装核对 |
 | `yarn product:refresh-lock` | 依赖变化时刷新 pipeline/product.yarn.lock，不是每次发布前置 |
 | `yarn test:build [模块]` | 外层测试，不安装、不启动 Electron、不访问生产市场 |
+| `yarn test:ci` | 发布目标、回归门禁、互斥与下载页触发约束 |
+| `yarn test:release` | 发布说明、晋级和附件清单的回归 |
+| `yarn test:plugins --ref <tag或提交>` | 固定内置插件已有测试；没有入口的明确排除 |
+| `yarn test:market` | 市场服务和部署脚本测试，不部署 |
+| `yarn product:release:check` | CI 发布快速校验；只读，不发布或公证 |
+| `yarn product:release:promote <tag>` | 正式说明和原资产只读校验；晋级由 CI 回归后执行 |
 | `yarn product:overlays [模块] --check` | 查看覆盖记录，关联 pin 变化时提示复查并非零退出 |
 | `yarn product:check-desktop` | 完整 staging 校验，不打包 |
 | `yarn product:dist:win / product:dist:mac:auto` | 本地完整打包；正常发布交给 GitHub |
@@ -57,6 +63,8 @@ build/
 
 模块名同目录名。测试需要已检出的固定子模块；固定产物断言还需要已下载插件产物。
 独立装配使用 `PRODUCT_STAGE_NAME=desktop-<名称>`，不要覆盖其他任务正在使用的 staging。
+
+CI 文件、用途与触发条件统一见 [工作流表](../README.md#发布流程)。
 
 升级时先看 [上游升级检查指南](../docs/upstream-upgrade.md)，覆盖台账见 [模块复查说明](modules/README.md)。结构测试与装配一致不代表跨平台安装和模型功能已验收，不能替代 CI、许可证门禁或真机测试。
 
@@ -72,7 +80,7 @@ macOS 正式发布在 GitHub Actions Repository Secrets 中配置五项：
 `mac-notarization-{arm64,amd64}-版本` 构建附件保留 14 天，失败或取消时尽可能上传；被取消前尚未完成签名/提交的任务可能没有可恢复附件。
 Apple 已收到的提交在 CI 停止后仍可能继续处理。
 
-等待超时后，在 Actions 的 **Resume Apple Notarization** 中填写原 Build Desktop run ID，选择要恢复的架构。
+等待超时后，在 Actions 的 **查询/恢复 · macOS 公证** 中选择 `resume`，填写原“发布 · 桌面应用”run ID，选择要恢复的架构；仅查状态选择 `inspect`，无需填写运行 ID。
 它核对原构建来源、产品版本、提交、架构与 ZIP 摘要，只查询原公证提交；Accepted 后恢复原签名应用、附加公证票据，生成并验收 DMG。
 成功产物保存在该恢复任务的附件中，不自动发布 Release；三个平台的安装包与质量门禁全部成功后才能发布。
 缺失、过期的附件或缺失提交编号会直接失败，不自动重新构建或提交公证。旧构建没有保存这些附件，无法追溯恢复。

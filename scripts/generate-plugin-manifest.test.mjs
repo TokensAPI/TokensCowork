@@ -37,7 +37,7 @@ test('legacy releases retain classification; channel flags do not override distr
 })
 
 test('publication generates notes from the same pinned product as the plugin manifest', () => {
-  const workflow = readFileSync(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
+  const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
   assert.ok(workflow.includes('node scripts/generate-plugin-manifest.mjs --release-notes'))
   assert.ok(workflow.includes('release_notes="release-assets/release-notes.md"'))
   assert.ok(workflow.includes('--notes-file "${release_notes}"'))

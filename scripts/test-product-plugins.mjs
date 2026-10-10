@@ -5,6 +5,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
+/** Yarn 命令入口会注入根项目 PnP loader；独立 npm/pnpm 副本必须使用自己的依赖树。 */
+export function isolatedPackageEnvironment(environment) {
+  const env = { ...environment, COREPACK_ENABLE_PROJECT_SPEC: '0' }
+  if (env.NODE_OPTIONS) {
+    env.NODE_OPTIONS = env.NODE_OPTIONS.replace(/(?:--require(?:=|\s+)|-r\s+|--experimental-loader(?:=|\s+)|--loader(?:=|\s+)|--import(?:=|\s+))(?:(?:"[^"]*\.pnp\.(?:cjs|loader\.mjs)")|(?:'[^']*\.pnp\.(?:cjs|loader\.mjs)')|(?:[^\s]*\.pnp\.(?:cjs|loader\.mjs)))(?=\s|$)/gu, '').trim()
+    if (!env.NODE_OPTIONS) delete env.NODE_OPTIONS
+  }
+  return env
+}
+
 /** 复用插件已有入口，没有测试脚本时明确排除，不伪造通过。 */
 export function testScript(manifest) {
   if (manifest.scripts?.['test:cases']) return 'test:cases'
@@ -43,7 +53,7 @@ export function testEnvironment(outerRoot, temporaryRoot) {
 function run(command, args, cwd, env = process.env, testRun = false) {
   // Windows 的 npm/corepack 是 cmd shim；参数由本脚本生成，不拼接用户命令。
   const windowsShim = process.platform === 'win32' && ['npm', 'corepack'].includes(command)
-  const result = spawnSync(command, args, { cwd, env: { ...env, COREPACK_ENABLE_PROJECT_SPEC: '0' }, stdio: testRun ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: windowsShim, timeout: 20 * 60_000 })
+  const result = spawnSync(command, args, { cwd, env: isolatedPackageEnvironment(env), stdio: testRun ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: windowsShim, timeout: 20 * 60_000 })
   if (testRun) {
     process.stdout.write(result.stdout ?? '')
     process.stderr.write(result.stderr ?? '')

@@ -1,134 +1,56 @@
-# 市场后台自托管单元
+# 市场服务部署
 
-该目录把 `market/server/`（原 Cloudflare Pages Worker，代码零改动）打包成一个独立的
-Docker 部署单元。它与 `market/registry/`（Verdaccio）是**两个平级、自包含的单元**：
-可以同机部署，也可以分别部署在不同机器上——市场访问 Registry 只走公网地址
-`MARKET_PRIVATE_REGISTRY_URL`，单元之间没有本机依赖。
+市场与 Registry 是独立服务：
 
-| 单元 | 域名 | 本机端口 |
-| --- | --- | --- |
-| market/registry | npm.tokensapi.ai | 127.0.0.1:4873 |
-| market/server | npm.tokensapi.ai（按路径分流） | 127.0.0.1:4880 |
+| 服务 | 公网域名 | 本机监听 | 持久数据 |
+| --- | --- | --- | --- |
+| 市场 | market.tokensapi.ai | 127.0.0.1:4880 | tokenscowork-market-host-data，SQLite |
+| Registry | npm.tokensapi.ai | 127.0.0.1:4873 | Registry storage/plugins volumes |
 
-两个服务共用一个域名：Nginx 只把市场自己的少数路径送到 4880，其余（包元数据、
-tarball、`/-/` API、Web UI）全部照旧走 Verdaccio。域名不能更换：已发布包的元数据
-里所有 tarball 地址都指向它。若以后拿到独立子域，只需改 `.env` 的
-`MARKET_HOST_PUBLIC_ORIGIN`、给新域一个整站 `proxy_pass` 到 4880 的 server 块，
-并重新烘焙桌面版本。
+Cloudflare Pages 旧入口已退役。旧来源需切换到
+`https://market.tokensapi.ai/source.json`，不再部署旧代理或初始化 Cloudflare D1。
+Worker/D1 风格接口仍由 Node/SQLite 适配器实现，它是当前业务接口，不是旧部署依赖。
 
-旧入口 `tokenscowork-market.pages.dev` 烘焙在所有已发货的桌面安装包里，**永远不能
-下线**；迁移完成后它变成一层薄代理（`market/legacy/`）转发到本服务，数据只有这里一份。
+## 日常更新
 
-## 组成
+使用 Actions 的 **部署 · 插件市场**，选择 master；市场服务与其生成输入变更也会自动触发。
+流程先执行 `yarn test:market` 和部署脚本语法检查，再通过 SSH 部署同一个测试通过的提交。
+配置及安全边界见 [CI 部署说明](../deploy/README.md)。
 
-- `runtime/server.mjs`：node:http → Worker `fetch(request, env)` 翻译层。公网 origin 由
-  `MARKET_HOST_PUBLIC_ORIGIN` 固定，不从请求头推导；陌生 `Host` 一律 403（防 DNS
-  rebinding）；登录限流的客户端标识只信任 `X-Edge-Client-IP`（边缘代理）或
-  `X-Real-IP`（Nginx），并删除客户端自带的 `cf-connecting-ip`。
-- `runtime/adapters.mjs`：两个 Cloudflare 绑定的落盘替身——D1→`/data/market.sqlite`
-  （node:sqlite，batch 走事务；启动时按顺序执行尚未记录的 `database/migrations/*.sql`）、
-  静态资产→镜像内的 `market/server/` 副本（含 `_headers` 中 `/admin/*` 的安全响应头）。
-  插件包一律由自建 Registry 提供，市场不存包。
-- 运行时零 npm 依赖，镜像没有安装步骤。
+已有服务器继续使用现有 `.env`、容器名、端口和数据卷。CI 会先创建 SQLite 一致性备份，
+再替换市场镜像；失败时按部署脚本恢复原镜像，不覆盖数据库或重置授权密钥。
+此入口不更新 Registry 或 Nginx，也不用于空机初始化。
 
-## 部署
+## 独立域名反代
 
-```bash
-cd TokensCowork/market/server
-cp .env.example .env    # 填入六个 Secret；值不入库
-docker compose up -d --build
-curl -fsS http://127.0.0.1:4880/v1/plugins | head -c 200
-```
-
-`.env` 必填：`MARKET_HOST_PUBLIC_ORIGIN`、`MARKET_ADMIN_TOKEN`、`MARKET_HMAC_SECRET`、
-`MARKET_KEY_ENCRYPTION_SECRET`。**HMAC 与 Key 加密两个 Secret 必须沿用 Cloudflare 上的
-原值**：换新会让所有已授权 API Key 的指纹与已保存的加密 Key 值全部作废。
-
-Nginx：在现有 `npm.tokensapi.ai` 的 server 块里、默认 `location /`（Verdaccio）
-**之前**加入下面的分流规则。市场只认这些路径，根路径与 `/-/` 命名空间不受影响：
+市场公网 origin 为 `https://market.tokensapi.ai`，由 `.env` 的
+`MARKET_HOST_PUBLIC_ORIGIN` 固定。market.tokensapi.ai 的 HTTPS server 块整站代理到 4880：
 
 ```nginx
-    # ---- 插件市场：只有这些路径离开 Verdaccio ----
-    location = /v1/plugins  { include snippets/tokenscowork-market.conf; }
-    location = /v1/plugins/ { include snippets/tokenscowork-market.conf; }
-    location = /roster.json { include snippets/tokenscowork-market.conf; }
-    location = /source.json { include snippets/tokenscowork-market.conf; }
-    location ^~ /api/v1/    { include snippets/tokenscowork-market.conf; }
-    # 名为 admin/registry/downloads 的 npm 包保留元数据与 tarball 路径；
-    # 浏览器访问 /admin 则跳到市场后台。
-    location = /admin {
-        if ($http_accept ~* text/html) { return 302 /admin/; }
-        proxy_pass http://127.0.0.1:4873;
-    }
-    location ^~ /admin/-/    { proxy_pass http://127.0.0.1:4873; }
-    location ^~ /admin/      { include snippets/tokenscowork-market.conf; }
-    location = /registry     { proxy_pass http://127.0.0.1:4873; }
-    location ^~ /registry/-/ { proxy_pass http://127.0.0.1:4873; }
-    location ^~ /registry/   { include snippets/tokenscowork-market.conf; }
-    location = /downloads    { proxy_pass http://127.0.0.1:4873; }
-    location ^~ /downloads/-/ { proxy_pass http://127.0.0.1:4873; }
-    location ^~ /downloads/  { include snippets/tokenscowork-market.conf; }
+location / {
+    proxy_pass http://127.0.0.1:4880;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    client_max_body_size 1m;
+}
 ```
 
-`snippets/tokenscowork-market.conf`（新建一次，供上面复用）：
+Registry 域名继续代理到 4873。TLS、DNS 和 Nginx 由运维维护，不在市场 CI 中修改。
+不要再使用两个服务共用 npm 域名的旧分流规则。
 
-```nginx
-proxy_pass http://127.0.0.1:4880;
-proxy_set_header Host $host;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Real-IP $remote_addr;
-client_max_body_size 1m;
-```
+## 配置与数据
 
-遮挡说明：名为 `admin`/`registry`/`downloads` 的 npm 包，元数据（`/包名`）和 tarball
-（`/包名/-/…`）路径都让回了 Verdaccio，仅 `GET /包名/版本号` 这种少见的单版本查询会落到
-市场返回 404；名为 `v1` 的包只有无意义的 `/v1/plugins` 被占用。`npm install admin` 与
-`npm install @tokensapi/dsh-connect` 均已实测通过分流代理安装成功，字节数与直连一致。
+业务 Secret 只存服务器 `.env`，不得提交或输出。特别是 HMAC 和 Key 加密密钥，
+更新、恢复或搬机都必须沿用已有值；更换会使已授权 Key 指纹及加密数据失效。
+市场运行时无安装 npm 依赖的步骤，所有插件压缩包从独立 Registry 获取。
 
-改配置前可以先把这套 location 放进一个临时容器验证，完全不碰线上 nginx：
+备份市场 SQLite 时应使用 SQLite 一致性备份方式，不能将运行中的数据库直接打包作为可靠快照。
+日常部署的快照和恢复方法见 [CI 部署说明](../deploy/README.md)。
+搬机分别备份市场数据卷、Registry 存储、`.env` 与反代配置；仅复制代码不够。
 
-```bash
-docker run --rm --network host -v /tmp/nginx-test/nginx.conf:/etc/nginx/nginx.conf:ro -v /tmp/nginx-test/snippets:/etc/nginx/snippets:ro nginx:1.28-alpine
-# 另一个终端：把 listen 换成 127.0.0.1:8099 后逐条对比 Verdaccio 与市场路径
-curl -s -o /dev/null -w "%{http_code}" -H "Host: npm.tokensapi.ai" http://127.0.0.1:8099/v1/plugins
-```
+## 历史 D1 数据迁移
 
-## 数据迁移（从 Cloudflare D1 一次性导入）
-
-本地导出（需要 wrangler 登录）：
-
-```bash
-npx --yes wrangler@4 d1 export tokenscowork-market-access --remote --output market-d1-export.sql
-```
-
-把导出文件放到服务器本目录后导入（sqlite 文件在 named volume 里，用临时容器执行）：
-
-```bash
-docker compose stop market
-docker run --rm -v tokenscowork-market-host-data:/data -v "$PWD:/import:ro" node:24-alpine \
-  node /import/ops/import-d1-export.mjs /import/market-d1-export.sql
-docker compose up -d --build
-```
-
-导出文件自带完整建表语句，所以导入必须落在空库上（`import-d1-export.mjs` 会先删掉
-已有的 `market.sqlite*`——容器首次启动会先建好带种子的库）。导入的数据里包含 `market_data_migrations` 标记，
-重启后 migrations 重放不会重复种子。
-
-导入后 D1 原库冻结保留，不删除；后台登录会话与限流桶已清空，重新登录即可。
-
-## 备份与搬机
-
-数据全部在 named volume `tokenscowork-market-host-data`（sqlite + 上传包）：
-
-```bash
-docker run --rm -v tokenscowork-market-host-data:/data -v "$PWD:/backup" alpine:3.20 \
-  tar czf /backup/market-host-data.tgz -C /data .
-```
-
-搬机 = 新机器解包同名 volume + 复制 `.env` + `docker compose up -d --build` + 把
-`npm.tokensapi.ai` 的 DNS 指到新机器（连同 Nginx 配置一起带走）。Registry 单元同理（见 `market/registry/README.md`），
-两个单元互不影响，可以分开搬。
-
-## 升级
-
-服务器上 `git pull` 后 `docker compose up -d --build`。migrations 幂等，重启自动补齐。
+`ops/import-d1-export.mjs` 仅供一次性导入历史 D1 导出，不属于构建或部署前置。
+它会替换目标 SQLite 文件，只能对已备份、已停服务且明确用于恢复的目标使用。
+日常升级和 Cloudflare 旧入口退役都不运行这个工具，也不删除原 D1 历史库。

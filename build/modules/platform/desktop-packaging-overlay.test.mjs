@@ -66,12 +66,12 @@ test('upstream architecture and macOS quality-check anchors still match', () => 
 })
 
 test('all three packages share fail-fast and release waits for their combined success', () => {
-  const workflow = readFileSync(new URL('../../../.github/workflows/release.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+  const workflow = readFileSync(new URL('../../../.github/workflows/release-desktop.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
   const packages = workflow.slice(workflow.indexOf('  packages:\n'), workflow.indexOf('  publish-release:\n'))
   assert.match(packages, /fail-fast: true/)
   assert.equal((packages.match(/- platform:/g) ?? []).length, 3)
   assert.equal((packages.match(/- platform: macos/g) ?? []).length, 2)
-  assert.match(workflow, /name: Publish GitHub Release\n    needs: \[metadata, packages\]/)
+  assert.match(workflow, /name: 发布 · 预发布版本\n    needs: \[metadata, packages\]/)
   assert.doesNotMatch(workflow, /^  (windows-amd64|macos):/m)
   assert.match(packages, /if: always\(\).*steps.signing.outputs.mode == 'signed'/)
   assert.match(packages, /find "\$\{dist\}" -type f -name '\*\.dmg'/)

@@ -8,7 +8,7 @@
 
 - **本地手动打包**：在当前操作系统生成验证用安装包，不会自动创建 GitHub Release。
 - **构建预发布**：推送 `v*` Tag，由 GitHub Actions 构建 Windows AMD64、macOS ARM64 和 macOS AMD64，通过后创建预发布并更新下载页。
-- **晋级正式发布**：验收已有预发布并补齐上一正式版以来的完整说明后，运行 `Promote Desktop Release`，输入原标签；复用已验收的安装包，不重新构建。
+- **晋级正式发布**：验收已有预发布并补齐上一正式版以来的完整说明后，运行 “发布 · 桌面应用”（operation=promote），输入原标签；复用已验收的安装包，不重新构建。
 
 新增插件后先构建预发布，完成验收后再晋级。
 
@@ -24,9 +24,9 @@ corepack yarn test:plugins --ref v0.5.19
 
 命令优先调用插件已有的 `test:cases`，没有该入口则调用 `test`；没有测试脚本的插件列为 `not-configured`，暂时不补测试，也不算测试通过。固定提交的隔离检出、依赖安装、宿主夹具和报告全部位于 `.build/plugin-tests/`，不会改动源码子模块。联网搜索和模型插件所需的固定 Harness 依赖与宿主运行时也会自动准备。
 
-也可在 GitHub Actions 手动运行 `Test Product Plugins`，输入 `ref`（例如 `v0.5.19`），只运行回归而不晋级版本。
+也可在 GitHub Actions 手动运行 “测试 · 内置插件功能”，输入 `ref`（例如 `v0.5.19`），只运行回归而不晋级版本。
 
-报告记录每个插件的版本、源码提交、测试入口和结果；失败、依赖准备失败或测试报告包含跳过、TODO、未完成用例时命令返回非零。`Promote Desktop Release` 使用同一命令测试待晋级标签，全部已配置测试通过后才执行晋级；报告保存在 Actions 附件中。晋级仍复用原安装包，不重新构建或公证，发布说明仍须合并上一稳定版以来的内容。
+报告记录每个插件的版本、源码提交、测试入口和结果；失败、依赖准备失败或测试报告包含跳过、TODO、未完成用例时命令返回非零。“发布 · 桌面应用”（operation=promote） 使用同一命令测试待晋级标签，全部已配置测试通过后才执行晋级；报告保存在 Actions 附件中。晋级仍复用原安装包，不重新构建或公证，发布说明仍须合并上一稳定版以来的内容。
 
 模型插件的功能入口以 CSV 中的必需用例为准，底层测试中的平台限定用例仍按插件自身条件运行；报告额外保留功能用例统计及底层通过、失败、跳过数量，不能将平台跳过或自动化检查称为人工验收。
 
@@ -134,7 +134,7 @@ node scripts/validate-release-notes.mjs `
   --version 0.5.14 `
   --file docs/releases/v0.5.14.md --format full
 
-corepack yarn test:release-notes
+corepack yarn test:release
 ```
 
 ## 7. 发布前验证
@@ -189,6 +189,8 @@ git push origin master
 
 ## 9. 创建 Tag 并构建预发布
 
+发布前配置仓库 Secret `RELEASE_TOKEN`：由指定发布账号创建，具备仓库 Contents 写权限；Release 显示该账号为发布者。
+
 确认 `master` 已经推送，且 `HEAD` 正是要发布的提交：
 
 ```powershell
@@ -204,13 +206,13 @@ git tag -a v0.5.14 -m "TokensCowork v0.5.14"
 git push origin v0.5.14
 ```
 
-Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release.yml) 会自动：
+Tag 推送后，[`发布 · 桌面应用`](https://github.com/TokensAPI/TokensCowork/actions/workflows/release-desktop.yml) 会自动：
 
 1. 校验版本号和发布说明。
-2. 校验所有 Git pin、产品组装和生产依赖许可证。
-3. 构建 Windows AMD64、macOS ARM64 和 macOS AMD64 安装包。
-4. 创建正式 GitHub Release，上传三个安装包和 SHA-256 校验文件。
-5. 触发 [`Deploy Download Page`](https://github.com/TokensAPI/TokensCowork/actions/workflows/pages.yml) 同步下载页数据。
+2. 执行固定内置插件的已有测试，通过后校验产品组装和生产依赖许可证。
+3. 构建 Windows AMD64、macOS ARM64 和 macOS AMD64 安装包，任一失败停止其余构建。
+4. 创建预发布 GitHub Release，上传三个安装包、SHA-256 和插件清单。
+5. 触发 [`部署 · 下载页`](https://github.com/TokensAPI/TokensCowork/actions/workflows/deploy-download-page.yml) 同步下载页数据。
 
 发布入口：
 
@@ -224,10 +226,18 @@ Tag 推送后，[`Build Desktop`](https://github.com/TokensAPI/TokensCowork/acti
 
 ```powershell
 node scripts/promote-release.mjs v0.5.14
-gh workflow run promote-release.yml --ref master -f tag=v0.5.14
+gh workflow run release-desktop.yml --ref master -f operation=promote -f tag=v0.5.14
 ```
 
 第一个命令仅预检，第二个工作流复用现有标签和安装包，更新说明并晋级为正式版。缺失平台附件、说明不完整或版本低于最新正式版时拒绝晋级。不要为变更发布状态移动标签或重新构建。
+
+直接编辑说明或删除 GitHub Release 后，手动刷新下载页：
+
+```powershell
+gh workflow run deploy-download-page.yml --ref master
+```
+
+通过发布工作流正常发布或晋级时会自动刷新，无需重复执行。
 
 ## 11. 历史版本保留
 

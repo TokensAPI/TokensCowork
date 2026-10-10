@@ -1,7 +1,18 @@
-name: Build Desktop
+name: 发布 · 桌面应用
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: '操作：build 构建预发布；promote 将已有预发布转为稳定版'
+        required: true
+        default: build
+        type: choice
+        options: [build, promote]
+      tag:
+        description: '目标版本；转稳定版必填 vX.Y.Z，构建时留空使用 VERSION'
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -10,15 +21,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: desktop-build-${{ github.ref }}
-  cancel-in-progress: true
+  # 手动构建、tag 构建与晋级共用锁，避免重复提交公证或争用 latest。
+  group: product-release
+  cancel-in-progress: false
 
 env:
   DSH_TELEMETRY_DISABLED: "1"
 
 jobs:
   metadata:
-    name: Resolve VERSION
+    name: 准备 · 校验发布目标
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -26,43 +38,44 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       release_notes: ${{ steps.version.outputs.release_notes }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      operation: ${{ steps.version.outputs.operation }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
-      - name: Check out source and tags
+      - name: 准备 · 获取源码与标签
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Validate canonical version and release notes
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 检查 · 版本与发布说明
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_OPERATION: ${{ inputs.operation || 'build' }}
+          RELEASE_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          version="$(bash scripts/set-version.sh --print)"
-          tag="v${version}"
-          release_notes="docs/releases/v${version}.md"
           bash scripts/set-version.sh --check
-          node scripts/validate-release-notes.mjs --version "${version}" --file "${release_notes}" --format full
-          node --test scripts/validate-release-notes.test.mjs
-          node --test scripts/generate-plugin-manifest.test.mjs
-          node --test scripts/release-notes-display.test.mjs
-          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
-            echo "Release tag ${GITHUB_REF_NAME} does not match VERSION=${version}" >&2
-            exit 1
-          fi
-          existing_sha="$(git rev-list -n 1 "${tag}^{commit}" 2>/dev/null || true)"
-          if [[ -n "${existing_sha}" && "${existing_sha}" != "${GITHUB_SHA}" ]]; then
-            echo "Tag ${tag} is already occupied by ${existing_sha}" >&2
-            exit 1
-          fi
-          printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
-          printf 'tag=%s\n' "${tag}" >> "${GITHUB_OUTPUT}"
-          printf 'release_notes=%s\n' "${release_notes}" >> "${GITHUB_OUTPUT}"
-          # Build once as a candidate; Promote Desktop Release reuses its assets.
-          printf 'prerelease=true\n' >> "${GITHUB_OUTPUT}"
+          corepack yarn test:release
+          corepack yarn test:ci
+          corepack yarn product:release:check
+
+  plugin-tests:
+    name: 检查 · 内置插件回归
+    needs: metadata
+    uses: ./.github/workflows/test-builtin-plugins.yml
+    with:
+      ref: ${{ needs.metadata.outputs.commit }}
 
   packages:
-    name: Build ${{ matrix.platform }} ${{ matrix.arch }} installer
-    needs: metadata
+    name: 构建 · ${{ matrix.platform }} ${{ matrix.arch }} 安装包
+    needs: [metadata, plugin-tests]
+    if: needs.metadata.outputs.operation == 'build'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -83,18 +96,19 @@ jobs:
             electron_arch: x64
             binary_arch: x86_64
     steps:
-      - name: Check out all pinned sources
+      - name: 准备 · 获取固定源码
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.metadata.outputs.commit }}
           persist-credentials: false
           submodules: recursive
 
-      - name: Set up Node.js
+      - name: 准备 · 配置 Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 22.23.2
 
-      - name: Check out product Harness override
+      - name: 准备 · 固定 Harness 提交
         shell: bash
         run: |
           set -euo pipefail
@@ -104,7 +118,7 @@ jobs:
           git -C desktop/deepseek-harness checkout --detach "$commit"
           git -C desktop/deepseek-harness submodule update --init --recursive
 
-      - name: Restore build caches
+      - name: 准备 · 恢复构建缓存
         uses: actions/cache@v5
         continue-on-error: true
         with:
@@ -117,13 +131,13 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
 
-      - name: Run complete product gates and build unsigned Windows installer
+      - name: 构建 · Windows 检查与打包
         if: matrix.platform == 'windows'
         run: |
           corepack yarn test:uninstall
           corepack yarn product:dist:win
 
-      - name: Smoke test Windows locked-file upgrade recovery
+      - name: 检查 · Windows 文件占用升级恢复
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
@@ -219,7 +233,7 @@ jobs:
           $installedFiles = @(Get-ChildItem -LiteralPath $installDir -File -Recurse).Count
           Write-Host "Windows upgrade smoke: $previousVersion -> $currentVersion, $installedFiles files in $([math]::Round($elapsed.TotalSeconds, 1)) seconds"
 
-      - name: Prepare Windows release files
+      - name: 准备 · Windows 发布附件
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
@@ -242,7 +256,7 @@ jobs:
             "signing=unsigned"
           ) | Set-Content -Encoding ascii "$dist/TokensCowork-$version-windows-amd64-BUILD-INFO.txt"
 
-      - name: Upload Windows package
+      - name: 报告 · 保存 Windows 安装包
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v7
         with:
@@ -255,7 +269,7 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-      - name: Select macOS signing mode
+      - name: 准备 · 选择 macOS 签名方式
         if: matrix.platform == 'macos'
         id: signing
         shell: bash
@@ -267,7 +281,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: printf 'mode=%s\n' "$(node build/modules/platform/mac-signing-resolve.mjs)" >> "${GITHUB_OUTPUT}"
 
-      - name: Build macOS DMG
+      - name: 构建 · macOS 签名、公证与打包
         if: matrix.platform == 'macos'
         shell: bash
         env:
@@ -278,7 +292,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: DSH_MAC_ARCH="${{ matrix.electron_arch }}" corepack yarn product:dist:mac:auto
 
-      - name: Preserve signed app and notarization submission
+      - name: 报告 · 保存签名应用与公证编号
         if: always() && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'
         uses: actions/upload-artifact@v7
         with:
@@ -290,7 +304,7 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-      - name: Verify and prepare macOS release files
+      - name: 检查 · macOS 安装包与发布附件
         if: matrix.platform == 'macos'
         shell: bash
         run: |
@@ -333,7 +347,7 @@ jobs:
             printf 'signing=%s\n' "${signing}"
           } > "${dist}/TokensCowork-${version}-macos-${arch}-BUILD-INFO.txt"
 
-      - name: Upload macOS package
+      - name: 报告 · 保存 macOS 安装包
         if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v7
         with:
@@ -347,7 +361,7 @@ jobs:
           compression-level: 0
 
   publish-release:
-    name: Publish GitHub Release
+    name: 发布 · 预发布版本
     needs: [metadata, packages]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -356,19 +370,20 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
     steps:
-      - name: Check out source and tags
+      - name: 准备 · 获取源码与标签
         uses: actions/checkout@v7
         with:
+          ref: ${{ needs.metadata.outputs.commit }}
           fetch-depth: 0
 
-      - name: Download desktop packages
+      - name: 准备 · 获取三平台安装包
         uses: actions/download-artifact@v8
         with:
           pattern: desktop-*-${{ needs.metadata.outputs.version }}
           path: release-assets
           merge-multiple: true
 
-      - name: Validate or create VERSION tag
+      - name: 检查 · 核对或创建版本标签
         shell: bash
         run: |
           set -euo pipefail
@@ -395,7 +410,7 @@ jobs:
 
       # 插件清单资产：从本 tag 的 product.json 抽取默认启用插件的
       # 展示名、介绍、版本与仓库主页，供下载页渲染"内置插件"。
-      - name: Generate bundled plugin manifest
+      - name: 准备 · 生成插件清单与发布正文
         shell: bash
         run: |
           set -euo pipefail
@@ -404,7 +419,7 @@ jobs:
           node scripts/generate-plugin-manifest.mjs --release-notes "${{ needs.metadata.outputs.release_notes }}" > release-assets/release-notes.md
           cat "release-assets/TokensCowork-${version}-plugins.json"
 
-      - name: Create checksums and GitHub Release
+      - name: 发布 · 校验附件并创建预发布
         shell: bash
         run: |
           set -euo pipefail
@@ -446,13 +461,40 @@ jobs:
             --target "${GITHUB_SHA}" \
             --notes-file "${release_notes}"
 
+  promote-release:
+    name: 发布 · 转稳定版
+    needs: [metadata, plugin-tests]
+    if: needs.metadata.outputs.operation == 'promote'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+      RELEASE_SOURCE_COMMIT: ${{ needs.metadata.outputs.commit }}
+    steps:
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: 发布 · 复核目标并晋级稳定版
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          corepack yarn product:release:promote "${RELEASE_TAG}" --apply
+
   summary:
-    name: Publish build summary
+    name: 报告 · 发布结果
     if: always()
-    needs: [metadata, packages]
+    needs: [metadata, plugin-tests, packages, publish-release, promote-release]
     runs-on: ubuntu-24.04
     steps:
-      - name: Write job summary
+      - name: 报告 · 汇总发布结果
         shell: bash
         run: |
           {
@@ -461,6 +503,9 @@ jobs:
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'
             echo '| Three platform packages | `${{ needs.packages.result }}` | `desktop-{windows-amd64,macos-arm64,macos-amd64}-${{ needs.metadata.outputs.version }}` |'
+            echo '| Plugin regression | `${{ needs.plugin-tests.result }}` | 固定源码提交 `${{ needs.metadata.outputs.commit }}` |'
+            echo '| Pre-release publication | `${{ needs.publish-release.result }}` | `${{ needs.metadata.outputs.tag }}` |'
+            echo '| Stable promotion | `${{ needs.promote-release.result }}` | 复用已有安装包 |'
             echo
             echo 'If any package fails, remaining matrix jobs are cancelled and the release is not published.'
             echo

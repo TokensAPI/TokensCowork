@@ -20,7 +20,7 @@ docs/
   releases/                  各版本发布说明与模板
 market/                      插件市场及其独立私有 npm Registry 服务
 download/                    静态下载页（GitHub Pages 自动部署）
-.github/workflows/           Build Desktop（Windows + macOS + Release）与下载页部署
+.github/workflows/           产品发布、内置回归、下载页、市场部署与公证运维
 VERSION                      唯一可编辑的产品版本源
 product.json                 产品身份、固定提交与默认插件清单
 ```
@@ -78,13 +78,23 @@ Windows 最终验收（`build/pipeline/packaged-app-verify.mjs`）除品牌与�
 
 ## 发布流程
 
-推送 `v*` Tag 触发 `Build Desktop` 工作流：Windows amd64、macOS arm64、macOS amd64 并行构建，全部通过后创建 GitHub Release。Release 包含三个安装包、统一 SHA-256 文件和插件清单资产 `TokensCowork-<version>-plugins.json`（由 `scripts/generate-plugin-manifest.mjs` 从 `product.json` 生成，供下载页渲染"内置插件"）。
+文件统一命名为 `动作-对象.yml`，Actions 显示名为“动作 · 对象”，任务与步骤为“阶段 · 动作”。
 
-发布通道以 GitHub Release 的 `prerelease` 元数据为唯一事实来源：新版本默认作为 Pre-release 发布，验证通过后人工在 Release 页面取消 Pre-release 标记即进入稳定更新通道；一次性操作不写入 CI 流程。
+| YML | Actions 名称 | 用途与触发 |
+| --- | --- | --- |
+| [deploy-download-page.yml](.github/workflows/deploy-download-page.yml) | 部署 · 下载页 | 发布成功或下载页文件变更后更新 GitHub Pages，也可手动刷新 |
+| [deploy-plugin-market.yml](.github/workflows/deploy-plugin-market.yml) | 部署 · 插件市场 | 市场服务及生成输入变更后测试并部署，也可手动运行 |
+| [release-desktop.yml](.github/workflows/release-desktop.yml) | 发布 · 桌面应用 | 推送 `v*` tag，或手动选择 `build` 构建预发布、`promote` 转稳定版 |
+| [test-builtin-plugins.yml](.github/workflows/test-builtin-plugins.yml) | 测试 · 内置插件功能 | 执行固定内置插件的已有测试；发布调用一次，也可手动指定产品 tag/提交 |
+| [inspect-resume-macos-notarization.yml](.github/workflows/inspect-resume-macos-notarization.yml) | 查询/恢复 · macOS 公证 | 手动 `inspect` 查询状态；`resume` 从已保存应用恢复原公证提交 |
 
-仓库 Secret `RELEASE_TOKEN` 必须由指定发布账号创建并具备仓库 Contents 写权限，正式 Release 使用该 Token 而不是 `github.token`，因此发布者显示为指定 GitHub 用户。
+新版依次执行发布校验、一次插件回归和三平台构建；任一安装包失败会取消其余构建，全部成功才发布。转稳定版需填写原 tag、补齐累计说明并重新通过插件回归，复用原安装包。
 
-> 新增插件、本地打包或手动发布的完整步骤见 [手动构建与发布指南](docs/manual-release.md)。
+普通 master 提交不会打安装包。直接编辑或删除 GitHub Release 后，手动运行下载页部署；正常发布和晋级会自动刷新。
+
+插件发布包检查由 [插件体检项目](https://github.com/TokensAPI/tokens_DshPluginCheck_code) 提供手动入口。
+
+操作细节见 [手动构建与发布指南](docs/manual-release.md)，市场配置见 [市场说明](market/README.md)。
 
 ## 版本与发布说明
 
@@ -120,7 +130,7 @@ GUID 注册记录发现产品，并在 `InstallLocation` 缺失时从 `Uninstall
 
 ## 下载页
 
-`download/` 是独立的静态下载页，展示各版本安装包与内置插件卡片。GitHub Pages 的 Source 使用 **GitHub Actions**，`.github/workflows/pages.yml` 会在 `master` 分支的下载页文件变化后自动发布，部署时还会把各 Release 的插件清单资产复制为同源文件（GitHub 资产域名不带 CORS 头，页面无法跨域直接读取）。详见 [download/README.md](download/README.md)。
+`download/` 是独立的静态下载页，展示各版本安装包与内置插件卡片。GitHub Pages 的 Source 使用 **GitHub Actions**，`.github/workflows/deploy-download-page.yml` 会在 `master` 分支的下载页文件变化后自动发布，部署时还会把各 Release 的插件清单资产复制为同源文件（GitHub 资产域名不带 CORS 头，页面无法跨域直接读取）。详见 [download/README.md](download/README.md)。
 
 ## 插件策略
 

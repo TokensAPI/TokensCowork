@@ -33,6 +33,11 @@ export function validatePromotion(release, releases, notes) {
   return { version, previousStable: stable?.tag_name ?? null }
 }
 
+/** 回归使用的是固定提交；等待期间 tag 被移动时不能套用旧回归结果。 */
+export function validatePromotionSource(expected, actual) {
+  if (!/^[a-f0-9]{40}$/.test(expected ?? '') || expected !== actual) throw new Error('Promotion source changed after regression; rerun the release workflow')
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const [tag, option] = process.argv.slice(2)
   if (!/^v\d+\.\d+\.\d+$/.test(tag ?? '') || (option !== undefined && option !== '--apply') || process.argv.length > 4) {
@@ -44,6 +49,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   if (!release) throw new Error(`Release not found: ${tag}`)
   const notes = readFileSync(resolve(import.meta.dirname, `../docs/releases/${tag}.md`), 'utf8')
   const result = validatePromotion(release, releases, notes)
+  if (process.env.RELEASE_SOURCE_COMMIT) {
+    const current = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/commits/${tag}`], { encoding: 'utf8' })).sha
+    validatePromotionSource(process.env.RELEASE_SOURCE_COMMIT, current)
+    validatePromotionSource(process.env.RELEASE_SOURCE_COMMIT, execFileSync('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim())
+  }
   // Distribution must come from the original tag, never the moving default branch.
   const manifest = JSON.parse(execFileSync('git', ['show', `${tag}:product.json`], { encoding: 'utf8' }))
   if (manifest.product.version !== result.version) throw new Error('Tag product version differs from Release')

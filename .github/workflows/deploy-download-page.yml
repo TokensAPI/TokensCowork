@@ -1,4 +1,4 @@
-name: Deploy Download Page
+name: 部署 · 下载页
 
 on:
   push:
@@ -6,17 +6,10 @@ on:
       - master
     paths:
       - "download/**"
-      - ".github/workflows/pages.yml"
-  release:
-    types:
-      - published
-      - released
-      - prereleased
-      - edited
-      - deleted
+      - ".github/workflows/deploy-download-page.yml"
   workflow_run:
     workflows:
-      - Build Desktop
+      - 发布 · 桌面应用
     types:
       - completed
   workflow_dispatch:
@@ -31,28 +24,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # release 事件在 tag ref 上运行，而 github-pages 环境只允许从 master 部署，
-  # 直接部署必定被保护规则拒绝。这里改为回到 master 触发一次 workflow_dispatch，
-  # 由该 run 完成真正的部署（本 job 不声明 environment，因此不受保护规则限制）。
-  redispatch:
-    name: Re-dispatch on master
-    if: github.event_name == 'release'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      actions: write
-
-    steps:
-      - name: Trigger deploy on master
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: gh workflow run pages.yml --ref master
-
   deploy:
-    name: Deploy GitHub Pages
+    name: 部署 · 下载页
     if: >-
-      github.event_name != 'release' &&
+      github.ref == 'refs/heads/master' &&
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -61,17 +36,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Check out source
+      - name: 准备 · 获取源码
         uses: actions/checkout@v7
         with:
+          ref: master
           persist-credentials: false
-          submodules: recursive
 
-      - name: Prepare download page
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 准备 · 生成下载页数据
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node --test scripts/release-notes-display.test.mjs
+          corepack yarn test:release:display
           mkdir -p .pages
           cp -R download/. .pages/
           gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq 'add' > .pages/releases.json
@@ -84,14 +64,14 @@ jobs:
               done
           ls .pages/plugins/
 
-      - name: Configure GitHub Pages
+      - name: 准备 · 配置 GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload download page
+      - name: 准备 · 上传下载页
         uses: actions/upload-pages-artifact@v4
         with:
           path: .pages
 
-      - name: Deploy GitHub Pages
+      - name: 部署 · 下载页
         id: deployment
         uses: actions/deploy-pages@v4

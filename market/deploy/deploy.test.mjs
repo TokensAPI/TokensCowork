@@ -45,7 +45,7 @@ test('deployment safety contracts: backup before replacement, isolated existing 
   assert.doesNotMatch(script, /docker compose[^\n]*\bdown\b/)
 })
 test('workflow requires passing tests, repository path and verified SSH host', () => {
-  const workflow = read('../../.github/workflows/market-server.yml')
+  const workflow = read('../../.github/workflows/deploy-plugin-market.yml')
   assert.match(workflow, /needs: test/)
   assert.match(workflow, /vars.MARKET_DEPLOY_PATH/)
   assert.match(workflow, /StrictHostKeyChecking=yes/)
@@ -54,7 +54,7 @@ test('workflow requires passing tests, repository path and verified SSH host', (
 })
 
 test('known deployment coordinates are defaults; credentials remain secrets', () => {
-  const workflow = read('../../.github/workflows/market-server.yml')
+  const workflow = read('../../.github/workflows/deploy-plugin-market.yml')
   for (const value of ['5.223.77.54', '/home/wsy/TokensCowork', "'wsy'", "'22'"]) assert.ok(workflow.includes(value))
   assert.match(workflow, /secrets.MARKET_SSH_PRIVATE_KEY/)
   assert.match(workflow, /secrets.MARKET_SSH_KNOWN_HOSTS/)

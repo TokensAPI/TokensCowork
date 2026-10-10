@@ -37,9 +37,9 @@ Settings → Secrets and variables → Actions，使用仓库级配置：
 
 ## 使用
 
-提交后打开 Actions → Deploy Market Server → Run workflow，选择 master。
+提交后打开 Actions → 部署 · 插件市场 → Run workflow，选择 master。
 此后 master 的市场服务/部署文件变更自动触发。测试通过后 SSH 执行部署脚本。
-原 market.yml 仍是 Cloudflare 兼容入口的独立工作流。
+Cloudflare 旧入口已退役，不再保留独立部署。该入口只更新市场服务。
 
 服务器需有 Bash、Git、flock、Docker/Compose v2，并能访问 Git origin 和基础镜像。
 须已有运行容器 tokenscowork-market-host 和数据卷 tokenscowork-market-host-data，

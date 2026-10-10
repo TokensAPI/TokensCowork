@@ -23,6 +23,23 @@ export function queryNotary(args, run = runMac, env = process.env) {
   catch { throw new Error('Apple returned invalid notarization JSON') }
 }
 
+/** 只查询最近提交，不上传软件；与恢复流程复用同一鉴权和输出脱敏。 */
+export function inspectHistory(env = process.env, query = args => queryNotary(args, runMac, env)) {
+  const submissions = (query(['history']).history ?? [])
+    .filter(item => /TokensCowork|^signed-app\.zip$/i.test(item.name ?? ''))
+    .sort((a, b) => String(b.createdDate).localeCompare(String(a.createdDate))).slice(0, 10)
+  const rows = ['## TokensCowork Apple notarization', '', '| Submission ID | Created (UTC) | Status |', '| --- | --- | --- |']
+  for (const submission of submissions) {
+    if (!uuid.test(submission.id ?? '')) throw new Error('Invalid Apple submission ID')
+    const info = query(['info', submission.id])
+    rows.push(`| ${submission.id} | ${info.createdDate ?? submission.createdDate} | ${info.status ?? submission.status} |`)
+  }
+  if (!submissions.length) rows.push('', 'No TokensCowork submissions were found for this team.')
+  console.log(rows.join('\n'))
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${rows.join('\n')}\n`)
+  return rows
+}
+
 export async function waitForAcceptance(id, { query = queryNotary, now = Date.now, sleep = ms => new Promise(r => setTimeout(r, ms)), minutes = 20 } = {}) {
   if (!uuid.test(id) || !Number.isFinite(minutes) || minutes <= 0 || minutes > 60) throw new Error('Invalid notarization wait configuration')
   const deadline = now() + minutes * 60000
@@ -46,10 +63,13 @@ export function validateRecoveryState(state, expected, archive) {
 
 export function validateSourceRun(run, repository, jobs) {
   if (run.status !== 'completed' || run.head_repository?.full_name !== repository
-    || run.path !== '.github/workflows/release.yml' || !['push', 'workflow_dispatch'].includes(run.event)
+    // 保留旧路径，以恢复仍在附件保留期内的原公证提交。
+    || !['.github/workflows/release-desktop.yml', '.github/workflows/release.yml'].includes(run.path)
+    || !['push', 'workflow_dispatch'].includes(run.event)
     || !/^[a-f0-9]{40}$/i.test(run.head_sha)
-    || !jobs.some(job => job.name === 'Resolve VERSION' && job.conclusion === 'success')) {
-    throw new Error('Recovery requires a completed Build Desktop run from this repository with successful metadata')
+    // 旧运行的附件仍在保留期内，允许旧名称；来源路径和成功结果仍严格校验。
+    || !jobs.some(job => ['Resolve VERSION', '准备 · 校验发布目标'].includes(job.name) && job.conclusion === 'success')) {
+    throw new Error('Recovery requires a completed product release run from this repository with successful metadata')
   }
   return run.head_sha
 }
@@ -155,8 +175,9 @@ export async function recover(root, manifestFile, commit, arch, { run = runMac, 
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    if (process.argv[2] === 'source' && process.argv.length === 5) inspectSource(process.argv[3], process.argv[4])
+    if (process.argv[2] === 'history' && process.argv.length === 3) inspectHistory()
+    else if (process.argv[2] === 'source' && process.argv.length === 5) inspectSource(process.argv[3], process.argv[4])
     else if (process.argv[2] === 'resume' && process.argv.length === 7) await recover(resolve(process.argv[3]), process.argv[4], process.argv[5], process.argv[6])
-    else throw new Error('Expected source <run-id> <arm64|amd64|both> or resume <artifact-directory> <product.json> <source-commit> <arch>')
+    else throw new Error('Expected history, source <run-id> <arm64|amd64|both> or resume <artifact-directory> <product.json> <source-commit> <arch>')
   } catch (error) { console.error(error.message); process.exitCode = 1 }
 }

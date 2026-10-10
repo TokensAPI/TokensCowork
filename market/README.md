@@ -14,7 +14,7 @@
 | 市场管理后台 | <https://market.tokensapi.ai/admin/> | 插件资料、上下架、组织与单独 API Key 授权 |
 | 管理 API | <https://market.tokensapi.ai/api/v1/> | 后台页面与 TokensAPI 后端共用的同一套接口，文档见 [`/admin/api-docs.html`](https://market.tokensapi.ai/admin/api-docs.html)（TokensAPI 对接先看顶部「接入速查」） |
 | 桌面插件市场 | TokensCowork 应用内 | 展示可见插件，安装、更新和卸载 |
-| 旧市场域名 | <https://tokenscowork-market.pages.dev/> | 兼容代理，不是第二套独立市场数据库 |
+| 旧市场域名 | tokenscowork-market.pages.dev | 已退役；旧来源需切换到 market.tokensapi.ai |
 
 **发布包不等于上架；市场公开不等于仓库匿名直连；发现新版不等于用户已经升级。**
 
@@ -51,6 +51,8 @@
 - 用 `npm pack --dry-run` 检查文件清单，并使用实际打出的包测试，不能只运行源码。
 - 不包含密钥、密码、内部配置或用户数据。
 - 完整生产依赖许可证合规。后台不会自动扫描依赖许可证，npm 的 `license` 字段不是合规证明。
+
+发布包检查在 [插件体检项目](https://github.com/TokensAPI/tokens_DshPluginCheck_code) 手动执行，指定“包名@版本”和目标运行时。产品发布使用内置插件功能回归；市场后台未强制接入包检查结果。
 
 ### 2. 发布到自建仓库
 
@@ -311,8 +313,7 @@ market/
 │   ├── runtime/            自托管 Node 服务和 SQLite 适配
 │   ├── ops/、tests/         开发工具和回归测试
 │   └── docker-compose.yml  市场服务编排
-├── registry/                独立 Verdaccio 服务、配置和账号脚本
-└── legacy/                  旧 Cloudflare Pages 域名代理
+└── registry/                独立 Verdaccio 服务、配置和账号脚本
 
 build/modules/market/        构建时的桌面市场适配，不直接修改上游子模块
 ```
@@ -325,7 +326,8 @@ build/modules/market/        构建时的桌面市场适配，不直接修改上
 | 仓库 | `market/registry/` | `127.0.0.1:4873` → 容器 `4873` | Registry storage/plugins volumes |
 
 业务保留 Worker/D1 接口兼容，但自托管 runtime 使用 SQLite，不能把当前部署描述为全部运行在 Cloudflare D1。
-`.github/workflows/market.yml` 部署的是旧域名代理，不会自动更新服务器上的市场或 Registry 容器。
+`.github/workflows/deploy-plugin-market.yml` 是唯一市场部署入口，测试通过才更新市场服务，不更新 Registry。
+Cloudflare Pages 旧入口已退役，旧代理、D1 初始化脚本和独立部署工作流已移除。
 
 `private-registry/` 不是第三个独立服务。市场通过 HTTPS 和内部账号访问 Registry，不读取它的账号文件或存储目录。
 迁移机器需分别保留数据库、仓库存储、秘密配置及反代配置，不能仅复制代码。

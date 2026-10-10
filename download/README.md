@@ -40,7 +40,7 @@ npx serve download
 
 ## 部署
 
-仓库通过 `.github/workflows/pages.yml` 自动部署本目录。Pages 的 **Source** 必须设置为 **GitHub Actions**；`master` 分支的下载页文件变化后会自动运行 `Deploy Download Page`，也可以从 Actions 页面手动触发。默认访问地址为：
+仓库通过 `.github/workflows/deploy-download-page.yml` 自动部署本目录。Pages 的 **Source** 必须设置为 **GitHub Actions**；`master` 分支的下载页文件变化后会自动运行 `部署 · 下载页`，也可以从 Actions 页面手动触发。默认访问地址为：
 
 ```text
 https://tokensapi.github.io/TokensCowork/

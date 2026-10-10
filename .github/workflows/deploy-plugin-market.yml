@@ -1,4 +1,4 @@
-name: Deploy Market Server
+name: 部署 · 插件市场
 
 on:
   push:
@@ -6,7 +6,10 @@ on:
     paths:
       - 'market/server/**'
       - 'market/deploy/**'
-      - '.github/workflows/market-server.yml'
+      - 'product.json'
+      - 'scripts/generate-market-catalog.mjs'
+      - 'build/modules/market/market-catalog-verify.mjs'
+      - '.github/workflows/deploy-plugin-market.yml'
   workflow_dispatch:
 
 permissions:
@@ -24,28 +27,34 @@ env:
 
 jobs:
   test:
+    name: 检查 · 市场服务与部署脚本
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - run: npm --prefix market/server run verify
-      - run: node --test market/deploy/*.test.mjs
-      - run: bash -n market/deploy/deploy.sh
+      - name: 检查 · 市场服务与部署脚本
+        run: corepack yarn test:market
+      - name: 检查 · 部署脚本语法
+        run: bash -n market/deploy/deploy.sh
 
   deploy:
+    name: 部署 · 市场服务
     needs: test
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Validate administrator configuration
+      - name: 检查 · 市场部署配置
         env:
           DEPLOY_KEY: ${{ secrets.MARKET_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: ${{ secrets.MARKET_SSH_KNOWN_HOSTS }}
@@ -65,7 +74,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/market-ssh/key"
           printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/market-ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/market-ssh/"*
-      - name: Deploy exact tested commit using existing repository
+      - name: 部署 · 已通过测试的市场提交
         shell: bash
         run: |
           set -euo pipefail
@@ -74,14 +83,14 @@ jobs:
             -o ConnectTimeout=15 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
             -i "$RUNNER_TEMP/market-ssh/key" -p "${DEPLOY_PORT:-22}" \
             "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$GITHUB_SHA' '$DEPLOY_PATH'" < market/deploy/deploy.sh
-      - name: Verify public management asset
+      - name: 检查 · 线上管理页面
         shell: bash
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/ -o /dev/null
           curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/assets/market-keys.js -o /dev/null
           echo "Market server deployed commit $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-      - name: Remove ephemeral SSH credentials
+      - name: 清理 · 删除临时 SSH 凭据
         if: always()
         shell: bash
         run: |

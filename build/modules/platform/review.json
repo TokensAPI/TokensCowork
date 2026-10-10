@@ -103,8 +103,8 @@
       "appliedBy": [
         "build/pipeline/staging-prepare.mjs",
         "build/pipeline/macos-build.mjs",
-        ".github/workflows/release.yml",
-        ".github/workflows/notarization-resume.yml",
+        ".github/workflows/release-desktop.yml",
+        ".github/workflows/inspect-resume-macos-notarization.yml",
         "build/pipeline/staging-product-configure.mjs"
       ],
       "reason": "凭据完整时正式签名，否则走 ad-hoc；afterSign 保存已签名应用和公证提交，恢复只查询原提交并打包，不重复编译或提交。",

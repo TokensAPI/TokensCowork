@@ -3,11 +3,21 @@ import { test } from 'node:test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import afterSign, { waitForAcceptance, validateRecoveryState, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
+import afterSign, { inspectHistory, waitForAcceptance, validateRecoveryState, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
 
 const id = 'cfdabdcb-ea33-4498-911e-84f12ac2d946'
 const commit = 'a'.repeat(40)
 const expected = { version: '0.5.17', commit, arch: 'arm64', appId: 'com.tokensapi.tokenscowork', productName: 'TokensCowork' }
+
+test('history only queries product submissions and never uploads or resumes them', () => {
+  const calls = []
+  const rows = inspectHistory({}, args => {
+    calls.push(args)
+    return args[0] === 'history' ? { history: [{ id, name: 'signed-app.zip', createdDate: '2026-10-09' }, { id: 'unrelated', name: 'other.app' }] } : { status: 'Accepted' }
+  })
+  assert.deepEqual(calls, [['history'], ['info', id]])
+  assert.ok(rows.some(row => row.includes('Accepted')))
+})
 
 test('polls original submission until Accepted; timeouts and rejection never resubmit', async () => {
   let time = 0
@@ -52,7 +62,12 @@ test('signed app verification rejects universal executable and preserves Develop
 test('source run must be this repository, completed, from trusted workflow with successful metadata', () => {
   const run = { status: 'completed', head_repository: { full_name: 'TokensAPI/TokensCowork' }, path: '.github/workflows/release.yml', event: 'push', head_sha: commit }
   const jobs = [{ name: 'Resolve VERSION', conclusion: 'success' }]
-  assert.equal(validateSourceRun(run, 'TokensAPI/TokensCowork', jobs), commit)
+  for (const path of ['.github/workflows/release-desktop.yml', '.github/workflows/release.yml']) {
+    for (const name of ['Resolve VERSION', '准备 · 校验发布目标']) {
+      assert.equal(validateSourceRun({ ...run, path }, 'TokensAPI/TokensCowork', [{ name, conclusion: 'success' }]), commit)
+    }
+    assert.throws(() => validateSourceRun({ ...run, path }, 'TokensAPI/TokensCowork', [{ name: '准备 · 校验发布目标', conclusion: 'failure' }]))
+  }
   for (const invalid of [{ status: 'in_progress' }, { path: '.github/workflows/other.yml' }, { head_repository: { full_name: 'fork/repo' } }, { event: 'pull_request' }]) assert.throws(() => validateSourceRun({ ...run, ...invalid }, 'TokensAPI/TokensCowork', jobs))
   assert.throws(() => validateSourceRun(run, 'TokensAPI/TokensCowork', []))
 })
@@ -95,12 +110,12 @@ test('recovery dispatch resolves original commit and rejects missing or expired 
   try {
     const output = join(root, 'outputs')
     const env = { GITHUB_REPOSITORY: 'TokensAPI/TokensCowork', GITHUB_OUTPUT: output }
-    const original = { status: 'completed', head_repository: { full_name: env.GITHUB_REPOSITORY }, path: '.github/workflows/release.yml', event: 'push', head_sha: commit, run_attempt: 1 }
+    const original = { status: 'completed', head_repository: { full_name: env.GITHUB_REPOSITORY }, path: '.github/workflows/release-desktop.yml', event: 'push', head_sha: commit, run_attempt: 1 }
     const artifacts = [{ name: 'mac-notarization-arm64-0.5.17', expired: false }]
     const run = (command, args) => {
       assert.equal(command, 'gh')
       const path = args[1]
-      if (path.includes('/jobs?')) return JSON.stringify({ jobs: [{ name: 'Resolve VERSION', conclusion: 'success' }] })
+      if (path.includes('/jobs?')) return JSON.stringify({ jobs: [{ name: '准备 · 校验发布目标', conclusion: 'success' }] })
       if (path.includes('/artifacts?')) return JSON.stringify({ artifacts })
       if (path.includes('/contents/')) return JSON.stringify({ content: Buffer.from(JSON.stringify({ product: { version: expected.version } })).toString('base64') })
       return JSON.stringify(original)

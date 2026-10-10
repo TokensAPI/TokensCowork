@@ -22,5 +22,5 @@
 决定，无需重命名包。新插件使用 @tokensapi/*，不要落入公开第三方依赖兜底规则。
 公开 npm 历史版本无法收回。第三方依赖继续按 uplink 配置公开回源并缓存。
 
-旧 Pages 域名继续代理市场请求（包括能力头及授权头），不需要重新部署旧桌面。
+旧 Pages 域名已退役；仍配置旧来源的客户端需改用 https://market.tokensapi.ai/source.json。
 客户端安装能力由 build/modules/market 提供，此变更不修改上游子模块或生成安装包。

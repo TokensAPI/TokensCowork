@@ -1,12 +1,11 @@
-name: Test Product Plugins
+name: 测试 · 内置插件功能
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Product tag or commit to test'
-        required: true
-        default: 'v0.5.19'
+        description: '产品 tag 或提交；留空测试本次运行的提交'
+        required: false
         type: string
   workflow_call:
     inputs:
@@ -17,28 +16,36 @@ on:
 permissions:
   contents: read
 
+# 独立运行与发布调用共用回归锁；不同于发布锁，避免调用者自锁。
+concurrency:
+  group: product-plugin-regression
+  cancel-in-progress: false
+
 jobs:
   plugins:
+    name: 检查 · 内置插件回归
     # 更新插件使用真实宿主平台选择安装包；产品支持 Windows/macOS。
     runs-on: windows-2025
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - name: 准备 · 获取源码
+        uses: actions/checkout@v7
         with:
           ref: master
           fetch-depth: 0
           submodules: recursive
-      - uses: actions/setup-node@v6
+      - name: 准备 · 配置 Node.js
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - name: Set up pinned package manager
+      - name: 准备 · 配置固定包管理器
         run: npm install --global corepack@0.35.0 --force
-      - name: Test pinned plugins
+      - name: 检查 · 固定内置插件
         env:
           GH_TOKEN: ${{ github.token }}
-          PRODUCT_REF: ${{ inputs.ref }}
-        run: node scripts/test-product-plugins.mjs --ref "$env:PRODUCT_REF"
-      - name: Preserve plugin regression reports
+          PRODUCT_REF: ${{ inputs.ref || github.sha }}
+        run: corepack yarn test:plugins --ref "$env:PRODUCT_REF"
+      - name: 报告 · 保存插件回归结果
         if: always()
         uses: actions/upload-artifact@v7
         with:

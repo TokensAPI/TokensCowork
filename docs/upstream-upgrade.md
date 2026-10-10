@@ -59,7 +59,7 @@
 corepack yarn product:overlays --check
 corepack yarn test:build
 corepack yarn test:uninstall
-corepack yarn test:release-notes
+corepack yarn test:release
 node --test scripts/generate-plugin-manifest.test.mjs
 corepack yarn product:check
 powershell -File scripts/dev-desktop.ps1 -Sandbox -StageName desktop-v050
@@ -80,7 +80,7 @@ powershell -File scripts/dev-desktop.ps1 -Sandbox -StageName desktop-v050
 
 ## 6. 发布前最后确认
 
-`VERSION`、两份产品清单、标签和发布说明一致；插件生产依赖许可证通过；所有平台成功才发布。当前 Build Desktop 由 `v*` 标签推送或手动触发，普通 master 推送不触发它；默认发布为 pre-release，稳定版须明确选择。下载页和插件市场有各自的部署工作流，不能把它们当成重复打桌面包。
+`VERSION`、两份产品清单、标签和发布说明一致；插件生产依赖许可证通过；所有平台成功才发布。当前“发布 · 桌面应用” 由 `v*` 标签推送或手动触发，普通 master 推送不触发它；默认发布为 pre-release，稳定版须明确选择。下载页和插件市场有各自的部署工作流，不能把它们当成重复打桌面包。
 
 本地回归通过 ≠ 平台安装完成 ≠ 已发布。发布前备份用户数据；上游变更了会话格式时，不假定旧版本还能读取新格式，回退应用和恢复数据应分别计划。
 

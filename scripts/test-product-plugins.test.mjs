@@ -3,7 +3,18 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { assertCompleteTestOutput, installCommand, parseOptions, testEnvironment, testScript } from './test-product-plugins.mjs'
+import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, parseOptions, testEnvironment, testScript } from './test-product-plugins.mjs'
+
+test('Yarn entry cannot inject the outer PnP loader into an isolated npm/pnpm dependency tree', () => {
+  for (const injected of ['--require C:/repo/.pnp.cjs', '-r "C:/repo with spaces/.pnp.cjs"', '--experimental-loader=file:///repo/.pnp.loader.mjs', '--import file:///repo/.pnp.loader.mjs']) {
+    const source = { NODE_OPTIONS: `${injected} --max-old-space-size=4096 --require /user/hook.cjs`, MARKER: 'retained' }
+    const clean = isolatedPackageEnvironment(source)
+    assert.equal(clean.NODE_OPTIONS, '--max-old-space-size=4096 --require /user/hook.cjs')
+    assert.equal(clean.MARKER, 'retained')
+    assert.ok(source.NODE_OPTIONS.includes('.pnp.'))
+  }
+  assert.equal(isolatedPackageEnvironment({ NODE_OPTIONS: '--require C:/repo/.pnp.cjs' }).NODE_OPTIONS, undefined)
+})
 
 test('host fixtures use the isolated workspace drive instead of the system temporary drive', () => {
   const env = testEnvironment('D:/workspace/outer', 'D:/workspace/tmp')
@@ -44,15 +55,35 @@ test('lockfiles select frozen dependency installation instead of rewriting sourc
 })
 
 test('promotion runs the tag regression gate before applying Release changes', () => {
-  const workflow = readFileSync(new URL('../.github/workflows/promote-release.yml', import.meta.url), 'utf8')
-  const regression = readFileSync(new URL('../.github/workflows/plugin-regression.yml', import.meta.url), 'utf8')
-  assert.match(workflow, /uses: \.\/\.github\/workflows\/plugin-regression.yml/)
-  assert.match(workflow, /needs: plugin-tests/)
-  assert.match(workflow, /ref: \$\{\{ inputs.tag \}\}/)
+  const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
+  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
+  assert.match(workflow, /uses: \.\/\.github\/workflows\/test-builtin-plugins.yml/)
+  assert.match(workflow, /needs: \[metadata, plugin-tests\]/)
+  assert.match(workflow, /ref: \$\{\{ needs.metadata.outputs.commit \}\}/)
+  assert.match(workflow, /if: needs.metadata.outputs.operation == 'promote'/)
   assert.match(regression, /workflow_dispatch:/)
   assert.match(regression, /submodules: recursive/)
   assert.match(regression, /runs-on: windows-2025/)
-  assert.match(regression, /node scripts\/test-product-plugins.mjs --ref "\$env:PRODUCT_REF"/)
+  assert.match(regression, /corepack yarn test:plugins --ref "\$env:PRODUCT_REF"/)
   assert.doesNotMatch(regression, /continue-on-error/)
-  assert.doesNotMatch(workflow.slice(workflow.indexOf('- name: Validate and promote')), /if: always\(\)|continue-on-error/)
+  const promotion = workflow.split('  promote-release:')[1].split('  summary:')[0]
+  assert.doesNotMatch(promotion, /if: always\(\)|continue-on-error/)
+})
+
+test('release and child regression do not share a concurrency lock or cancel an active notarization', () => {
+  const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
+  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
+  assert.match(release, /group: product-release\s+cancel-in-progress: false/)
+  assert.match(regression, /group: product-plugin-regression\s+cancel-in-progress: false/)
+  assert.match(release, /fail-fast: true/)
+})
+
+test('download deployment has one release trigger and no release-event redispatch loop', () => {
+  const page = readFileSync(new URL('../.github/workflows/deploy-download-page.yml', import.meta.url), 'utf8')
+  const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
+  const name = release.match(/^name: (.+)$/m)[1]
+  assert.ok(page.includes(`      - ${name}`))
+  assert.doesNotMatch(page, /^  release:|redispatch:|gh workflow run/m)
+  assert.match(page, /workflow_run.conclusion == 'success'/)
+  assert.doesNotMatch(page, /submodules: recursive/)
 })
