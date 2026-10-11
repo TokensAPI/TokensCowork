@@ -198,7 +198,7 @@
       "id": "market.dialog-position",
       "module": "market",
       "kind": "workaround",
-      "state": "active",
+      "state": "inactive",
       "inputs": [
         "desktop",
         "ui"
@@ -209,10 +209,8 @@
       "targets": [
         "dsh-tokensapi-ui release artifact: lib/client.js 全局 dialog position CSS"
       ],
-      "appliedBy": [
-        "build/pipeline/staging-prepare.mjs"
-      ],
-      "reason": "移除主题覆盖原生 Modal 定位的冲突规则。",
+      "appliedBy": [],
+      "reason": "UI 0.2.24 已移除全局 dialog position 覆盖；停止在 staging 加工产物，旧补丁仅保留为历史记录。",
       "retireWhen": "插件产物不再包含该冲突，且未经加工的弹窗定位测试通过后删除。",
       "verification": "test:build market 验证主题规则、原生 fixed 定位及已下载的固定产物；仍需肉眼检查弹窗。"
     },
