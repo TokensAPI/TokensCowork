@@ -12,6 +12,7 @@ import {
   skipDesktopSetupWizard,
 } from './desktop-runtime-overlay.mjs'
 import { addDesktopOpenExternal } from './open-external-overlay.mjs'
+import { keepDshRuntimeSeries } from './profile-package-overlay.mjs'
 import {
   alignConnectionRpcScope,
   alignLegacySearchSettingsImport,
@@ -93,6 +94,16 @@ export default [
     apply: input => addDesktopOpenExternal(input),
     why: 'tokens-login 在隔离 Host 中没有 shell 能力；在 desktopRuntime 桥上只加 openExternal，仅放行 HTTPS 与回环 HTTP，由默认浏览器完成登录。',
     retireWhen: '上游提供可用的外部打开能力，或产品改用服务端设备授权流程后移除。',
+  },
+  {
+    id: 'runtime.profile-runtime-series',
+    phase: 'prepare',
+    upstream: ['desktop', 'dsh'],
+    kind: 'workaround',
+    files: { selector: d.packageOverlay },
+    apply: ({ selector }) => ({ selector: keepDshRuntimeSeries(selector) }),
+    why: '与官方 DSH 共用 ~/.dsh/profiles/desktop 时，官方程序装入的下一版本系列 DSH 运行时包版本更高，会替换内置运行时并启动失败；跨系列时保留安装包，市场插件等其他包仍按新版本覆盖。',
+    retireWhen: '产品改用独立的 DSH 数据目录或 Profile，或上游选包时自行拒绝不兼容的运行时系列后删除。',
   },
   {
     id: 'runtime.plugin-dependencies',

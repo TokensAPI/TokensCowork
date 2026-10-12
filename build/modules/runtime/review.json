@@ -91,6 +91,12 @@
         "runtime.open-external"
       ],
       "verified": "2026-09-22：装配锚点与 CRLF 回归（open-external-overlay.test.mjs 7 项，均以钉住的上游源码为输入，含双侧接线与“只新增这一个能力”）。协议门禁改为直接调用装配出的实现来断言：HTTPS 与回环 HTTP 放行，站外 HTTP、file:、javascript:、ftp: 与非法 URL 一律拒绝。2026-09-22：本地自建 new-api（127.0.0.1:3000）真实 Electron 下走通：授权回调命中后 .dsh/.credentials.yaml 四个引用齐备、access token 经 /api/user/self 解析到本人、验证指纹与所存 key 相符，单次监听随即关闭；同一监听上 nonce 不符返回 403 且端口保持可用，非 /callback 返回 404。超时后重来由插件测试覆盖（监听到期即释放端口，过期 nonce 在新一次尝试上被拒）。真实 5 分钟到期的界面提示与 OIDC 返回路径尚未验收。"
+    },
+    {
+      "overlays": [
+        "runtime.profile-runtime-series"
+      ],
+      "verified": "2026-10-12：自 v0.5.25 合入。0.5.x 版本同时限制祖先目录查找，2.0.17 上游已自带该限制，仅保留跨版本系列保护。profile-package-overlay.test.mjs 以固定 2.0.17 源码验证：原选择 Profile 中的 0.3.0，覆盖后保留安装包 0.2.0-rc.2；同系列 0.2.1 与非 DSH 插件新版仍采用 Profile。v0.5.25 发布包已在隔离目录复现并修复用户报告的恢复模式问题；0.6 真实宿主尚未验收。"
     }
   ]
 }

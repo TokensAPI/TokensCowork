@@ -1,15 +1,14 @@
 /* ====================================================================
  * market 覆盖登记表
  * 固定产品来源、当前 Key 鉴权、插件更新、私有 Registry、发现首页与
- * 品牌文案；以及 Desktop 侧的市场提供方固定、主题弹窗定位修复。
+ * 品牌文案；以及 Desktop 侧的市场提供方固定。
  * 同一阶段内按登记顺序执行，后一条读取前一条的结果。
  * ==================================================================== */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { desktopFiles as d, market as m, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
+import { desktopFiles as d, market as m } from '../../pipeline/stage-targets.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
 import { pinDesktopMarketProvider } from './market-desktop-overlay.mjs'
-import { preserveNativeDialogPosition } from './market-dialog-position-overlay.mjs'
 import {
   adaptMarketHomeOverlayTests,
   adaptMarketHomeTests,
@@ -239,17 +238,6 @@ export default [
     apply: ({ main }) => ({ main: pinDesktopMarketProvider(main) }),
     why: '正常启动固定 community-market 并修复误关的持久记录（崩溃恢复会把 disabled 写盘）；Safe Mode 例外。',
     retireWhen: '产品不再固定市场，或上游提供等效策略配置时移除；不能丢失其他偏好字段。',
-  },
-  {
-    id: 'market.dialog-position',
-    phase: 'assemble',
-    upstream: ['plugin:dsh-tokensapi-ui'],
-    kind: 'workaround',
-    when: ({ product }) => pluginEnabled(product, 'dsh-tokensapi-ui'),
-    files: { client: productPlugin('dsh-tokensapi-ui', 'lib/client.js') },
-    apply: ({ client }) => ({ client: preserveNativeDialogPosition(client) }),
-    why: '主题产物的全局 dialog position 规则覆盖原生 Modal 定位；只移除该规则，影响全部原生弹窗。',
-    retireWhen: '插件产物不再包含该冲突规则，且未经加工的弹窗定位测试通过后删除。',
   },
 ]
 

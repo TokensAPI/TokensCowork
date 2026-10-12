@@ -24,6 +24,7 @@ export const desktopFiles = {
   runtimeTypes: `${desktop}/src/runtime.ts`,
   windowsAclRunner: `${desktop}/src/windows-acl-runner.ts`,
   windowsPwshSandbox: `${desktop}/src/windows-pwsh-sandbox.ts`,
+  packageOverlay: `${desktop}/src/package-overlay.ts`,
   productIdentity: `${desktop}/src/product-identity.ts`,
   index: `${desktop}/src/index.ts`,
   certificate: `${desktop}/src/lan-https-certificate.ts`,

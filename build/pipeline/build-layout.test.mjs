@@ -40,11 +40,11 @@ test('a pin change flags only the overlays declaring that upstream input', async
   const baseline = currentPins(product)
   const changed = structuredClone(product)
   changed.desktop.deepseekHarnessCommit = 'new-runtime-pin'
-  changed.plugins.find(plugin => plugin.id === 'dsh-tokensapi-ui').artifact.sha256 = 'new-artifact'
+  changed.plugins.find(plugin => plugin.id === 'tokens-version-updates').commit = 'new-plugin-commit'
   const current = currentPins(changed)
   const flagged = id => pinChanges(overlays.find(overlay => overlay.id === id), baseline, current)
   assert.deepEqual(flagged('runtime.rpc-scope'), ['dsh'])
-  assert.deepEqual(flagged('market.dialog-position'), ['plugin:dsh-tokensapi-ui'])
+  assert.deepEqual(flagged('updates.tray-command-id'), ['plugin:tokens-version-updates'])
   assert.deepEqual(flagged('platform.package-identity'), [])
   assert.deepEqual(Object.keys(loadReviews()).sort(), ['branding', 'guard', 'market', 'platform', 'runtime', 'updates'])
 })

@@ -89,12 +89,6 @@
     },
     {
       "overlays": [
-        "market.dialog-position"
-      ],
-      "verified": "2026-10-10：UI 0.2.23 固定产物仍含冲突规则；外层测试验证只移除定位覆盖并保留原生 fixed 布局。真实弹窗视觉未验收。"
-    },
-    {
-      "overlays": [
         "market.discover-home",
         "market.discover-home-styles",
         "market.test-discover-overlay",
@@ -105,6 +99,7 @@
     }
   ],
   "notes": [
-    "市场服务源码已原生支持共享 Registry URL 与每插件授权；直接部署服务源码，删除旧部署覆盖与副本脚本。桌面安装路由适配保留在 market-registry-overlay.mjs。 2026-10-10：直接导入现有服务路由的 SQLite 授权、归档、撤权与歧义回归通过；市场服务 125 项、部署脚本 14 项通过。未执行生产部署或真实 pnpm 联网安装。"
+    "市场服务源码已原生支持共享 Registry URL 与每插件授权；直接部署服务源码，删除旧部署覆盖与副本脚本。桌面安装路由适配保留在 market-registry-overlay.mjs。 2026-10-10：直接导入现有服务路由的 SQLite 授权、归档、撤权与歧义回归通过；市场服务 125 项、部署脚本 14 项通过。未执行生产部署或真实 pnpm 联网安装。",
+    "2026-10-12：UI 0.2.24 已移除全局 dialog position 覆盖，弹窗定位由主题插件自身保持；删除 market.dialog-position 覆盖及其测试。"
   ]
 }

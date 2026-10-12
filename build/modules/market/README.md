@@ -1,6 +1,6 @@
 # 市场覆盖（market）
 
-负责桌面市场的固定来源、账户授权、私有 Registry、插件更新和发现首页。
+负责桌面市场的固定来源、账户授权、私有 Registry、插件更新和发现首页。主题弹窗定位已由 UI 0.2.24 自身修复，不再在构建中改写。
 来源配置读取 `market/server/source.config.json` 与生成的 `source.json`；覆盖只加工 staging，源码子模块保持只读。
 
 ## 文件职责
@@ -14,7 +14,6 @@
 | [market-registry-overlay.mjs](market-registry-overlay.mjs) | 私有包身份、schema、版本验证及共享 Registry 安装路由；服务端凭据留在服务端 |
 | [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、灰色已安装卡片、详情自动检查更新和失败重试，复用原生布局与操作 |
 | [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好，保留 Safe Mode 例外 |
-| [market-dialog-position-overlay.mjs](market-dialog-position-overlay.mjs) | 去除固定主题产物覆盖原生 Modal 定位的 CSS；影响全部原生弹窗，当前由市场模块维护 |
 | [market-catalog-verify.mjs](market-catalog-verify.mjs) | 校验生成来源、产品组件清单和初始 SQLite 目录；产品输入检查自动调用 |
 | `*-overlay.test.mjs` | 外层覆盖代码回归，直接对照固定上游输入 |
 | [overlays.test.mjs](overlays.test.mjs) | 按登记表实际装配市场源码；重复应用与后期锚点失配均报出覆盖 id 且不写入 |
