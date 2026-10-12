@@ -4,7 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from 'node:os'
 import { resolve, join, sep } from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
-import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, brandDesktopPatch, brandNativeCopyText, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, brandDesktopPatch, brandNativeCopyText, brandProfileBootTerminalCheck, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
 import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry } from './branding-runtime-overlay.mjs'
 import { applyProductLogo, verifyProductLogo, brandDesktopIconConfiguration, brandRuntimeLogo, brandWebManifest, createLogoSvg, verifyWindowsIconGenerator } from './branding-assets.mjs'
 import { brandMarketCopy } from '../market/market-source-overlay.mjs'
@@ -400,4 +400,13 @@ test('Desktop icon policy uses product ICNS and retains signing and packaging op
   assert.ok(!desktop.files.includes('build/app-icon.icon/**'))
   before.build.mac.icon = 'unknown.icon'
   assert.throws(() => brandDesktopIconConfiguration(before, productName), /configuration changed/)
+})
+
+test('Profile boot check looks for the branded terminal tray entry produced by native copy branding', () => {
+  const read = file => readFileSync(resolve(import.meta.dirname, '../../../desktop/dsh-plugin-desktop', file), 'utf8').replaceAll('\r\n', '\n')
+  const tray = brandNativeCopyText(read('src/tray-locale.ts'), 'src/tray-locale.ts', productName)
+  const brandedLabel = /openTerminal: \(\) => '([^']+)'/u.exec(tray)[1]
+  const branded = brandProfileBootTerminalCheck(read('scripts/verify-profile-boot.mjs'), productName)
+  assert.ok(branded.includes(`item.label() === '${brandedLabel}'`))
+  assert.throws(() => brandProfileBootTerminalCheck(branded, productName), AnchorError)
 })

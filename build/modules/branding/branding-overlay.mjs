@@ -169,6 +169,12 @@ export function brandMacReleaseVerification(source, productName) {
   return replaceAnchor(source, upstreamProductName, `productName: ${JSON.stringify(productName)},`, 'macOS verification identity')
 }
 
+/** Profile 启动验收按品牌化后的托盘文案查找终端入口（原生文案由 brandNativeCopyText 替换）。 */
+export function brandProfileBootTerminalCheck(source, productName) {
+  return replaceAnchor(source, "item.label() === 'Open DSH Terminal'",
+    `item.label() === ${JSON.stringify(`Open ${productName} Terminal`).replaceAll('"', "'")}`, 'profile terminal tray check')
+}
+
 /**
  * Desktop 源码中的产品身份、窗口标题、证书名、客户端文案、安装器提示与旧数据迁移。
  * @param input - { identity, main, index, certificate, titlebar, settingsLocales, assistedMessages } 文本。

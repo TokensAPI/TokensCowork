@@ -10,6 +10,7 @@ import {
   brandDesktopSources,
   brandMacReleaseVerification,
   brandNativeCopyText,
+  brandProfileBootTerminalCheck,
   nativeCopyPaths,
 } from './branding-overlay.mjs'
 import { brandInstalledRuntime } from './branding-runtime-overlay.mjs'
@@ -57,6 +58,16 @@ export default [
       .map(([path, source]) => [path, brandNativeCopyText(source, path, product.product.name)])),
     why: '原生对话框、托盘、恢复窗口、通知、终端与原生页面标题只含显示文案，整体替换上游品牌。',
     retireWhen: '产品使用独立品牌期间保留；上游不再带品牌的文件从列表中移除。',
+  },
+  {
+    id: 'branding.profile-terminal-check',
+    phase: 'configure',
+    upstream: ['desktop', 'product'],
+    kind: 'customization',
+    files: { verifier: d.profileBootVerifier },
+    apply: ({ verifier }, { product }) => ({ verifier: brandProfileBootTerminalCheck(verifier, product.product.name) }),
+    why: 'branding.native-copy 把托盘“Open DSH Terminal”改为产品名；Profile 启动验收同步按产品文案查找终端入口，仍要求该入口存在。',
+    retireWhen: '随 branding.native-copy 的托盘文案替换一起移除。',
   },
   {
     id: 'branding.mac-release-identity',
