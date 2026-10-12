@@ -1,4 +1,5 @@
 import { npmVersionManifest } from '../integrations/npm-registry.js'
+import { declaresLocaleFiles, packageLocaleMetadata } from '../integrations/package-locale.js'
 import { createRegistryClient } from '../private-registry/client.mjs'
 
 const caches = new WeakMap()
@@ -11,10 +12,27 @@ export function localeMap(value, max) {
   return result
 }
 export function localized(fallback, values, locale, max = 1000) {
-  const map = localeMap(values, max)
+  return layered(fallback, [values], locale, max)
+}
+// Earlier layers win for the requested language; the Chinese default is only consulted after every layer missed it.
+function layered(fallback, layers, locale, max) {
+  const maps = layers.map(values => localeMap(values, max))
   const key = String(locale || 'zh-CN').toLowerCase()
   const language = key.split('-')[0]
-  return map[key] || map[language] || map[Object.keys(map).sort().find(k => k.startsWith(language + '-'))] || map['zh-cn'] || map.zh || fallback
+  for (const map of maps) {
+    const text = map[key] || map[language] || map[Object.keys(map).sort().find(k => k.startsWith(language + '-'))]
+    if (text) return text
+  }
+  for (const map of maps) if (map['zh-cn'] || map.zh) return map['zh-cn'] || map.zh
+  return fallback
+}
+// dsh locale files are read from the self-hosted Registry only; public npm entries keep the `tokenscowork` map.
+async function localeFiles(item, manifest, env) {
+  if (item.registry !== 'tokenscowork' || !declaresLocaleFiles(manifest)) return undefined
+  try {
+    const result = await createRegistryClient(env).tarball(manifest.dist?.tarball)
+    return result.ok ? await packageLocaleMetadata(result.bytes) : undefined
+  } catch { return undefined }
 }
 async function metadata(item, env) {
   const identity = JSON.stringify([env.MARKET_PRIVATE_REGISTRY_URL, env.MARKET_PRIVATE_REGISTRY_TOKEN, env.MARKET_PRIVATE_REGISTRY_AUTH_SCHEME, env.MARKET_PRIVATE_REGISTRY_ENABLED])
@@ -29,7 +47,8 @@ async function metadata(item, env) {
       const result = item.registry === 'tokenscowork'
         ? await createRegistryClient(env).resolve(item.package, item.version)
         : {ok:true, manifest:await npmVersionManifest(item.package, item.version)}
-      return result.ok ? result.manifest?.tokenscowork : undefined
+      if (!result.ok) return undefined
+      return {own:result.manifest?.tokenscowork, dsh:await localeFiles(item, result.manifest, env)}
     } catch { return undefined }
   })()
   cache.entries.set(key, {promise, until:Date.now() + 180_000})
@@ -44,8 +63,8 @@ export async function localizeCatalog(items, env, locale) {
       const index = next++, item = items[index]
       const value = item.npm ? await metadata(item, env) : undefined
       result[index] = {...item,
-        displayName:localized(item.displayName, value?.displayName, locale, 120),
-        summary:localized(item.summary, value?.summary, locale),
+        displayName:layered(item.displayName, [value?.own?.displayName, value?.dsh?.title], locale, 120),
+        summary:layered(item.summary, [value?.own?.summary, value?.dsh?.description], locale, 1000),
       }
     }
   }))
