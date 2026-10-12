@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { resolve, join, sep } from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
 import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, brandDesktopPatch, brandNativeCopyText, brandProfileBootTerminalCheck, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
-import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry } from './branding-runtime-overlay.mjs'
+import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry, hideUpstreamFeedbackEntry } from './branding-runtime-overlay.mjs'
 import { applyProductLogo, verifyProductLogo, brandDesktopIconConfiguration, brandRuntimeLogo, brandWebManifest, createLogoSvg, verifyWindowsIconGenerator } from './branding-assets.mjs'
 import { brandMarketCopy } from '../market/market-source-overlay.mjs'
 import { AnchorError } from '../../pipeline/anchors.mjs'
@@ -409,4 +409,28 @@ test('Profile boot check looks for the branded terminal tray entry produced by n
   const branded = brandProfileBootTerminalCheck(read('scripts/verify-profile-boot.mjs'), productName)
   assert.ok(branded.includes(`item.label() === '${brandedLabel}'`))
   assert.throws(() => brandProfileBootTerminalCheck(branded, productName), AnchorError)
+})
+
+test('account menu loses only the upstream feedback entry and stays valid', () => {
+  // Shape of the compiled DSH 0.2 AccountMenu item list (tab-indented as published).
+  const source = [
+    'items: [',
+    '\t\t{',
+    '\t\t\tid: "settings",',
+    '\t\t\tlabel: t("settings"),',
+    '\t\t\ticon: icon("settings")',
+    '\t\t},',
+    '\t\t{',
+    '\t\t\tid: "contact",',
+    '\t\t\tlabel: t("contactUs"),',
+    '\t\t\ticon: (0, jsx)(Icons.IconPaperPlaneOutlineMedium, { size: 16 })',
+    '\t\t},',
+    '\t\t...signedIn ? [{ id: "signout" }] : [{ id: "signin" }]',
+    ']',
+  ].join('\n')
+  const patched = hideUpstreamFeedbackEntry(source)
+  const items = new Function('t', 'icon', 'jsx', 'Icons', 'signedIn', `return { ${patched} }.items`)(key => key, () => null, () => null, {}, false)
+  assert.deepEqual(items.map(item => item.id), ['settings', 'signin'])
+  assert.equal(hideUpstreamFeedbackEntry(patched), patched)
+  assert.throws(() => hideUpstreamFeedbackEntry(source.replace('id: "contact"', 'id: "feedback"')), AnchorError)
 })

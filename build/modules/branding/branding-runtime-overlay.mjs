@@ -1,6 +1,20 @@
 // npm 运行时的显示文案、声明式预设与产品导航策略；只支持当前固定的 DSH 0.2 布局。
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { replacePatternOnce } from '../../pipeline/anchors.mjs'
+
+/** 侧栏“更多”菜单去掉上游官方的意见反馈入口；设置与账号项保持不变。可重复执行。 */
+export function hideUpstreamFeedbackEntry(source) {
+  const marker = '/* TokensCowork: upstream feedback entry hidden. */'
+  if (source.includes(marker)) {
+    if (source.includes('label: t("contactUs")')) throw new Error('incomplete upstream feedback entry removal')
+    return source
+  }
+  return replacePatternOnce(source,
+    /\{\s*id: "contact",\s*label: t\("contactUs"\),\s*icon: [^\n]*\n\s*\},/u,
+    marker,
+    'account menu feedback entry')
+}
 
 /** 隐藏上游云服务侧栏入口，保留连接配置、设置与后台服务。 */
 export function hideUpstreamCloudEntry(source) {

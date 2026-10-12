@@ -3,7 +3,7 @@
  * 产品身份、可见文案、提示词、Logo 与图标、旧用户数据迁移、隐藏上游云入口。
  * ==================================================================== */
 import { resolve } from 'node:path'
-import { desktopFiles as d } from '../../pipeline/stage-targets.mjs'
+import { desktopFiles as d, desktopInstalled } from '../../pipeline/stage-targets.mjs'
 import { applyProductLogo, brandDesktopIconConfiguration, generateProductIcons } from './branding-assets.mjs'
 import {
   brandDesktopPatch,
@@ -13,7 +13,7 @@ import {
   brandProfileBootTerminalCheck,
   nativeCopyPaths,
 } from './branding-overlay.mjs'
-import { brandInstalledRuntime } from './branding-runtime-overlay.mjs'
+import { brandInstalledRuntime, hideUpstreamFeedbackEntry } from './branding-runtime-overlay.mjs'
 
 // 这几份源码按 LF 读取后再匹配，避免 Windows 检出的 CRLF 让锚点失配。
 const lf = path => ({ path, read: text => text.replaceAll('\r\n', '\n') })
@@ -29,6 +29,16 @@ export default [
     apply: ({ patch }, { product }) => ({ patch: brandDesktopPatch(patch, product.product.name) }),
     why: '停用上游官方 UI 品牌插件，系统提示词身份行改为产品名。',
     retireWhen: '产品使用独立品牌期间保留。',
+  },
+  {
+    id: 'branding.hide-feedback',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'customization',
+    files: { client: desktopInstalled('@deepseek-ai/dsh-client-ui-settings-account', 'lib/client.js') },
+    apply: ({ client }) => ({ client: hideUpstreamFeedbackEntry(client) }),
+    why: '侧栏“更多”菜单中的“意见反馈”指向上游官方渠道，产品不提供；只移除该菜单项，设置与账号项保留。',
+    retireWhen: '上游提供隐藏该入口的配置，或产品接入自己的反馈渠道后移除。',
   },
   {
     id: 'branding.desktop-source',
