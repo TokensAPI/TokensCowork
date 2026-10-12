@@ -4,7 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { tmpdir } from 'node:os'
 import { resolve, join, sep } from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
-import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, brandDesktopPatch, brandNativeCopyText, brandProfileBootTerminalCheck, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, alignSidebarAccountRow, brandDesktopPatch, brandNativeCopyText, brandProfileBootTerminalCheck, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
 import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry, hideUpstreamFeedbackEntry, hideUpstreamAccountSection } from './branding-runtime-overlay.mjs'
 import { applyProductLogo, verifyProductLogo, brandDesktopIconConfiguration, brandRuntimeLogo, brandWebManifest, createLogoSvg, verifyWindowsIconGenerator } from './branding-assets.mjs'
 import { brandMarketCopy } from '../market/market-source-overlay.mjs'
@@ -457,4 +457,19 @@ test('the upstream DeepSeek account settings page is never registered, even when
   assert.deepEqual(registered, [])
   assert.equal(hideUpstreamAccountSection(patched), patched)
   assert.throws(() => hideUpstreamAccountSection(source.replace('id: "account"', 'id: "profile"')), AnchorError)
+})
+
+test('the signed-in sidebar account row lines up with the Plugin Market row', () => {
+  const product = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../product.json'), 'utf8'))
+  const plugin = product.plugins.find(item => item.id === 'tokens-login')
+  const source = readFileSync(resolve(import.meta.dirname, '../../..', plugin.path, 'dsh/client.js'), 'utf8').replaceAll('\r\n', '\n')
+  const patched = alignSidebarAccountRow(source)
+  const added = patched.split('\n').filter(line => !source.includes(line))
+  assert.equal(added.length, 2)
+  assert.ok(added.every(line => line.includes('[data-collapsed=false][data-signed-out=false]')))
+  // Avatar centre and text start match the market row: 16px icon centred at 14px, text from 30px.
+  const padding = 4, avatar = 20, gap = 6
+  assert.equal(padding + avatar / 2, 14)
+  assert.equal(padding + avatar + gap, 30)
+  assert.throws(() => alignSidebarAccountRow(source.replace("'.tkl-label{", "'.tkl-name{")), AnchorError)
 })

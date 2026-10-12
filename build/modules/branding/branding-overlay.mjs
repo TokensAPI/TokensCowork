@@ -200,3 +200,14 @@ export function brandDesktopSources(input, product) {
     assistedMessages: input.assistedMessages.replaceAll('DSH Desktop', product.name),
   }
 }
+
+/**
+ * 侧栏底部已登录账号行与上方“插件市场”行对齐：上游账号菜单（登录插件照搬）用 24px 头像和 6px 左边距，
+ * 头像中心与文字起点分别比 16px 图标的市场行偏右 4px、8px。只追加已登录且展开时的规则。
+ */
+export function alignSidebarAccountRow(source) {
+  return replaceAnchor(source, "      '.tkl-label{",
+    "      '.tkl-trigger[data-collapsed=false][data-signed-out=false]{padding-left:4px;gap:6px}',\n"
+    + "      '.tkl-trigger[data-collapsed=false][data-signed-out=false] .tkl-avatar{width:20px;height:20px;font-size:11px}',\n"
+    + "      '.tkl-label{", 'sidebar account row styles')
+}

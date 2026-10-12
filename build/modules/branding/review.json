@@ -8,7 +8,13 @@
       "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
       "version": "0.2.0-rc.2"
     },
-    "plugins": {}
+    "plugins": {
+      "tokens-login": {
+        "commit": "3cf0a4df8ed98917894cd61d687c08488bd678cc",
+        "version": "0.1.10",
+        "artifact": null
+      }
+    }
   },
   "evidence": [
     {
@@ -35,6 +41,12 @@
         "branding.hide-deepseek-account"
       ],
       "verified": "2026-10-12：对 npm 原版 @deepseek-ai/dsh-client-ui-settings-account 0.2.0-rc.2 应用后，DeepSeek 账号页注册条件恒为假，整文件语法检查通过、重复执行不变；外层测试按编译后结构验证已登录 DeepSeek 时也不注册该页。真实宿主界面未验收。"
+    },
+    {
+      "overlays": [
+        "branding.sidebar-account-row"
+      ],
+      "verified": "2026-10-12：以固定 tokens-login 0.1.10 的 dsh/client.js 为输入，只新增两条已登录且展开状态的规则，原有触发器、收起与未登录样式不变；按样式计算头像中心 14px、文字起点 30px，与插件市场行一致。真实界面未目测验收。"
     }
   ]
 }

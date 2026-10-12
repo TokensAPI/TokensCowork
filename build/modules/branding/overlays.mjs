@@ -3,13 +3,14 @@
  * 产品身份、可见文案、提示词、Logo 与图标、旧用户数据迁移、隐藏上游云入口。
  * ==================================================================== */
 import { resolve } from 'node:path'
-import { desktopFiles as d, desktopInstalled } from '../../pipeline/stage-targets.mjs'
+import { desktopFiles as d, desktopInstalled, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
 import { applyProductLogo, brandDesktopIconConfiguration, generateProductIcons } from './branding-assets.mjs'
 import {
   brandDesktopPatch,
   brandDesktopSources,
   brandMacReleaseVerification,
   brandNativeCopyText,
+  alignSidebarAccountRow,
   brandProfileBootTerminalCheck,
   nativeCopyPaths,
 } from './branding-overlay.mjs'
@@ -29,6 +30,17 @@ export default [
     apply: ({ patch }, { product }) => ({ patch: brandDesktopPatch(patch, product.product.name) }),
     why: '停用上游官方 UI 品牌插件，系统提示词身份行改为产品名。',
     retireWhen: '产品使用独立品牌期间保留。',
+  },
+  {
+    id: 'branding.sidebar-account-row',
+    phase: 'assemble',
+    upstream: ['plugin:tokens-login'],
+    kind: 'workaround',
+    when: ({ product }) => pluginEnabled(product, 'tokens-login'),
+    files: { client: productPlugin('tokens-login', 'dsh/client.js') },
+    apply: ({ client }) => ({ client: alignSidebarAccountRow(client) }),
+    why: '登录插件照搬上游账号菜单的 24px 头像与 6px 左边距，已登录时头像和名字比上方“插件市场”行偏右；只对已登录且侧栏展开的账号行改为 20px 头像、4px 左边距、6px 间距，与市场行对齐。',
+    retireWhen: '登录插件或上游账号菜单自行与侧栏其他行对齐后移除。',
   },
   {
     id: 'branding.hide-feedback',
