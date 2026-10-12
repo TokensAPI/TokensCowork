@@ -201,6 +201,7 @@ $requiredOutputs = @(
   (Join-Path $desktop 'lib\native-ui\profile-selector.html')
   (Join-Path $desktop 'build\app-icon.ico')
   (Join-Path $desktop 'build\app-icon-mac.png')
+  (Join-Path $desktop 'build\app-icon.icns')
   (Join-Path $desktop 'build\tray-icon-blue.png')
 )
 $outputsMissing = $requiredOutputs.Where({ -not (Test-Path $_) }).Count -gt 0
@@ -215,6 +216,7 @@ if (-not $outputsMissing) {
     Get-Item (Join-Path $stage 'dsh-community-market\tsdown.config.ts')
     Get-Item (Join-Path $desktop 'package.json')
     Get-Item (Join-Path $desktop 'tsdown.config.ts')
+    Get-Item (Join-Path $desktop 'vite.client.config.ts')
     Get-Item (Join-Path $desktop 'vite.native-ui.config.ts')
   )
   $oldestOutput = $requiredOutputs |
@@ -231,24 +233,30 @@ if ($Build -or $Prepare -or $outputsMissing) {
   Invoke-Step '编译并适配产品插件' $root 'node build\pipeline\staging-plugins-compile.mjs'
   Invoke-Step '生成市场契约类型' $stage 'corepack yarn workspace dsh-community-market run generate:types'
   Invoke-Step '构建市场插件（宿主+客户端）' $stage 'corepack yarn workspace dsh-community-market run build'
-  Invoke-Step '生成 Windows 应用图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-windows-app-icon.mjs'
-  Invoke-Step '生成 macOS 应用图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-mac-app-icon.mjs'
-  Invoke-Step '生成托盘图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-tray-icons.mjs'
+  if (-not $configureNeeded) {
+    Invoke-Step '生成产品图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-product-icons.mjs'
+  }
   Invoke-Step '构建桌面主进程' $stage 'corepack yarn workspace dsh-plugin-desktop exec tsdown'
-  Invoke-Step '构建桌面界面' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.native-ui.config.ts'
+  Invoke-Step '构建桌面客户端插件' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.client.config.ts'
+  Invoke-Step '构建桌面原生界面' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.native-ui.config.ts'
+  $missingOutputs = @($requiredOutputs | Where-Object { -not (Test-Path -LiteralPath $_) })
+  if ($missingOutputs.Count -gt 0) {
+    throw "dev-desktop: 构建完成后仍缺少运行时产物：$($missingOutputs -join ', ')"
+  }
 }
 
 $watchers = @()
 if ($Watch) {
-  Write-Host '==> 启动热加载 watcher（三个最小化窗口，改代码自动重编，应用内 Ctrl+R 生效）' -ForegroundColor Cyan
+  Write-Host '==> 启动热加载 watcher（改代码自动重编，应用内 Ctrl+R 生效）' -ForegroundColor Cyan
   $watchSpecs = @(
     @{ Label = 'market-client'; Cmd = 'corepack yarn workspace dsh-community-market exec tsdown --watch' },
     @{ Label = 'desktop-main';  Cmd = 'corepack yarn workspace dsh-plugin-desktop exec tsdown --watch' },
+    @{ Label = 'desktop-client'; Cmd = 'corepack yarn workspace dsh-plugin-desktop exec vite build --watch --config vite.client.config.ts' },
     @{ Label = 'desktop-ui';    Cmd = 'corepack yarn workspace dsh-plugin-desktop exec vite build --watch --config vite.native-ui.config.ts' }
   )
   foreach ($spec in $watchSpecs) {
     $watchers += Start-Process cmd -ArgumentList '/d', '/s', '/k', "title dev-watch:$($spec.Label) & $($spec.Cmd)" `
-      -WorkingDirectory $stage -WindowStyle Minimized -PassThru
+      -WorkingDirectory $stage -WindowStyle Hidden -PassThru
   }
 }
 

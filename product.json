@@ -8,14 +8,14 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.24"
+    "version": "0.6.0"
   },
   "desktop": {
     "path": "desktop",
     "repository": "https://github.com/anywhere-labs/deepseek-harness-desktop.git",
-    "commit": "63e160ab4387988db894adef766865eab897cf80",
-    "deepseekHarnessCommit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
-    "runtimeVersion": "0.1.5-rc.2"
+    "commit": "838ba60fd79362087c0a0d134efee671c284786a",
+    "deepseekHarnessCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "runtimeVersion": "0.2.0-rc.2"
   },
   "plugins": [
     {
@@ -30,9 +30,9 @@
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/dsh-atomic-write": "0.1.5-rc.2",
-        "@deepseek-ai/dsh-invariants": "0.1.5-rc.2",
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/dsh-atomic-write": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     },
     {
@@ -89,7 +89,7 @@
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     },
     {
@@ -104,7 +104,7 @@
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     }
   ]
