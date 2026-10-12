@@ -228,6 +228,28 @@
       "reason": "历史托管 bundle 去重函数尚未删除，但当前不注入 Profile。",
       "retireWhen": "独立确认上游已处理重复项且无引用后清理；此次不改功能。",
       "verification": "入口检索，不把残留函数描述为当前迁移能力。"
+    },
+    {
+      "id": "runtime.profile-packages",
+      "module": "runtime",
+      "kind": "workaround",
+      "state": "active",
+      "inputs": [
+        "desktop",
+        "dsh"
+      ],
+      "files": [
+        "build/modules/runtime/profile-package-overlay.mjs"
+      ],
+      "targets": [
+        "Desktop src/package-overlay.ts: readCandidate / findOverlayPackage"
+      ],
+      "appliedBy": [
+        "build/pipeline/staging-prepare.mjs"
+      ],
+      "reason": "Desktop 2.0.9 的 Profile 候选沿祖先目录查找，并按版本高者胜出：与官方 DSH 等程序共用 ~/.dsh 时，profiles/node_modules 或 Profile 中的 DSH 0.2 dsh-web-app 会替换本产品 0.1 运行时，其数组形式 bundle 声明使启动进入恢复模式（用户反馈 declares no dsh.bundle）。只接受当前 Profile 自己 node_modules 下的包（与上游 2.0.17 相同）；DSH 运行时包的 Profile 副本与安装包不同版本系列时保留安装包，市场插件等非 DSH 运行时包仍按新版本覆盖。",
+      "retireWhen": "升级到已限制 Profile 查找范围的 Desktop（2.0.17 起）时覆盖会报错提示删除；跨版本系列保护需在新运行时上复查后决定是否保留。",
+      "verification": "2026-10-12：profile-package-overlay.test.mjs 以固定 2.0.9 源码复现原选择 profiles/node_modules 中的 0.2.0-rc.2，覆盖后回到安装包 0.1.5-rc.2（声明为字符串）；Profile 内 0.2 跨系列保留安装包，0.1.6 同系列与非 DSH 插件新版仍采用 Profile；锚点变化与上游已修复时报错。真实 macOS 共用 ~/.dsh 场景尚未在用户机器验收。"
     }
   ],
   "diagnostics": [

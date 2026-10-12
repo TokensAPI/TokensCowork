@@ -15,6 +15,7 @@ import {
   skipDesktopSetupWizard,
 } from '../modules/runtime/desktop-runtime-overlay.mjs'
 import { addDesktopOpenExternal } from '../modules/runtime/open-external-overlay.mjs'
+import { restrictProfilePackageOverlay } from '../modules/runtime/profile-package-overlay.mjs'
 import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../modules/updates/updates-overlay.mjs'
 import { disableUpstreamRepeatReminder } from '../modules/guard/loop-guard-overlay.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../modules/platform/windows-acl-overlay.mjs'
@@ -301,6 +302,11 @@ const desktopOpenExternal = addDesktopOpenExternal({
 })
 writeFileSync(desktopBridgePath, desktopOpenExternal.bridge)
 writeFileSync(desktopRuntimeTypesPath, desktopOpenExternal.runtime)
+
+/* --------------- Profile 包只认当前 Profile 与同系列运行时 --------------- */
+// 共用 ~/.dsh 的 DSH 0.2 程序留下的新版包不能替换本产品的 0.1 运行时。
+const packageOverlayPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'package-overlay.ts')
+writeFileSync(packageOverlayPath, restrictProfilePackageOverlay(readFileSync(packageOverlayPath, 'utf8')))
 
 /* --------------------------- 写回改写结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
