@@ -17,8 +17,8 @@
         "artifact": "8fa6950293d9bf7f5907c20e59c6f44256082793119fbd13d3977c466a7a25d6"
       },
       "tokens-login": {
-        "commit": "3cf0a4df8ed98917894cd61d687c08488bd678cc",
-        "version": "0.1.10",
+        "commit": "3d95c34e06e36b38b8a443f2f707627e5cdd2eb3",
+        "version": "0.1.11",
         "artifact": null
       },
       "tokens-model-manager": {
@@ -102,6 +102,12 @@
         "market.auth"
       ],
       "verified": "2026-10-12：tokens-login 升至 0.1.10，宿主端 dsh/index.js 与 0.1.8 相同，credentials.resolve(TOKENSAPI_API_KEY) 契约不变，market.auth 无需修改。"
+    },
+    {
+      "overlays": [
+        "market.auth"
+      ],
+      "verified": "2026-10-12：tokens-login 升至 0.1.11（3d95c34），宿主端 dsh/index.js 仅为 API Key 配置失败补传 apiKeyErrorCode，credentials.resolve(TOKENSAPI_API_KEY) 契约无改动，market.auth 无需修改；overlay-doctor --doctor 在临时 staging 中判定生效。"
     }
   ],
   "notes": [

@@ -10,8 +10,8 @@
     },
     "plugins": {
       "tokens-login": {
-        "commit": "3cf0a4df8ed98917894cd61d687c08488bd678cc",
-        "version": "0.1.10",
+        "commit": "3d95c34e06e36b38b8a443f2f707627e5cdd2eb3",
+        "version": "0.1.11",
         "artifact": null
       }
     }
@@ -47,6 +47,12 @@
         "branding.sidebar-account-row"
       ],
       "verified": "2026-10-12：以固定 tokens-login 0.1.10 的 dsh/client.js 为输入，只新增两条已登录且展开状态的规则，原有触发器、收起与未登录样式不变；按样式计算头像中心 14px、文字起点 30px，与插件市场行一致。真实界面未目测验收。"
+    },
+    {
+      "overlays": [
+        "branding.sidebar-account-row"
+      ],
+      "verified": "2026-10-12：tokens-login 升至 0.1.11（3d95c34），dsh/client.js 只改错误提示本地化并在样式表末尾追加 Toast 规则；锚点 '.tkl-label{' 仍唯一，触发器与头像样式未变。overlay-doctor --doctor 在临时 staging 中判定生效，branding 覆盖测试 29 项通过。真实界面未目测验收。"
     }
   ]
 }
