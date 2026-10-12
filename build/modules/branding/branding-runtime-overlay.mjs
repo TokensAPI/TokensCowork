@@ -3,6 +3,16 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { replacePatternOnce } from '../../pipeline/anchors.mjs'
 
+/** 设置中不注册上游 DeepSeek 官方账号页；账号由 TokensAPI 账户页管理。可重复执行。 */
+export function hideUpstreamAccountSection(source) {
+  const marker = '/* TokensCowork: upstream DeepSeek account settings page hidden. */'
+  if (source.includes(marker)) return source
+  return replacePatternOnce(source,
+    /if \(snapshot\.view\?\.status === "credential-stored"\)( unregister \?\?= ctx\.slots\.register\(\{\s*name: "settings\.section",\s*id: "account",)/u,
+    `if (false ${marker})$1`,
+    'account settings section')
+}
+
 /** 侧栏“更多”菜单去掉上游官方的意见反馈入口；设置与账号项保持不变。可重复执行。 */
 export function hideUpstreamFeedbackEntry(source) {
   const marker = '/* TokensCowork: upstream feedback entry hidden. */'

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { resolve, join, sep } from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
 import { brandDesktopMain, brandDesktopProductIdentity, brandDesktopCertificate, brandDesktopPatch, brandNativeCopyText, brandProfileBootTerminalCheck, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
-import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry, hideUpstreamFeedbackEntry } from './branding-runtime-overlay.mjs'
+import { brandInstalledRuntime, verifyInstalledRuntimeBranding, hideUpstreamCloudEntry, hideUpstreamFeedbackEntry, hideUpstreamAccountSection } from './branding-runtime-overlay.mjs'
 import { applyProductLogo, verifyProductLogo, brandDesktopIconConfiguration, brandRuntimeLogo, brandWebManifest, createLogoSvg, verifyWindowsIconGenerator } from './branding-assets.mjs'
 import { brandMarketCopy } from '../market/market-source-overlay.mjs'
 import { AnchorError } from '../../pipeline/anchors.mjs'
@@ -433,4 +433,28 @@ test('account menu loses only the upstream feedback entry and stays valid', () =
   assert.deepEqual(items.map(item => item.id), ['settings', 'signin'])
   assert.equal(hideUpstreamFeedbackEntry(patched), patched)
   assert.throws(() => hideUpstreamFeedbackEntry(source.replace('id: "contact"', 'id: "feedback"')), AnchorError)
+})
+
+test('the upstream DeepSeek account settings page is never registered, even when signed in', () => {
+  // Shape of the compiled DSH 0.2 account settings-section registration.
+  const source = [
+    'const update = () => {',
+    '\tif (snapshot.view?.status === "credential-stored") unregister ??= ctx.slots.register({',
+    '\t\tname: "settings.section",',
+    '\t\tid: "account",',
+    '\t\torder: -10',
+    '\t}, AccountSection);',
+    '\telse {',
+    '\t\tunregister?.();',
+    '\t\tunregister = void 0;',
+    '\t}',
+    '};',
+  ].join('\n')
+  const patched = hideUpstreamAccountSection(source)
+  const registered = []
+  new Function('snapshot', 'ctx', 'AccountSection', `let unregister; ${patched}; update()`)(
+    { view: { status: 'credential-stored' } }, { slots: { register: options => { registered.push(options.id); return () => {} } } }, null)
+  assert.deepEqual(registered, [])
+  assert.equal(hideUpstreamAccountSection(patched), patched)
+  assert.throws(() => hideUpstreamAccountSection(source.replace('id: "account"', 'id: "profile"')), AnchorError)
 })

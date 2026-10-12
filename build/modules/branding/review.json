@@ -29,6 +29,12 @@
         "branding.product-icons"
       ],
       "verified": "2026-10-10：25 项品牌行为回归、外层 107 项构建测试、独立 staging 完整编译及只读品牌门禁通过；Windows 隔离 Electron 启动 Renderer healthy，Logo 实际解码为 480×480，Logo/明暗 favicon HTTP SHA256 一致；ICO 16 帧、ICNS 7 尺寸完整解码通过。托盘随后裁去透明展示留白，6 份资源尺寸与安全边距通过，16px 图形可见区域由 12×11 增至 14×14；品牌 25 项复测通过，放大后托盘尚未人工验收。迁移仅在临时目录测试，macOS 打包/签名/安装与真实用户迁移未验收。"
+    },
+    {
+      "overlays": [
+        "branding.hide-deepseek-account"
+      ],
+      "verified": "2026-10-12：对 npm 原版 @deepseek-ai/dsh-client-ui-settings-account 0.2.0-rc.2 应用后，DeepSeek 账号页注册条件恒为假，整文件语法检查通过、重复执行不变；外层测试按编译后结构验证已登录 DeepSeek 时也不注册该页。真实宿主界面未验收。"
     }
   ]
 }

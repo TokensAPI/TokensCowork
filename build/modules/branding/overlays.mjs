@@ -13,7 +13,7 @@ import {
   brandProfileBootTerminalCheck,
   nativeCopyPaths,
 } from './branding-overlay.mjs'
-import { brandInstalledRuntime, hideUpstreamFeedbackEntry } from './branding-runtime-overlay.mjs'
+import { brandInstalledRuntime, hideUpstreamAccountSection, hideUpstreamFeedbackEntry } from './branding-runtime-overlay.mjs'
 
 // 这几份源码按 LF 读取后再匹配，避免 Windows 检出的 CRLF 让锚点失配。
 const lf = path => ({ path, read: text => text.replaceAll('\r\n', '\n') })
@@ -39,6 +39,16 @@ export default [
     apply: ({ client }) => ({ client: hideUpstreamFeedbackEntry(client) }),
     why: '侧栏“更多”菜单中的“意见反馈”指向上游官方渠道，产品不提供；只移除该菜单项，设置与账号项保留。',
     retireWhen: '上游提供隐藏该入口的配置，或产品接入自己的反馈渠道后移除。',
+  },
+  {
+    id: 'branding.hide-deepseek-account',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'customization',
+    files: { client: desktopInstalled('@deepseek-ai/dsh-client-ui-settings-account', 'lib/client.js') },
+    apply: ({ client }) => ({ client: hideUpstreamAccountSection(client) }),
+    why: '设置中不显示上游 DeepSeek 官方账号页；产品账号由 tokens-login 的“TokensAPI 账户”页管理。只停止注册该页，账号插件其余逻辑不变。',
+    retireWhen: '产品改为支持 DeepSeek 官方账号，或上游提供关闭该页的配置时移除。',
   },
   {
     id: 'branding.desktop-source',
