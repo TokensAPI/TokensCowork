@@ -169,7 +169,7 @@ TokensAPI 组织即租户。上表由平台决定「插件提供给哪些组织�
 已上架 npm 插件自动跟随稳定 `latest`，包括历史标记为 pinned 的 npm 记录，不需要每次手工改市场版本。
 
 - 查询时发现版本，不是发布后立即推送；缓存可能带来延迟。
-- 不静默升级用户本地插件，不覆盖数据库登记资料、权限和审核记录。插件包提供 `tokenscowork.displayName`、`tokenscowork.summary` 多语言映射时，目录按 locale 展示文案；缺失或读取失败回退登记文案。
+- 不静默升级用户本地插件，不覆盖数据库登记资料、权限和审核记录。插件包提供 `tokenscowork.displayName`、`tokenscowork.summary` 多语言映射时，目录按 locale 展示文案；自建 Registry 上的包若按 dsh 约定导出 `./locale/*.json`，其中 `meta.title`、`meta.description` 补足映射缺少的语言（与 dsh 插件页同一份文案）；都缺失或读取失败回退登记文案。
 - 版本提示缓存 30 秒，同一查询合并请求；管理写入成功后失效。不缓存授权和下载结果。多语言文案另按包版本缓存最多 3 分钟。
 - 不会自动上架草稿、已下架或回收站记录。
 - Registry 无响应或 latest 为预发布版时，条目可能暂不展示，不用旧版本伪装成新版。
