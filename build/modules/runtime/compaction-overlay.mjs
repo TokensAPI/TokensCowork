@@ -1,6 +1,7 @@
 // Temporary DSH adaptation: isolate the summary task and reject unusable checkpoints.
 // Only the default LLM summarizer changes; history selection/commit stays upstream.
 import { createHash } from 'node:crypto'
+import { replacePatternOnce } from '../../pipeline/anchors.mjs'
 
 function productCompactionMessages(messages) {
   return messages.map(message => {
@@ -60,13 +61,6 @@ const legacyHelperHashes = new Set([
   '4599822beabf3b20f92481c3c3711463e40d29c2fb7e0be4d4700149b38fda18',
 ])
 
-function replaceOnce(source, pattern, replacement, label) {
-  let count = 0
-  const result = source.replace(pattern, (...args) => { count++; return typeof replacement === 'function' ? replacement(...args) : replacement })
-  if (count !== 1) throw new Error(`Compaction ${label} anchor changed (${count} matches); review the upstream summarizer`)
-  return result
-}
-
 export function alignCompactionSummary(source) {
   if (source.includes(marker)) {
     const normalized = source.replaceAll('\r\n', '\n')
@@ -83,21 +77,21 @@ export function alignCompactionSummary(source) {
     }
     // Undo only our known insertions, then run the normal upstream anchor checks.
     // This also relocates the legacy validation call after upstream empty/error checks.
-    let original = replaceOnce(parts[0], /\.\.\.productCompactionMessages\(input\.messages\)/g, '...input.messages', 'legacy history')
-    original = replaceOnce(original, /[ \t]*system: productCompactionSystem\(COMPACTION_INSTRUCTION\),\n/g, '', 'legacy system')
-    original = replaceOnce(original, /[ \t]*productValidateCheckpoint\(summary, rawOutput\);\n/g, '', 'legacy validation')
-    original = replaceOnce(original, /- Write the checkpoint directly, without an introductory explanation\./g,
+    let original = replacePatternOnce(parts[0], /\.\.\.productCompactionMessages\(input\.messages\)/g, '...input.messages', 'legacy history')
+    original = replacePatternOnce(original, /[ \t]*system: productCompactionSystem\(COMPACTION_INSTRUCTION\),\n/g, '', 'legacy system')
+    original = replacePatternOnce(original, /[ \t]*productValidateCheckpoint\(summary, rawOutput\);\n/g, '', 'legacy validation')
+    original = replacePatternOnce(original, /- Write the checkpoint directly, without an introductory explanation\./g,
       '- Do NOT mention this summarization request or that the context was compacted.', 'legacy instruction')
     return alignCompactionSummary(original.trimEnd())
   }
-  let patched = replaceOnce(source, /\.\.\.input\.messages\b/g, '...productCompactionMessages(input.messages)', 'history')
-  patched = replaceOnce(patched, /\bmodel: target\.model,\s*messages,/g,
+  let patched = replacePatternOnce(source, /\.\.\.input\.messages\b/g, '...productCompactionMessages(input.messages)', 'history')
+  patched = replacePatternOnce(patched, /\bmodel: target\.model,\s*messages,/g,
     'model: target.model,\n    system: productCompactionSystem(COMPACTION_INSTRUCTION),\n    messages,', 'system')
   // Do not ask for concealment. The checkpoint is user-visible session data.
-  patched = replaceOnce(patched, /- Do NOT mention this summarization request or that the context was compacted\./g,
+  patched = replacePatternOnce(patched, /- Do NOT mention this summarization request or that the context was compacted\./g,
     '- Write the checkpoint directly, without an introductory explanation.', 'instruction')
   // Keep upstream image/empty/terminal error classification before our stricter gate.
-  patched = replaceOnce(patched, /return \{\s*summary,\s*rawOutput,/g,
+  patched = replacePatternOnce(patched, /return \{\s*summary,\s*rawOutput,/g,
     'productValidateCheckpoint(summary, rawOutput);\n  return {\n    summary,\n    rawOutput,', 'validation')
   return `${patched}\n${marker}\n${helpers}\n`
 }

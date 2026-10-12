@@ -1,24 +1,7 @@
-import { pinDesktopMarketProvider } from '../modules/market/market-desktop-overlay.mjs'
-import { bridgeDesktopSystemProxy } from '../modules/platform/system-proxy-overlay.mjs'
-import { alignFsExtArchitecture } from '../modules/platform/desktop-packaging-overlay.mjs'
-import { applyMarketSourceOverlays } from '../modules/market/market-staging-overlay.mjs'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, relative, resolve, sep } from 'node:path'
+import { runOverlays } from './overlay-engine.mjs'
 import { productStage } from './paths.mjs'
-import { alignRuntimeDependencies, prepareRuntimeVersion } from '../modules/runtime/runtime-version-overlay.mjs'
-
-import { brandDesktopPatch } from '../modules/branding/branding-overlay.mjs'
-import { preserveNativeDialogPosition } from '../modules/market/market-dialog-position-overlay.mjs'
-import {
-  alignCliRuntimeSmokeWithPlatform,
-  alignResolverTestFileUrls,
-  protectDesktopStderr,
-  skipDesktopSetupWizard,
-} from '../modules/runtime/desktop-runtime-overlay.mjs'
-import { addDesktopOpenExternal } from '../modules/runtime/open-external-overlay.mjs'
-import { disableUpstreamUpdates, verifyDisabledUpdateMenu, verifyProductUpdateMenu } from '../modules/updates/updates-overlay.mjs'
-import { disableUpstreamRepeatReminder } from '../modules/guard/loop-guard-overlay.mjs'
-import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from '../modules/platform/windows-acl-overlay.mjs'
 
 /* ====================================================================
  * 路径与产品清单
@@ -33,18 +16,24 @@ const stage = refreshingLock ? resolve(stageRoot, 'refresh-lock') : productStage
 const desktopSource = resolve(root, 'desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const enabledPlugins = manifest.plugins.filter(item => item.enabledByDefault === true)
-const hasProductUpdatePlugin = enabledPlugins.some(item => item.id === 'tokens-version-updates')
-const hasLoopGuardPlugin = enabledPlugins.some(item => item.id === 'tokens-loop-guard')
 
 // 产品运行时由外层固定，安装时仍须通过 Yarn 补丁和 immutable 锁文件校验。
 const desktopRuntimeVersion = manifest.desktop.runtimeVersion
 if (typeof desktopRuntimeVersion !== 'string' || desktopRuntimeVersion.length === 0) {
   throw new Error('prepare-desktop: desktop runtimeVersion must be a non-empty string')
 }
+
+// 体检（overlay-doctor）在临时 staging 中装配：单条覆盖失败时记录并继续。
+const audit = process.env.PRODUCT_OVERLAY_AUDIT
+const results = []
+const overlayPhase = async phase => {
+  results.push(...await runOverlays(phase, { stage, product: manifest, audit: audit !== undefined }))
+}
+
 /* ====================================================================
  * 工具函数
- * 仅供本脚本使用的通用辅助。产品覆盖（改写上游副本的加工逻辑）按主题
- * 分类存放在 modules/ 目录，本文件只保留主流程与调用顺序。
+ * 仅供本脚本使用的通用辅助。产品覆盖登记在各模块的 overlays.mjs，
+ * 由 overlay-engine 按阶段执行；本文件只负责复制源码、注入插件与锁文件。
  * ==================================================================== */
 
 function assertGeneratedPath(path) {
@@ -137,8 +126,8 @@ function renamePluginPatchPackage(patch, sourcePackage, packageName, pluginId) {
 
 /* ====================================================================
  * 主流程
- * 按顺序执行 staging 装配：重建目录、读入副本、各项产品加工、写回。
- * 以后新增的产品化操作按性质插入对应步骤之间，并加同款分节横幅。
+ * 复制上游源码 → prepare 覆盖 → 注入产品插件 → assemble 覆盖 → 产品锁文件。
+ * prepare 覆盖追加的补丁条目必须位于产品插件补丁之前，顺序不能对调。
  * ==================================================================== */
 
 /* ------------------------ 重建 staging 目录 ------------------------- */
@@ -146,84 +135,18 @@ mkdirSync(stageRoot, { recursive: true })
 assertGeneratedPath(stage)
 clearStageKeepingModules()
 copySource(desktopSource, stage)
-for (const [file, role] of [['main.ts', 'main'], ['host-process.ts', 'supervisor'], ['host-process-entry.ts', 'host']]) {
-  const path = resolve(stage, 'dsh-plugin-desktop/src', file)
-  writeFileSync(path, bridgeDesktopSystemProxy(readFileSync(path, 'utf8'), role))
-}
-prepareRuntimeVersion(stage, desktopRuntimeVersion)
-cpSync(
-  resolve(root, 'build', 'modules', 'platform', 'mac-adhoc-sign.ts'),
-  resolve(stage, 'dsh-plugin-desktop', 'scripts', 'mac-unsigned-after-pack.ts'),
-)
-for (const [sourceName, destinationParts] of [
-  ['host-console.ts', ['src', 'windows-acl-host-console.ts']],
-  ['infrastructure-fuse.ts', ['src', 'windows-acl-infrastructure-fuse.ts']],
-  ['product.spec.ts', ['tests', 'windows-acl-product.spec.ts']],
-]) {
-  cpSync(
-    resolve(root, 'build', 'modules', 'platform', 'assets', 'windows', 'acl', sourceName),
-    resolve(stage, 'dsh-plugin-desktop', ...destinationParts),
-  )
-}
 
-/* ----------------------- 读入待改写的副本文件 ----------------------- */
+/* ------------------------ 上游副本的产品覆盖 ------------------------ */
+await overlayPhase('prepare')
+
+/* ----------------------- 读入注入插件要改的文件 ----------------------- */
 const workspacePath = resolve(stage, 'package.json')
 const desktopPackagePath = resolve(stage, 'dsh-plugin-desktop', 'package.json')
 const desktopPatchPath = resolve(stage, 'dsh-plugin-desktop', 'cordis.patch.yml')
-const profileBootVerifierPath = resolve(
-  stage,
-  'dsh-plugin-desktop',
-  'scripts',
-  'verify-profile-boot.mjs',
-)
-const cliRuntimeVerifierPath = resolve(
-  stage,
-  'dsh-plugin-desktop',
-  'scripts',
-  'verify-cli-runtime.mjs',
-)
-const desktopFsExtPreparePath = resolve(stage, 'dsh-plugin-desktop', 'scripts', 'prepare-fs-ext.ts')
-const desktopMainPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'main.ts')
-const desktopLoggerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'desktop-logger.ts')
-const desktopModuleResolutionTestsPath = resolve(stage, 'dsh-plugin-desktop', 'tests', 'module-resolution.spec.ts')
-const windowsAclRunnerPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-acl-runner.ts')
-const windowsPwshSandboxPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'windows-pwsh-sandbox.ts')
 const workspace = JSON.parse(readFileSync(workspacePath, 'utf8'))
 const desktopPackage = JSON.parse(readFileSync(desktopPackagePath, 'utf8'))
-// 归一化 CRLF：Windows CI 的 git autocrlf 会把检出内容转成 CRLF，
-// 不归一化时后续覆盖的 LF 锚点全部失配。
+// 归一化 CRLF：Windows CI 的 git autocrlf 会把检出内容转成 CRLF。
 let desktopPatch = readFileSync(desktopPatchPath, 'utf8').replaceAll('\r\n', '\n').trimEnd()
-let profileBootVerifier = readFileSync(profileBootVerifierPath, 'utf8')
-let cliRuntimeVerifier = readFileSync(cliRuntimeVerifierPath, 'utf8')
-let desktopMain = readFileSync(desktopMainPath, 'utf8')
-let desktopLogger = readFileSync(desktopLoggerPath, 'utf8')
-let desktopModuleResolutionTests = readFileSync(desktopModuleResolutionTestsPath, 'utf8')
-desktopModuleResolutionTests = alignResolverTestFileUrls(desktopModuleResolutionTests)
-let windowsAclRunner = readFileSync(windowsAclRunnerPath, 'utf8')
-let windowsPwshSandbox = readFileSync(windowsPwshSandboxPath, 'utf8')
-
-applyMarketSourceOverlays({ root, stage })
-
-/* -------------------------- 配置自动更新 --------------------------- */
-// TokensCowork 始终关闭指向官方 DSH Desktop 的更新服务。内置替代插件时
-// 验收产品更新入口；纯净产品没有替代插件时，验收所有更新入口均已隐藏。
-desktopPatch = disableUpstreamUpdates(desktopPatch)
-
-/* -------------------------- 补丁层品牌覆盖 -------------------------- */
-// 停用上游官方 UI 品牌插件；系统提示词身份行换成产品品牌。
-desktopPatch = brandDesktopPatch(desktopPatch, manifest.product.name)
-if (hasProductUpdatePlugin) {
-  profileBootVerifier = verifyProductUpdateMenu(profileBootVerifier)
-} else {
-  profileBootVerifier = verifyDisabledUpdateMenu(profileBootVerifier)
-}
-
-/* -------------------------- 配置循环护栏 --------------------------- */
-// 内置 tokens-loop-guard 时停用上游 repeat-tool-reminder,避免同一次
-// 重复调用收到两条提醒;产品插件未启用时上游护栏保持原样兜底。
-if (hasLoopGuardPlugin) {
-  desktopPatch = disableUpstreamRepeatReminder(desktopPatch)
-}
 
 /* --------------------------- 注入产品插件 --------------------------- */
 for (const plugin of enabledPlugins) {
@@ -239,17 +162,12 @@ for (const plugin of enabledPlugins) {
   assertGeneratedPath(destination)
   mkdirSync(resolve(destination, '..'), { recursive: true })
   copySource(source, destination, { includeDist: true })
-  if (plugin.id === 'dsh-tokensapi-ui') {
-    const themeClientPath = resolve(destination, 'lib', 'client.js')
-    writeFileSync(themeClientPath, preserveNativeDialogPosition(readFileSync(themeClientPath, 'utf8')))
-  }
 
   // A script-built plugin keeps its declared toolchain only in staging. Pruning
   // removes it after the plugin has produced its runtime files; prebuilt and
   // legacy compiler inputs still avoid installing an unused local toolchain.
   const pluginPackagePath = resolve(destination, 'package.json')
   const pluginPackage = JSON.parse(readFileSync(pluginPackagePath, 'utf8'))
-  alignRuntimeDependencies(pluginPackage, desktopRuntimeVersion)
   pluginPackage.name = plugin.package
   if (plugin.runtimeBuild?.script === undefined) {
     delete pluginPackage.devDependencies
@@ -277,47 +195,13 @@ for (const plugin of enabledPlugins) {
   desktopPatch += `\n\n# Product plugin: ${plugin.id}\n${pluginPatch}`
 }
 
-/* ---------------------- 关闭首次设置向导 ------------------------- */
-desktopMain = skipDesktopSetupWizard(desktopMain)
-
-/* -------------------- 市场提供方固定为社区市场 -------------------- */
-desktopMain = pinDesktopMarketProvider(desktopMain)
-
-/* --------------------- 保护 GUI 启动诊断输出 ---------------------- */
-;({ main: desktopMain, logger: desktopLogger } = protectDesktopStderr(desktopMain, desktopLogger))
-
-/* -------------------- 对齐 CLI runtime smoke --------------------- */
-cliRuntimeVerifier = alignCliRuntimeSmokeWithPlatform(cliRuntimeVerifier)
-
-/* -------------------- 对齐最新原生运行时装配 --------------------- */
-// Stable 已自带最新原生装配与物理运行时门禁；只补外层显式架构参数。
-writeFileSync(desktopFsExtPreparePath, alignFsExtArchitecture(readFileSync(desktopFsExtPreparePath, 'utf8')))
-
-/* -------------------- 修复 Windows ACL 启动链 -------------------- */
-windowsAclRunner = addWindowsAclHostConsole(windowsAclRunner)
-windowsPwshSandbox = addWindowsAclInfrastructureFuse(windowsPwshSandbox)
-
-/* --------------- 外部浏览器登录桥（tokens-login） ----------------- */
-const desktopBridgePath = resolve(stage, 'dsh-plugin-desktop', 'src', 'host-runtime-bridge.ts')
-const desktopRuntimeTypesPath = resolve(stage, 'dsh-plugin-desktop', 'src', 'runtime.ts')
-const desktopOpenExternal = addDesktopOpenExternal({
-  bridge: readFileSync(desktopBridgePath, 'utf8'),
-  runtime: readFileSync(desktopRuntimeTypesPath, 'utf8'),
-})
-writeFileSync(desktopBridgePath, desktopOpenExternal.bridge)
-writeFileSync(desktopRuntimeTypesPath, desktopOpenExternal.runtime)
-
-/* --------------------------- 写回改写结果 --------------------------- */
+/* --------------------------- 写回注入结果 --------------------------- */
 writeFileSync(workspacePath, `${JSON.stringify(workspace, undefined, 2)}\n`)
 writeFileSync(desktopPackagePath, `${JSON.stringify(desktopPackage, undefined, 2)}\n`)
 writeFileSync(desktopPatchPath, `${desktopPatch}\n`)
-writeFileSync(profileBootVerifierPath, profileBootVerifier)
-writeFileSync(cliRuntimeVerifierPath, cliRuntimeVerifier)
-writeFileSync(desktopMainPath, desktopMain)
-writeFileSync(desktopLoggerPath, desktopLogger)
-writeFileSync(desktopModuleResolutionTestsPath, desktopModuleResolutionTests)
-writeFileSync(windowsAclRunnerPath, windowsAclRunner)
-writeFileSync(windowsPwshSandboxPath, windowsPwshSandbox)
+
+/* ------------------------ 插件副本的产品覆盖 ------------------------ */
+await overlayPhase('assemble')
 
 /* -------------------------- 安装产品锁文件 -------------------------- */
 if (enabledPlugins.length > 0) {
@@ -333,3 +217,4 @@ if (enabledPlugins.length > 0) {
 process.stdout.write(
   `prepare-desktop: staged ${manifest.product.name} ${manifest.product.version} from ${manifest.desktop.commit.slice(0, 10)} with DSH ${desktopRuntimeVersion} and ${enabledPlugins.length} default plugin(s) at ${stage}\n`,
 )
+if (audit !== undefined) writeFileSync(audit, `${JSON.stringify(results, undefined, 2)}\n`)

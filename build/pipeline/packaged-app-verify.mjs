@@ -9,7 +9,6 @@ import {
 } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve, sep } from 'node:path'
-import { verifyAsarPresetDiscovery } from '../modules/runtime/preset-discovery-verify.mjs'
 import { alignConnectionRpcScope } from '../modules/runtime/runtime-version-overlay.mjs'
 import { alignCompactionSummary } from '../modules/runtime/compaction-overlay.mjs'
 import { verifyDesktopCertificateBranding } from '../modules/branding/branding-overlay.mjs'
@@ -94,15 +93,14 @@ const forbiddenForeignRuntime = [
   'node_modules/node-pty/prebuilds/win32-arm64',
   'node_modules/node-pty/prebuilds/win32-ia32',
 ]
-// 预设健康检查必须带 asar 感知补丁(staging-runtime-patch.mjs):运行时进 asar 后,
-// agent-presets 用裸 fs 遍历 node_modules 会把全部插件行误判为缺失,预设
-// 无法挂载(v0.4.0/v0.4.1 真机回归)。上游打包门禁禁止普通模块解包,故
-// 以实际解析行为验收,缺失即构建失败。
-const packagedAgentPresets = extractFile(
-  packagedAsar,
-  'node_modules/@deepseek-ai/dsh-agent-presets/lib/index.js'.replaceAll('/', sep),
-).toString('utf8')
-verifyAsarPresetDiscovery(packagedAgentPresets)
+// DSH 0.2 uses the declarative preset registry. Validate its packaged identity;
+// Loader/profile and upstream closure gates verify tree activation and exports.
+const packagedPresetRegistry = JSON.parse(extractFile(packagedAsar,
+  'node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json'.replaceAll('/', sep)).toString('utf8'))
+if (packagedPresetRegistry.name !== '@deepseek-ai/dsh-agent-preset-registry'
+  || packagedPresetRegistry.version !== JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).desktop.runtimeVersion) {
+  throw new Error('Packaged preset registry differs from product runtime pin')
+}
 const packagedConnection = extractFile(packagedAsar,
   'node_modules/@deepseek-ai/dsh-client-connection/lib/index.js'.replaceAll('/', sep)).toString('utf8')
 if (alignConnectionRpcScope(packagedConnection) !== packagedConnection) {

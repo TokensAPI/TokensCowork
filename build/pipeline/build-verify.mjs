@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { modules } from './overlay-review.mjs'
+import { modules } from './overlay-engine.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const selected = process.argv[2]
@@ -16,7 +16,7 @@ function tests(directory) {
   })
 }
 const paths = tests(resolve(root, selected ? `build/modules/${selected}` : 'build'))
-if (!paths.length) throw new Error(`No automated unit tests for ${selected}; see overlay-review for manual/staging checks`)
+if (!paths.length) throw new Error(`No automated unit tests for ${selected}; see yarn product:overlays for manual/staging checks`)
 const result = spawnSync(process.execPath, ['--test', '--test-concurrency=2', ...paths.sort()], { cwd: root, stdio: 'inherit' })
 if (result.error) throw result.error
 process.exitCode = result.status ?? 1

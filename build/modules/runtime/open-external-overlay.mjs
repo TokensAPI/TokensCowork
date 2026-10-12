@@ -11,14 +11,9 @@
  * 人工复查，绝不静默漏掉覆盖。
  * ============================================================ */
 
-const MARKER = 'productOpenExternal'
+import { replaceOnce } from '../../pipeline/anchors.mjs'
 
-function replaceOnce(source, anchor, value, label) {
-  if (source.split(anchor).length !== 2) {
-    throw new Error(`prepare-desktop: 未找到上游${label}锚点，请复查外部浏览器登录桥覆盖`)
-  }
-  return source.replace(anchor, value)
-}
+const MARKER = 'productOpenExternal'
 
 /**
  * 在 DesktopRuntime 接口上声明可选的 openExternal 能力。

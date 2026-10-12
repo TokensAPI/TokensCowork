@@ -1,53 +1,32 @@
 {
-  "schemaVersion": 1,
-  "reviewedAt": "2026-09-12",
-  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "schemaVersion": 2,
+  "reviewedAt": "2026-10-12",
+  "reviewNote": "2026-10-12 按当前固定 Desktop/DSH/插件复查：逐项在原始输入上确认覆盖仍生效或已删除，独立 staging 装配输出与此前一致。安装、编译后的真实 GUI、签名与跨平台验收不由本地结果代替。",
   "baseline": {
-    "desktop": "63e160ab4387988db894adef766865eab897cf80",
-    "updates": {
-      "commit": "3c19b2a218215f529585853f8396c234aa01f305",
-      "version": "0.1.0",
-      "artifact": null,
-      "enabled": true
+    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
+    "dsh": null,
+    "plugins": {
+      "tokens-version-updates": {
+        "commit": "e69006ca4965ce229bbe5436569fe93946d08873",
+        "version": "0.1.1",
+        "artifact": null
+      }
     }
   },
-  "entries": [
+  "evidence": [
     {
-      "id": "updates.compatibility-command",
-      "module": "updates",
-      "kind": "compatibility",
-      "state": "active",
-      "inputs": ["desktop", "updates"],
-      "files": ["build/modules/updates/updates-overlay.mjs"],
-      "targets": ["product-plugins/tokens-version-updates/index.js: registerTrayItem.id"],
-      "appliedBy": ["build/pipeline/staging-plugins-compile.mjs"],
-      "reason": "新版兼容模式顶部菜单按 check-for-updates ID 查找命令；给固定版本的产品更新插件补齐 ID，复用原有手动检查，不启用官方更新、不更改更新源。",
-      "retireWhen": "更新插件原生注册相同 ID，或 Desktop 改用新的更新命令 API 时，复查并移除适配；不能只按菜单文案验收。",
-      "verification": "2026-09-14：57 项外层测试通过；实际插件注册片段和 Desktop 顶部菜单分发代码复现旧版失败，修复后与托盘复用同一调用，禁用/错误传播、幂等与漂移回归通过。实际 staging 插件验证正常检查、模拟断网结果和恢复后检查；完整 Profile 加载及 ID/文案门禁通过。未执行真实下载安装或重新发布。"
+      "overlays": [
+        "updates.tray-command-id"
+      ],
+      "verified": "2026-09-14：57 项外层测试通过；实际插件注册片段和 Desktop 顶部菜单分发代码复现旧版失败，修复后与托盘复用同一调用，禁用/错误传播、幂等与漂移回归通过。实际 staging 插件验证正常检查、模拟断网结果和恢复后检查；完整 Profile 加载及 ID/文案门禁通过。未执行真实下载安装或重新发布。"
     },
     {
-      "id": "updates.product",
-      "module": "updates",
-      "kind": "customization",
-      "state": "active",
-      "inputs": [
-        "desktop",
-        "updates"
+      "overlays": [
+        "updates.disable-official",
+        "updates.profile-menu-check",
+        "updates.release-source"
       ],
-      "files": [
-        "build/modules/updates/updates-overlay.mjs"
-      ],
-      "targets": [
-        "Desktop cordis.patch.yml, scripts/verify-profile-boot.mjs；产品更新插件配置"
-      ],
-      "appliedBy": [
-        "build/pipeline/staging-prepare.mjs",
-        "build/pipeline/staging-product-configure.mjs"
-      ],
-      "reason": "关闭上游官方更新；有产品插件时显示产品入口，否则隐藏更新入口。",
-      "retireWhen": "可原生配置产品 Release 来源且纯净/带插件两种菜单都正确时，缩减覆盖。",
-      "verification": "test:build updates 含纯净/产品菜单谓词行为及 Release 配置；Profile 菜单与 staging-branding-verify、真实下载/回退/安装仍需验收。"
+      "verified": "test:build updates 含纯净/产品菜单谓词行为及 Release 配置；Profile 菜单与 staging-branding-verify、真实下载/回退/安装仍需验收。"
     }
-  ],
-  "diagnostics": []
+  ]
 }

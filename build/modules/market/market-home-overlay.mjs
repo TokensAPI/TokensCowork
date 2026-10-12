@@ -10,7 +10,7 @@ export function addMarketHome({ settingsTab, locales }) {
   settingsTab = replace(settingsTab, "initialView = 'installable'", "initialView = 'discover'")
   settingsTab = replace(settingsTab,
     `          <Pill active={view === 'installable'} aria-pressed={view === 'installable'} onClick={() => selectMarketView('installable')}>
-            <IconDownloadOutline16 size={14} /><span>{t('installable')}</span>
+            <IconDownloadOutlineRegular size={14} /><span>{t('installable')}</span>
           </Pill>
 `, '')
   // Inventory never blocks catalog discovery and never comes from catalog metadata.

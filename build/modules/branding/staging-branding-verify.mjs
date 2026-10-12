@@ -1,20 +1,27 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { productStage } from '../../pipeline/paths.mjs'
-import { hideUpstreamCloudEntry, nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { nativeCopyPaths, verifyDesktopCertificateBranding } from './branding-overlay.mjs'
+import { verifyInstalledRuntimeBranding } from './branding-runtime-overlay.mjs'
+import { verifyProductLogo, verifyGeneratedProductIcons } from './branding-assets.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
 const desktopRoot = resolve(productStage(root), 'dsh-plugin-desktop')
 const manifest = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const product = manifest.product
-const cloudClient = readFileSync(resolve(desktopRoot, 'node_modules/@agents-anywhere/dsh-bridge-next/lib/client.js'), 'utf8')
-if (hideUpstreamCloudEntry(cloudClient) !== cloudClient) {
-  throw new Error('verify-product-branding: upstream Agents Anywhere sidebar entry is still registered')
-}
+verifyInstalledRuntimeBranding({ stage: productStage(root), productName: product.name })
 const hasProductUpdatePlugin = manifest.plugins.some(
   plugin => plugin.id === 'tokens-version-updates' && plugin.enabledByDefault === true,
 )
 const desktopPackage = JSON.parse(readFileSync(resolve(desktopRoot, 'package.json'), 'utf8'))
+verifyProductLogo({ desktopRoot, productName: product.name })
+verifyGeneratedProductIcons(desktopRoot)
+if (desktopPackage.build?.mac?.icon !== 'build/app-icon.icns' || desktopPackage.build?.dmg?.icon !== 'build/app-icon.icns') {
+  throw new Error('verify-product-branding: macOS/DMG icons do not use generated product artwork')
+}
+if (desktopPackage.build?.mac?.extendInfo?.NSMicrophoneUsageDescription !== `${product.name} uses the microphone for voice input.`) {
+  throw new Error('verify-product-branding: macOS microphone prompt retains upstream branding')
+}
 
 function read(relativePath) {
   return readFileSync(resolve(desktopRoot, relativePath), 'utf8')
@@ -62,14 +69,6 @@ if (desktopPackage.build?.nsis?.guid !== product.windowsInstallerGuid) {
 if (desktopPackage.build?.nsis?.shortcutName !== product.name) {
   throw new Error('verify-product-branding: NSIS product configuration is incomplete')
 }
-if (desktopPackage.build?.nsis?.include !== 'build/tokenscowork-upgrade-guard.nsh') {
-  throw new Error('verify-product-branding: NSIS upgrade guard is not configured')
-}
-// 卸载默认保留用户数据，而 deleteAppDataOnUninstall 是编译期开关，
-// 写进安装包后运行期无法撤销，因此这里不允许它为真。
-if (desktopPackage.build?.nsis?.deleteAppDataOnUninstall === true) {
-  throw new Error('verify-product-branding: NSIS is configured to delete user data on uninstall')
-}
 
 const mainSource = read('src/main.ts')
 const productIdentitySource = read('src/product-identity.ts')
@@ -78,7 +77,6 @@ const certificateSource = read('src/lan-https-certificate.ts')
 const mainRuntime = read('lib/main.js')
 const desktopRuntimeClosure = readRuntimeClosure()
 const assistedMessages = read('build/assistedMessages.yml')
-const windowsUpgradeGuard = read('build/tokenscowork-upgrade-guard.nsh')
 const desktopPatch = read('cordis.patch.yml')
 
 requireText(productIdentitySource, `productName: ${JSON.stringify(product.name)}`, 'product identity source')
@@ -101,6 +99,8 @@ for (const segments of nativeCopyPaths) {
   const nativeCopyPath = segments.join('/')
   rejectText(read(nativeCopyPath), 'DSH Desktop', nativeCopyPath)
   rejectText(read(nativeCopyPath), 'DeepSeek Harness', nativeCopyPath)
+  rejectText(read(nativeCopyPath), 'DSH Terminal', nativeCopyPath)
+  rejectText(read(nativeCopyPath), 'DSH 终端', nativeCopyPath)
 }
 rejectText(read('src/client/desktop-settings-locales.ts'), 'DSH Desktop', 'desktop settings source')
 requireText(read('lib/client.js'), `${product.name} 设置`, 'compiled desktop settings')
@@ -114,9 +114,6 @@ requireText(read('lib/native-ui/compatibility-chrome.html'), `<title>${htmlTitle
 
 requireText(assistedMessages, product.name, 'assisted installer messages')
 rejectText(assistedMessages, 'DSH Desktop', 'assisted installer messages')
-requireText(windowsUpgradeGuard, 'customUnInstallCheck', 'Windows installer upgrade guard')
-requireText(windowsUpgradeGuard, 'customRemoveFiles', 'Windows uninstaller upgrade guard')
-requireText(windowsUpgradeGuard, 'SetErrorLevel 2', 'Windows installer failure handling')
 requireText(mainSource, 'LEGACY_PRODUCT_NAMES', 'user-data migration source')
 requireText(mainSource, 'migrateLegacyUserData()', 'user-data migration source')
 requireText(mainSource, "app.setPath('userData', currentUserData)", 'user-data migration source')

@@ -1,41 +1,10 @@
 /* ============================================================
  * 产品覆盖：桌面运行时
  * ============================================================
- * 统一产品首次启动行为，修复旧版本写入用户 profile 的托管插件重复项，
- * 并保护 GUI 启动时已关闭 stderr 管道下的诊断输出。
+ * 统一产品首次启动行为，保护 GUI stderr，并适配上游平台测试。
  * 每个导出函数自带锚点守护：上游代码变动导致锚点失配时装配立即
  * 失败，等待人工复查，绝不静默漏掉覆盖。
  * ============================================================ */
-
-/**
- * 从持久 profile 的 bundle 列表中移除由产品补丁固定装配的插件。
- * 旧版本可能把这些插件写入用户 profile，升级后会与产品 Loader 条目重复。
- * @param source - staging 副本中 profile.ts 的完整内容。
- * @param packages - 当前产品默认启用、由产品补丁托管的插件包名。
- * @returns 启动时会自动修复旧 profile 的源码。
- * @throws 上游 profile 规范化锚点变化时抛出，中断打包待人工复查。
- */
-export function removeManagedBundlesFromProfile(source, packages) {
-  const setAnchor = 'const REQUIRED_BUNDLE_SET = new Set(REQUIRED_BUNDLES)'
-  const filterAnchor = '&& name !== DESKTOP_PACKAGE_NAME'
-  if (!source.includes(setAnchor)
-    || source.split(filterAnchor).length !== 2) {
-    throw new Error('prepare-desktop: 未找到上游 profile bundle 规范化锚点，请复查产品插件迁移策略')
-  }
-  const managedPackages = JSON.stringify(packages, undefined, 2)
-    .split('\n')
-    .map((line, index) => index === 0 ? line : `  ${line}`)
-    .join('\n')
-  return source
-    .replace(
-      setAnchor,
-      `${setAnchor}\nconst PRODUCT_MANAGED_BUNDLE_SET = new Set<string>(${managedPackages})`,
-    )
-    .replace(
-      filterAnchor,
-      `${filterAnchor}\n    && !PRODUCT_MANAGED_BUNDLE_SET.has(name)`,
-    )
-}
 
 /**
  * TokensCowork 采用已装配的 Profile 默认值，不向用户展示上游首次设置向导。
@@ -45,22 +14,18 @@ export function removeManagedBundlesFromProfile(source, packages) {
  * @throws 上游启动链锚点变化时抛出，中断打包待人工复查。
  */
 export function skipDesktopSetupWizard(mainSource) {
-  const flagAnchor = '  const recoveryModeRequested = desktopRecoveryModeRequested()'
-  const runAnchor = '        setupResult = await setupWizardWindow.run()'
-  if (mainSource.includes('const productSetupWizardEnabled = false')
-    || mainSource.split(flagAnchor).length !== 2
-    || mainSource.split(runAnchor).length !== 2) {
+  // 2.0.17 将向导接入页面级 onboarding；沿用产品默认配置并写入跳过标记。
+  const pendingAnchor = '    let setupPending = safeModePaths === undefined'
+  if (mainSource.split(pendingAnchor).length !== 2) {
     throw new Error('prepare-desktop: 未找到上游首次设置向导锚点，请复查产品默认设置策略')
   }
-  return mainSource
-    .replace(
-      flagAnchor,
-      `  // TokensCowork ships one product profile and keeps its assembled defaults.\n  const productSetupWizardEnabled = false\n${flagAnchor}`,
-    )
-    .replace(
-      runAnchor,
-      `        setupResult = productSetupWizardEnabled\n          ? await setupWizardWindow.run()\n          : Object.freeze({ action: 'skip' as const })`,
-    )
+  return mainSource.replace(pendingAnchor, `    if (safeModePaths === undefined) {
+      if (desktopSetupWizardRequired(setupWizardState, setupWizardVersions)) {
+        await completeOrSkipDesktopSetupWizard(marketUserDataDir, prepared.profile.dir, 'skipped', setupWizardVersions)
+      }
+      dismissDesktopSetupAccount(marketUserDataDir, prepared.profile.dir)
+    }
+    let setupPending = false && safeModePaths === undefined`)
 }
 
 /**
@@ -78,7 +43,7 @@ export function protectDesktopStderr(mainSource, loggerSource) {
   if (!mainSource.includes(mainImportAnchor)
     || !loggerSource.includes(loggerHelperAnchor)
     || mainWrites.length === 0
-    || loggerWrites.length !== 1) {
+    || ![1, 2].includes(loggerWrites.length)) {
     throw new Error('prepare-desktop: 未找到上游桌面 stderr 锚点，请复查 Windows GUI 异常处理')
   }
   const main = mainSource

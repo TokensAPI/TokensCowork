@@ -10,6 +10,13 @@ const windowsX64RuntimeExclusions = [
 ]
 const upstreamReleaseCheck = `  // The workspace check includes the package build and repository-layout gate. Signing
   // material is withheld from every build, test, Loader smoke, and layout subprocess.
+  options.run(
+    process.execPath,
+    ['scripts/prepare-agents-anywhere-release.mjs', '--verify-release'],
+    resolve(options.desktopRoot, '..'),
+    buildEnvironment,
+  )
+  options.run(process.execPath, ['scripts/prepare-dsh-market.mjs', '--check'], resolve(options.desktopRoot, '..'), buildEnvironment)
   options.run('yarn', ['run', 'check'], resolve(options.desktopRoot, '..'), buildEnvironment)
 `
 
@@ -66,13 +73,13 @@ export function alignMacReleaseChecks(releaseMac) {
 /** Validate the selected native package, retaining every signature/notarization gate. */
 export function alignMacReleaseVerification(source) {
   const main = "    options.run('lipo', [executablePath, '-verify_arch', 'x86_64'])\n    options.run('lipo', [executablePath, '-verify_arch', 'arm64'])"
-  const entries = 'for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES)'
+  const entries = 'for (const entry of options.nativeEntries ?? MACOS_UNIVERSAL_NATIVE_ENTRIES)'
   if (source.split(main).length !== 2 || source.split(entries).length !== 2) throw new Error('configure-product: macOS verification anchors changed')
   return source.replace(main, `    const arch = process.env.DSH_MAC_ARCH
     if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')
     const binaryArch = arch === 'x64' ? 'x86_64' : 'arm64'
     options.run('lipo', [executablePath, '-verify_arch', binaryArch])`)
-    .replace(entries, 'for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.arch === binaryArch))')
+    .replace(entries, 'for (const entry of (options.nativeEntries ?? MACOS_UNIVERSAL_NATIVE_ENTRIES).filter(entry => entry.arch === binaryArch))')
 }
 
 /** Preserve the explicit native architecture selected by the outer build. */
@@ -83,4 +90,11 @@ export function alignFsExtArchitecture(fsExtPrepareSource) {
   }
   return fsExtPrepareSource.replace(fsExtCliAnchor,
       "  prepareFsExtForElectron({ arch: process.argv[2] ?? process.arch, log: message => console.log(message) })")
+}
+
+/** Check the actual signatures for the selected native architecture and every Helper. */
+export function alignMacEntitlementArchitecture(source) {
+  const anchor = "    for (const arch of ['arm64', 'x86_64']) {"
+  if (source.split(anchor).length !== 2) throw new Error('configure-product: macOS entitlement architecture anchor changed')
+  return source.replace(anchor, "    const selected = process.env.DSH_MAC_ARCH\n    if (selected !== 'arm64' && selected !== 'x64') throw new Error('Explicit native macOS architecture is required')\n    for (const arch of [selected === 'x64' ? 'x86_64' : 'arm64']) {")
 }

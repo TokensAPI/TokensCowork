@@ -162,5 +162,10 @@ try {
     + `(output=${output.stdout}, inside=${inside.stdout}, outsideExit=${outside.exitCode})\n`,
   )
 } finally {
-  rmSync(smokeRoot, { recursive: true, force: true })
+  // ACL runner 可能留下受限目录；清理错误不能掩盖真正的执行失败。
+  try {
+    rmSync(smokeRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+  } catch (error) {
+    process.stderr.write(`windows-acl-console-smoke: retained ${smokeRoot}: ${String(error)}\n`)
+  }
 }

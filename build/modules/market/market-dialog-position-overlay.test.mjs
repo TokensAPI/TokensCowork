@@ -15,7 +15,4 @@ test('removes only the theme positioning override, retaining native market and M
 test('the actual pinned production artifact contains the conflicting rule', () => {
   const bundle = readFileSync(new URL('.build/product-plugin-artifacts/dsh-tokensapi-ui/package/lib/client.js', root), 'utf8')
   assert.notEqual(preserveNativeDialogPosition(bundle), bundle)
-  const entry = readFileSync(new URL('build/pipeline/staging-prepare.mjs', root), 'utf8')
-  assert.match(entry, /preserveNativeDialogPosition\(readFileSync/)
-  assert.doesNotMatch(entry, /portalMarketOverlay/)
 })

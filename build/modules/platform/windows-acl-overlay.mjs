@@ -20,11 +20,18 @@ export function addWindowsAclHostConsole(source) {
     throw new Error('desktop trampoline received an unexpected ACL runner')
   }
 `
+  // 上游自带 AllocConsole；产品已附着无窗口控制台，不能再次分配。
+  const upstreamConsole = "import { ensureWindowsConsoleHost } from './windows-console-host.ts'\n"
+  const upstreamConsoleCall = '  ensureWindowsConsoleHost()\n'
   if (source.split(importAnchor).length !== 2
-    || source.split(validationAnchor).length !== 2) {
+    || source.split(validationAnchor).length !== 2
+    || source.split(upstreamConsole).length !== 2
+    || source.split(upstreamConsoleCall).length !== 2) {
     throw new Error('prepare-desktop: 未找到 Windows ACL trampoline 锚点，请复查宿主控制台覆盖')
   }
   return source
+    .replace(upstreamConsole, '')
+    .replace(upstreamConsoleCall, '')
     .replace(
       importAnchor,
       `${importAnchor}\nimport { ensureWindowsAclHostConsole } from './windows-acl-host-console.ts'`,
@@ -43,76 +50,58 @@ export function addWindowsAclHostConsole(source) {
  * @throws when the pinned upstream anchors change.
  */
 export function addWindowsAclInfrastructureFuse(source) {
+  // DSH 0.2 前台/后台共用 executeArgv；保留上游准备时限和 onStarted 回调。
   const importAnchor = "import { SandboxPwshExecutor } from '@deepseek-ai/dsh-pwsh-sandbox'"
   const classAnchor = 'export class DesktopWindowsPwshSandbox extends SandboxPwshExecutor {\n'
-  const methodsAnchor = `  protected override async runArgv(spec: ShellExecSpec, argv: readonly string[]): Promise<ShellRunResult> {
-    const adapted = this.adapt(spec, argv)
-    return super.runArgv(adapted.spec, adapted.argv)
+  const methodStart = source.indexOf('  protected override executeArgv(')
+  const methodEnd = source.indexOf('\n}\n', methodStart)
+  if (methodStart < 0 || methodEnd < 0 || source.split(importAnchor).length !== 2
+    || source.split(classAnchor).length !== 2 || source.includes('aclInfrastructureFuse')) {
+    throw new Error('prepare-desktop: 新版 ACL execution 接口变化')
   }
-
-  protected override startArgv(spec: ShellExecSpec, argv: readonly string[]): ShellProcess {
-    const adapted = this.adapt(spec, argv)
-    return super.startArgv(adapted.spec, adapted.argv)
-  }`
-  if (source.split(importAnchor).length !== 2
-    || source.split(classAnchor).length !== 2
-    || source.split(methodsAnchor).length !== 2) {
-    throw new Error('prepare-desktop: 未找到 Windows ACL executor 锚点，请复查基础设施熔断覆盖')
-  }
-  const imports = `${importAnchor}
-import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
-import {
-  WindowsAclInfrastructureFuse,
-  isWindowsAclInfrastructureFailure,
-  isWindowsAclProcessInfrastructureFailure,
-  windowsAclFuseContext,
-  type WindowsAclFuseContext,
-} from './windows-acl-infrastructure-fuse.ts'`
-  const methods = `  private throwAclInfrastructureFailure(context: WindowsAclFuseContext): never {
-    throw new SandboxUnavailableError(
-      context.mode,
-      'the Windows Desktop ACL console child failed during DLL initialization (0xC0000142). '
-      + 'The current session fuse is open; do not retry this confined shell mode.',
-    )
-  }
-
-  private requireAclInfrastructure(context: WindowsAclFuseContext | undefined): void {
-    if (context !== undefined && this.aclInfrastructureFuse.isBlocked(context)) {
-      this.throwAclInfrastructureFailure(context)
+  const method = `  protected override async executeArgv(
+    spec: ShellExecSpec,
+    argvOrPrepare: readonly string[] | ((signal: AbortSignal) => Promise<readonly string[]>),
+    onStarted?: (process: ShellExecution) => void,
+  ): Promise<ShellExecution> {
+    let context: ReturnType<typeof windowsAclFuseContext>
+    const pending: ShellExecSpec = { ...spec }
+    const adapt = (argv: readonly string[]) => {
+      const adapted = this.adapt(spec, argv)
+      context = adapted.argv === argv ? undefined : windowsAclFuseContext(spec.sandboxPolicy)
+      if (context !== undefined && this.aclInfrastructureFuse.isBlocked(context)) {
+        throw new SandboxUnavailableError(context.mode, 'Windows ACL infrastructure failed; do not retry this confined shell mode.')
+      }
+      pending.env = adapted.spec.env
+      return adapted.argv
     }
-  }
-
-  protected override async runArgv(spec: ShellExecSpec, argv: readonly string[]): Promise<ShellRunResult> {
-    const adapted = this.adapt(spec, argv)
-    const context = adapted.argv === argv ? undefined : windowsAclFuseContext(spec.sandboxPolicy)
-    this.requireAclInfrastructure(context)
-    const result = await super.runArgv(adapted.spec, adapted.argv)
-    if (context !== undefined && isWindowsAclInfrastructureFailure(result)) {
-      this.aclInfrastructureFuse.trip(context)
-      this.throwAclInfrastructureFailure(context)
-    }
-    return result
-  }
-
-  protected override startArgv(spec: ShellExecSpec, argv: readonly string[]): ShellProcess {
-    const adapted = this.adapt(spec, argv)
-    const context = adapted.argv === argv ? undefined : windowsAclFuseContext(spec.sandboxPolicy)
-    this.requireAclInfrastructure(context)
-    const proc = super.startArgv(adapted.spec, adapted.argv)
-    if (context !== undefined) {
-      void proc.done.then(() => {
-        if (!isWindowsAclProcessInfrastructureFailure(proc.exitCode, proc.signal)) return
-        this.aclInfrastructureFuse.trip(context)
-        proc.sandbox = {
-          ...(proc.sandbox ?? { mode: context.mode, denied: false }),
-          runnerFailed: true,
+    const installFuse = (execution: ShellExecution): void => {
+      if (context === undefined) return
+      const fuseContext = context
+      const result = execution.result.bind(execution)
+      execution.result = async () => {
+        const settled = await result()
+        if (isWindowsAclInfrastructureFailure(settled)) {
+          this.aclInfrastructureFuse.trip(fuseContext)
+          throw new SandboxUnavailableError(fuseContext.mode, 'Windows ACL infrastructure failed; do not retry this confined shell mode.')
         }
+        return settled
+      }
+      void execution.done.then(() => {
+        if (!isWindowsAclProcessInfrastructureFailure(execution.exitCode, execution.signal)) return
+        this.aclInfrastructureFuse.trip(fuseContext)
+        execution.sandbox = { ...(execution.sandbox ?? { mode: fuseContext.mode, denied: false }), runnerFailed: true }
       })
     }
-    return proc
+    return super.executeArgv(pending,
+      typeof argvOrPrepare === 'function'
+        ? async signal => adapt(await argvOrPrepare(signal))
+        : adapt(argvOrPrepare), execution => {
+          installFuse(execution)
+          onStarted?.(execution)
+        })
   }`
-  return source
-    .replace(importAnchor, imports)
-    .replace(classAnchor, `${classAnchor}  private readonly aclInfrastructureFuse = new WindowsAclInfrastructureFuse()\n\n`)
-    .replace(methodsAnchor, methods)
+  return (source.slice(0, methodStart) + method + source.slice(methodEnd))
+    .replace(importAnchor, `${importAnchor}\nimport { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'\nimport { WindowsAclInfrastructureFuse, windowsAclFuseContext, isWindowsAclInfrastructureFailure, isWindowsAclProcessInfrastructureFailure } from './windows-acl-infrastructure-fuse.ts'`)
+    .replace(classAnchor, `${classAnchor}  private readonly aclInfrastructureFuse = new WindowsAclInfrastructureFuse()\n`)
 }

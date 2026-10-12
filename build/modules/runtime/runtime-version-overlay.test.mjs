@@ -2,56 +2,72 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { alignConnectionRpcScope, alignRuntimeDependencies, alignRuntimeResolutions } from './runtime-version-overlay.mjs'
 import { alignResolverTestFileUrls } from './desktop-runtime-overlay.mjs'
-import { readFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
-import { alignRuntimePeerAssertions } from './runtime-version-overlay.mjs'
-import { alignWebSearchCommandDescription } from './runtime-version-overlay.mjs'
+import { alignWebSearchSettings, alignLegacySearchSettingsImport } from './runtime-version-overlay.mjs'
 
-test('web-search slash command supplies a lazy description without changing its popup', () => {
-  const source = 'command.register({ name: "tokens-dsh-web-search", description: "切换搜索引擎 / Switch web search engine", available: () => true, ui: { kind: "popupSelect" } })'
-  const patched = alignWebSearchCommandDescription(source)
-  let contribution
-  new Function('command', patched)({ register: value => { contribution = value } })
-  assert.equal(contribution.description(), '切换搜索引擎 / Switch web search engine')
-  assert.equal(contribution.available(), true)
-  assert.equal(contribution.ui.kind, 'popupSelect')
-  assert.equal(alignWebSearchCommandDescription(patched), patched)
-  assert.throws(() => alignWebSearchCommandDescription(source + source), /changed/)
-  assert.throws(() => alignWebSearchCommandDescription(source.replace('切换搜索引擎', 'new contract')), /changed/)
-  assert.throws(() => alignWebSearchCommandDescription(source.replace('command.register', 'different.register')), /changed/)
-
-  const localized = 'commandUi.register({ name: "tokens-dsh-web-search", description: () => t("description"), available: () => true, ui: { kind: "popupSelect" } })'
-  assert.equal(alignWebSearchCommandDescription(localized), localized)
-  new Function('commandUi', 't', localized)({ register: value => { contribution = value } }, () => 'Switch search engine')
-  assert.equal(contribution.description(), 'Switch search engine')
-  assert.equal(contribution.ui.kind, 'popupSelect')
-  assert.throws(() => alignWebSearchCommandDescription(localized.replace('() => t("description")', '"static"')), /changed/)
-
+test('runtime preflight rejects a missing RPC package before reporting compatibility success', () => {
   const root = resolve(import.meta.dirname, '../../..')
-  const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
-  const plugin = product.plugins.find(item => item.id === 'tokens-dsh-web-search')
-  const pinned = execFileSync('git', ['-C', resolve(root, plugin.path), 'show', `${plugin.commit}:lib/client.js`], { encoding: 'utf8', windowsHide: true })
-  const adapted = alignWebSearchCommandDescription(pinned)
-  assert.equal(adapted, pinned.replace('description: "切换搜索引擎 / Switch web search engine",', 'description: () => "切换搜索引擎 / Switch web search engine",'))
-  assert.equal(alignWebSearchCommandDescription(adapted), adapted)
-
-  const dev = readFileSync(resolve(root, 'scripts/dev-desktop.ps1'), 'utf8')
-  const compile = readFileSync(resolve(root, 'build/pipeline/staging-plugins-compile.mjs'), 'utf8')
-  assert.ok(dev.indexOf('staging-plugins-compile.mjs') < dev.indexOf("Invoke-Step '构建桌面主进程'"))
-  assert.ok(compile.includes('const patched = alignWebSearchCommandDescription(source)'))
+  const buildRoot = resolve(root, '.build')
+  mkdirSync(buildRoot, { recursive: true })
+  const stage = mkdtempSync(resolve(buildRoot, 'desktop-runtime-gate-'))
+  try {
+    const modules = resolve(stage, 'dsh-plugin-desktop/node_modules/@deepseek-ai')
+    const fixtures = {
+      'dsh-web-fetch-http': 'const route = proxyRouteFor(url);\nif (route.proxied && !isNonPublicIpLiteral(url.hostname)) return await publicHttpNetwork.requestVia(route.dispatcher, url, headers, signal);',
+      'dsh-compaction-basic': `const instruction = '- Do NOT mention this summarization request or that the context was compacted.';
+function summarize() {
+  const messages = [...input.messages];
+  const request = { model: target.model, messages, };
+  return { summary, rawOutput, };
+}`,
+    }
+    for (const [name, source] of Object.entries(fixtures)) {
+      const lib = resolve(modules, name, 'lib')
+      mkdirSync(lib, { recursive: true })
+      writeFileSync(resolve(lib, 'index.js'), source)
+    }
+    const result = spawnSync(process.execPath, ['build/pipeline/staging-runtime-patch.mjs'], {
+      cwd: root,
+      env: { ...process.env, PRODUCT_STAGE_NAME: stage.slice(buildRoot.length + 1) },
+      encoding: 'utf8',
+    })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /client-connection is not installed/)
+    assert.doesNotMatch(result.stdout, /runtime compatibility checks passed/)
+  } finally { rmSync(stage, { recursive: true, force: true }) }
 })
 
-test('Market peer contracts follow the product pin without weakening their assertions', () => {
+test('search settings expose live Config and delegate revisions/secret-preserving edits to the owning entry', async () => {
   const root = resolve(import.meta.dirname, '../../..')
-  const manifest = JSON.parse(readFileSync(resolve(root, 'desktop/dsh-community-market/package.json'), 'utf8'))
-  const source = readFileSync(resolve(root, 'desktop/dsh-community-market/tests/contracts.spec.ts'), 'utf8')
-  const result = alignRuntimePeerAssertions(source, manifest.peerDependencies, '0.1.5-rc.2')
-  assert.equal((result.match(/toHaveProperty\('@deepseek-ai\/dsh[^']*', '0\.1\.5-rc\.2'\)/g) ?? []).length, 7)
-  assert.equal(result.replaceAll('0.1.5-rc.2', '0.1.5-rc.1'), source)
-  assert.equal(alignRuntimePeerAssertions(result, manifest.peerDependencies, '0.1.5-rc.2'), result)
-  assert.throws(() => alignRuntimePeerAssertions(source.replaceAll('0.1.5-rc.1', 'unexpected'), manifest.peerDependencies, '0.1.5-rc.2'), /drift/)
-  assert.throws(() => alignRuntimePeerAssertions('changed upstream contract', {}, '0.1.5-rc.2'), /missing/)
+  const source = readFileSync(resolve(root, 'plugins/tokens_DshWebSearch_code/lib/index.js'), 'utf8')
+  const patched = alignWebSearchSettings(source)
+  assert.equal(alignWebSearchSettings(patched), patched)
+  assert.ok(!patched.includes('installSettingsSection('))
+  assert.ok(patched.includes('}).volatile();'))
+  assert.ok(patched.includes('ctx.on("loader/volatile-update"'))
+  const start = patched.indexOf('function productSearchSettings(')
+  const end = patched.indexOf('\n}', start) + 2
+  const adapt = new Function(patched.slice(start, end) + '\nreturn productSearchSettings')()
+  const writes = [], options = { redactSecrets: true }
+  const settings = {
+    writable: true,
+    describe: received => { assert.equal(received, options); return [{ ns: 'web-search-free', revision: 4 }, { ns: 'other' }] },
+    mutate: async (...args) => { writes.push(args); if (args[2] !== 4) throw new Error('stale revision') },
+  }
+  const bridge = adapt(settings, 'web-search-free')
+  assert.deepEqual(bridge.describe(options), [{ ns: 'free-search', revision: 4 }, { ns: 'other' }])
+  const ops = [{ op: 'set', path: ['provider'], value: 'bing' }]
+  await bridge.mutate('free-search', ops, 4)
+  assert.deepEqual(writes[0], ['web-search-free', ops, 4])
+  await assert.rejects(bridge.mutate('free-search', ops, 3), /stale revision/)
+  assert.throws(() => adapt(settings), /entry id/)
+  assert.throws(() => alignWebSearchSettings(source.replace('installSettingsSection(ctx,', 'changed(ctx,')), /anchor changed/)
+  const legacy = 'const LEGACY_SECTION_ENTRIES = {\n shell: "pwsh-sandbox"\n};'
+  const migrated = alignLegacySearchSettingsImport(legacy)
+  assert.ok(migrated.includes('"free-search": "web-search-free"'))
+  assert.equal(alignLegacySearchSettingsImport(migrated), migrated)
 })
 
 test('aligns DSH dependencies and peers without changing other frameworks', () => {

@@ -1,55 +1,34 @@
 {
-  "schemaVersion": 1,
-  "reviewedAt": "2026-09-12",
-  "reviewNote": "结构迁移与已有测试基线，不代表全量行为或跨平台发布验收；每项缺口见 verification。升级后不要机械更新基线。",
+  "schemaVersion": 2,
+  "reviewedAt": "2026-10-10",
+  "reviewNote": "Desktop/DSH 升级已复查并完成本地 staging 门禁；其他插件历史基线保留，平台签名、公证、安装与真实 GUI 验收不由本地结果代替。",
   "baseline": {
-    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
     "dsh": {
-      "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
-      "version": "0.1.5-rc.2"
-    }
+      "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+      "version": "0.2.0-rc.2"
+    },
+    "plugins": {}
   },
-  "entries": [
+  "evidence": [
     {
-      "id": "branding.upstream-cloud-entry",
-      "module": "branding",
-      "kind": "customization",
-      "state": "active",
-      "inputs": ["desktop"],
-      "files": ["build/modules/branding/branding-overlay.mjs"],
-      "targets": ["installed @agents-anywhere/dsh-bridge-next/lib/client.js: agentsAnywhereOnboarding.sidebar"],
-      "appliedBy": ["build/pipeline/staging-product-configure.mjs"],
-      "reason": "隐藏插件市场旁边的上游手机连接入口及其 Agents Anywhere 云服务引导；仅移除该侧边栏注册，不删除连接配置，不卸载组件，不改市场或已有后台连接服务。",
-      "retireWhen": "产品需要重新提供该入口，或上游提供可配置的导航开关时评估移除；升级 Desktop 所带 AA 产物时复查注册契约。",
-      "verification": "2026-09-14：品牌模块 7 项回归通过，含只隐藏目标注册、保留市场及运行时工作、幂等和漂移检测；实际 staging 品牌校验通过。"
+      "overlays": [
+        "branding.installed-runtime"
+      ],
+      "verified": "2026-10-10：固定依赖 locale/t 侧栏注册的行为回归、独立 staging 只读门禁通过；市场及设置注册保留。真实用户连接场景未手工验收。"
     },
     {
-      "id": "branding.identity",
-      "module": "branding",
-      "kind": "customization",
-      "state": "active",
-      "inputs": [
-        "desktop",
-        "dsh"
+      "overlays": [
+        "branding.desktop-patch",
+        "branding.desktop-source",
+        "branding.native-copy",
+        "branding.mac-release-identity",
+        "branding.icon-configuration",
+        "branding.product-logo",
+        "branding.installed-runtime",
+        "branding.product-icons"
       ],
-      "files": [
-        "build/modules/branding/branding-overlay.mjs"
-      ],
-      "targets": [
-        "Desktop: src/product-identity.ts, main.ts, index.ts, native UI/copy（含终端、加载与启动错误）, certificate, cordis.patch.yml",
-        "DSH installed: app-boot, web-app, agent-presets prompts, client-ui-layout productTitle, client-ui-directory-picker-browse errors, web-frontend dist/index.html",
-        "Product assets: build/modules/branding/assets"
-      ],
-      "appliedBy": [
-        "build/pipeline/staging-prepare.mjs",
-        "build/pipeline/staging-product-configure.mjs"
-      ],
-      "reason": "产品身份、Logo、可见文案与提示词；迁移 TokensHarness 数据。",
-      "retireWhen": "产品仍使用独立品牌时保留；旧数据迁移只能在停止支持旧用户后另行决策。",
-      "verification": "2026-09-15：11 项品牌回归、Desktop/Market 编译与类型检查、staging-branding-verify 通过；补齐原生终端、加载/启动/目录选择错误文案。此前证书动态分块及 ASAR 品牌回归保留。未执行本次 GUI 与新包安装验收；平台图标及旧数据迁移仍需真机验证。"
+      "verified": "2026-10-10：25 项品牌行为回归、外层 107 项构建测试、独立 staging 完整编译及只读品牌门禁通过；Windows 隔离 Electron 启动 Renderer healthy，Logo 实际解码为 480×480，Logo/明暗 favicon HTTP SHA256 一致；ICO 16 帧、ICNS 7 尺寸完整解码通过。托盘随后裁去透明展示留白，6 份资源尺寸与安全边距通过，16px 图形可见区域由 12×11 增至 14×14；品牌 25 项复测通过，放大后托盘尚未人工验收。迁移仅在临时目录测试，macOS 打包/签名/安装与真实用户迁移未验收。"
     }
-  ],
-  "diagnostics": [
-    "build/modules/branding/staging-branding-verify.mjs"
   ]
 }

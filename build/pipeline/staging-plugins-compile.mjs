@@ -1,9 +1,8 @@
-import { productStage } from './paths.mjs'
-import { alignWebSearchCommandDescription } from '../modules/runtime/runtime-version-overlay.mjs'
-import { alignProductUpdateCommand } from '../modules/updates/updates-overlay.mjs'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { runOverlays } from './overlay-engine.mjs'
+import { productStage } from './paths.mjs'
 
 const root = resolve(import.meta.dirname, '..', '..')
 const stage = productStage(root)
@@ -140,15 +139,10 @@ for (const plugin of product.plugins.filter(
 }
 
 // Apply after compilation so a plugin build cannot overwrite the adaptation.
-if (product.plugins.some(plugin => plugin.id === 'tokens-version-updates' && plugin.enabledByDefault === true)) {
-  const entryPath = resolve(pluginsRoot, 'tokens-version-updates', 'index.js')
-  const source = readFileSync(entryPath, 'utf8')
-  const patched = alignProductUpdateCommand(source)
-  if (patched !== source) writeFileSync(entryPath, patched)
-}
-if (product.plugins.some(plugin => plugin.id === 'tokens-dsh-web-search' && plugin.enabledByDefault === true)) {
-  const clientPath = resolve(pluginsRoot, 'tokens-dsh-web-search', 'lib', 'client.js')
-  const source = readFileSync(clientPath, 'utf8')
-  const patched = alignWebSearchCommandDescription(source)
-  if (patched !== source) writeFileSync(clientPath, patched)
+await runOverlays('plugins', { stage, product })
+
+// A precompiled plugin can compile successfully while importing removed host exports.
+// Resolve each actual fixed host entry in its own dependency tree before smoke checks.
+for (const plugin of product.plugins.filter(item => item.enabledByDefault === true)) {
+  run(process.execPath, ['--input-type=module', '--eval', `await import(${JSON.stringify(plugin.package)})`], resolve(pluginsRoot, plugin.id))
 }

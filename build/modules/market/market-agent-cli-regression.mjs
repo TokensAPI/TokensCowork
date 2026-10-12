@@ -1,10 +1,10 @@
 // Real DSH CLI regression. Uses a new DSH_HOME; never touches the user's Profile.
 import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, dirname, delimiter } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, dirname, delimiter, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import assert from 'node:assert/strict'
+import { productStage } from '../../pipeline/paths.mjs'
 const home = await mkdtemp(join(tmpdir(), 'cowork-agent-cli-'))
 const profile = join(home, 'profiles', 'qa')
 await mkdir(profile, { recursive: true })
@@ -13,7 +13,7 @@ await writeFile(join(profile, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLin
 const config = join(home, 'qa.npmrc')
 await writeFile(config, 'ignore-scripts=true\nauto-install-peers=false\nfetch-retries=0\nfetch-timeout=30000\n' +
   'store-dir=' + join(home, 'store').replaceAll('\\', '/') + '\ncache-dir=' + join(home, 'cache').replaceAll('\\', '/') + '\n')
-const desktop = fileURLToPath(new URL('../../../.build/desktop/dsh-plugin-desktop/', import.meta.url))
+const desktop = resolve(productStage(resolve(import.meta.dirname, '../../..')), 'dsh-plugin-desktop')
 const cli = join(desktop, 'node_modules/@deepseek-ai/dsh/lib/bin.js')
 const results = []
 const name = '@tokensapi/dsh-plugin-check'

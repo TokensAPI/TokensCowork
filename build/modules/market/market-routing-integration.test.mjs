@@ -1,15 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { createD1Database } from '../../../market/server/runtime/adapters.mjs'
 import { fingerprint } from '../../../market/server/security/key-fingerprint.js'
-import { patchRegistryRoutes } from './market-routing-overlay.mjs'
-
-const routeFile = new URL('../../../market/server/private-registry/routes.js', import.meta.url)
-const raw = await readFile(routeFile, 'utf8')
-const source = patchRegistryRoutes(raw).replace(/from '([^']+)'/g, (_, path) => `from '${new URL(path, routeFile).href}'`)
-const { registryRoute } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
+import { registryRoute } from '../../../market/server/private-registry/routes.js'
 
 test('shared registry: real SQLite, independent Key ACLs, tarball checks and revocation', async () => {
   const db = createD1Database(':memory:', fileURLToPath(new URL('../../../market/server/database/migrations/', import.meta.url)))
