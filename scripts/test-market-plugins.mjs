@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { installCommand, run, runPluginTests, testScript } from './test-product-plugins.mjs'
+import { installCommand, run, runPluginTests, testScript, withGitBash } from './test-product-plugins.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -92,7 +92,7 @@ export async function main(args = process.argv.slice(2)) {
     if (!script) return { tag: source.tag, script: 'not configured' }
     const [command, commandArgs] = installCommand(directory, manifest)
     run(command, commandArgs, directory)
-    run('npm', ['run', script], directory, { ...process.env, TEMP: temporaryRoot, TMP: temporaryRoot, TMPDIR: temporaryRoot }, true)
+    run('npm', ['run', script], directory, { ...withGitBash(process.env), TEMP: temporaryRoot, TMP: temporaryRoot, TMPDIR: temporaryRoot }, true)
     return { tag: source.tag, script }
   }, report, options)
   for (const result of results) if (result.skipped) Object.assign(result, { status: 'not-run', error: result.skipped })

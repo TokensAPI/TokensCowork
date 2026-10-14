@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, parseOptions, runPluginTests, testEnvironment, testScript } from './test-product-plugins.mjs'
+import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, outputTail, parseOptions, runPluginTests, testEnvironment, testScript, withGitBash } from './test-product-plugins.mjs'
 
 function workflowJob(source, id) {
   const jobs = source.replaceAll('\r\n', '\n').split(/^jobs:\s*$/m)[1]
@@ -187,4 +187,28 @@ test('download deployment has one release trigger and no release-event redispatc
   assert.doesNotMatch(page, /^  release:|redispatch:|gh workflow run/m)
   assert.match(page, /workflow_run.conclusion == 'success'/)
   assert.doesNotMatch(page, /submodules: recursive/)
+})
+
+test('Windows plugin tests resolve bash to Git Bash instead of WSL', () => {
+  const root = mkdtempSync(join(tmpdir(), 'git-bash-'))
+  try {
+    for (const dir of ['cmd', join('mingw64', 'bin'), 'bin']) mkdirSync(join(root, dir), { recursive: true })
+    writeFileSync(join(root, 'bin', 'bash.exe'), '')
+    // `where git` may list mingw64\bin\git.exe first; the Git root is still found.
+    const located = () => `${join(root, 'mingw64', 'bin', 'git.exe')}\r\n${join(root, 'cmd', 'git.exe')}\r\n`
+    const env = withGitBash({ Path: 'C:\\Windows\\System32' }, 'win32', located)
+    assert.equal(env.Path, [join(root, 'bin'), 'C:\\Windows\\System32'].join(';'))
+    assert.deepEqual(withGitBash({ PATH: '/usr/bin' }, 'linux'), { PATH: '/usr/bin' })
+    assert.deepEqual(withGitBash({ Path: 'x' }, 'win32', () => ''), { Path: 'x' })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a failed command reports the tail of its output', () => {
+  assert.equal(outputTail(''), '')
+  const lines = Array.from({ length: 40 }, (_, i) => `line ${i}`)
+  const tail = outputTail(`${lines.join('\n')}\n\x1b[31mERROR boom\x1b[0m`)
+  assert.match(tail, /ERROR boom$/)
+  assert.doesNotMatch(tail, /line 9\n/)
 })
