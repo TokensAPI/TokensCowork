@@ -37,8 +37,8 @@
       "displayName": "TokensAPI 模型",
       "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "version": "0.2.22",
-      "commit": "d12af8309d4f1cc56d3d0d9dfce8dff603962e7c",
+      "version": "0.2.23",
+      "commit": "0aefb5dbee880be27c075eb2c7eca193a5fe3150",
       "category": "builtin"
     },
     {
