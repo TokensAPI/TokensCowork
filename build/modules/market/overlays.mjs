@@ -1,12 +1,12 @@
 /* ====================================================================
  * market 覆盖登记表
  * 固定产品来源、当前 Key 鉴权、插件更新、私有 Registry、发现首页与
- * 品牌文案；以及 Desktop 侧的市场提供方固定。
+ * 品牌文案；以及 Desktop 侧的市场提供方固定、DSH 插件页的安装入口。
  * 同一阶段内按登记顺序执行，后一条读取前一条的结果。
  * ==================================================================== */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { desktopFiles as d, market as m } from '../../pipeline/stage-targets.mjs'
+import { desktopFiles as d, desktopInstalled, market as m } from '../../pipeline/stage-targets.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
 import { pinDesktopMarketProvider } from './market-desktop-overlay.mjs'
 import {
@@ -16,6 +16,7 @@ import {
   addMarketHome,
   addMarketHomeStyles,
 } from './market-home-overlay.mjs'
+import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 import {
   addRequiredSourceRepairTest,
@@ -36,6 +37,7 @@ const source = root => ({
   manifest: JSON.parse(readFileSync(resolve(root, 'market/server/source.json'), 'utf8')),
 })
 const template = name => resolve(import.meta.dirname, name)
+const pluginPageClient = desktopInstalled('@deepseek-ai/dsh-client-ui-plugin-manager', 'lib/client.js')
 
 const f = {
   http: m('src/network/restricted-http.ts'),
@@ -238,6 +240,20 @@ export default [
     apply: ({ main }) => ({ main: pinDesktopMarketProvider(main) }),
     why: '正常启动固定 community-market 并修复误关的持久记录（崩溃恢复会把 disabled 写盘）；Safe Mode 例外。',
     retireWhen: '产品不再固定市场，或上游提供等效策略配置时移除；不能丢失其他偏好字段。',
+  },
+  /* ----------------------- DSH 插件页 ----------------------- */
+  {
+    id: 'market.plugin-page-install',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'customization',
+    // 没装这个包就没有插件页，也就没有安装入口：跳过而不是报错（--doctor 显示为“未启用”）。
+    // 只在包存在时执行，锚点失配照常让构建失败。
+    when: ({ files }) => files.has(pluginPageClient),
+    files: { client: pluginPageClient },
+    apply: ({ client }) => ({ client: removePluginPageInstall(client) }),
+    why: '插件安装统一走插件市场。DSH 0.2 侧栏“插件”页的“添加插件”可按 npm 包名、Git 地址或本地目录直接安装，绕过私有 Registry、版本与兼容性检查；去掉该按钮并让 openInstall 不再打开安装对话框，刷新、启停、配置与卸载保留。',
+    retireWhen: '上游提供关闭安装入口的配置，或该页安装改为走产品插件市场时移除。',
   },
 ]
 

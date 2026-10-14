@@ -4,7 +4,10 @@
   "reviewNote": "2026-10-10：已对照固定 Desktop 源码、账户/模型插件共享凭据契约与 UI 0.2.23 固定产物复查。外层覆盖、隔离 staging 和本地服务检查通过；真实 GUI、账户权限及安装验收未执行。",
   "baseline": {
     "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
-    "dsh": null,
+    "dsh": {
+      "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+      "version": "0.2.0-rc.2"
+    },
     "plugins": {
       "tokens-version-updates": {
         "commit": "e69006ca4965ce229bbe5436569fe93946d08873",
@@ -22,8 +25,8 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "d12af8309d4f1cc56d3d0d9dfce8dff603962e7c",
-        "version": "0.2.22",
+        "commit": "0aefb5dbee880be27c075eb2c7eca193a5fe3150",
+        "version": "0.2.23",
         "artifact": null
       },
       "tokens-dsh-web-search": {
@@ -108,6 +111,18 @@
         "market.auth"
       ],
       "verified": "2026-10-12：tokens-login 升至 0.1.11（3d95c34），宿主端 dsh/index.js 仅为 API Key 配置失败补传 apiKeyErrorCode，credentials.resolve(TOKENSAPI_API_KEY) 契约无改动，market.auth 无需修改；overlay-doctor --doctor 在临时 staging 中判定生效。"
+    },
+    {
+      "overlays": [
+        "market.plugin-page-install"
+      ],
+      "verified": "2026-10-13：新增。对照 DSH 0.2.0-rc.2（639ed01）的 dsh-client-ui-plugin-manager lib/client.js：去掉工具栏“添加插件”按钮、openInstall 不再打开安装对话框，刷新按钮保留；全文件只有这一处调用 openInstall。按原文摘取的片段执行转换后的工具栏与 openInstall 的行为回归 4 项（含未安装该包时跳过）、yarn test:build 119 项、overlay-doctor --doctor 判定生效。基线首次记录 DSH pin（此前本模块不改 DSH 包）。真机界面待 .build/desktop 验收。"
+    },
+    {
+      "overlays": [
+        "market.auth"
+      ],
+      "verified": "2026-10-14：tokens-model-manager 升至 0.2.23（0aefb5d，TokensCowork 0cec243）。d12af83..0aefb5d 为 DSH 0.2 模型注册与线路切换修复、发布流程和测试，没有增删 TOKENSAPI_API_KEY 或 credentials 调用；src/config.ts 仍以 TOKENSAPI_API_KEY 引用凭据，market.auth 依赖的 credentials.resolve(TOKENSAPI_API_KEY) 契约不变，无需修改。overlay-doctor --doctor 在临时 staging 中判定生效。"
     }
   ],
   "notes": [
