@@ -7,6 +7,13 @@
 #   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
 #   powershell -File scripts\dev-desktop.ps1 -Prepare     # 强制重新装配（默认会检测输入变化）
 #   powershell -File scripts\dev-desktop.ps1 -Force       # 连已安装的 TokensCowork 一起关掉再启动
+#   powershell -File scripts\dev-desktop.ps1 -TestPlugins        # 启动前跑全部内置插件的自动化测试（同发布构建）
+#   powershell -File scripts\dev-desktop.ps1 -TestMarketPlugins  # 启动前跑当前 Profile 已装市场插件的自动化测试
+#
+# 插件测试（可同时传两个开关；有失败就不启动，报告在 .build/plugin-tests/）：
+# - 内置插件按已提交的 product.json（HEAD）锁定的提交测试，与发布构建一致；未提交的锁定版本改动不在其中。
+# - 市场插件按当前数据模式的 Profile（真实或 -Sandbox）里已装的版本，拉取其仓库的对应标签测试；
+#   拿不到源码（无权限、无标签）记为未测，不阻断启动。
 #
 # 热加载范围：
 # - 市场客户端 / 桌面渲染层（.build/desktop/*/src 下的 client、native-ui 代码）：
@@ -34,7 +41,10 @@ param(
   # 真实数据已是默认行为，保留本开关只为兼容旧用法，传了不报错。
   [switch]$RealData,
   # 允许脚本替你关掉已安装的 TokensCowork（它可能正开着真实工作，故不设为默认）。
-  [switch]$Force
+  [switch]$Force,
+  # 启动前跑插件自动化测试；耗时较长，故不设为默认。
+  [switch]$TestPlugins,
+  [switch]$TestMarketPlugins
 )
 
 $ErrorActionPreference = 'Stop'
@@ -283,6 +293,31 @@ if (-not $Sandbox) {
   $env:TOKENS_COWORK_DEV_APP_DATA = $sandboxAppData
   $env:DSH_HOME = $sandboxHome
   Write-Host "==> 沙箱模式：数据在 $sandboxDirectory（删掉该目录即彻底重置）" -ForegroundColor Cyan
+}
+
+# 插件测试放在启动前：失败即不启动，与发布构建的阻断规则一致。
+$pluginTests = @()
+if ($TestPlugins) { $pluginTests += @{ Label = '内置插件自动化测试'; Cmd = 'node scripts\test-product-plugins.mjs' } }
+if ($TestMarketPlugins) {
+  $dshHome = if ($Sandbox) { $sandboxHome } else { Join-Path $HOME '.dsh' }
+  $profileDir = Join-Path (Join-Path $dshHome 'profiles') 'desktop'
+  if (Test-Path (Join-Path $profileDir 'package.json')) {
+    $pluginTests += @{ Label = '市场插件自动化测试'; Cmd = "node scripts\test-market-plugins.mjs --profile `"$profileDir`"" }
+  } else {
+    Write-Host "==> 市场插件自动化测试：Profile 尚未创建（$profileDir），跳过" -ForegroundColor Yellow
+  }
+}
+foreach ($pluginTest in $pluginTests) {
+  Write-Host "==> $($pluginTest.Label)" -ForegroundColor Cyan
+  Push-Location $root
+  cmd /d /s /c $pluginTest.Cmd
+  $code = $LASTEXITCODE
+  Pop-Location
+  if ($code -ne 0) {
+    Write-Host "dev-desktop: $($pluginTest.Label)未通过（退出码 $code），不启动；报告见 .build\plugin-tests\" -ForegroundColor Red
+    foreach ($w in $watchers) { try { Stop-Process -Id $w.Id -Force -ErrorAction Stop } catch {} }
+    exit 1
+  }
 }
 
 # 装配/构建要几分钟，其间用户完全可能又把应用打开；此时 userData 相同，Electron

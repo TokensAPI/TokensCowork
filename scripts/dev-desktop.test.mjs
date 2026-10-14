@@ -45,3 +45,17 @@ test('shared verification checks version and generated market data', () => {
   assert.match(shared, /market-catalog-verify\.mjs/)
   assert.match(shared, /checkout differs from product.json/)
 })
+test('plugin tests are opt-in and block the launch before the app starts', () => {
+  const dev = read('./dev-desktop.ps1')
+  assert.match(dev, /\[switch\]\$TestPlugins/)
+  assert.match(dev, /\[switch\]\$TestMarketPlugins/)
+  const builtin = 'node scripts\\test-product-plugins.mjs'
+  const market = 'node scripts\\test-market-plugins.mjs --profile'
+  const launch = dev.indexOf("Write-Host '==> 启动 TokensCowork")
+  for (const command of [builtin, market]) {
+    assert.equal(dev.split(command).length, 2)
+    assert.ok(dev.indexOf(command) < launch)
+  }
+  assert.match(dev, /if \(\$TestPlugins\)/)
+  assert.match(dev, /if \(\$TestMarketPlugins\)/)
+})

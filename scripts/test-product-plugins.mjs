@@ -46,7 +46,7 @@ export function testEnvironment(outerRoot, temporaryRoot) {
   }
 }
 
-function run(command, args, cwd, env = process.env, testRun = false) {
+export function run(command, args, cwd, env = process.env, testRun = false) {
   // Windows 的 npm/corepack 是 cmd shim；参数由本脚本生成，不拼接用户命令。
   const windowsShim = process.platform === 'win32' && ['npm', 'corepack'].includes(command)
   const result = spawnSync(command, args, { cwd, env: isolatedPackageEnvironment(env), stdio: testRun ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: windowsShim, timeout: 20 * 60_000 })

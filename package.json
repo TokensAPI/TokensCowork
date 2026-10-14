@@ -13,7 +13,7 @@
     "product:check": "node build/pipeline/repo-layout-verify.mjs",
     "test:build": "node build/pipeline/build-verify.mjs",
     "test:plugins": "node scripts/test-product-plugins.mjs",
-    "test:ci": "node --test scripts/release-workflow.test.mjs scripts/test-product-plugins.test.mjs",
+    "test:ci": "node --test scripts/release-workflow.test.mjs scripts/test-product-plugins.test.mjs scripts/test-market-plugins.test.mjs",
     "test:market": "npm --prefix market/server run verify && node --test market/deploy/*.test.mjs",
     "test:release:display": "node --test scripts/release-notes-display.test.mjs",
     "product:plan": "node build/build.mjs win --plan",
