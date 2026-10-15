@@ -47,6 +47,9 @@ export function alignWebSearchSettings(source) {
   source = source.replaceAll('\r\n', '\n')
   const marker = '// TokensCowork: DSH 0.2 search settings adaptation.'
   if (source.includes(marker)) return source
+  // 插件自 a3a8135 起按宿主实际导出探测设置契约（0.1 显式安装分区、0.2 volatile Config），无需再改写。
+  if (source.includes('import * as dshSettings from "@deepseek-ai/dsh-settings";')
+    && source.includes('typeof dshSettings.installSettingsSection === "function"')) return source
   const oldImport = 'import { SettingsConflictError, installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";'
   const schemaEnd = '  deepseekApiKey: z.string().role("secret"),\n});'
   const installStart = '  installSettingsSection(ctx, FREE_SEARCH_NS, Config, config ?? {}, {'

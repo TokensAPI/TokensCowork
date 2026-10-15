@@ -113,3 +113,13 @@ test('RPC compatibility patch is idempotent and rejects a changed upstream ancho
   assert.equal(alignConnectionRpcScope(patched), patched)
   assert.throws(() => alignConnectionRpcScope('changed'))
 })
+
+test('a web-search plugin with its own settings contract is left unchanged', () => {
+  const head = 'import * as dshSettings from "@deepseek-ai/dsh-settings";\n'
+    + 'const installSettingsSection = typeof dshSettings.installSettingsSection === "function"\n'
+    + '  ? dshSettings.installSettingsSection\n  : undefined;\n'
+  const source = `${head}  installSettingsSection(ctx, FREE_SEARCH_NS, Config, config ?? {}, {\n`
+  assert.equal(alignWebSearchSettings(source), source)
+  // Without the probe the old adaptation still applies and still guards its anchors.
+  assert.throws(() => alignWebSearchSettings(source.replace('typeof dshSettings.installSettingsSection === "function"', 'true')), /anchor changed/)
+})
