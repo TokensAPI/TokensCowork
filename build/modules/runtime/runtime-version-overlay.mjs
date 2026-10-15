@@ -42,45 +42,6 @@ export function alignRuntimeResolutions(resolutions, version) {
   return result
 }
 
-/** DSH 0.2 settings derive forms from volatile Config and address profile entry ids. */
-export function alignWebSearchSettings(source) {
-  source = source.replaceAll('\r\n', '\n')
-  const marker = '// TokensCowork: DSH 0.2 search settings adaptation.'
-  if (source.includes(marker)) return source
-  // 插件自 a3a8135 起按宿主实际导出探测设置契约（0.1 显式安装分区、0.2 volatile Config），无需再改写。
-  if (source.includes('import * as dshSettings from "@deepseek-ai/dsh-settings";')
-    && source.includes('typeof dshSettings.installSettingsSection === "function"')) return source
-  const oldImport = 'import { SettingsConflictError, installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";'
-  const schemaEnd = '  deepseekApiKey: z.string().role("secret"),\n});'
-  const installStart = '  installSettingsSection(ctx, FREE_SEARCH_NS, Config, config ?? {}, {'
-  const installEnd = '\n  });\n\n  ctx.inject(["webServer", "settings"], (sctx) => {'
-  const start = source.indexOf(installStart)
-  const end = source.indexOf(installEnd, start)
-  for (const anchor of [oldImport, schemaEnd, installStart, '  let current = () => config ?? {};', '        sctx.settings,']) {
-    if (source.split(anchor).length !== 2) throw new Error('Web-search settings anchor changed')
-  }
-  if (end < start) throw new Error('Web-search settings installation end changed')
-  return (source.slice(0, start) + `  ctx.on("loader/volatile-update", () => {
-    cacheGeneration += 1;
-    searchCache.clear();
-    if (typeof refreshPrompt === "function") refreshPrompt();
-  });` + source.slice(end + '\n  });'.length))
-    .replace(oldImport, `import { SettingsConflictError } from "@deepseek-ai/dsh-settings";
-${marker}
-const settingsNamespace = value => value;
-function productSearchSettings(settings, entryId) {
-  if (!entryId) throw new Error("Search settings require a profile entry id");
-  return {
-    describe: options => settings.describe(options).map(item => item.ns === entryId ? { ...item, ns: "free-search" } : item),
-    mutate: (ns, ops, revision) => settings.mutate(ns === "free-search" ? entryId : ns, ops, revision),
-    get writable() { return settings.writable; },
-  };
-}`)
-    .replace(schemaEnd, schemaEnd.replace('});', '}).volatile();'))
-    .replace('  let current = () => config ?? {};', '  const current = () => config?.get?.() ?? config ?? {};')
-    .replace('        sctx.settings,', '        productSearchSettings(sctx.settings, ctx.fiber.entry?.options.id),')
-}
-
 /** Preserve the old search namespace during upstream's one-time settings import. */
 export function alignLegacySearchSettingsImport(source) {
   const anchor = 'const LEGACY_SECTION_ENTRIES = {'

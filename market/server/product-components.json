@@ -37,8 +37,8 @@
       "displayName": "TokensAPI 模型",
       "summary": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "version": "0.2.23",
-      "commit": "0aefb5dbee880be27c075eb2c7eca193a5fe3150",
+      "version": "0.2.24",
+      "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
       "category": "builtin"
     },
     {
@@ -47,8 +47,8 @@
       "displayName": "联网搜索",
       "summary": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
-      "version": "0.2.0",
-      "commit": "9b14218a04ab6cc3b9e4d4e571edba544fa507bb",
+      "version": "0.2.1",
+      "commit": "79253f1cc64f08ef739f7bd69bb9bc2eecf170f1",
       "category": "builtin"
     },
     {

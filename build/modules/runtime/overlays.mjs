@@ -18,7 +18,6 @@ import {
   alignLegacySearchSettingsImport,
   alignRuntimeDependencies,
   alignRuntimeVersion,
-  alignWebSearchSettings,
 } from './runtime-version-overlay.mjs'
 
 const runtimeVersion = product => product.desktop.runtimeVersion
@@ -145,15 +144,13 @@ export default [
     kind: 'compatibility',
     when: ({ product }) => pluginEnabled(product, 'tokens-dsh-web-search'),
     files: {
-      host: productPlugin('tokens-dsh-web-search', 'lib/index.js'),
       settings: desktopInstalled('@deepseek-ai/dsh-settings'),
     },
-    apply: ({ host, settings }) => ({
-      host: alignWebSearchSettings(host),
+    apply: ({ settings }) => ({
       settings: alignLegacySearchSettingsImport(settings),
     }),
-    why: '联网搜索插件仍按 DSH 0.1 安装设置分区；DSH 0.2 需要 volatile Config、按 Profile entry id 读写，并在一次性导入时保留旧 free-search 命名空间。',
-    retireWhen: '插件原生使用 DSH 0.2 设置接口后，固定该版本并通过设置读写、旧配置导入回归再移除。',
+    why: '插件自 0.2.1 起自带 DSH 0.2 设置契约，但从 0.1 一次性导入设置时，宿主只认识自己的分区；旧 free-search 命名空间需映射到联网搜索的 Profile 条目，否则老用户的搜索配置会导入到错误条目。',
+    retireWhen: '宿主的旧设置导入能识别插件分区，或产品不再支持从 0.5 升级时，通过旧配置导入回归后删除。',
   },
 ]
 

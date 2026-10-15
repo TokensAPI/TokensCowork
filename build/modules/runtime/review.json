@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-12",
+  "reviewedAt": "2026-10-15",
   "reviewNote": "2026-10-12 按当前固定 Desktop/DSH/插件复查：逐项在原始输入上确认覆盖仍生效或已删除，独立 staging 装配输出与此前一致。安装、编译后的真实 GUI、签名与跨平台验收不由本地结果代替。",
   "baseline": {
     "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
@@ -25,13 +25,13 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "d12af8309d4f1cc56d3d0d9dfce8dff603962e7c",
-        "version": "0.2.22",
+        "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
+        "version": "0.2.24",
         "artifact": null
       },
       "tokens-dsh-web-search": {
-        "commit": "9b14218a04ab6cc3b9e4d4e571edba544fa507bb",
-        "version": "0.2.0",
+        "commit": "79253f1cc64f08ef739f7bd69bb9bc2eecf170f1",
+        "version": "0.2.1",
         "artifact": null
       },
       "tokens-loop-guard": {
@@ -46,7 +46,7 @@
       "overlays": [
         "runtime.web-search-settings"
       ],
-      "verified": "2026-10-10：补充 DSH 0.2 volatile Config、旧 free-search 导入及设置桥 entry id 适配；六插件实际入口导入及 Profile HMR 通过，无未激活警告。2026-10-12：固定插件 0.2.0 已原生提供 lazy 命令描述，删除命令描述适配。"
+      "verified": "2026-10-10：补充 DSH 0.2 volatile Config、旧 free-search 导入及设置桥 entry id 适配；六插件实际入口导入及 Profile HMR 通过，无未激活警告。2026-10-12：固定插件 0.2.0 已原生提供 lazy 命令描述，删除命令描述适配。 2026-10-15：联网搜索 0.2.1（79253f1）自带 DSH 0.2 设置契约（按宿主导出探测，0.1 显式安装分区、0.2 volatile Config），删除改写插件代码的部分，只保留旧 free-search 导入映射；插件在 0.6.0 与 0.5.21 两套真实宿主下 test:cases 均 79/79，用户真机搜索正常。"
     },
     {
       "overlays": [

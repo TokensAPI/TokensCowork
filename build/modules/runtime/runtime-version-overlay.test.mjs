@@ -5,7 +5,7 @@ import { alignResolverTestFileUrls } from './desktop-runtime-overlay.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
-import { alignWebSearchSettings, alignLegacySearchSettingsImport } from './runtime-version-overlay.mjs'
+import { alignLegacySearchSettingsImport } from './runtime-version-overlay.mjs'
 
 test('runtime preflight rejects a missing RPC package before reporting compatibility success', () => {
   const root = resolve(import.meta.dirname, '../../..')
@@ -39,31 +39,7 @@ function summarize() {
   } finally { rmSync(stage, { recursive: true, force: true }) }
 })
 
-test('search settings expose live Config and delegate revisions/secret-preserving edits to the owning entry', async () => {
-  const root = resolve(import.meta.dirname, '../../..')
-  const source = readFileSync(resolve(root, 'plugins/tokens_DshWebSearch_code/lib/index.js'), 'utf8')
-  const patched = alignWebSearchSettings(source)
-  assert.equal(alignWebSearchSettings(patched), patched)
-  assert.ok(!patched.includes('installSettingsSection('))
-  assert.ok(patched.includes('}).volatile();'))
-  assert.ok(patched.includes('ctx.on("loader/volatile-update"'))
-  const start = patched.indexOf('function productSearchSettings(')
-  const end = patched.indexOf('\n}', start) + 2
-  const adapt = new Function(patched.slice(start, end) + '\nreturn productSearchSettings')()
-  const writes = [], options = { redactSecrets: true }
-  const settings = {
-    writable: true,
-    describe: received => { assert.equal(received, options); return [{ ns: 'web-search-free', revision: 4 }, { ns: 'other' }] },
-    mutate: async (...args) => { writes.push(args); if (args[2] !== 4) throw new Error('stale revision') },
-  }
-  const bridge = adapt(settings, 'web-search-free')
-  assert.deepEqual(bridge.describe(options), [{ ns: 'free-search', revision: 4 }, { ns: 'other' }])
-  const ops = [{ op: 'set', path: ['provider'], value: 'bing' }]
-  await bridge.mutate('free-search', ops, 4)
-  assert.deepEqual(writes[0], ['web-search-free', ops, 4])
-  await assert.rejects(bridge.mutate('free-search', ops, 3), /stale revision/)
-  assert.throws(() => adapt(settings), /entry id/)
-  assert.throws(() => alignWebSearchSettings(source.replace('installSettingsSection(ctx,', 'changed(ctx,')), /anchor changed/)
+test('legacy free-search settings import into the web-search profile entry', () => {
   const legacy = 'const LEGACY_SECTION_ENTRIES = {\n shell: "pwsh-sandbox"\n};'
   const migrated = alignLegacySearchSettingsImport(legacy)
   assert.ok(migrated.includes('"free-search": "web-search-free"'))
@@ -112,14 +88,4 @@ test('RPC compatibility patch is idempotent and rejects a changed upstream ancho
   assert.match(patched, /caller.inject/)
   assert.equal(alignConnectionRpcScope(patched), patched)
   assert.throws(() => alignConnectionRpcScope('changed'))
-})
-
-test('a web-search plugin with its own settings contract is left unchanged', () => {
-  const head = 'import * as dshSettings from "@deepseek-ai/dsh-settings";\n'
-    + 'const installSettingsSection = typeof dshSettings.installSettingsSection === "function"\n'
-    + '  ? dshSettings.installSettingsSection\n  : undefined;\n'
-  const source = `${head}  installSettingsSection(ctx, FREE_SEARCH_NS, Config, config ?? {}, {\n`
-  assert.equal(alignWebSearchSettings(source), source)
-  // Without the probe the old adaptation still applies and still guards its anchors.
-  assert.throws(() => alignWebSearchSettings(source.replace('typeof dshSettings.installSettingsSection === "function"', 'true')), /anchor changed/)
 })
