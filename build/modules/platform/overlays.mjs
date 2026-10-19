@@ -13,7 +13,7 @@ import {
   configureDesktopPackage,
 } from './desktop-packaging-overlay.mjs'
 import { bridgeDesktopSystemProxy, bridgeWebFetchSystemProxy } from './system-proxy-overlay.mjs'
-import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse } from './windows-acl-overlay.mjs'
+import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse, alignWindowsAclConsoleSpec } from './windows-acl-overlay.mjs'
 import { addWindowsInstallerGuard, pinNsisResources } from './windows-installer-overlay.mjs'
 
 const asset = (...parts) => resolve(import.meta.dirname, ...parts)
@@ -82,8 +82,11 @@ export default [
     phase: 'prepare',
     upstream: ['desktop'],
     kind: 'workaround',
-    files: { runner: d.windowsAclRunner },
-    apply: ({ runner }) => ({ runner: addWindowsAclHostConsole(runner) }),
+    files: { runner: d.windowsAclRunner, spec: d.windowsPwshSandboxTests },
+    apply: ({ runner, spec }) => ({
+      runner: addWindowsAclHostConsole(runner),
+      spec: alignWindowsAclConsoleSpec(spec),
+    }),
     why: '以产品无窗口控制台替换上游 AllocConsole，修复 0xC0000142 与连续闪窗。',
     retireWhen: '上游覆盖等效启动与后台窗口行为，并通过相同 Windows 真机回归后删除。',
   },

@@ -43,6 +43,37 @@ export function addWindowsAclHostConsole(source) {
 }
 
 /**
+ * 上游 trampoline 用例 mock 的是上游控制台模块，而产品 runner 改用自带的无窗口
+ * 实现；把这两条用例的 mock 目标与导出名换成产品模块，断言与用例意图不变。
+ * @param source - staging 副本中 windows-pwsh-sandbox.spec.ts 的完整内容。
+ * @returns mock 指向产品控制台模块后的用例源码。
+ * @throws 上游用例结构变化时抛出，中断装配待人工复查。
+ */
+export function alignWindowsAclConsoleSpec(source) {
+  const blockAnchor = "describe('Windows ACL runner trampoline', () => {"
+  const upstreamModule = "'../src/windows-console-host.ts'"
+  const mockedExport = '() => ({ ensureWindowsConsoleHost })'
+  const throwingExport = '      ensureWindowsConsoleHost: () => {'
+  const start = source.indexOf(blockAnchor)
+  // trampoline 之后的 describe 仍直接测试上游实现，产品保留该文件，不改那部分。
+  const end = source.indexOf('\ndescribe(', start + blockAnchor.length)
+  if (start < 0 || end < 0) {
+    throw new Error('prepare-desktop: 未找到上游 ACL trampoline 用例块，请复查宿主控制台覆盖')
+  }
+  const block = source.slice(start, end)
+  if (block.split(upstreamModule).length !== 5
+    || block.split(mockedExport).length !== 2
+    || block.split(throwingExport).length !== 2) {
+    throw new Error('prepare-desktop: 上游 ACL trampoline 用例的控制台 mock 结构已变化')
+  }
+  const patched = block
+    .replaceAll(upstreamModule, "'../src/windows-acl-host-console.ts'")
+    .replace(mockedExport, '() => ({ ensureWindowsAclHostConsole: ensureWindowsConsoleHost })')
+    .replace(throwingExport, '      ensureWindowsAclHostConsole: () => {')
+  return `${source.slice(0, start)}${patched}${source.slice(end)}`
+}
+
+/**
  * Classify the empty-output 0xC0000142 startup shape as sandbox infrastructure
  * failure and trip a per-session fuse so repeated calls do not spawn again.
  * @param source - staging copy of windows-pwsh-sandbox.ts.

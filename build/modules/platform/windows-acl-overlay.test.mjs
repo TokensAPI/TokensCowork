@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { test } from 'node:test'
-import { addWindowsAclInfrastructureFuse, addWindowsAclHostConsole } from './windows-acl-overlay.mjs'
+import { addWindowsAclInfrastructureFuse, addWindowsAclHostConsole, alignWindowsAclConsoleSpec } from './windows-acl-overlay.mjs'
 
 const upstream = readFileSync(new URL('../../../desktop/dsh-plugin-desktop/src/windows-pwsh-sandbox.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 const patched = addWindowsAclInfrastructureFuse(upstream)
@@ -17,6 +17,19 @@ test('product console replaces upstream allocation instead of initializing twice
   assert.equal((result.match(/ensureWindowsAclHostConsole\(\)/g) ?? []).length, 1)
   assert.ok(!result.includes('ensureWindowsConsoleHost'))
   assert.ok(result.includes('await import(pathToFileURL(expectedRunner).href)'))
+})
+
+test('upstream trampoline cases mock the product console module, leaving its own unit tests alone', () => {
+  const spec = readFileSync(new URL('../../../desktop/dsh-plugin-desktop/tests/windows-pwsh-sandbox.spec.ts', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+  const result = alignWindowsAclConsoleSpec(spec)
+  const trampoline = result.slice(result.indexOf("describe('Windows ACL runner trampoline'"))
+  const block = trampoline.slice(0, trampoline.indexOf('\ndescribe('))
+  assert.ok(!block.includes("'../src/windows-console-host.ts'"))
+  assert.equal((block.match(/'\.\.\/src\/windows-acl-host-console\.ts'/g) ?? []).length, 4)
+  assert.equal((block.match(/ensureWindowsAclHostConsole/g) ?? []).length, 2)
+  // trampoline 之后的用例直接测试上游实现，产品保留该文件，不能被改写。
+  assert.ok(result.slice(result.indexOf('\ndescribe(', result.indexOf("describe('Windows ACL runner trampoline'"))).includes('ensureWindowsConsoleHost('))
+  assert.throws(() => alignWindowsAclConsoleSpec(spec.replace("vi.doMock('../src/windows-console-host.ts', () => ({ ensureWindowsConsoleHost }))", '')), /trampoline/)
 })
 
 test('unified ACL execution forwards preparation, environment and callback, then blocks only failed session/mode', async () => {

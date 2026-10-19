@@ -38,6 +38,7 @@ export const desktopFiles = {
   verifyMacRelease: `${desktop}/scripts/verify-mac-release.ts`,
   verifyMacEntitlements: `${desktop}/scripts/verify-mac-entitlements.ts`,
   moduleResolutionTests: `${desktop}/tests/module-resolution.spec.ts`,
+  windowsPwshSandboxTests: `${desktop}/tests/windows-pwsh-sandbox.spec.ts`,
 }
 
 /** 已安装的 npm 运行时；installed 阶段同时检查 Desktop 与根工作区两份依赖。 */

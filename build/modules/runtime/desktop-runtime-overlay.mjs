@@ -25,7 +25,10 @@ export function skipDesktopSetupWizard(mainSource) {
       }
       dismissDesktopSetupAccount(marketUserDataDir, prepared.profile.dir)
     }
-    let setupPending = false && safeModePaths === undefined`)
+${pendingAnchor}
+    // 产品用已装配 Profile 的默认值，向导永不进入待办；保留上游这一行，
+    // 上游 package.spec.ts 按字面断言它的存在。
+    setupPending = false`)
 }
 
 /**
