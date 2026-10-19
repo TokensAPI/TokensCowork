@@ -1,0 +1,48 @@
+name: 维护 · 预热构建缓存
+
+# GitHub 会回收 7 天没被访问的 Actions 缓存。发版间隔常常超过一周，
+# 每次发版都从零下载依赖与 Electron，三个平台各多花 5–8 分钟。
+# 这里每周把三份缓存各读一次，只刷新访问时间，不构建任何东西。
+on:
+  schedule:
+    - cron: '23 3 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: 预热 · ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, macos-14, macos-15-intel]
+    steps:
+      - name: 准备 · 获取锁文件
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: build/pipeline/product.yarn.lock
+          sparse-checkout-cone-mode: false
+
+      # 路径与 key 必须与 release-desktop.yml 的「准备 · 恢复构建缓存」一致，
+      # 否则刷新的不是发版用的那份；scripts/test-product-plugins.test.mjs 会比对两处。
+      - name: 预热 · 读取构建缓存
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ~/.yarn/berry/cache
+            ~/AppData/Local/Yarn/Berry/cache
+            ~/.cache/node-gyp
+            ~/Library/Caches/node-gyp
+            ~/AppData/Local/node-gyp/Cache
+            ~/.electron-gyp
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
+          restore-keys: |
+            desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-
