@@ -74,6 +74,13 @@ for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
       assert.ok(output.indexOf('electron-builder') < output.indexOf('packaged-app-verify'))
     }
     if (mode === 'mac') assert.ok(output.includes('dist:mac'))
+    if (mode.startsWith('mac')) {
+      // 单架构打包不经过 mac-universal，必须自行恢复 uv 执行位，否则 afterPack 校验 EACCES。
+      const restore = output.indexOf('prepare-agents-anywhere-runtime.mjs')
+      const packaging = mode === 'mac' ? output.indexOf('dist:mac') : output.indexOf('electron-builder')
+      assert.ok(restore > output.indexOf('prepare-fs-ext.ts'), '缺少 uv 执行位恢复')
+      assert.ok(restore < packaging, 'uv 执行位必须在打包前恢复')
+    }
     if (mode === 'mac-unsigned') assert.ok(output.includes('--config.mac.identity=null'))
     if (mode !== 'check') {
       assert.ok(output.indexOf('workspace dsh-community-market build') < output.indexOf('workspace dsh-plugin-desktop build'))

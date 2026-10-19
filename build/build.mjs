@@ -78,7 +78,7 @@ function buildProduct(environment = process.env) {
   }
 }
 
-/** 为指定 macOS 架构编译与 Electron ABI 一致的 fs-ext 原生绑定。 */
+/** 为指定 macOS 架构编译与 Electron ABI 一致的 fs-ext 原生绑定，并恢复 uv 执行位。 */
 function prepareMacNativeRuntime(architectures, environment = process.env) {
   for (const architecture of architectures) {
     run(
@@ -88,6 +88,10 @@ function prepareMacNativeRuntime(architectures, environment = process.env) {
       environment,
     )
   }
+  // 安装 uv 时跳过了宿主 postinstall，node_modules 中的二进制没有执行位。上游只在
+  // 通用包合并（mac-universal）时恢复，单架构打包必须自行恢复，否则 electron-builder
+  // 的 afterPack 校验会以 EACCES 失败。
+  run(process.execPath, [resolve(stage, 'scripts', 'prepare-agents-anywhere-runtime.mjs')], stage, environment)
 }
 
 /** 验证产品品牌已经进入源码配置与编译后的运行时闭包。 */
