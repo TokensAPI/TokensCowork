@@ -43,6 +43,18 @@ export default [
     retireWhen: '上游提供等效的未签名打包接口后复用。',
   },
   {
+    id: 'platform.mac-entitlements-plist',
+    phase: 'prepare',
+    upstream: ['dsh'],
+    kind: 'compatibility',
+    copy: [[
+      resolve(import.meta.dirname, '../../..', 'desktop/deepseek-harness/apps/desktop/scripts/macos-entitlements.plist'),
+      'deepseek-harness/apps/desktop/scripts/macos-entitlements.plist',
+    ]],
+    why: '上游 mac 打包配置把 entitlements 指向同级 Harness 仓库，而 staging 不复制 Harness；按原路径放入清单，codesign 才能读到。',
+    retireWhen: '上游把 entitlements 清单移回 dsh-plugin-desktop 内部后移除。',
+  },
+  {
     id: 'platform.windows-acl-assets',
     phase: 'prepare',
     upstream: ['desktop'],

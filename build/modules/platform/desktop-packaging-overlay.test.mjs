@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
+import { resolve } from 'node:path'
 import { alignFsExtArchitecture, alignMacEntitlementArchitecture, alignMacReleaseChecks, alignMacReleaseVerification, configureDesktopPackage } from './desktop-packaging-overlay.mjs'
 
 const read = path => readFileSync(new URL(`../../../desktop/dsh-plugin-desktop/${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n')
@@ -97,5 +98,16 @@ test('native entitlement verification retains all required permissions for every
   } finally {
     if (previous === undefined) delete process.env.DSH_MAC_ARCH
     else process.env.DSH_MAC_ARCH = previous
+  }
+})
+
+test('the entitlements plist is copied to the path the upstream mac config signs with', async () => {
+  const overlay = (await import('./overlays.mjs')).default.find(item => item.id === 'platform.mac-entitlements-plist')
+  const [[source, target]] = overlay.copy
+  assert.equal(readFileSync(source, 'utf8').includes('com.apple.security.device.audio-input'), true)
+  // 上游配置相对 dsh-plugin-desktop；换算到 staging 根必须正好落在复制目标上。
+  const mac = JSON.parse(read('package.json')).build.mac
+  for (const key of ['entitlements', 'entitlementsInherit']) {
+    assert.equal(resolve('/stage/dsh-plugin-desktop', mac[key]), resolve('/stage', target), `build.mac.${key} 与复制目标不一致`)
   }
 })
