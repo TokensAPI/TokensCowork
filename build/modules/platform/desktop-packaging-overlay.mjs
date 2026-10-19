@@ -140,7 +140,7 @@ export function alignMacReleaseVerification(source) {
         break
       } catch (error) {
         if (attempt >= 3) throw error
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, options.stapleRetryDelayMs ?? 30_000)
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.TOKENS_STAPLE_RETRY_MS ?? 30_000))
       }
     }
 `)

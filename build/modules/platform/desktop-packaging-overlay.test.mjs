@@ -159,15 +159,17 @@ test('the release verifier retries a flaky stapler lookup without loosening the 
   const { verifyMacRelease } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
   const previous = process.env.DSH_MAC_ARCH
   process.env.DSH_MAC_ARCH = 'arm64'
+  process.env.TOKENS_STAPLE_RETRY_MS = '0'
   try {
     const validateCalls = []
     let failures = 2
-    const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {}, stapleRetryDelayMs: 0,
+    const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {},
       run: (command, args) => { if (command === 'xcrun' && args[1] === 'validate') { validateCalls.push(args); if (failures-- > 0) throw new Error('The network connection was lost.') } } }
     verifyMacRelease(options)
     assert.equal(validateCalls.length, 3)
     assert.throws(() => verifyMacRelease({ ...options, run: (command, args) => { if (command === 'xcrun' && args[1] === 'validate') throw new Error('lost') } }), /failed to verify/)
   } finally {
+    delete process.env.TOKENS_STAPLE_RETRY_MS
     if (previous === undefined) delete process.env.DSH_MAC_ARCH
     else process.env.DSH_MAC_ARCH = previous
   }
