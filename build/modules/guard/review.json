@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-09-17",
+  "reviewedAt": "2026-10-19",
   "reviewNote": "循环护栏覆盖的登记基线。锚点守护已在装配期生效:补丁层出现重复行即中断打包;行为验收见 verification。升级后不要机械更新基线。",
   "baseline": {
-    "desktop": "63e160ab4387988db894adef766865eab897cf80",
+    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
     "dsh": null,
     "plugins": {
       "tokens-loop-guard": {
-        "commit": "c4ae69e195ff0d9c192838f9b80b97cda4b02246",
+        "commit": "a4abda43136185aaa8dabf0c15557a47fe717949",
         "version": "0.1.0",
         "artifact": null
       }
@@ -18,7 +18,7 @@
       "overlays": [
         "guard.disable-repeat-reminder"
       ],
-      "verified": "2026-09-17:staging-prepare 装配通过,Desktop 补丁层含停用条目且无重复 id;tokens-loop-guard 插件 12 项 node --test 单测通过(精确/近似链计数、阈值提醒、硬阻断、排除与用户消息重置、配置校验);repo-layout-verify 与 market 目录校验通过。未执行完整打包与真实会话回归。"
+      "verified": "2026-10-19:随 v0.6.0(Desktop 2.0.17 / DSH 0.2.0-rc.2)复查。overlay-doctor --doctor 判定覆盖生效,cordis.patch.yml 在旧基线与当前 pin 之间上游无改动;插件自 c4ae69e1 以来新增的三条提交(durable reminder 识别、生成内文本退化护栏、e2e 用例)未动精确/近似重复与硬阻断,覆盖前提不变;按固定提交 a4abda43 在 .build 隔离副本中执行插件 npm test,21 项全通过。未执行真实会话回归与完整打包验证。"
     }
   ]
 }
