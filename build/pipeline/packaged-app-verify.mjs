@@ -8,10 +8,11 @@ import {
   statSync,
 } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve, sep } from 'node:path'
+import { resolve } from 'node:path'
 import { alignConnectionRpcScope } from '../modules/runtime/runtime-version-overlay.mjs'
 import { alignCompactionSummary } from '../modules/runtime/compaction-overlay.mjs'
 import { verifyDesktopCertificateBranding } from '../modules/branding/branding-overlay.mjs'
+import { openPackagedTree } from './packaged-tree.mjs'
 import { productStage } from './paths.mjs'
 
 const root = resolve(import.meta.dirname, '..', '..')
@@ -52,18 +53,20 @@ if (buildManifest.description !== `${product.name} desktop application`) {
   throw new Error('Windows shortcut/application description retains incorrect branding')
 }
 const requireFromDesktop = createRequire(resolve(desktopRoot, 'package.json'))
-const { extractFile, listPackage } = requireFromDesktop('@electron/asar')
-const packagedAsar = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar')
-const unpackedResources = resolve(desktopRoot, 'dist', 'win-unpacked', 'resources', 'app.asar.unpacked')
-const packagedAsarFiles = listPackage(packagedAsar)
-  .map(path => path.replaceAll('\\', '/').replace(/^\/+/, ''))
-const packagedRuntimeClosure = packagedAsarFiles
+// 上游 2.0.17 起 build.asar = false，应用按目录铺开；两种布局都要能校验。
+const packaged = openPackagedTree(
+  resolve(desktopRoot, 'dist', 'win-unpacked', 'resources'),
+  () => requireFromDesktop('@electron/asar'),
+)
+const packagedRuntimeClosure = packaged.files
   .filter(path => path.startsWith('lib/') && path.endsWith('.js'))
-  .map(path => extractFile(packagedAsar, path.replaceAll('/', sep)).toString('utf8'))
+  .map(path => packaged.read(path))
   .join('\n')
-const unpackedRuntimeFiles = readdirSync(unpackedResources, { recursive: true })
-  .map(path => path.replaceAll('\\', '/'))
-const packagedRuntimeFiles = [...new Set([...packagedAsarFiles, ...unpackedRuntimeFiles])]
+// 目录布局下原生文件就在应用树内，没有单独的解包清单。
+const unpackedRuntimeFiles = packaged.layout === 'asar'
+  ? readdirSync(packaged.nativeRoot, { recursive: true }).map(path => String(path).replaceAll('\\', '/'))
+  : []
+const packagedRuntimeFiles = [...new Set([...packaged.files, ...unpackedRuntimeFiles])]
 const packagedNodeModuleFiles = packagedRuntimeFiles
   .filter(path => path.startsWith('node_modules/'))
 const forbiddenMetadata = packagedNodeModuleFiles.filter(path => path.endsWith('.map')
@@ -95,19 +98,17 @@ const forbiddenForeignRuntime = [
 ]
 // DSH 0.2 uses the declarative preset registry. Validate its packaged identity;
 // Loader/profile and upstream closure gates verify tree activation and exports.
-const packagedPresetRegistry = JSON.parse(extractFile(packagedAsar,
-  'node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json'.replaceAll('/', sep)).toString('utf8'))
+const packagedPresetRegistry = JSON.parse(
+  packaged.read('node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json'))
 if (packagedPresetRegistry.name !== '@deepseek-ai/dsh-agent-preset-registry'
   || packagedPresetRegistry.version !== JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8')).desktop.runtimeVersion) {
   throw new Error('Packaged preset registry differs from product runtime pin')
 }
-const packagedConnection = extractFile(packagedAsar,
-  'node_modules/@deepseek-ai/dsh-client-connection/lib/index.js'.replaceAll('/', sep)).toString('utf8')
+const packagedConnection = packaged.read('node_modules/@deepseek-ai/dsh-client-connection/lib/index.js')
 if (alignConnectionRpcScope(packagedConnection) !== packagedConnection) {
   throw new Error('Packaged Connection is missing the RPC scope compatibility fix')
 }
-const packagedCompaction = extractFile(packagedAsar,
-  'node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js'.replaceAll('/', sep)).toString('utf8')
+const packagedCompaction = packaged.read('node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js')
 if (alignCompactionSummary(packagedCompaction) !== packagedCompaction) {
   throw new Error('Packaged compaction is missing checkpoint isolation and validation')
 }
@@ -143,16 +144,17 @@ if (nonAsciiRuntimeFiles.length !== 0) {
   throw new Error(`packaged Windows runtime contains non-ASCII file names the installer cannot extract: ${nonAsciiRuntimeFiles[0]}`)
 }
 for (const path of requiredWindowsX64Runtime) {
-  if (!existsSync(resolve(unpackedResources, path))) {
+  if (!existsSync(resolve(packaged.nativeRoot, path))) {
     throw new Error(`packaged Windows x64 runtime is missing required native files: ${path}`)
   }
 }
 for (const path of forbiddenForeignRuntime) {
-  if (existsSync(resolve(unpackedResources, path))) {
+  if (existsSync(resolve(packaged.nativeRoot, path))) {
     throw new Error(`packaged Windows x64 runtime retains a foreign native architecture: ${path}`)
   }
 }
 process.stdout.write(
   `verify-package: Windows ${product.name} ${product.version} installer passed `
-  + `(${packagedAsarFiles.length} ASAR entries, ${unpackedRuntimeFiles.length} unpacked entries)\n`,
+  + `(${packaged.layout} layout, ${packaged.files.length} application entries, `
+  + `${unpackedRuntimeFiles.length} unpacked entries)\n`,
 )
