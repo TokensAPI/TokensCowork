@@ -115,13 +115,14 @@ export function verifySignedApp(app, state, notarized = false, run = runMac) {
 }
 
 /**
- * `stapler validate` 要向 Apple 查询票据，偶发断连（NSURLError -1005，v0.6.1 构建遇到过）。
- * 断连重试三次，校验本身不放宽：三次都失败仍然抛出。
+ * stapler 的 staple / validate 都要向 Apple 的 CloudKit 查票据：公证刚 Accepted 时票据
+ * 可能还没同步出来（staple 立刻退出码 68），查询也会偶发断连（NSURLError -1005）。
+ * v0.6.1 的两次构建各撞上一种。失败后等一会再试，次数用尽仍然抛出，校验不放宽。
  */
-export function validateStaple(app, run = runMac, { attempts = 3, delayMs = 30_000, sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } = {}) {
+export function runStapler(action, app, run = runMac, { attempts = 3, delayMs = 30_000, sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } = {}) {
   for (let attempt = 1; ; attempt++) {
     try {
-      run('xcrun', ['stapler', 'validate', app])
+      run('xcrun', ['stapler', action, app])
       return
     } catch (error) {
       if (attempt >= attempts) throw error
@@ -129,6 +130,10 @@ export function validateStaple(app, run = runMac, { attempts = 3, delayMs = 30_0
     }
   }
 }
+
+export const validateStaple = (app, run, options) => runStapler('validate', app, run, options)
+/** 票据同步最长见过要等上几分钟，装订给 6 次机会（约 2.5 分钟）。 */
+export const stapleTicket = (app, run, options) => runStapler('staple', app, run, { attempts: 6, ...options })
 
 export default async function afterSign(context) {
   if (context.electronPlatformName !== 'darwin' || !process.env.APPLE_ID) return
@@ -155,7 +160,7 @@ export default async function afterSign(context) {
   writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`)
   console.log(`Saved signed application and Apple submission ${state.submissionId}`)
   await waitForAcceptance(state.submissionId)
-  runMac('xcrun', ['stapler', 'staple', app])
+  stapleTicket(app)
   verifySignedApp(app, state, true)
 }
 
@@ -172,7 +177,7 @@ export async function recover(root, manifestFile, commit, arch, { run = runMac, 
   run('ditto', ['-x', '-k', archive, output])
   const app = join(output, `${product.name}.app`)
   verify(app, state, false, run)
-  run('xcrun', ['stapler', 'staple', app])
+  stapleTicket(app, run)
   verify(app, state, true, run)
   link('/Applications', join(output, 'Applications'))
   const distributionArch = arch === 'x64' ? 'amd64' : arch

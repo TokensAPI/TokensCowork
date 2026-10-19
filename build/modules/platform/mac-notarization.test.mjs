@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import afterSign, { inspectHistory, waitForAcceptance, validateRecoveryState, validateStaple, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
+import afterSign, { inspectHistory, waitForAcceptance, validateRecoveryState, validateStaple, stapleTicket, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
 
 const id = 'cfdabdcb-ea33-4498-911e-84f12ac2d946'
 const commit = 'a'.repeat(40)
@@ -142,4 +142,12 @@ test('stapler validation retries transient Apple lookups and still fails after t
   let always = 0
   assert.throws(() => validateStaple('/fixture.app', () => { always++; throw new Error('lost') }, { sleep: () => {} }), /lost/)
   assert.equal(always, 3)
+  // 公证刚 Accepted 时票据可能还没同步，装订要多等几次。
+  const staples = []
+  let notReady = 5
+  stapleTicket('/fixture.app', (command, args) => { staples.push(args[1]); if (notReady-- > 0) throw new Error('exit 68') }, { sleep: () => {} })
+  assert.deepEqual(staples, Array(6).fill('staple'))
+  let exhausted = 0
+  assert.throws(() => stapleTicket('/fixture.app', () => { exhausted++; throw new Error('exit 68') }, { sleep: () => {} }), /exit 68/)
+  assert.equal(exhausted, 6)
 })
