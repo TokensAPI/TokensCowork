@@ -59,3 +59,13 @@ test('plugin tests are opt-in and block the launch before the app starts', () =>
   assert.match(dev, /if \(\$TestPlugins\)/)
   assert.match(dev, /if \(\$TestMarketPlugins\)/)
 })
+
+test('the fast compatibility check is opt-in and runs before the app starts', () => {
+  const dev = read('./dev-desktop.ps1')
+  assert.match(dev, /\[switch\]\$CheckPlugins/)
+  const command = 'node scripts\\check-plugin-compatibility.mjs --profile'
+  assert.equal(dev.split(command).length, 2)
+  assert.ok(dev.indexOf(command) < dev.indexOf("Write-Host '==> 启动 TokensCowork"))
+  // The check reads the same Profile the app will open, sandbox included.
+  assert.match(dev, /if \(\$CheckPlugins\) \{[\s\S]*?if \(\$Sandbox\) \{ \$sandboxHome \}/)
+})

@@ -7,6 +7,7 @@
 #   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
 #   powershell -File scripts\dev-desktop.ps1 -Prepare     # 强制重新装配（默认会检测输入变化）
 #   powershell -File scripts\dev-desktop.ps1 -Force       # 连已安装的 TokensCowork 一起关掉再启动
+#   powershell -File scripts\dev-desktop.ps1 -CheckPlugins       # 启动前秒级速查：哪些插件会被宿主停用
 #   powershell -File scripts\dev-desktop.ps1 -TestPlugins        # 启动前跑全部内置插件的自动化测试（同发布构建）
 #   powershell -File scripts\dev-desktop.ps1 -TestMarketPlugins  # 启动前跑当前 Profile 已装市场插件的自动化测试
 #
@@ -44,7 +45,9 @@ param(
   [switch]$Force,
   # 启动前跑插件自动化测试；耗时较长，故不设为默认。
   [switch]$TestPlugins,
-  [switch]$TestMarketPlugins
+  [switch]$TestMarketPlugins,
+  # 秒级速查：调用宿主自己的兼容判定，列出会被停用的插件；不跑插件测试。
+  [switch]$CheckPlugins
 )
 
 $ErrorActionPreference = 'Stop'
@@ -297,6 +300,12 @@ if (-not $Sandbox) {
 
 # 插件测试放在启动前：失败即不启动，与发布构建的阻断规则一致。
 $pluginTests = @()
+if ($CheckPlugins) {
+  # 速查用本次要启动的 Profile（沙箱或真实数据），与启动时宿主读的是同一份。
+  $checkHome = if ($Sandbox) { $sandboxHome } else { Join-Path $HOME '.dsh' }
+  $checkProfile = Join-Path (Join-Path $checkHome 'profiles') 'desktop'
+  $pluginTests += @{ Label = '插件兼容速查'; Cmd = "node scripts\check-plugin-compatibility.mjs --profile `"$checkProfile`"" }
+}
 if ($TestPlugins) { $pluginTests += @{ Label = '内置插件自动化测试'; Cmd = 'node scripts\test-product-plugins.mjs' } }
 if ($TestMarketPlugins) {
   $dshHome = if ($Sandbox) { $sandboxHome } else { Join-Path $HOME '.dsh' }
