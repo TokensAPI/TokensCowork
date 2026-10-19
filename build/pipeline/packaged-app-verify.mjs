@@ -79,8 +79,13 @@ const requiredWindowsX64Runtime = [
   'node_modules/@vscode/ripgrep-win32-x64',
   'node_modules/node-addon-require-builtin-win32-x64-msvc',
   'node_modules/node-pty/prebuilds/win32-x64',
+  'node_modules/@dataiku/uv-win32-x64',
+  'node_modules/@deepseek-ai/libreoffice-kit-win32-x64',
 ]
 const forbiddenForeignRuntime = [
+  // 2.0.17 起最大的两个原生包；留着另一个架构的副本安装包就翻倍。
+  'node_modules/@dataiku/uv-win32-arm64',
+  'node_modules/@deepseek-ai/libreoffice-kit-win32-arm64',
   'node_modules/@img/sharp-win32-arm64',
   'node_modules/@img/sharp-win32-ia32',
   'node_modules/@koromix/koffi-win32-arm64',

@@ -173,11 +173,12 @@ if (mode === 'check') {
   /* ----------------------- 未签名 macOS DMG ------------------------ */
   // 完整质量门禁由独立任务执行；本分支只构建未签名的原生验证包。
   const requestedArch = assertNativeMacArchitecture()
-  configureBuildAndVerifyProduct(buildEnvironment)
+  configureBuildAndVerifyProduct(buildEnvironment, `mac-${requestedArch}`)
   prepareMacNativeRuntime([requestedArch], buildEnvironment)
   const packagingEnvironment = {
     ...buildEnvironment,
     DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
+    DSH_MAC_ARCH: requestedArch,
   }
   run('corepack', [
     'yarn',
@@ -261,7 +262,7 @@ if (mode === 'check') {
   // 通用质量门禁由同一次工作流的 Windows 任务负责；产品配置会移除上游
   // macOS 发布脚本中的重复 check，发布任务会等待全部平台构建通过。
   const signedArch = assertNativeMacArchitecture()
-  configureBuildAndVerifyProduct(buildEnvironment)
+  configureBuildAndVerifyProduct(buildEnvironment, `mac-${signedArch}`)
   prepareMacNativeRuntime([signedArch], buildEnvironment)
   const releaseEnvironment = {
     ...(planOnly ? process.env : adaptAppleReleaseEnvironment(process.env)),

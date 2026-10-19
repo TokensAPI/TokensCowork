@@ -37,6 +37,7 @@ export const desktopFiles = {
   releaseMac: `${desktop}/scripts/release-mac.ts`,
   verifyMacRelease: `${desktop}/scripts/verify-mac-release.ts`,
   verifyMacEntitlements: `${desktop}/scripts/verify-mac-entitlements.ts`,
+  verifyPackagedRuntime: `${desktop}/scripts/verify-packaged-runtime.ts`,
   moduleResolutionTests: `${desktop}/tests/module-resolution.spec.ts`,
   windowsPwshSandboxTests: `${desktop}/tests/windows-pwsh-sandbox.spec.ts`,
 }

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { resolve } from 'node:path'
-import { alignFsExtArchitecture, alignMacEntitlementArchitecture, alignMacReleaseChecks, alignMacReleaseVerification, configureDesktopPackage } from './desktop-packaging-overlay.mjs'
+import { alignFsExtArchitecture, alignMacEntitlementArchitecture, alignMacReleaseChecks, alignMacReleaseVerification, alignPackagedAgentsAnywhereCheck, configureDesktopPackage, macForeignArchExclusions } from './desktop-packaging-overlay.mjs'
 
 const read = path => readFileSync(new URL(`../../../desktop/dsh-plugin-desktop/${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 const product = { name: 'TokensCowork', version: '0.5.0', appId: 'com.tokensapi.tokenscowork', windowsInstallerGuid: 'fixture-guid' }
@@ -20,7 +20,7 @@ test('packaging extraction preserves product identity and Windows-only exclusion
   assert.equal(win.build.nsis.guid, product.windowsInstallerGuid)
   assert.equal(win.build.nsis.artifactName, 'TokensCowork-${version}-${arch}-Setup.${ext}')
   assert.deepEqual(mac.build.files, pristine.build.files)
-  assert.equal(win.build.files.length, pristine.build.files.length + 7)
+  assert.equal(win.build.files.length, pristine.build.files.length + 11)
   assert.deepEqual(win.build.files.slice(0, pristine.build.files.length), pristine.build.files)
 })
 
@@ -110,4 +110,43 @@ test('the entitlements plist is copied to the path the upstream mac config signs
   for (const key of ['entitlements', 'entitlementsInherit']) {
     assert.equal(resolve('/stage/dsh-plugin-desktop', mac[key]), resolve('/stage', target), `build.mac.${key} 与复制目标不一致`)
   }
+})
+
+test('single-arch macOS packages drop the other architecture using the upstream x64ArchFiles list', () => {
+  const pristine = JSON.parse(read('package.json'))
+  for (const [arch, foreign] of [['arm64', 'x64'], ['x64', 'arm64']]) {
+    const exclusions = macForeignArchExclusions(pristine.build, arch)
+    // 2.0.17 新增的大体积原生包必须在剔除之列，且全部来自上游清单而不是手抄。
+    for (const name of ['@deepseek-ai/libreoffice-kit', '@dataiku/uv', 'sherpa-onnx']) {
+      assert.ok(exclusions.includes(`!node_modules/${name}-darwin-${foreign}/**`), `${arch}: 缺少 ${name}-darwin-${foreign}`)
+    }
+    assert.ok(exclusions.includes(`!node_modules/node-pty/prebuilds/darwin-${foreign}/**`))
+    assert.ok(exclusions.every(entry => !entry.includes(`darwin-${arch}`)), `${arch}: 不能剔除本架构`)
+    const configured = structuredClone(pristine)
+    configureDesktopPackage(configured, product, `mac-${arch}`)
+    assert.deepEqual(configured.build.files, [...pristine.build.files, ...exclusions])
+  }
+  const plain = structuredClone(pristine)
+  configureDesktopPackage(plain, product, 'default')
+  assert.deepEqual(plain.build.files, pristine.build.files)
+  assert.throws(() => configureDesktopPackage(structuredClone(pristine), product, 'linux'), /unknown packaging target/)
+  assert.throws(() => macForeignArchExclusions({ mac: { x64ArchFiles: '**/node_modules/{foo/**}' } }, 'arm64'), /darwin-\*/)
+  assert.throws(() => macForeignArchExclusions({ mac: {} }, 'arm64'), /format changed/)
+})
+
+test('the packaged uv check follows the selected architecture and keeps upstream behaviour without one', () => {
+  const source = alignPackagedAgentsAnywhereCheck(read('scripts/verify-packaged-runtime.ts'))
+  const start = source.indexOf('    const selectedArch = ')
+  const end = source.indexOf('{', source.indexOf('for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES', start)) + 1
+  assert.ok(start > 0 && end > start)
+  const entries = [
+    { arch: 'arm64', path: 'node_modules/@dataiku/uv-darwin-arm64/bin/uv' },
+    { arch: 'x86_64', path: 'node_modules/@dataiku/uv-darwin-x64/bin/uv' },
+    { arch: 'arm64', path: 'node_modules/x/koffi.node' },
+  ]
+  const run = new Function('process', 'MACOS_UNIVERSAL_NATIVE_ENTRIES', `const seen = []; ${source.slice(start, end)} seen.push(entry.path) } return seen`)
+  assert.deepEqual(run({ env: { DSH_MAC_ARCH: 'arm64' } }, entries), ['node_modules/@dataiku/uv-darwin-arm64/bin/uv'])
+  assert.deepEqual(run({ env: { DSH_MAC_ARCH: 'x64' } }, entries), ['node_modules/@dataiku/uv-darwin-x64/bin/uv'])
+  assert.deepEqual(run({ env: {} }, entries), ['node_modules/@dataiku/uv-darwin-arm64/bin/uv', 'node_modules/@dataiku/uv-darwin-x64/bin/uv'])
+  assert.throws(() => alignPackagedAgentsAnywhereCheck(source), /anchor changed/)
 })

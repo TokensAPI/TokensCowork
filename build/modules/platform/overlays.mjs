@@ -10,6 +10,7 @@ import {
   alignMacEntitlementArchitecture,
   alignMacReleaseChecks,
   alignMacReleaseVerification,
+  alignPackagedAgentsAnywhereCheck,
   configureDesktopPackage,
 } from './desktop-packaging-overlay.mjs'
 import { bridgeDesktopSystemProxy, bridgeWebFetchSystemProxy } from './system-proxy-overlay.mjs'
@@ -120,8 +121,18 @@ export default [
       configureDesktopPackage(desktopPackage, product.product, options.packagingTarget ?? 'default')
       return { desktopPackage }
     },
-    why: '产品版本、appId、安装器名称与 GUID、afterSign 公证回调；Windows 包裁剪非 x64 原生依赖。',
+    why: '产品版本、appId、安装器名称与 GUID、afterSign 公证回调；按打包目标剔除异架构原生依赖（Windows 剔 arm64/ia32，单架构 macOS 按上游 x64ArchFiles 清单剔另一个架构），否则安装包翻倍、签名公证时间翻倍。',
     retireWhen: '产品身份始终保留；上游支持配置化架构裁剪后缩减对应部分。',
+  },
+  {
+    id: 'platform.mac-packaged-uv-check',
+    phase: 'configure',
+    upstream: ['desktop'],
+    kind: 'compatibility',
+    files: { verifier: d.verifyPackagedRuntime },
+    apply: ({ verifier }) => ({ verifier: alignPackagedAgentsAnywhereCheck(verifier) }),
+    why: '上游 afterPack 要求两个架构的 uv 都在包里；剔除异架构后只按 DSH_MAC_ARCH 检查本架构那一个。',
+    retireWhen: '随 platform.mac-single-arch-release 一起移除。',
   },
   {
     id: 'platform.nsis-resources',

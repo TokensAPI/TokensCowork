@@ -75,6 +75,8 @@ for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
     }
     if (mode === 'mac') assert.ok(output.includes('dist:mac'))
     if (mode.startsWith('mac')) {
+      // 单架构打包要把另一个架构的原生依赖剔掉，configure 必须带上架构目标。
+      assert.match(output, /staging-product-configure\.mjs mac-(arm64|x64)\b/)
       // 单架构打包不经过 mac-universal，必须自行恢复 uv 执行位，否则 afterPack 校验 EACCES。
       const restore = output.indexOf('prepare-agents-anywhere-runtime.mjs')
       const packaging = mode === 'mac' ? output.indexOf('dist:mac') : output.indexOf('electron-builder')

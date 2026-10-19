@@ -212,3 +212,22 @@ test('a failed command reports the tail of its output', () => {
   assert.match(tail, /ERROR boom$/)
   assert.doesNotMatch(tail, /line 9\n/)
 })
+
+test('the weekly cache warm-up reads exactly the cache the release build writes', () => {
+  const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+  const warm = readFileSync(new URL('../.github/workflows/warm-build-cache.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+  const block = (text, marker) => {
+    const start = text.indexOf(marker)
+    assert.ok(start > 0, `缺少步骤 ${marker}`)
+    const body = text.slice(text.indexOf('        with:\n', start) + 14)
+    // 只比 path / key / restore-keys 的内容，注释行不计。
+    return body.slice(0, body.search(/\n(?! {10})/)).split('\n').filter(line => !/^\s*#/.test(line)).join('\n').trim()
+  }
+  // path / key / restore-keys 三段逐字一致，预热刷新的才是发版那份缓存。
+  assert.equal(block(warm, '预热 · 读取构建缓存'), block(release, '准备 · 恢复构建缓存'))
+  assert.match(warm, /uses: actions\/cache\/restore@v5/)
+  assert.match(warm, /schedule:\n    - cron:/)
+  // 预热不执行任何命令：没有 run 步骤，只有 checkout 与缓存读取。
+  assert.doesNotMatch(warm, /\n\s+run:/)
+  for (const runner of ['windows-2022', 'macos-14', 'macos-15-intel']) assert.ok(warm.includes(runner), `预热缺少 ${runner}`)
+})

@@ -12,8 +12,8 @@ import { productStage } from './paths.mjs'
 const root = resolve(import.meta.dirname, '..', '..')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 const packagingTarget = process.argv[2] ?? 'default'
-if (!['default', 'windows'].includes(packagingTarget)) {
-  throw new Error('configure-product: expected default or windows packaging target')
+if (!['default', 'windows', 'mac-arm64', 'mac-x64'].includes(packagingTarget)) {
+  throw new Error('configure-product: expected default, windows, mac-arm64 or mac-x64 packaging target')
 }
 
 await runOverlays('configure', { stage: productStage(root), product, options: { packagingTarget } })

@@ -1,13 +1,45 @@
 // Product packaging policy; invoked by prepare/configure, never executes a build.
+// 上游 yarn 按 supportedArchitectures 同时装 x64 与 arm64 两套原生依赖（给 macOS 通用包
+// 用）。产品按架构单独打包，另一套只是体积：2.0.17 起 libreoffice-kit 与 uv 每架构
+// 150–190 MB，不剔掉安装包翻倍，签名、公证与 NSIS 压缩时间跟着翻倍。
 const windowsX64RuntimeExclusions = [
   '!node_modules/@img/sharp-win32-{arm64,ia32}/**',
   '!node_modules/@koromix/koffi-win32-{arm64,ia32}/**',
   '!node_modules/@vscode/ripgrep-win32-{arm64,ia32}/**',
   '!node_modules/node-addon-require-builtin-win32-{arm64,ia32}-msvc/**',
   '!node_modules/node-pty/prebuilds/{darwin-*,linux-*,win32-arm64,win32-ia32}/**',
+  '!node_modules/fs-ext/prebuilds/{darwin-*,linux-*}/**',
+  '!node_modules/@dataiku/uv-win32-{arm64,ia32}/**',
+  '!node_modules/@deepseek-ai/libreoffice-kit-win32-{arm64,ia32}/**',
+  '!node_modules/sherpa-onnx-win-{arm64,ia32}/**',
   '!node_modules/**/*.map',
   '!node_modules/**/*.{d.ts,d.mts,d.cts}',
 ]
+
+/**
+ * 从上游通用包的 `mac.x64ArchFiles` 清单推导单架构 macOS 包要剔除的异架构目录。
+ * 上游维护那份清单（新增原生依赖时会同步加进去），这里只把 `darwin-*` 换成另一个架构，
+ * 不另抄一份包名；清单格式变了立即报错而不是静默少剔。
+ * @param build - staging 副本 package.json 的 build 字段。
+ * @param arch - 本次打包的 Electron 架构：arm64 或 x64。
+ * @returns electron-builder `files` 的排除模式。
+ */
+export function macForeignArchExclusions(build, arch) {
+  if (arch !== 'arm64' && arch !== 'x64') throw new Error(`configure-product: unsupported macOS architecture ${arch}`)
+  const foreign = arch === 'arm64' ? 'x64' : 'arm64'
+  const list = build.mac?.x64ArchFiles
+  const match = typeof list === 'string' ? /^\*\*\/node_modules\/\{(.+)\}$/u.exec(list) : null
+  if (!match) throw new Error('configure-product: upstream mac.x64ArchFiles format changed')
+  const patterns = match[1].split(',').map(entry => entry.trim())
+  if (patterns.length === 0 || patterns.some(entry => !entry.includes('darwin-*/**'))) {
+    throw new Error('configure-product: upstream mac.x64ArchFiles entry is not a darwin-* package')
+  }
+  return [
+    ...patterns.map(entry => `!node_modules/${entry.replace('darwin-*', `darwin-${foreign}`)}`),
+    '!node_modules/node-pty/prebuilds/{win32-*,linux-*}/**',
+    '!node_modules/fs-ext/prebuilds/{win32-*,linux-*}/**',
+  ]
+}
 const upstreamReleaseCheck = `  // The workspace check includes the package build and repository-layout gate. Signing
   // material is withheld from every build, test, Loader smoke, and layout subprocess.
   options.run(
@@ -38,7 +70,25 @@ export function configureDesktopPackage(desktopPackage, product, packagingTarget
   }
   if (packagingTarget === 'windows') {
     desktopPackage.build.files.push(...windowsX64RuntimeExclusions)
+  } else if (packagingTarget === 'mac-arm64' || packagingTarget === 'mac-x64') {
+    desktopPackage.build.files.push(...macForeignArchExclusions(desktopPackage.build, packagingTarget.slice(4)))
+  } else if (packagingTarget !== 'default') {
+    throw new Error(`configure-product: unknown packaging target ${packagingTarget}`)
   }
+}
+
+/**
+ * 上游 afterPack 要求两个架构的 uv 都在包里且可执行；单架构包只保留本架构的，
+ * 按 DSH_MAC_ARCH 只检查那一个。未设置架构时保持上游行为（通用包）。
+ * @param source - staging 副本中 verify-packaged-runtime.ts 的完整内容。
+ * @returns 只检查本架构 uv 的校验源码。
+ * @throws 上游校验锚点变化时抛出。
+ */
+export function alignPackagedAgentsAnywhereCheck(source) {
+  const anchor = "    for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.path.endsWith('/bin/uv'))) {"
+  if (source.split(anchor).length !== 2) throw new Error('configure-product: packaged uv check anchor changed')
+  return source.replace(anchor, `    const selectedArch = process.env.DSH_MAC_ARCH === 'x64' ? 'x86_64' : process.env.DSH_MAC_ARCH === 'arm64' ? 'arm64' : undefined
+    for (const entry of MACOS_UNIVERSAL_NATIVE_ENTRIES.filter(entry => entry.path.endsWith('/bin/uv') && (selectedArch === undefined || entry.arch === selectedArch))) {`)
 }
 
 /** Windows owns shared CI quality checks; do not rerun them in macOS release. */
