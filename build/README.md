@@ -8,19 +8,21 @@
 build/
 ├─ README.md
 ├─ build.mjs           完整检查 / 平台打包的统一调度入口
-├─ pipeline/           装配步骤、依赖锁、跨模块校验
-└─ modules/            上游行为覆盖，代码 / 测试 / 资源 / review.json 就近存放
+├─ pipeline/           装配步骤、覆盖执行器与体检、依赖锁、跨模块校验
+└─ modules/            上游行为覆盖：登记表 overlays.mjs、转换函数、测试、资源、review.json
    ├─ branding/        品牌、Logo、文案、旧数据迁移
-   ├─ market/          市场来源、授权、插件更新、Registry 与部署适配
+   ├─ market/          市场来源、授权、插件更新与 Registry
    ├─ runtime/         DSH 版本、启动、RPC、压缩及插件接口兼容
    ├─ updates/         桌面应用自身的版本更新
-   └─ platform/        Windows ACL / 安装器、macOS 签名与架构
+   ├─ platform/        Windows ACL / 安装器、macOS 签名与架构
+   └─ guard/           内置循环护栏与上游提醒的取舍
 ```
 
 依赖方向：`build.mjs → pipeline → modules`。模块可使用共享路径工具，不反向调用构建流程。
 不再另外分散 overlays、verify、hooks；只给资源建 `assets/`，不为每个模块重复建 steps/tests/utils。
 
-命名采用小写 `kebab-case`：`对象-动作.mjs`；覆盖为 `*-overlay.mjs`，
+每个模块的 `overlays.mjs` 是该模块全部覆盖的唯一登记处，由 `pipeline/overlay-engine.mjs` 按阶段执行，见[模块说明](modules/README.md)。
+命名采用小写 `kebab-case`：`对象-动作.mjs`；转换函数为 `*-overlay.mjs`，
 检查为 `*-verify.mjs`，显式诊断为 `*-smoke.mjs / *-regression.mjs`。
 `*.test.mjs` 是外层 Node 测试；`*.spec.ts` 和资源中的源码、签名回调复制到 staging 后执行，保留目标工具要求的格式。
 
@@ -36,7 +38,7 @@ build/
 - macOS 在原生 runner 只构建对应的 arm64 或 x64 包，完成配置、编译、品牌、原生依赖与签名检查；共享质量检查由同次 Windows 任务承担。三平台构建与插件回归共用 fail-fast 矩阵并行执行，任一任务失败取消其余任务，全部成功才发布。
 - `check` 不生成安装包；本地开发脚本根据输入变化决定装配 / 编译，不调用安装包流程。
 - 运行时检查包含摘要保护回归：只用内存中的测试会话，不联网、不读取 Key；真实模型测试需显式执行。
-- 市场服务部署入口 `modules/market/market-routing-prepare.mjs` 独立生成服务副本，Desktop 打包不会调用它或部署市场。
+- 市场服务由“部署 · 插件市场”工作流直接交付 `market/server`；Desktop 打包只应用桌面市场覆盖，文件职责见[市场模块说明](modules/market/README.md)。
 
 ## 常用命令
 
@@ -54,7 +56,9 @@ build/
 | `yarn test:market` | 市场服务和部署脚本测试，不部署 |
 | `yarn product:release:check` | CI 发布快速校验；只读，不发布或公证 |
 | `yarn product:release:promote <tag>` | 正式说明和原资产只读校验；晋级由 CI 回归后执行 |
-| `yarn product:overlays [模块] --check` | 查看覆盖记录，关联 pin 变化时提示复查并非零退出 |
+| `yarn product:overlays [模块] [--check]` | 列出覆盖；`--check` 校验登记完整性，关联 pin 变化时非零退出 |
+| `yarn product:overlays --file <路径>` | 反查哪些覆盖修改了某个 staging 文件、按什么顺序 |
+| `yarn product:overlays --doctor` | 升级体检：临时 staging 中逐条执行，判定生效 / 可删 / 需修改，列出上游改动 |
 | `yarn product:check-desktop` | 完整 staging 校验，不打包 |
 | `yarn product:dist:win / product:dist:mac:auto` | 本地完整打包；正常发布交给 GitHub |
 | `powershell -File scripts/dev-desktop.ps1 -Sandbox -StageName desktop-v050` | 隔离 Electron 功能测试 |
@@ -66,7 +70,7 @@ build/
 
 CI 文件、用途与触发条件统一见 [工作流表](../README.md#发布流程)。
 
-升级时先看 [上游升级检查指南](../docs/upstream-upgrade.md)，覆盖台账见 [模块复查说明](modules/README.md)。结构测试与装配一致不代表跨平台安装和模型功能已验收，不能替代 CI、许可证门禁或真机测试。
+升级时先看 [上游升级检查指南](../docs/upstream-upgrade.md)，再按[模块说明](modules/README.md)的升级步骤运行 `yarn product:overlays --doctor`。结构测试与装配一致不代表跨平台安装和模型功能已验收，不能替代 CI、许可证门禁或真机测试。
 
 macOS 正式发布在 GitHub Actions Repository Secrets 中配置五项：
 `APPLE_CERT_BASE64`（含私钥的 Developer ID Application `.p12` 的 Base64）、

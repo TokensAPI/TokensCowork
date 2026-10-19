@@ -1,23 +1,23 @@
-// Real pnpm + patched market handler + SQLite ACL, isolated localhost fixture.
+// Real pnpm + native market handler + SQLite ACL, isolated localhost fixture.
 // The fixture Key is never sent to the production service. No plugin code runs.
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
 import { createD1Database } from '../../../market/server/runtime/adapters.mjs'
 import { fingerprint } from '../../../market/server/security/key-fingerprint.js'
-import { patchRegistryRoutes } from './market-routing-overlay.mjs'
-import { MarketInstallService, createMarketPackageVerifier } from '../../../.build/desktop/dsh-community-market/lib/install/service.js'
+import { registryRoute } from '../../../market/server/private-registry/routes.js'
+import { productStage } from '../../pipeline/paths.mjs'
+
+const stage = productStage(resolve(import.meta.dirname, '../../..'))
+const { MarketInstallService, createMarketPackageVerifier } = await import(pathToFileURL(resolve(stage, 'dsh-community-market/lib/install/service.js')).href)
 const originalFetch = globalThis.fetch
 const name = '@tokensapi/dsh-plugin-check', id = 'qa-restricted', key = 'sk-local-regression-fixture'
 const root = await mkdtemp(join(tmpdir(), 'cowork-private-regression-'))
 const db = createD1Database(':memory:', fileURLToPath(new URL('../../../market/server/database/migrations/', import.meta.url)))
-const routeFile = new URL('../../../market/server/private-registry/routes.js', import.meta.url)
-const source = patchRegistryRoutes(await readFile(routeFile, 'utf8')).replace(/from '([^']+)'/g, (_, path) => `from '${new URL(path, routeFile).href}'`)
-const { registryRoute } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
 const env = { MARKET_DB: db, MARKET_HMAC_SECRET: 'fixture-secret', MARKET_PRIVATE_REGISTRY_ENABLED: 'true', MARKET_PRIVATE_REGISTRY_URL: 'https://registry.fixture/', MARKET_PRIVATE_REGISTRY_TOKEN: 'fixture-service' }
 const metaResponse = await originalFetch('https://market.tokensapi.ai/registry/tokens-plugin-check/' + encodeURIComponent(name), { signal: AbortSignal.timeout(45000) })
 assert.equal(metaResponse.status, 200)
@@ -56,7 +56,7 @@ try {
     if (!response.ok) throw Error('HTTP ' + response.status)
     return { value: await response.json(), finalUrl: response.url }
   } }
-  const pnpm = fileURLToPath(new URL('../../../.build/desktop/dsh-plugin-desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+  const pnpm = resolve(stage, 'dsh-plugin-desktop/node_modules/pnpm/bin/pnpm.mjs')
   const runner = { run(args) {
     const child = spawn(process.execPath, [pnpm, ...args, '--store-dir=' + join(root, 'store'), '--cache-dir=' + join(root, 'cache'), '--ignore-scripts', '--fetch-retries=0'], { cwd: root, env: { ...process.env, NODE_OPTIONS: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
     return { stdout: child.stdout, stderr: child.stderr, done: new Promise((resolve, reject) => { child.on('error', reject); child.on('exit', (exitCode, signal) => resolve({ exitCode, signal })) }), cancel: () => child.kill() }

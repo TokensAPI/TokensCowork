@@ -137,7 +137,7 @@ run(process.execPath, [resolve(root, 'build', 'pipeline', 'staging-prepare.mjs')
 
 // staging 必须严格复用已提交的产品锁文件；插件仅在 staging 中编译和裁剪。
 run('corepack', ['yarn', 'install', '--immutable'], stage, buildEnvironment)
-// 验证上游 asar 解析，并应用 rc.2 RPC 作用域兼容修正。
+// 安装后应用网页抓取代理、压缩和 RPC 覆盖，再验证实际 RPC 生命周期。
 run(process.execPath, [resolve(root, 'build', 'pipeline', 'staging-runtime-patch.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'modules', 'runtime', 'staging-rpc-smoke.mjs')], root, buildEnvironment)
 run(process.execPath, [resolve(root, 'build', 'pipeline', 'staging-plugins-compile.mjs')], root, buildEnvironment)

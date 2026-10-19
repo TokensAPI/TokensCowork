@@ -4,11 +4,11 @@ import { existsSync, readFileSync, readdirSync, mkdirSync, mkdtempSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { currentInputs, loadCatalog, reviewEntries, validateCatalog } from './overlay-review.mjs'
+import { currentPins, loadReviews, pinChanges, validateRegistry } from './overlay-doctor.mjs'
+import { loadOverlays } from './overlay-engine.mjs'
 import { withoutPnpLoader } from './node-environment.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
-const catalog = loadCatalog()
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
 test('a staging subprocess resolves its own dependencies after removing outer PnP injection', () => {
   const directory = mkdtempSync(resolve(tmpdir(), 'staging-node-'))
@@ -32,23 +32,21 @@ test('a staging subprocess resolves its own dependencies after removing outer Pn
     assert.equal(result.stdout.trim(), '42')
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
-test('every module implementation is registered with purpose, callers, tests and removal criteria', () => {
-  validateCatalog(catalog)
+test('every module file is reachable from its registry and evidence references real overlays', async () => {
+  await validateRegistry()
 })
-test('an upstream/plugin pin change flags affected overlays without rewriting the baseline', () => {
-  const baseline = { ...catalog, entries: catalog.entries.map(entry => ({ ...entry, baseline: currentInputs(product) })) }
+test('a pin change flags only the overlays declaring that upstream input', async () => {
+  const overlays = await loadOverlays()
+  const baseline = currentPins(product)
   const changed = structuredClone(product)
   changed.desktop.deepseekHarnessCommit = 'new-runtime-pin'
-  changed.plugins.find(plugin => plugin.id === 'dsh-tokensapi-ui').artifact.sha256 = 'new-artifact'
-  const review = reviewEntries(baseline, changed)
-  assert.ok(review.find(entry => entry.id === 'runtime.rpc-scope').changed.includes('dsh'))
-  assert.ok(review.find(entry => entry.id === 'market.dialog-position').changed.includes('ui'))
-  assert.deepEqual(review.find(entry => entry.id === 'platform.packaging').changed, [])
-  assert.ok(baseline.entries.every(entry => JSON.stringify(entry.baseline) === JSON.stringify(currentInputs(product))))
-})
-test('inactive and already-upstream fixes cannot be mistaken for injected patches', () => {
-  assert.equal(catalog.entries.find(entry => entry.id === 'runtime.legacy-profile').state, 'inactive')
-  assert.equal(catalog.entries.find(entry => entry.id === 'runtime.presets-asar').state, 'upstream')
+  changed.plugins.find(plugin => plugin.id === 'tokens-version-updates').commit = 'new-plugin-commit'
+  const current = currentPins(changed)
+  const flagged = id => pinChanges(overlays.find(overlay => overlay.id === id), baseline, current)
+  assert.deepEqual(flagged('runtime.rpc-scope'), ['dsh'])
+  assert.deepEqual(flagged('updates.tray-command-id'), ['plugin:tokens-version-updates'])
+  assert.deepEqual(flagged('platform.package-identity'), [])
+  assert.deepEqual(Object.keys(loadReviews()).sort(), ['branding', 'guard', 'market', 'platform', 'runtime', 'updates'])
 })
 for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
   test(`${mode} plan is executable cross-platform and preserves common preflight order`, () => {

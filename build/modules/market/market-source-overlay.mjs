@@ -85,15 +85,11 @@ export function brandMarketCopy(source, productName) {
  */
 export function pinProductMarketSource(sources, origin, manifest) {
   const { index, routes, sourceStore, service, settingsTab, locales } = sources
-  // 1) Host:设置 schema 的 sources 默认值从 [] 换成预置的产品源记录；
-  //    产品入口同时在注册路由前迁移旧配置并补回缺失的产品源。
-  //    记录形状须过 validateLocalSourceRecords:user-added + manifestUrl +
-  //    注册时 manifest 快照 + UUID。UUID 在装配时固定生成,同一版本安装包
-  //    内一致;用户侧首次读取即落库,与手动添加的记录无区别。
-  const schemaAnchor = 'const SETTINGS_SCHEMA = z.object({'
-  const defaultsAnchor = '  sources: z.array(SOURCE_SCHEMA).default([]),'
-  if (!routes.includes(schemaAnchor) || !routes.includes(defaultsAnchor)) {
-    throw new Error('prepare-desktop: 未找到市场源默认值锚点，请复查产品源预置覆盖')
+  // 新版来源由 storage-domain 持久化；在路由模块声明固定来源，
+  // 初始内存状态和 durable store 接管后都进行修复，不回退旧 settings。
+  const schemaAnchor = 'const ROUTE_STATE ='
+  if (routes.split(schemaAnchor).length !== 2) {
+    throw new Error('prepare-desktop: 未找到市场路由锚点，请复查产品源预置覆盖')
   }
   const seededRecord = {
     sourceRecordId: randomUUID(),
@@ -105,16 +101,13 @@ export function pinProductMarketSource(sources, origin, manifest) {
     enabled: true,
     order: 0,
   }
-  let patchedRoutes = routes
-    .replace(
-      schemaAnchor,
-      `export const PRODUCT_SOURCE = ${JSON.stringify(seededRecord)} as never\n${schemaAnchor}`,
-    )
-    .replace(
-      defaultsAnchor,
-      '  // 产品覆盖：预置 TokensAPI 官方目录源并默认选中。\n'
-      + '  sources: z.array(SOURCE_SCHEMA).default([PRODUCT_SOURCE] as never),',
-    )
+  let patchedRoutes = routes.replace(
+    schemaAnchor,
+    `export const PRODUCT_SOURCE: LocalSourceRecord = ${JSON.stringify(seededRecord)}\n${schemaAnchor}`,
+  )
+  const sourceTypeAnchor = "import type { CatalogHttpClient } from '../contracts/types.js'"
+  if (patchedRoutes.split(sourceTypeAnchor).length !== 2) throw new Error('prepare-desktop: 市场来源类型导入锚点变化')
+  patchedRoutes = patchedRoutes.replace(sourceTypeAnchor, "import type { CatalogHttpClient, LocalSourceRecord } from '../contracts/types.js'")
   // 预置源虽然复用标准 user-added 记录形状，但它是产品运行所需的固定入口。
   // Renderer 隐藏删除按钮之外，Host 也拒绝删除，避免直接调用 API 或旧客户端
   // 把唯一来源清空后留下不可恢复的空市场。
@@ -133,17 +126,17 @@ export function pinProductMarketSource(sources, origin, manifest) {
       }
       unavailableSourceRecordIds.add(target.sourceRecordId)`,
   )
-  // 2) Source store:提供一次性迁移函数。产品入口在注册 Web 路由前等待迁移
-  //    完成，并将来源收敛为唯一产品源；通用 store/load 保持上游原语义。
-  const sourceStoreClassAnchor = 'export class SettingsCatalogSourceStore implements CatalogSourceStore {'
+  // 2) Source store：每次启动与持久存储接管后修复来源，等待写入再开放路由。
+  //    通用 store/load 保持上游原语义。
+  const sourceStoreClassAnchor = 'export class PersistentCatalogSourceStore implements CatalogSourceStore {'
   if (!sourceStore.includes(sourceStoreClassAnchor)) {
     throw new Error('prepare-desktop: 未找到市场来源存储锚点，请复查产品源自愈覆盖')
   }
   const requiredSourceRepair = `export async function ensureRequiredSource(
-  scope: SettingsScope<MarketSettingsDocument>,
+  state: MarketStateStore,
   requiredSource: LocalSourceRecord,
 ): Promise<void> {
-  const records = [...scope.get().sources]
+  const records = [...state.getSources()]
   validateLocalSourceRecords(records)
   const isRequired = (record: LocalSourceRecord): boolean => (
     record.providerId === requiredSource.providerId
@@ -159,7 +152,7 @@ export function pinProductMarketSource(sources, origin, manifest) {
   const repaired = [required]
   validateLocalSourceRecords(repaired)
   if (JSON.stringify(records) !== JSON.stringify(repaired)) {
-    await scope.update({ sources: repaired })
+    await state.setSources(repaired)
   }
 }
 
@@ -170,24 +163,22 @@ export function pinProductMarketSource(sources, origin, manifest) {
   )
   const indexRoutesImportAnchor = `import {
   registerMarketRoutes,
-  registerMarketSettings,
   type MarketDesktopPlugins,
 } from './host/routes.js'`
   const indexRouteEffectAnchor = `  ctx.effect(
-    () => registerMarketRoutes(ctx, scope, installProvider, desktopActionsProvider, desktopPluginsProvider),
+    () => registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider, desktopPluginsProvider),
     'community-market: routes',
   )`
   if (!index.includes(indexRoutesImportAnchor) || !index.includes(indexRouteEffectAnchor)) {
     throw new Error('prepare-desktop: 未找到市场产品源启动迁移锚点，请复查产品源自愈覆盖')
   }
-  const patchedIndex = index
+  let patchedIndex = index
     .replace(
       indexRoutesImportAnchor,
       `import { ensureRequiredSource } from './catalog/source-store.js'
 import {
   PRODUCT_SOURCE,
   registerMarketRoutes,
-  registerMarketSettings,
   type MarketDesktopPlugins,
 } from './host/routes.js'`,
     )
@@ -195,12 +186,18 @@ import {
       indexRouteEffectAnchor,
       `  ctx.effect(
     async () => {
-      await ensureRequiredSource(scope, PRODUCT_SOURCE)
-      return registerMarketRoutes(ctx, scope, installProvider, desktopActionsProvider, desktopPluginsProvider)
+      await ensureRequiredSource(state, PRODUCT_SOURCE)
+      return registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider, desktopPluginsProvider)
     },
     'community-market: repair product source and register routes',
   )`,
     )
+  const durableAnchor = '        close = await activateMarketDurableState(storageCtx, state)'
+  if (patchedIndex.split(durableAnchor).length !== 2) {
+    throw new Error('prepare-desktop: 市场持久存储接管锚点变化')
+  }
+  patchedIndex = patchedIndex.replace(durableAnchor,
+    `${durableAnchor}\n        await ensureRequiredSource(state, PRODUCT_SOURCE)`)
   // 3) Host:清空内置合作源目录(1024Store/dshfind 不再出现在可添加列表)。
   const builtInAnchor = 'export const BUILT_IN_PROVIDERS: readonly BuiltInProviderDefinition[] = ['
   if (!service.includes(builtInAnchor)) {
@@ -218,7 +215,7 @@ import {
     + 'export const BUILT_IN_PROVIDERS: readonly BuiltInProviderDefinition[] = ['
     + service.slice(builtInEnd)
   // 4) Renderer:隐藏来源添加/删除入口与固定来源页面的冗余说明。
-  const addButtonAnchor = "        <Button variant=\"outline\" disabled={pending} icon={<IconPlusOutline16 />} onClick={onAddStandard}>{t('addStandard')}</Button>"
+  const addButtonAnchor = "        <Button variant=\"outline\" disabled={pending} icon={<IconPlusOutlineRegular />} onClick={onAddStandard}>{t('addStandard')}</Button>"
   if (!settingsTab.includes(addButtonAnchor)) {
     throw new Error('prepare-desktop: 未找到市场添加来源按钮锚点，请复查产品源预置覆盖')
   }
@@ -230,7 +227,7 @@ import {
   )
   const sourceHeadAnchor = "        <div><h2>{t('sources')}</h2><p>{t('sourceNotice')}</p></div>"
   const sourceGuideAnchor = `      <div className="dshMarketBanner dshMarketSourceGuide">
-        <IconGlobeOutline14 size={14} />
+        <IconGlobeOutlineRegular size={14} />
         <span>
           {t('sourcePartnershipBefore')}
           <a href={DSH_DESKTOP_ISSUES_URL} target="_blank" rel="noopener noreferrer">{t('sourcePartnershipContact')}</a>
@@ -245,7 +242,7 @@ import {
             size="sm"
             aria-label={t('remove')}
             disabled={pending}
-            icon={<IconTrashOutline16 />}
+            icon={<IconTrashOutlineRegular />}
             onClick={onRemove}
           />
         </Tooltip>`
@@ -306,7 +303,7 @@ import {
  * @throws 上游测试锚点变化时抛出，中断打包待人工复查。
  */
 export function skipUpstreamBuiltInSourceTests(spec) {
-  const stateAnchor = "  it('returns settings-backed source state with built-in provider metadata', async () => {"
+  const stateAnchor = "  it('returns storage-backed source state with built-in provider metadata', async () => {"
   const eachHead = '  it.each(['
   const eachTail = "] as const)('adds reviewed built-in provider %s as a disabled source', async (key, adapterId, providerId, name) => {"
   if (!spec.includes(stateAnchor) || !spec.includes(eachHead) || !spec.includes(eachTail)) {
@@ -381,52 +378,34 @@ export function skipUpstreamSourceDescriptionTests(spec) {
  * @throws 上游测试文件结尾变化时抛出，中断打包待人工复查。
  */
 export function addRequiredSourceRepairTest(spec) {
-  const importAnchor = `import {
-  SettingsCatalogSourceStore,`
-  const endAnchor = '\n})\n'
-  if (!spec.includes(importAnchor) || !spec.endsWith(endAnchor)) {
-    throw new Error('prepare-desktop: 市场来源存储测试结构变化，请复查产品源自愈测试')
-  }
-  const patched = spec.replace(
-    importAnchor,
-    `import {
-  ensureRequiredSource,
-  SettingsCatalogSourceStore,`,
-  )
-  const test = `
+  const importAnchor = "import { PersistentCatalogSourceStore } from '../src/catalog/source-store.js'"
+  if (!spec.includes(importAnchor)) throw new Error('prepare-desktop: 来源存储测试结构变化')
+  return spec.replace(importAnchor,
+    "import { PersistentCatalogSourceStore, ensureRequiredSource } from '../src/catalog/source-store.js'")
+    .replace('MemoryMarketStateStore, type MarketStateStore',
+      'MemoryMarketStateStore, DeferredMarketStateStore, type MarketStateStore') + `
 
-  it('replaces persisted legacy sources with the required product source', async () => {
-    const legacyManifest = {
-      ...manifest,
-      providerId: 'org.example.legacy-catalog',
-      transport: { ...manifest.transport, endpoint: 'https://legacy.example.org/v1/plugins' },
-    }
-    const legacySource: LocalSourceRecord = {
-      ...source,
-      sourceRecordId: '028f1f77-a5c4-7b73-a9ae-0242ac120003',
-      providerId: legacyManifest.providerId,
-      manifestUrl: 'https://legacy.example.org/catalog-source.json',
-      manifest: legacyManifest,
-    }
-    let document: MarketSettingsDocument = { sources: [legacySource] }
-    const update = vi.fn(async (next: MarketSettingsDocument) => { document = next })
-    const scope = {
-      get: () => document,
-      update,
-    } as unknown as SettingsScope<MarketSettingsDocument>
-    await ensureRequiredSource(scope, source)
-    expect(document.sources).toEqual([source])
-    expect(update).toHaveBeenCalledWith({ sources: [source] })
-    await ensureRequiredSource(scope, source)
-    expect(document.sources).toEqual([source])
-    expect(update).toHaveBeenCalledTimes(1)
-  })`
-  return `${patched.slice(0, -endAnchor.length)}${test}${endAnchor}`
+it('repairs product sources before and after durable adoption without repeated writes', async () => {
+  const state = new DeferredMarketStateStore()
+  await ensureRequiredSource(state, source)
+  expect(state.getSources()).toEqual([source])
+  const durable = new MemoryMarketStateStore({ sources: [{ ...source, enabled: false }] })
+  const write = vi.spyOn(durable, 'setSources')
+  await state.adopt(durable)
+  await ensureRequiredSource(state, source)
+  expect(state.isDurable).toBe(true)
+  expect(durable.getSources()).toEqual([source])
+  await ensureRequiredSource(state, source)
+  expect(write).toHaveBeenCalledTimes(1)
+  state.release()
+  expect(state.getSources()).toEqual([source])
+})
+`
 }
 
 /**
  * 产品入口在异步 effect 中先持久化必需来源，再注册路由。上游生命周期测试
- * 使用同步简化版 Cordis，需要让出一个微任务才能观察到已注册的路由。
+ * 使用同步简化版 Cordis，需要等待异步 effect 完成才能观察到已注册的路由。
  * @param spec - staging 副本中 tests/market-host-lifecycle.spec.ts 的完整内容。
  * @returns 等待产品迁移 setup 后继续原断言的测试内容。
  */
@@ -438,13 +417,8 @@ export function awaitProductSourceMigrationInLifecycleTest(spec) {
   if (!spec.includes(anchor) || !spec.includes(installableAnchor)) {
     throw new Error('prepare-desktop: 未找到市场生命周期测试锚点，请复查产品源异步迁移测试')
   }
-  return spec
-    .replace(
-      anchor,
-      `    apply(harness.context as never)
-    await new Promise<void>(resolve => setImmediate(resolve))
-
-    await expect(harness.request(marketRoutes.installable)).resolves.toMatchObject({ status: 503 })`,
-    )
-    .replace(installableAnchor, installableAnchor.replace('status: 404', 'status: 200'))
+  spec = spec.replaceAll('    apply(harness.context as never)\n',
+    '    apply(harness.context as never)\n    await new Promise<void>(resolve => setImmediate(resolve))\n')
+    .replace('body: { sources: [] },', "body: { sources: [expect.objectContaining({ enabled: true })] },")
+  return spec.replace(installableAnchor, installableAnchor.replace('status: 404', 'status: 200'))
 }

@@ -280,12 +280,6 @@ export function addMarketUpdateChecks(api) {
   return replace(api, "fetch('/api/community-market/installations',", "fetch(updates ? '/api/community-market/installations?updates=1' : '/api/community-market/installations',")
 }
 
-// Keep the existing staging API compatible: update checks do not change
-// the upstream client API tests, so this adapter intentionally preserves them.
-export function addMarketUpdateApiTests(tests) {
-  return tests
-}
-
 export function addMarketUpdateUiTests(tests) {
   return tests + `
 describe('product market update UI', () => {

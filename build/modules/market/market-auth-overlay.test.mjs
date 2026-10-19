@@ -14,7 +14,9 @@ const origin = 'https://tokenscowork-market.pages.dev'
 // 镜像 prepare 的真实顺序:fake-IP 豁免先改写单例,授权覆盖锚定其改写后形态。
 sources.http = allowMarketSourceSyntheticProxy(sources.http, new URL(origin).hostname)
 const output = addMarketAuth(sources, origin)
-const compiled = stripTypeScriptTypes(output.http, {mode:'transform',disableExperimentalWarning:true})
+const blocked = stripTypeScriptTypes(readFileSync(new URL('network/blocked-subnets.ts', base), 'utf8'), {mode:'transform',disableExperimentalWarning:true})
+const blockedUrl = 'data:text/javascript;base64,' + Buffer.from(blocked).toString('base64')
+const compiled = stripTypeScriptTypes(output.http, {mode:'transform',disableExperimentalWarning:true}).replace('./blocked-subnets.js', blockedUrl)
 const {createProductMarketAuthorization,createRestrictedHttpClient} = await import('data:text/javascript;base64,'+Buffer.from(compiled).toString('base64'))
 
 test('only product catalog receives current Key, never third-party or unrelated paths', async () => {
@@ -50,11 +52,11 @@ test('overlay fails on source drift and avoids unscoped persisted catalogs',()=>
   assert.throws(()=>addMarketAuth({...sources,http:''},origin),/anchor changed/)
   assert.match(output.routes,/service.invalidateSource/)
   assert.match(output.routes,/cachedCatalogResponse\(undefined,/)
-  assert.doesNotMatch(output.routes,/scope.update\(\{ catalogCache: cache \}\)/)
+  assert.doesNotMatch(output.routes,/state.setCatalogCache\(cache\)/)
   // cordis 4.0.2 的 Inject.resolve 只认数组或「服务名 -> 拦截配置」映射，
   // {required,optional} 会被当成两个服务名而永远等不到；credentials 走
   // ctx.reflect.get 免 inject 读取，因此 inject 必须保持上游原样。
-  assert.match(output.index,/export const inject = \['webServer', 'settings'\]/)
+  assert.match(output.index,/export const inject = \['webServer'\]/)
   assert.doesNotMatch(output.index,/optional:/)
   assert.match(output.routes,/ctx\.reflect\?\.get\?\.\('credentials'\)/)
   assert.doesNotMatch(output.routes,/Reflect\.get\(ctx, 'credentials'\)/)

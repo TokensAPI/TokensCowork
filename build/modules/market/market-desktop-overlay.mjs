@@ -17,7 +17,7 @@ export function pinDesktopMarketProvider(mainSource) {
   const anchor = `    const legacyMarketSelection = readDesktopMarketStateForUserData(marketUserDataDir)
     let profilePreferences = readDesktopProfilePreferences(marketUserDataDir, activeProfileDir)
     let marketSelection = profilePreferences === undefined`
-  if (mainSource.split(anchor).length !== 2) {
+  if (mainSource.split(anchor).length !== 2 || !/^\s+desktopProfilePreferencesFromSettings,$/mu.test(mainSource)) {
     throw new Error('prepare-desktop: 未找到市场选择读取锚点，请复查产品市场固定覆盖')
   }
   return mainSource.replace(
@@ -32,10 +32,10 @@ export function pinDesktopMarketProvider(mainSource) {
         legacyMarketSelection = await selectDesktopMarketProvider(marketUserDataDir, 'community-market')
       }
       if (profilePreferences !== undefined && profilePreferences.market !== 'community-market') {
-        profilePreferences = await writeDesktopProfilePreferences(marketUserDataDir, activeProfileDir, {
-          ...profilePreferences,
-          market: 'community-market',
-        })
+        // 读回的是带 version/profileHash/recordedAt 的存储记录；写入只接受六个偏好字段。
+        profilePreferences = await writeDesktopProfilePreferences(marketUserDataDir, activeProfileDir,
+          desktopProfilePreferencesFromSettings(profilePreferences, profilePreferences.notifications,
+            'community-market', profilePreferences.aaEnabled === true))
       }
     }
     let marketSelection = profilePreferences === undefined`,

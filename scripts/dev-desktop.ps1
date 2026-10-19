@@ -7,6 +7,14 @@
 #   powershell -File scripts\dev-desktop.ps1 -Sandbox     # 用隔离沙箱数据（不碰 ~/.dsh，可与已装应用同时跑）
 #   powershell -File scripts\dev-desktop.ps1 -Prepare     # 强制重新装配（默认会检测输入变化）
 #   powershell -File scripts\dev-desktop.ps1 -Force       # 连已安装的 TokensCowork 一起关掉再启动
+#   powershell -File scripts\dev-desktop.ps1 -CheckPlugins       # 启动前秒级速查：哪些插件会被宿主停用
+#   powershell -File scripts\dev-desktop.ps1 -TestPlugins        # 启动前跑全部内置插件的自动化测试（同发布构建）
+#   powershell -File scripts\dev-desktop.ps1 -TestMarketPlugins  # 启动前跑当前 Profile 已装市场插件的自动化测试
+#
+# 插件测试（可同时传两个开关；有失败就不启动，报告在 .build/plugin-tests/）：
+# - 内置插件按已提交的 product.json（HEAD）锁定的提交测试，与发布构建一致；未提交的锁定版本改动不在其中。
+# - 市场插件按当前数据模式的 Profile（真实或 -Sandbox）里已装的版本，拉取其仓库的对应标签测试；
+#   拿不到源码（无权限、无标签）记为未测，不阻断启动。
 #
 # 热加载范围：
 # - 市场客户端 / 桌面渲染层（.build/desktop/*/src 下的 client、native-ui 代码）：
@@ -34,7 +42,12 @@ param(
   # 真实数据已是默认行为，保留本开关只为兼容旧用法，传了不报错。
   [switch]$RealData,
   # 允许脚本替你关掉已安装的 TokensCowork（它可能正开着真实工作，故不设为默认）。
-  [switch]$Force
+  [switch]$Force,
+  # 启动前跑插件自动化测试；耗时较长，故不设为默认。
+  [switch]$TestPlugins,
+  [switch]$TestMarketPlugins,
+  # 秒级速查：调用宿主自己的兼容判定，列出会被停用的插件；不跑插件测试。
+  [switch]$CheckPlugins
 )
 
 $ErrorActionPreference = 'Stop'
@@ -201,6 +214,7 @@ $requiredOutputs = @(
   (Join-Path $desktop 'lib\native-ui\profile-selector.html')
   (Join-Path $desktop 'build\app-icon.ico')
   (Join-Path $desktop 'build\app-icon-mac.png')
+  (Join-Path $desktop 'build\app-icon.icns')
   (Join-Path $desktop 'build\tray-icon-blue.png')
 )
 $outputsMissing = $requiredOutputs.Where({ -not (Test-Path $_) }).Count -gt 0
@@ -215,6 +229,7 @@ if (-not $outputsMissing) {
     Get-Item (Join-Path $stage 'dsh-community-market\tsdown.config.ts')
     Get-Item (Join-Path $desktop 'package.json')
     Get-Item (Join-Path $desktop 'tsdown.config.ts')
+    Get-Item (Join-Path $desktop 'vite.client.config.ts')
     Get-Item (Join-Path $desktop 'vite.native-ui.config.ts')
   )
   $oldestOutput = $requiredOutputs |
@@ -231,24 +246,30 @@ if ($Build -or $Prepare -or $outputsMissing) {
   Invoke-Step '编译并适配产品插件' $root 'node build\pipeline\staging-plugins-compile.mjs'
   Invoke-Step '生成市场契约类型' $stage 'corepack yarn workspace dsh-community-market run generate:types'
   Invoke-Step '构建市场插件（宿主+客户端）' $stage 'corepack yarn workspace dsh-community-market run build'
-  Invoke-Step '生成 Windows 应用图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-windows-app-icon.mjs'
-  Invoke-Step '生成 macOS 应用图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-mac-app-icon.mjs'
-  Invoke-Step '生成托盘图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-tray-icons.mjs'
+  if (-not $configureNeeded) {
+    Invoke-Step '生成产品图标' $stage 'corepack yarn workspace dsh-plugin-desktop exec node scripts/generate-product-icons.mjs'
+  }
   Invoke-Step '构建桌面主进程' $stage 'corepack yarn workspace dsh-plugin-desktop exec tsdown'
-  Invoke-Step '构建桌面界面' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.native-ui.config.ts'
+  Invoke-Step '构建桌面客户端插件' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.client.config.ts'
+  Invoke-Step '构建桌面原生界面' $stage 'corepack yarn workspace dsh-plugin-desktop exec vite build --config vite.native-ui.config.ts'
+  $missingOutputs = @($requiredOutputs | Where-Object { -not (Test-Path -LiteralPath $_) })
+  if ($missingOutputs.Count -gt 0) {
+    throw "dev-desktop: 构建完成后仍缺少运行时产物：$($missingOutputs -join ', ')"
+  }
 }
 
 $watchers = @()
 if ($Watch) {
-  Write-Host '==> 启动热加载 watcher（三个最小化窗口，改代码自动重编，应用内 Ctrl+R 生效）' -ForegroundColor Cyan
+  Write-Host '==> 启动热加载 watcher（改代码自动重编，应用内 Ctrl+R 生效）' -ForegroundColor Cyan
   $watchSpecs = @(
     @{ Label = 'market-client'; Cmd = 'corepack yarn workspace dsh-community-market exec tsdown --watch' },
     @{ Label = 'desktop-main';  Cmd = 'corepack yarn workspace dsh-plugin-desktop exec tsdown --watch' },
+    @{ Label = 'desktop-client'; Cmd = 'corepack yarn workspace dsh-plugin-desktop exec vite build --watch --config vite.client.config.ts' },
     @{ Label = 'desktop-ui';    Cmd = 'corepack yarn workspace dsh-plugin-desktop exec vite build --watch --config vite.native-ui.config.ts' }
   )
   foreach ($spec in $watchSpecs) {
     $watchers += Start-Process cmd -ArgumentList '/d', '/s', '/k', "title dev-watch:$($spec.Label) & $($spec.Cmd)" `
-      -WorkingDirectory $stage -WindowStyle Minimized -PassThru
+      -WorkingDirectory $stage -WindowStyle Hidden -PassThru
   }
 }
 
@@ -275,6 +296,37 @@ if (-not $Sandbox) {
   $env:TOKENS_COWORK_DEV_APP_DATA = $sandboxAppData
   $env:DSH_HOME = $sandboxHome
   Write-Host "==> 沙箱模式：数据在 $sandboxDirectory（删掉该目录即彻底重置）" -ForegroundColor Cyan
+}
+
+# 插件测试放在启动前：失败即不启动，与发布构建的阻断规则一致。
+$pluginTests = @()
+if ($CheckPlugins) {
+  # 速查用本次要启动的 Profile（沙箱或真实数据），与启动时宿主读的是同一份。
+  $checkHome = if ($Sandbox) { $sandboxHome } else { Join-Path $HOME '.dsh' }
+  $checkProfile = Join-Path (Join-Path $checkHome 'profiles') 'desktop'
+  $pluginTests += @{ Label = '插件兼容速查'; Cmd = "node scripts\check-plugin-compatibility.mjs --profile `"$checkProfile`"" }
+}
+if ($TestPlugins) { $pluginTests += @{ Label = '内置插件自动化测试'; Cmd = 'node scripts\test-product-plugins.mjs' } }
+if ($TestMarketPlugins) {
+  $dshHome = if ($Sandbox) { $sandboxHome } else { Join-Path $HOME '.dsh' }
+  $profileDir = Join-Path (Join-Path $dshHome 'profiles') 'desktop'
+  if (Test-Path (Join-Path $profileDir 'package.json')) {
+    $pluginTests += @{ Label = '市场插件自动化测试'; Cmd = "node scripts\test-market-plugins.mjs --profile `"$profileDir`"" }
+  } else {
+    Write-Host "==> 市场插件自动化测试：Profile 尚未创建（$profileDir），跳过" -ForegroundColor Yellow
+  }
+}
+foreach ($pluginTest in $pluginTests) {
+  Write-Host "==> $($pluginTest.Label)" -ForegroundColor Cyan
+  Push-Location $root
+  cmd /d /s /c $pluginTest.Cmd
+  $code = $LASTEXITCODE
+  Pop-Location
+  if ($code -ne 0) {
+    Write-Host "dev-desktop: $($pluginTest.Label)未通过（退出码 $code），不启动；报告见 .build\plugin-tests\" -ForegroundColor Red
+    foreach ($w in $watchers) { try { Stop-Process -Id $w.Id -Force -ErrorAction Stop } catch {} }
+    exit 1
+  }
 }
 
 # 装配/构建要几分钟，其间用户完全可能又把应用打开；此时 userData 相同，Electron

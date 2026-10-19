@@ -3,12 +3,22 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
+import { AnchorError } from '../../pipeline/anchors.mjs'
 import { alignCompactionSummary } from './compaction-overlay.mjs'
 
 // Exercise the actual pinned upstream summarizer, not a copied implementation.
 const root = resolve(import.meta.dirname, '../../..')
 const source = stripTypeScriptTypes(readFileSync(resolve(root,
   'desktop/deepseek-harness/packages/compaction/compaction-basic/src/summarizer.ts'), 'utf8'))
+const valuesSource = stripTypeScriptTypes(readFileSync(resolve(root, 'desktop/deepseek-harness/packages/util/values/src/index.ts'), 'utf8'))
+const freezeCode = valuesSource.slice(valuesSource.indexOf('export function deepFreeze'), valuesSource.indexOf('/**', valuesSource.indexOf('export function deepFreeze')))
+const deepFreeze = new Function(freezeCode.replace('export ', '') + '\nreturn deepFreeze')()
+const errorSource = stripTypeScriptTypes(readFileSync(resolve(root, 'desktop/deepseek-harness/packages/llm/llm/src/error.ts'), 'utf8'))
+const errorClass = errorSource.slice(errorSource.indexOf('export class HarnessError'), errorSource.indexOf('export const CONTEXT_WINDOW_EXCEEDED_CODE'))
+const HarnessError = new Function(errorClass.replace('export ', '') + '\nreturn HarnessError')()
+const llmSource = stripTypeScriptTypes(readFileSync(resolve(root, 'desktop/deepseek-harness/packages/llm/llm/src/index.ts'), 'utf8'))
+// Include the complete class, whose first JSDoc belongs to the constructor.
+const LlmError = new Function('HarnessError', llmSource.slice(llmSource.indexOf('export class LlmError'), llmSource.indexOf('export function assertUsableApiKey')).replace('export ', '') + '\nreturn LlmError')(HarnessError)
 const patched = alignCompactionSummary(source)
 const headings = ['Primary Request and Intent', 'Key Technical Concepts', 'Files and Code',
   'Errors and Fixes', 'Pending Jobs', 'Current Work', 'Next Step', 'Critical Context']
@@ -25,11 +35,11 @@ function harness(output = [block(valid)], finish = { kind: 'stop' }) {
     blocks() { return output }
   }
   const code = patched.replace(/^import\b[\s\S]*?from ['"][^'"]+['"];?[ \t]*$/gm, '').replace(/\bexport /g, '')
-  const { summarizeWithLlm } = new Function('createUserMessage', 'BlockAssembler', 'LlmError', 'contentHasImage',
-    `${code}\nreturn { summarizeWithLlm };`)(createUserMessage, Assembler, Error, blocks => blocks.some(b => b.type === 'image'))
+  const { summarizeWithLlm } = new Function('createUserMessage', 'BlockAssembler', 'LlmError', 'contentHasImage', 'deepFreeze',
+    `${code}\nreturn { summarizeWithLlm };`)(createUserMessage, Assembler, LlmError, blocks => blocks.some(b => b.type === 'image'), deepFreeze)
   const ctx = { llm: { async *stream(options) { calls.push(options); yield {} } } }
   const agent = { options: { provider: 'test', model: 'flash' },
-    session: { id: 'synthetic', requestHeader: () => undefined } }
+    session: { id: 'synthetic', requestHeader: () => undefined, toolHistory: () => [] } }
   const messages = [{ role: 'system', content: [block('Original coding-assistant instructions.')] },
     createUserMessage({ content: [block('Remember ORANGE-742 / Hangzhou / 17. Only reply ACK.')] })]
   const input = { messages, tools: [{ name: 'read_file', parameters: {} }] }
@@ -41,7 +51,7 @@ test('compaction overlay is idempotent and fails closed on upstream drift or par
   assert.equal(alignCompactionSummary(patched), patched)
   for (const [before, after] of [['...input.messages', '...input.history'], ['model: target.model', 'model: other'],
     ['rawOutput,', 'otherOutput,'], ['- Do NOT mention', '- Do not mention']]) {
-    assert.throws(() => alignCompactionSummary(source.replace(before, after)), /anchor changed/)
+    assert.throws(() => alignCompactionSummary(source.replace(before, after)), AnchorError)
   }
   assert.throws(() => alignCompactionSummary(patched.replace('system: productCompactionSystem', 'system: other')), /Incomplete/)
 })

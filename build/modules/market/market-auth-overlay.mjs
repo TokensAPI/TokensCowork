@@ -65,11 +65,10 @@ export function createProductMarketAuthorization(readKey: () => Promise<string>)
           credentialIdentity = identity
         }
         const requestUrl = new URL(req.url ?? '/', 'http://localhost')`)
-  routes = replace(routes, 'cachedCatalogResponse(settingsScope.get().catalogCache, activeSource, localeKey)',
+  routes = replace(routes, 'cachedCatalogResponse(state.getCatalogCache(), activeSource, localeKey)',
     'cachedCatalogResponse(undefined, activeSource, localeKey)')
-  routes = replace(routes, '    if (cache !== undefined) await scope.update({ catalogCache: cache })',
+  routes = replace(routes, '      await state.setCatalogCache(cache)',
     '    // Credential-specific catalogs must not be persisted as an unscoped fallback.\n    void cache')
-  routes = replace(routes, '  const settingsScope = scope\n', '')
   return { http, routes, index }
 }
 
@@ -83,5 +82,15 @@ export function skipUpstreamPersistedCatalogTest(spec) {
   if (!spec.includes(anchor)) {
     throw new Error('prepare-desktop: 未找到上游持久化目录缓存测试锚点，请复查市场授权测试适配')
   }
+  const writeAnchor = "      async () => { throw new Error('simulated storage write failure') },"
+  const errorAnchor = '      await vi.waitFor(() => expect(server.logger.error).toHaveBeenCalled())'
+  const setupAnchor = "  it('keeps a successful catalog response when cache persistence fails', async () => {"
+  for (const expected of [writeAnchor, errorAnchor, setupAnchor]) {
+    if (spec.split(expected).length !== 2) throw new Error('prepare-desktop: 市场无凭据缓存测试锚点变化')
+  }
+  // 产品禁止把按账户过滤的目录落到公共缓存，直接验证持久化从未发生。
   return spec.replace(anchor, anchor.replace("  it('", "  it.skip('"))
+    .replace(setupAnchor, "  it('serves a successful catalog without persisting credential-specific data', async () => {\n    const persist = vi.fn(async () => { throw new Error('unexpected catalog persistence') })")
+    .replace(writeAnchor, '      persist,')
+    .replace(errorAnchor, '      expect(persist).not.toHaveBeenCalled()\n      expect(server.logger.error).not.toHaveBeenCalled()')
 }

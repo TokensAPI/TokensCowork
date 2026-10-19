@@ -1,12 +1,20 @@
 /* Build-only support for the optional TokensCowork private Registry. */
-import { patchInstallerRouting } from './market-routing-overlay.mjs'
-function replaceOnce(source, anchor, replacement, label) {
-  if (source.split(anchor).length !== 2) throw new Error(`prepare-desktop: private Registry anchor changed: ${label}`)
-  return source.replace(anchor, replacement)
-}
+import { replaceOnce } from '../../pipeline/anchors.mjs'
 
 function widenRegistrySchema(source) {
   return replaceOnce(source, '"const": "npm"', '"enum": ["npm", "tokenscowork"]', 'provider package registry')
+}
+
+// 同一 scope 的依赖共享元数据入口，归档下载仍按真实插件 ID 单独授权。
+function patchInstallerRouting(source) {
+  source = replaceOnce(source,
+    'const registry = `${this.registryOrigin}/registry/${encodeURIComponent(candidate.itemId)}/`',
+    'const registry = `${this.registryOrigin}/registry/by-package/`',
+    'shared scope registry URL')
+  return replaceOnce(source,
+    'const auth = `--//${new URL(registry).host}/registry/${encodeURIComponent(candidate.itemId)}/:_authToken=${token}`',
+    'const auth = `--//${new URL(registry).host}/registry/:_authToken=${token}`',
+    'shared registry authorization scope')
 }
 
 export function widenInstallCandidateRegistry(source) {
@@ -143,7 +151,7 @@ export function createNpmRegistryVerifier(http: CatalogHttpClient, options: { pr
 
   let index = files.index
   index = replaceOnce(index, "const npmRegistryHttp = createRestrictedHttpClient({\n  // This is a compiled-in official registry hostname, never provider input.\n  syntheticProxyHostnames: ['registry.npmjs.org'],\n})", `let productMarketRegistryKeyReader: (() => Promise<string>) | undefined\nconst productMarketRegistryOrigin = ${JSON.stringify(market.origin)}\nexport function setProductMarketRegistryKeyReader(reader: () => Promise<string>): void { productMarketRegistryKeyReader = reader }\nconst npmRegistryHttp = createRestrictedHttpClient({\n  // Product Registry origin is compiled from the first-party market config.\n  syntheticProxyHostnames: ['registry.npmjs.org', ${JSON.stringify(market.hostname)}],\n  authorization: async url => url.origin === productMarketRegistryOrigin\n    ? ((key => /^sk-\\\\S{1,509}$/u.test(key) ? 'Bearer ' + key : undefined)(await productMarketRegistryKeyReader?.() ?? ''))\n    : undefined,\n})`, 'market registry HTTP client')
-  index = replaceOnce(index, "  const scope = registerMarketSettings(ctx)", `  const scope = registerMarketSettings(ctx)\n  const readMarketKey = async (): Promise<string> => {\n    const credentials = ctx.reflect?.get?.('credentials') as { resolve?: (ref: string) => Promise<{ value?: unknown }> } | undefined\n    if (!credentials?.resolve) return ''\n    const result = await credentials.resolve('TOKENSAPI_API_KEY')\n    const key = typeof result?.value === 'string' ? result.value.trim() : ''\n    return /^sk-\\\\S{1,509}$/u.test(key) ? key : ''\n  }\n  setProductMarketRegistryKeyReader(readMarketKey)`, 'market registry credential reader')
+  index = replaceOnce(index, "  const state = new DeferredMarketStateStore(message => ctx.logger.warn(message))", `  const state = new DeferredMarketStateStore(message => ctx.logger.warn(message))\n  const readMarketKey = async (): Promise<string> => {\n    const credentials = ctx.reflect?.get?.('credentials') as { resolve?: (ref: string) => Promise<{ value?: unknown }> } | undefined\n    if (!credentials?.resolve) return ''\n    const result = await credentials.resolve('TOKENSAPI_API_KEY')\n    const key = typeof result?.value === 'string' ? result.value.trim() : ''\n    return /^sk-\\\\S{1,509}$/u.test(key) ? key : ''\n  }\n  setProductMarketRegistryKeyReader(readMarketKey)`, 'market registry credential reader')
   index = replaceOnce(index, "createMarketPackageVerifier(npmRegistryHttp),", `createMarketPackageVerifier(npmRegistryHttp, { privateRegistryOrigin: productMarketRegistryOrigin }),`, 'market verifier registry origin')
   index = replaceOnce(index, "          logFailure: message => ctx.logger.error(message),", `          logFailure: message => ctx.logger.error(message),\n          registryOrigin: productMarketRegistryOrigin,\n          registryToken: readMarketKey,`, 'market install registry options')
   // Correct the generated credential regex (one backslash in TypeScript source).

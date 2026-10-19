@@ -1,46 +1,25 @@
 /* ============================================================
- * 产品覆盖：Profile 包选择
+ * 产品覆盖：Profile 包不跨 DSH 运行时版本系列
  * ============================================================
- * Desktop 2.0.9 在 Profile 与安装包之间按版本高低选包，但 Profile
- * 一侧用 Node 的祖先目录查找：~/.dsh/profiles/node_modules、~/.dsh、
- * ~ 下其他程序留下的新版包也会被当成 Profile 覆盖。共用 ~/.dsh 的
- * DSH 0.2 程序装了 dsh-web-app 0.2 后，0.1 加载器读不懂其数组形式的
- * bundle 声明，启动进入恢复模式。
- * 1. 只接受当前 Profile 自己 node_modules 下的包（与上游 2.0.17 相同）。
- * 2. DSH 运行时包的 Profile 副本与安装包不在同一版本系列时不采用。
+ * Desktop 在 Profile 与安装包之间按版本高低选包。2.0.17 起只认当前
+ * Profile 自己的 node_modules，但 TokensCowork 与官方 DSH 共用
+ * ~/.dsh/profiles/desktop：官方程序装进去的下一版本系列运行时包版本
+ * 更高，会替换本产品内置的运行时并在启动时加载失败（v0.5.25 曾因同类
+ * 问题进入恢复模式）。DSH 运行时包的 Profile 副本与安装包不在同一
+ * 版本系列时保留安装包；市场插件等其他包仍按新版本覆盖。
  * ============================================================ */
-
-function replaceOnce(source, anchor, replacement, label) {
-  if (source.split(anchor).length !== 2) throw new Error(`prepare-desktop: 未找到上游${label}锚点，请复查 Profile 包选择覆盖`)
-  return source.replace(anchor, () => replacement)
-}
+import { replaceOnce } from '../../pipeline/anchors.mjs'
 
 /**
  * @param source - staging 副本中 src/package-overlay.ts 的完整内容。
- * @returns Profile 候选限制在当前 Profile、DSH 运行时不跨版本系列的源码。
- * @throws 上游锚点变化时抛出，中断装配待人工复查。
+ * @returns DSH 运行时包不跨版本系列覆盖的源码。
  */
-export function restrictProfilePackageOverlay(source) {
+export function keepDshRuntimeSeries(source) {
   source = source.replaceAll('\r\n', '\n')
-  if (source.includes('Only the active Profile owns overrides')) {
-    throw new Error('prepare-desktop: 上游已限制 Profile 包查找范围，请复查并删除 runtime.profile-packages 覆盖')
-  }
   source = replaceOnce(source,
-    "import { dirname } from 'node:path'\nimport { compare, valid } from 'semver'",
-    "import { dirname, isAbsolute, join, relative, sep } from 'node:path'\nimport { fileURLToPath } from 'node:url'\nimport { compare, major, minor, valid } from 'semver'",
-    'package-overlay 导入')
-  source = replaceOnce(source,
-    '  if (manifestPath === undefined) return undefined\n',
-    `  if (manifestPath === undefined) return undefined
-  if (source === 'profile') {
-    // TokensCowork: only the active Profile owns overrides. Node's ancestor walk
-    // also finds packages other DSH installs left in profiles/node_modules or ~.
-    const modules = join(dirname(fileURLToPath(packageUrl)), 'node_modules')
-    const offset = relative(modules, manifestPath)
-    if (offset === '..' || offset.startsWith(\`..\${sep}\`) || isAbsolute(offset)) return undefined
-  }
-`,
-    'package-overlay 候选读取')
+    "import { compare, valid } from 'semver'",
+    "import { compare, major, minor, valid } from 'semver'",
+    'package-overlay semver 导入')
   return replaceOnce(source,
     `      : profile.version !== undefined && install.version !== undefined
         && compare(profile.version, install.version) > 0 ? profile : install`,
@@ -50,7 +29,7 @@ export function restrictProfilePackageOverlay(source) {
     'package-overlay 版本选择')
     + `
 /**
- * TokensCowork: a DSH runtime package from another release series (0.1 vs 0.2)
+ * TokensCowork: a DSH runtime package from another release series (0.2 vs 0.3)
  * is incompatible with this Desktop; keep the installed copy instead.
  */
 function sameDshRuntimeSeries(packageName: string, profileVersion: string, installVersion: string): boolean {

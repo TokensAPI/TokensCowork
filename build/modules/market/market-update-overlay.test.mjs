@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { addMarketUpdates, addMarketUpdateChecks, addMarketUpdateUiTests } from './market-update-overlay.mjs'
 import { pinProductMarketSource, skipUpstreamSourceDescriptionTests, allowMarketSourceSyntheticProxy } from './market-source-overlay.mjs'
 import { addMarketAuth } from './market-auth-overlay.mjs'
+import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
 const paths = { service: 'src/install/service.ts', routes: 'src/host/routes.ts', types: 'src/api-types.ts', settingsTab: 'src/client/MarketSettingsTab.tsx', locales: 'src/client/locales.ts' }
@@ -34,6 +35,9 @@ test('registry composition reuses catalog version hints without removing update 
   assert.match(preview, /await authorize\(operationSignal\)/)
   assert.match(preview, /await this.verifier.verify\(\{ packageName,/)
   assert.match(preview, /await intent.authorize\(operationSignal\)/)
+  assert.match(result.service, /const registry = `\$\{this.registryOrigin\}\/registry\/by-package\/`/)
+  assert.match(result.service, /host\}\/registry\/:_authToken=/)
+  assert.doesNotMatch(result.service, /registry\/\$\{encodeURIComponent\(candidate.itemId\)\}/)
 })
 
 test('composes with source and authorization while preserving the native installed list', () => {
@@ -50,31 +54,3 @@ test('fails closed on upstream drift and duplicate application', () => {
   assert.throws(() => addMarketUpdates({ ...input, service: '' }), /upstream anchor changed/)
   assert.throws(() => addMarketUpdates(output), /upstream anchor changed/)
 })
-test('the actual staging entry point invokes update assembly and tests', () => {
-  const entry = readFileSync(resolve(root, 'build/modules/market/market-staging-overlay.mjs'), 'utf8')
-  assert.match(readFileSync(resolve(root, 'build/pipeline/staging-prepare.mjs'), 'utf8'), /applyMarketSourceOverlays\(\{ root, stage \}\)/)
-  assert.match(entry, /const marketUpdates = addMarketUpdates\(/)
-  assert.match(entry, /addMarketUpdateChecks\(readFileSync/)
-  assert.match(entry, /addMarketUpdateUiTests\(readFileSync/)
-  assert.match(entry, /market-update\.spec\.ts/)
-  assert.doesNotMatch(entry, /separateInstalledSystemComponents|market-installed-ui-overlay/)
-})
-
-test('the staging entry point imports all overlay dependencies successfully', async () => {
-  const entry = await import('./market-staging-overlay.mjs')
-  assert.equal(typeof entry.applyMarketSourceOverlays, 'function')
-})
-
-// Focused verification assembly: no whole-tree rebuild, dependency install, or installer packaging.
-if (process.argv.includes('--stage') || process.argv.includes('--stage-client')) {
-  const stage = resolve(root, '.build/desktop/dsh-community-market')
-  for (const [key, path] of Object.entries(paths)) {
-    if (process.argv.includes('--stage-client') && !['settingsTab', 'locales'].includes(key)) continue
-    writeFileSync(resolve(stage, path), output[key])
-  }
-  writeFileSync(resolve(stage, 'src/client/api.ts'), addMarketUpdateChecks(read('src/client/api.ts')))
-  writeFileSync(resolve(stage, 'tests/market-settings-tab.spec.tsx'), addMarketUpdateUiTests(installedTests))
-  writeFileSync(resolve(stage, 'tests/client-api.spec.ts'), read('tests/client-api.spec.ts'))
-  copyFileSync(resolve(root, 'build/modules/market/market-update.spec.ts'), resolve(stage, 'tests/market-update.spec.ts'))
-}
-import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'

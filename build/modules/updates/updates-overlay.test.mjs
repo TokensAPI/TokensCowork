@@ -72,9 +72,6 @@ test('update command adaptation is idempotent and rejects changed registrations'
   assert.throws(() => alignProductUpdateCommand(pluginSource + pluginSource), /registration changed/)
   assert.throws(() => alignProductUpdateCommand(pluginSource.replace("group: 'status'", "group: 'other'")), /anchor changed/)
   assert.throws(() => alignProductUpdateCommand(patched.replace("id: 'check-for-updates'", "id: 'other'")), /anchor changed/)
-  const pipeline = readFileSync(new URL('../../pipeline/staging-plugins-compile.mjs', import.meta.url), 'utf8')
-  assert.ok(pipeline.includes("plugin.id === 'tokens-version-updates' && plugin.enabledByDefault === true"))
-  assert.ok(pipeline.includes('const patched = alignProductUpdateCommand(source)'))
 })
 test('official updates stay disabled and product release configuration remains explicit', () => {
   assert.match(disableUpstreamUpdates(read('cordis.patch.yml')), /- id: desktop-updates\n  disabled: true/)

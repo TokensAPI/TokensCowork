@@ -3,31 +3,26 @@
  * ============================================================
  * 把覆盖升级保护（upgrade-guard.nsh）编译进安装器与卸载器，并
  * 固定经过验证的 NSIS Unicode 插件资源。
- * 每个导出函数自带前置校验：资产缺失时装配立即失败。
+ * 由 platform/overlays.mjs 登记，执行器负责读写文件。
  * ============================================================ */
-import { cpSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 
 /**
- * 将覆盖升级保护写进 staging，由 electron-builder 同时编译进安装器和卸载器。
- * @param options.windowsInstallerRoot - 仓库内 Windows 安装器资产目录。
- * @param options.windowsInstallerIncludePath - staging 中 nsh 的落点。
- * @param options.desktopPackage - staging 的 desktop package.json 对象（原地修改）。
- * @param options.assertGeneratedPath - staging 越界守护。
+ * 把覆盖升级保护写进 staging，由 electron-builder 同时编译进安装器和卸载器。
+ * @param desktopPackage - staging 的 desktop package.json 对象。
+ * @param guard - 产品升级保护脚本（assets/windows/installer/upgrade-guard.nsh）。
+ * @returns 设置 include 后的 package 与要写入 staging 的保护脚本。
+ * @throws 保护脚本缺少关键宏，或上游配置为卸载时删除用户数据时抛出。
  */
-export function applyWindowsInstallerGuard({
-  windowsInstallerRoot,
-  windowsInstallerIncludePath,
-  desktopPackage,
-  assertGeneratedPath,
-}) {
-  const source = resolve(windowsInstallerRoot, 'installer', 'upgrade-guard.nsh')
-  if (!existsSync(source)) {
-    throw new Error(`configure-product: Windows installer guard is missing: ${source}`)
+export function addWindowsInstallerGuard(desktopPackage, guard) {
+  for (const required of ['customUnInstallCheck', 'customRemoveFiles', 'SetErrorLevel 2']) {
+    if (!guard.includes(required)) throw new Error(`Windows installer guard lacks ${required}`)
   }
-  assertGeneratedPath(windowsInstallerIncludePath)
-  cpSync(source, windowsInstallerIncludePath)
+  // 卸载与覆盖升级都不能删除用户数据；上游改变该默认值时中断待复查。
+  if (desktopPackage.build.nsis.deleteAppDataOnUninstall === true) {
+    throw new Error('upstream NSIS deletes user data on uninstall')
+  }
   desktopPackage.build.nsis.include = 'build/tokenscowork-upgrade-guard.nsh'
+  return { desktopPackage, guard }
 }
 
 /**

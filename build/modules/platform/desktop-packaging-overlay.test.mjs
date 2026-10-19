@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
-import { alignFsExtArchitecture, alignMacReleaseChecks, alignMacReleaseVerification, configureDesktopPackage } from './desktop-packaging-overlay.mjs'
+import { alignFsExtArchitecture, alignMacEntitlementArchitecture, alignMacReleaseChecks, alignMacReleaseVerification, configureDesktopPackage } from './desktop-packaging-overlay.mjs'
 
 const read = path => readFileSync(new URL(`../../../desktop/dsh-plugin-desktop/${path}`, import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 const product = { name: 'TokensCowork', version: '0.5.0', appId: 'com.tokensapi.tokenscowork', windowsInstallerGuid: 'fixture-guid' }
@@ -26,7 +26,8 @@ test('packaging extraction preserves product identity and Windows-only exclusion
 test('native verifier checks only selected runtime while retaining signature gates and cleanup', async () => {
   const source = alignMacReleaseVerification(read('scripts/verify-mac-release.ts'))
   const inventory = new URL('../../../desktop/dsh-plugin-desktop/scripts/mac-universal.ts', import.meta.url).href
-  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)))
+  const entitlements = new URL('../../../desktop/dsh-plugin-desktop/scripts/verify-mac-entitlements.ts', import.meta.url).href
+  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)))
   const { verifyMacRelease } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
   const previous = process.env.DSH_MAC_ARCH
   try {
@@ -75,4 +76,26 @@ test('release matrix builds native macOS packages and preserves recovery artifac
   assert.match(packages, /DSH_MAC_ARCH="\$\{\{ matrix.electron_arch \}\}" corepack yarn product:dist:mac:auto/)
   assert.match(packages, /if: always\(\).*steps.signing.outputs.mode == 'signed'/)
   assert.match(packages, /find "\$\{dist\}" -type f -name '\*\.dmg'/)
+})
+
+test('native entitlement verification retains all required permissions for every Helper', async () => {
+  const code = stripTypeScriptTypes(alignMacEntitlementArchitecture(read('scripts/verify-mac-entitlements.ts')))
+  const { verifyMacEntitlements, MAC_REQUIRED_ENTITLEMENTS } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
+  const previous = process.env.DSH_MAC_ARCH
+  try {
+    for (const [arch, expected] of [['arm64', 'arm64'], ['x64', 'x86_64']]) {
+      process.env.DSH_MAC_ARCH = arch
+      const calls = []
+      verifyMacEntitlements('/product.app', 'TokensCowork', (path, slice) => {
+        calls.push([path, slice])
+        return Object.fromEntries(MAC_REQUIRED_ENTITLEMENTS.map(key => [key, true]))
+      })
+      assert.equal(calls.length, 5)
+      assert.ok(calls.every(([, slice]) => slice === expected))
+      assert.throws(() => verifyMacEntitlements('/product.app', 'TokensCowork', () => ({})), /Missing macOS entitlement/)
+    }
+  } finally {
+    if (previous === undefined) delete process.env.DSH_MAC_ARCH
+    else process.env.DSH_MAC_ARCH = previous
+  }
 })

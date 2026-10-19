@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { widenInstallCandidateRegistry } from './market-registry-overlay.mjs'
+import { AnchorError } from '../../pipeline/anchors.mjs'
 
 test('actual upstream candidate expression admits npm and self-hosted packages only', () => {
   const upstream = readFileSync(new URL('../../../desktop/dsh-community-market/src/install/service.ts', import.meta.url), 'utf8')
@@ -17,5 +18,5 @@ test('actual upstream candidate expression admits npm and self-hosted packages o
   }
   assert.equal(candidate({package:{registry:'unknown',name:'@fixture/tool'}},undefined,()=>true),undefined)
   assert.equal(candidate({},undefined,()=>true),undefined)
-  assert.throws(()=>widenInstallCandidateRegistry(patched),/anchor changed/)
+  assert.throws(()=>widenInstallCandidateRegistry(patched),AnchorError)
 })

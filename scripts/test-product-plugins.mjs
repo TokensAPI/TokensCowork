@@ -33,10 +33,27 @@ export function assertCompleteTestOutput(output) {
   }
 }
 
+/**
+ * Windows 上让插件测试里的 `bash` 解析为 Git Bash，与 CI 的 Windows runner 一致；
+ * 否则会先命中 System32 下的 WSL bash。找不到 Git 时原样返回。
+ */
+export function withGitBash(environment, platform = process.platform, locateGit = () => spawnSync('where', ['git'], { encoding: 'utf8' }).stdout) {
+  if (platform !== 'win32') return environment
+  // `where git` 可能先列出 mingw64\bin\git.exe；向上找含 bin\bash.exe 的 Git 根目录。
+  const roots = (locateGit() ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+    .flatMap(gitExe => [1, 2, 3].map(levels => resolve(dirname(gitExe), ...Array(levels).fill('..'))))
+  const gitRoot = roots.find(root => existsSync(join(root, 'bin', 'bash.exe')))
+  if (!gitRoot) return environment
+  // 只放 Git\bin（bash/sh/git）。usr\bin 里的 GNU tar 不认 C: 路径，不能盖过 Windows 自带 tar。
+  const bashDirs = [join(gitRoot, 'bin')]
+  const pathKey = Object.keys(environment).find(key => key.toUpperCase() === 'PATH') ?? 'Path'
+  return { ...environment, [pathKey]: [...bashDirs, environment[pathKey] ?? ''].join(';') }
+}
+
 /** Windows 宿主测试不能跨盘加载夹具；所有临时文件留在生成工作区。 */
 export function testEnvironment(outerRoot, temporaryRoot) {
   return {
-    ...process.env,
+    ...withGitBash(process.env),
     TOKENS_OUTER_ROOT: outerRoot,
     TOKENS_HARNESS_ROOT: outerRoot,
     DSH_RUNTIME_ROOT: join(outerRoot, 'desktop', 'deepseek-harness', 'apps', 'cli'),
@@ -46,15 +63,22 @@ export function testEnvironment(outerRoot, temporaryRoot) {
   }
 }
 
-function run(command, args, cwd, env = process.env, testRun = false) {
+/** 失败命令输出的末尾若干行，去掉颜色控制符；没有输出时为空串。 */
+export function outputTail(output, lines = 30) {
+  const tail = output.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).filter(line => line.trim() !== '').slice(-lines)
+  return tail.length === 0 ? '' : `\n--- 末尾输出 ---\n${tail.join('\n')}`
+}
+
+export function run(command, args, cwd, env = process.env, testRun = false) {
   // Windows 的 npm/corepack 是 cmd shim；参数由本脚本生成，不拼接用户命令。
   const windowsShim = process.platform === 'win32' && ['npm', 'corepack'].includes(command)
-  const result = spawnSync(command, args, { cwd, env: isolatedPackageEnvironment(env), stdio: testRun ? 'pipe' : 'inherit', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: windowsShim, timeout: 20 * 60_000 })
-  if (testRun) {
-    process.stdout.write(result.stdout ?? '')
-    process.stderr.write(result.stderr ?? '')
+  // 输出先截获再回显：失败时把末尾日志带进错误信息和报告，事后可直接定位原因。
+  const result = spawnSync(command, args, { cwd, env: isolatedPackageEnvironment(env), stdio: 'pipe', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: windowsShim, timeout: 20 * 60_000 })
+  process.stdout.write(result.stdout ?? '')
+  process.stderr.write(result.stderr ?? '')
+  if (result.error || result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} failed (${result.status ?? result.error?.code})${outputTail(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)}`)
   }
-  if (result.error || result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed (${result.status ?? result.error?.code})`)
   if (testRun) assertCompleteTestOutput(`${result.stdout}\n${result.stderr}`)
 }
 

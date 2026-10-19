@@ -14,15 +14,16 @@
 
 ## 2. 按模块复查覆盖
 
-先运行 `corepack yarn product:overlays --check`。每个 `build/modules/<模块>/review.json` 是覆盖明细的唯一台账：查看 `targets`、`appliedBy`、`verification`、`retireWhen`，不要只看文件名。
+先运行 `corepack yarn product:overlays --doctor`：它在临时 staging 中逐条执行全部覆盖，列出可删（○）、需修改（✖）和被覆盖文件的上游改动（△）。每条覆盖的目标、原因与删除条件登记在 `build/modules/<模块>/overlays.mjs`，pin 基线与验证证据在同目录 `review.json`；操作步骤见[模块说明](../build/modules/README.md#上游升级)。
 
 | 模块 | 升级时重点看 | 必须验证的产品行为 |
 | --- | --- | --- |
 | branding | 产品身份、原生窗口、已编译客户端标题、Logo 入口、预设提示词、旧数据迁移 | 初始页和会话标题、兼容模式标题、托盘/安装器图标正确；旧数据可迁移，新用户不继承旧配置 |
 | market | 来源配置持久化、目录鉴权/缓存、Registry 安装与更新接口、主题 Modal CSS | 只显示产品来源；误删后自愈；换 Key 不串目录；跨域不泄漏 Key；安装/更新保留启用状态；弹窗定位正确 |
-| runtime | DSH 依赖/peer/patch、Cordis 作用域、插件接口、预设发现、压缩与事件持久化 | 登录/RPC 可用；插件可加载及卸载；`/` 菜单正常；压缩有效且失败不损坏历史；打入 asar 后预设仍可发现 |
+| runtime | DSH 依赖/peer/patch、Cordis 作用域、插件接口、声明式预设、压缩与事件持久化 | 登录/RPC 可用；插件可加载及卸载；`/` 菜单正常；压缩有效且失败不损坏历史；预设注册、Profile 装配及依赖闭包完整 |
 | updates | 产品 Release 来源、官方入口开关、菜单与发行类型 | 纯净/带插件两种装配只出现对应入口；稳定/预发布服从 GitHub 状态；下载正确架构；失败后可重试 |
 | platform | Windows ACL / 控制台 / NSIS，macOS 架构 / 签名 / afterPack | Windows 无连续闪窗、工作区边界有效、占用升级可恢复、卸载默认保留数据；Mac 原生模块、启动、签名及 Keychain 行为正确 |
+| guard | 内置循环护栏与上游重复调用提醒 | 内置护栏生效时上游提醒停用，避免同一次调用重复提醒；插件未启用时保留上游行为 |
 
 边界不要混淆：`market` 更新的是插件，`updates` 更新的是桌面应用；`runtime` 管加载和协议兼容，`platform` 管操作系统与安装包。市场服务部署覆盖是独立路径，Desktop 出包不会自动部署服务。
 
@@ -35,11 +36,11 @@
 - **已加工的开发缓存**：装配会保留 `node_modules`，所以不仅要测新安装，还要测上一版覆盖迁移和连续执行两次。修改压缩 helper 时登记已知旧版本的签名并补迁移回归；只认标记但要求代码等于最新版，会把正常旧缓存误判为损坏。未知修改仍应报错，不能靠跳过校验或删除用户数据解决。
 - **模型协议与多模态**：不要假定升级已自动切成 Responses，也不要只凭模型名字判断视觉支持。核对实际请求路径、能力元数据、token 上限、流式结束原因；分别测文本直连、原生视觉、Modlens 桥接以及压缩时的路由。不通过修改全局模型或压缩阈值掩盖问题。
 - **插件接口**：联网搜索旧版 `description` 是字符串，新 DSH 要求 `description()`，一个插件就可能破坏整个 `/` 候选列表。检查真实运行产物和固定插件组合，peer 版本对齐不能替代行为测试。
-- **预设与 asar**：当前解析修复由 Desktop Yarn patch 接管，我们只验证，不再重复补丁。确认新版本仍带等效处理；开发目录能启动不能证明打包后能启动。
+- **声明式预设**：DSH 0.2 已移除旧 agent-presets 的文件探测，改用 preset-registry。产品已删除未接入的旧 verifier；检查上游 Loader、Profile 和最终包的依赖闭包，不恢复旧路径补丁。开发目录能启动不能证明打包后能启动。
 - **已发布客户端品牌**：`DSH_CLIENT_TITLE` 可能早已在 npm 产物中替换成常量。外层设置环境变量不一定有效；要测初始 HTML、登录后页面和会话标题三处。
 - **安装元数据与操作文案**：Windows 快捷方式悬停说明来自 Desktop `package.json.description`，不是窗口标题；旧快捷方式需新包覆盖安装后验收。另查市场安装/卸载/更新/重启的中英文提示，以及原生终端、加载失败和目录选择报错。检查编译产物，不只检查源码；保留依赖标识、许可证及旧安装识别名称。
 - **上游云服务入口**：产品隐藏 Agents Anywhere 的侧边栏“手机连接”注册，保留原组件及已有连接配置。升级 Desktop 内带的 AA 产物时复查该注册，避免入口重新出现；不要将隐藏入口误认为禁用了后台服务。
-- **网页抓取系统代理**：产品通过 Electron 按 URL 解析系统代理，再由 HostRpc 传给隔离 Host 的 web-fetch；显式环境代理优先，DIRECT/NO_PROXY 仍走原安全校验。升级需同时复查主进程、Host 入口和已安装 web-fetch-http 产物，测试 Fake-IP、取消、代理失败与内网拒绝。仅支持首选 HTTP/HTTPS 路由，SOCKS 与备用路由尚不支持；Windows 实测不能代替 macOS 验收。
+- **网页抓取系统代理**：新版上游已安装统一出站策略；产品按 URL 查询的 web-fetch 回退只在无现有路由及显式代理变量时生效。不是重复代理，也不能仅因上游新增代理模块就删除。升级需同时复查主进程、Host 入口和已安装 web-fetch-http，测试 PAC 分流、Fake-IP、NO_PROXY、取消与内网拒绝。产品回退仅支持首选 HTTP/HTTPS 路由；Windows 实测不能代替 macOS 验收。
 - **用户数据与插件残留**：纯净 Profile 测试之外，还要用备份副本测旧 Profile、旧用户插件、禁用插件和 Safe Mode。内置插件变更不等于自动清理用户自行安装的版本；不要删除真实用户配置来“证明兼容”。
 - **发行类型**：带插件版本也可以是 `x.y.0`。新发布的 clean/bundled 标记从固定 `product.json` 自动生成；不要靠版本尾号判断。它与 stable/prerelease 是两个维度。
 
@@ -56,6 +57,7 @@
 常用命令（仓库根目录）：
 
 ```powershell
+corepack yarn product:overlays --doctor
 corepack yarn product:overlays --check
 corepack yarn test:build
 corepack yarn test:uninstall

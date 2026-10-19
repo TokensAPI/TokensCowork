@@ -4,16 +4,19 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { MarketInstallService, createMarketPackageVerifier } from '../../../.build/desktop/dsh-community-market/lib/install/service.js'
+import { productStage } from '../../pipeline/paths.mjs'
+
+const stage = productStage(resolve(import.meta.dirname, '../../..'))
+const { MarketInstallService, createMarketPackageVerifier } = await import(pathToFileURL(resolve(stage, 'dsh-community-market/lib/install/service.js')).href)
 
 const origin = 'https://market.tokensapi.ai'
 const legacy = 'https://tokenscowork-market.pages.dev'
 const dir = await mkdtemp(join(tmpdir(), 'cowork-market-regression-'))
-const pnpm = fileURLToPath(new URL('../../../.build/desktop/dsh-plugin-desktop/node_modules/pnpm/bin/pnpm.mjs', import.meta.url))
+const pnpm = resolve(stage, 'dsh-plugin-desktop/node_modules/pnpm/bin/pnpm.mjs')
 const results = []
 const scrub = value => String(value).replace(/sk-[\w-]+/g, '[redacted]').replace(/(_authToken=)\S+/g, '$1[redacted]')
 async function check(name, work) {

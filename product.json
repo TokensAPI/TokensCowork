@@ -8,14 +8,14 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.5.25"
+    "version": "0.6.0"
   },
   "desktop": {
     "path": "desktop",
     "repository": "https://github.com/anywhere-labs/deepseek-harness-desktop.git",
-    "commit": "63e160ab4387988db894adef766865eab897cf80",
-    "deepseekHarnessCommit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
-    "runtimeVersion": "0.1.5-rc.2"
+    "commit": "838ba60fd79362087c0a0d134efee671c284786a",
+    "deepseekHarnessCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+    "runtimeVersion": "0.2.0-rc.2"
   },
   "plugins": [
     {
@@ -30,9 +30,9 @@
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/dsh-atomic-write": "0.1.5-rc.2",
-        "@deepseek-ai/dsh-invariants": "0.1.5-rc.2",
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/dsh-atomic-write": "0.2.0-rc.2",
+        "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     },
     {
@@ -59,9 +59,9 @@
       "description": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
       "path": "plugins/tokens_DshLogin_code",
       "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
-      "commit": "b3084412b1db4aede18efe8bee9bc35bf7f64f6f",
+      "commit": "3d95c34e06e36b38b8a443f2f707627e5cdd2eb3",
       "package": "@tokensapi/dsh-login",
-      "version": "0.1.8",
+      "version": "0.1.11",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
@@ -71,9 +71,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "d12af8309d4f1cc56d3d0d9dfce8dff603962e7c",
+      "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.2.22",
+      "version": "0.2.24",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },
@@ -83,13 +83,13 @@
       "description": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "path": "plugins/tokens_DshWebSearch_code",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
-      "commit": "9b14218a04ab6cc3b9e4d4e571edba544fa507bb",
+      "commit": "79253f1cc64f08ef739f7bd69bb9bc2eecf170f1",
       "package": "tokens-dsh-web-search",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     },
     {
@@ -104,7 +104,7 @@
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
-        "@deepseek-ai/schemastery": "^3.18.2"
+        "@deepseek-ai/schemastery": "^3.18.4"
       }
     }
   ]
