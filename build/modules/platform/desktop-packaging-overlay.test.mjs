@@ -150,3 +150,25 @@ test('the packaged uv check follows the selected architecture and keeps upstream
   assert.deepEqual(run({ env: {} }, entries), ['node_modules/@dataiku/uv-darwin-arm64/bin/uv', 'node_modules/@dataiku/uv-darwin-x64/bin/uv'])
   assert.throws(() => alignPackagedAgentsAnywhereCheck(source), /anchor changed/)
 })
+
+test('the release verifier retries a flaky stapler lookup without loosening the other gates', async () => {
+  const source = alignMacReleaseVerification(read('scripts/verify-mac-release.ts'))
+  const inventory = new URL('../../../desktop/dsh-plugin-desktop/scripts/mac-universal.ts', import.meta.url).href
+  const entitlements = new URL('../../../desktop/dsh-plugin-desktop/scripts/verify-mac-entitlements.ts', import.meta.url).href
+  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)))
+  const { verifyMacRelease } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
+  const previous = process.env.DSH_MAC_ARCH
+  process.env.DSH_MAC_ARCH = 'arm64'
+  try {
+    const validateCalls = []
+    let failures = 2
+    const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {}, stapleRetryDelayMs: 0,
+      run: (command, args) => { if (command === 'xcrun' && args[1] === 'validate') { validateCalls.push(args); if (failures-- > 0) throw new Error('The network connection was lost.') } } }
+    verifyMacRelease(options)
+    assert.equal(validateCalls.length, 3)
+    assert.throws(() => verifyMacRelease({ ...options, run: (command, args) => { if (command === 'xcrun' && args[1] === 'validate') throw new Error('lost') } }), /failed to verify/)
+  } finally {
+    if (previous === undefined) delete process.env.DSH_MAC_ARCH
+    else process.env.DSH_MAC_ARCH = previous
+  }
+})

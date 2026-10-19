@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import afterSign, { inspectHistory, waitForAcceptance, validateRecoveryState, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
+import afterSign, { inspectHistory, waitForAcceptance, validateRecoveryState, validateStaple, verifySignedApp, validateSourceRun, inspectSource, recover, sha256, queryNotary, runMac } from './mac-notarization.mjs'
 
 const id = 'cfdabdcb-ea33-4498-911e-84f12ac2d946'
 const commit = 'a'.repeat(40)
@@ -128,4 +128,18 @@ test('recovery dispatch resolves original commit and rejects missing or expired 
     artifacts[0].expired = true
     assert.throws(() => inspectSource('123', 'arm64', env, run), /saved signed payload/)
   } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('stapler validation retries transient Apple lookups and still fails after the last attempt', () => {
+  const slept = []
+  let failures = 2
+  const flaky = (command, args) => {
+    assert.deepEqual([command, args[1]], ['xcrun', 'validate'])
+    if (failures-- > 0) throw new Error('The network connection was lost.')
+  }
+  validateStaple('/fixture.app', flaky, { delayMs: 7, sleep: ms => slept.push(ms) })
+  assert.deepEqual(slept, [7, 7])
+  let always = 0
+  assert.throws(() => validateStaple('/fixture.app', () => { always++; throw new Error('lost') }, { sleep: () => {} }), /lost/)
+  assert.equal(always, 3)
 })

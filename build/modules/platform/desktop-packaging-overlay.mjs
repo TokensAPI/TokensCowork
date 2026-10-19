@@ -124,12 +124,26 @@ export function alignMacReleaseChecks(releaseMac) {
 export function alignMacReleaseVerification(source) {
   const main = "    options.run('lipo', [executablePath, '-verify_arch', 'x86_64'])\n    options.run('lipo', [executablePath, '-verify_arch', 'arm64'])"
   const entries = 'for (const entry of options.nativeEntries ?? MACOS_UNIVERSAL_NATIVE_ENTRIES)'
-  if (source.split(main).length !== 2 || source.split(entries).length !== 2) throw new Error('configure-product: macOS verification anchors changed')
+  const staple = "    options.run('xcrun', ['stapler', 'validate', appPath])\n"
+  if (source.split(main).length !== 2 || source.split(entries).length !== 2 || source.split(staple).length !== 2) {
+    throw new Error('configure-product: macOS verification anchors changed')
+  }
   return source.replace(main, `    const arch = process.env.DSH_MAC_ARCH
     if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')
     const binaryArch = arch === 'x64' ? 'x86_64' : 'arm64'
     options.run('lipo', [executablePath, '-verify_arch', binaryArch])`)
     .replace(entries, 'for (const entry of (options.nativeEntries ?? MACOS_UNIVERSAL_NATIVE_ENTRIES).filter(entry => entry.arch === binaryArch))')
+    // stapler validate 要向 Apple 查询票据，偶发断连（NSURLError -1005）；断连重试三次，校验不放宽。
+    .replace(staple, `    for (let attempt = 1; ; attempt++) {
+      try {
+        options.run('xcrun', ['stapler', 'validate', appPath])
+        break
+      } catch (error) {
+        if (attempt >= 3) throw error
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, options.stapleRetryDelayMs ?? 30_000)
+      }
+    }
+`)
 }
 
 /** Preserve the explicit native architecture selected by the outer build. */

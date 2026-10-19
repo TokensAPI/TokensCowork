@@ -110,7 +110,23 @@ export function verifySignedApp(app, state, notarized = false, run = runMac) {
   run('codesign', ['--verify', '-R=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists', app])
   if (notarized) {
     run('spctl', ['--assess', '--type', 'execute', '--verbose=4', app])
-    run('xcrun', ['stapler', 'validate', app])
+    validateStaple(app, run)
+  }
+}
+
+/**
+ * `stapler validate` 要向 Apple 查询票据，偶发断连（NSURLError -1005，v0.6.1 构建遇到过）。
+ * 断连重试三次，校验本身不放宽：三次都失败仍然抛出。
+ */
+export function validateStaple(app, run = runMac, { attempts = 3, delayMs = 30_000, sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) } = {}) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      run('xcrun', ['stapler', 'validate', app])
+      return
+    } catch (error) {
+      if (attempt >= attempts) throw error
+      sleep(delayMs)
+    }
   }
 }
 
