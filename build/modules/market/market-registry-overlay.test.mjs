@@ -6,7 +6,7 @@ import { stripTypeScriptTypes } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { AnchorError } from '../../pipeline/anchors.mjs'
-import { addPrivateRegistrySupport, widenInstallCandidateRegistry } from './market-registry-overlay.mjs'
+import { adaptUpstreamInstallSpecs, addPrivateRegistrySupport, widenInstallCandidateRegistry } from './market-registry-overlay.mjs'
 import { addMarketUpdates } from './market-update-overlay.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
@@ -208,4 +208,30 @@ test('the API Key reaches pnpm only through the per-operation npmrc', () => {
 test('re-applying the private Registry overlay fails on its own output', () => {
   const applied = assemble()
   assert.throws(() => addPrivateRegistrySupport(applied, origin), AnchorError)
+})
+
+test('a product refusal keeps its own code instead of becoming a package failure', () => {
+  const { service } = assemble()
+  // runChange 的 catch 把所有 throw 都包成带 pnpm 输出的 operation-failed；用户
+  // 自己写的 .npmrc（conflict）和格式不对的 API Key 是产品自己的拒绝，必须原样
+  // 透出，所以守卫要紧挨着排在那次包装之前，而且只加这一处。
+  const guard = service.indexOf("if (cause instanceof MarketInstallError) throw cause")
+  const wrap = service.indexOf("The plugin manager could not run the package operation.")
+  assert.ok(guard >= 0)
+  assert.ok(guard < wrap && wrap - guard < 120)
+  assert.equal(service.split("if (cause instanceof MarketInstallError) throw cause").length - 1, 1)
+})
+
+test('the upstream install specs get a real profile directory and the pinned registry', () => {
+  for (const path of ['tests/market-install.spec.ts', 'tests/github-install.spec.ts']) {
+    const spec = adaptUpstreamInstallSpecs(upstream(path))
+    // 假路径换成真实临时目录，用例跑完删掉；afterAll 要真的进了 vitest 导入。
+    assert.equal(spec.includes("dir: '/fixtures/profiles/desktop'"), false)
+    assert.ok(spec.includes("const profileDir = mkdtempSync(join(tmpdir(), 'market-install-spec-'))"))
+    assert.ok(spec.includes('afterAll(() => { rmSync(profileDir, { recursive: true, force: true }) })'))
+    assert.ok(spec.includes("import { afterAll, describe, expect, it, vi } from 'vitest'"))
+    // installBundle 的整体比较要带上产品固定的公共 npm registry。
+    assert.ok(spec.includes("{ enabled: true, saveExact: true, registry: 'https://registry.npmjs.org/' }]])"))
+    assert.throws(() => adaptUpstreamInstallSpecs(spec), AnchorError)
+  }
 })

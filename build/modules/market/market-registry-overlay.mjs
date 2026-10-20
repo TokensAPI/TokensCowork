@@ -322,3 +322,30 @@ export async function removeProductNpmrc(dir: string): Promise<void> {
 
   return { ...files, http, index, service, routes, ...contracts }
 }
+
+/**
+ * 两处上游安装用例跟不上产品，断言跟着产品改，不是把产品改回去：
+ * 1. profile 目录写成假路径（/fixtures/profiles/desktop），而产品的
+ *    per-operation .npmrc 真的要往这个目录写文件，假路径直接 ENOENT，再被
+ *    runChange 包成 operation-failed。换成真实临时目录，跑完删掉。
+ * 2. 产品把公共 npm 固定进 installBundle 的 registry 选项，整体比较的那条
+ *    断言因此少一个键。
+ * 两个文件的锚点一字不差，所以同一个函数各用一次。产品代码不动 ——
+ * 真实环境里 profile 目录一定存在。
+ */
+export function adaptUpstreamInstallSpecs(spec) {
+  let out = replaceOnce(spec, "import { describe, expect, it, vi } from 'vitest'", [
+    "import { mkdtempSync, rmSync } from 'node:fs'",
+    "import { tmpdir } from 'node:os'",
+    "import { join } from 'node:path'",
+    "import { afterAll, describe, expect, it, vi } from 'vitest'",
+  ].join('\n'), 'install spec temp dir imports')
+  out = replaceOnce(out, "const profile = () => ({ name: 'desktop', dir: '/fixtures/profiles/desktop' })", [
+    "const profileDir = mkdtempSync(join(tmpdir(), 'market-install-spec-'))",
+    "afterAll(() => { rmSync(profileDir, { recursive: true, force: true }) })",
+    "const profile = () => ({ name: 'desktop', dir: profileDir })",
+  ].join('\n'), 'install spec real profile dir')
+  return replaceOnce(out, "{ enabled: true, saveExact: true }]])",
+    "{ enabled: true, saveExact: true, registry: 'https://registry.npmjs.org/' }]])",
+    'install spec pinned registry option')
+}

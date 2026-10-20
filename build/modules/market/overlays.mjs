@@ -18,7 +18,7 @@ import {
 } from './market-home-overlay.mjs'
 import { tolerateSlowDownloads } from './market-network-overlay.mjs'
 import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
-import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
+import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-registry-overlay.mjs'
 import {
   addRequiredSourceRepairTest,
   allowMarketSourceSyntheticProxy,
@@ -228,6 +228,17 @@ export default [
     apply: ({ tests }) => ({ tests: awaitProductSourceMigrationInLifecycleTest(tests) }),
     why: '生命周期用例等待产品来源迁移完成后再断言。',
     retireWhen: '随 market.pin-source 一起移除。',
+  }),
+  sourceEntry('test-upstream-install-specs', {
+    kind: 'customization',
+    upstream: ['desktop'],
+    files: { install: m('tests/market-install.spec.ts'), github: m('tests/github-install.spec.ts') },
+    apply: ({ install, github }) => ({
+      install: adaptUpstreamInstallSpecs(install),
+      github: adaptUpstreamInstallSpecs(github),
+    }),
+    why: '上游安装用例的 profile 目录是假路径，且不认产品固定的 npm registry 选项。',
+    retireWhen: '随 market.registry 一起移除，或上游自己用真实临时目录并带上 registry。',
   }),
   sourceEntry('test-product-specs', {
     kind: 'customization',
