@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { alignConnectionRpcScope, alignRuntimeDependencies, alignRuntimeResolutions } from './runtime-version-overlay.mjs'
+import { DISCONTINUED_DSH_PACKAGES, alignConnectionRpcScope, alignRuntimeDependencies, alignRuntimeResolutions } from './runtime-version-overlay.mjs'
 import { alignResolverTestFileUrls } from './desktop-runtime-overlay.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -88,4 +88,28 @@ test('RPC compatibility patch is idempotent and rejects a changed upstream ancho
   assert.match(patched, /caller.inject/)
   assert.equal(alignConnectionRpcScope(patched), patched)
   assert.throws(() => alignConnectionRpcScope('changed'))
+})
+
+test('a discontinued DSH package keeps its last published version instead of the runtime version', () => {
+  // 0.2.1 起上游不再发布 dsh-invariants；对齐到运行时版本会让 yarn 解析失败（No candidates found）。
+  const manifest = { dependencies: { '@deepseek-ai/dsh-invariants': '0.1.0-rc.6', '@deepseek-ai/dsh-atomic-write': '0.1.0-rc.6' } }
+  alignRuntimeDependencies(manifest, '0.2.1-rc.2')
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-invariants'], DISCONTINUED_DSH_PACKAGES['@deepseek-ai/dsh-invariants'])
+  assert.equal(manifest.dependencies['@deepseek-ai/dsh-atomic-write'], '0.2.1-rc.2')
+  const resolutions = alignRuntimeResolutions({ '@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2': 'npm:0.2.0-rc.2' }, '0.2.1-rc.2')
+  assert.deepEqual(resolutions, { '@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2': 'npm:0.2.0-rc.2' })
+})
+
+test('a patched vendored package at the pinned version keeps its vendored source', () => {
+  // 2.0.18 的 dsh-experimental-inspector：npm 上同版本是另一次构建，上游补丁只对 vendor 里那份成立。
+  const vendored = 'patch:@deepseek-ai/dsh-experimental-inspector@file%3Avendor/dsh-runtime/0.2.1-rc.2/deepseek-ai-dsh-experimental-inspector-0.2.1-rc.2.tgz#./patches/dsh-experimental-inspector@0.2.1-rc.2.patch'
+  const result = alignRuntimeResolutions({
+    '@deepseek-ai/dsh-experimental-inspector@npm:0.2.1-rc.2': vendored,
+    '@deepseek-ai/dsh-experimental-inspector@npm:^0.2.1-rc.2': vendored,
+    '@deepseek-ai/dsh-web-app@npm:0.2.1-rc.2': 'file:vendor/dsh-runtime/0.2.1-rc.2/deepseek-ai-dsh-web-app-0.2.1-rc.2.tgz',
+  }, '0.2.1-rc.2')
+  assert.equal(result['@deepseek-ai/dsh-experimental-inspector@npm:0.2.1-rc.2'], vendored)
+  assert.equal(result['@deepseek-ai/dsh-experimental-inspector@npm:^0.2.1-rc.2'], vendored)
+  // 没有补丁的仍换成 npm 发布包；旧版本的带补丁条目仍按原规则换版本（见上一个用例）。
+  assert.equal(result['@deepseek-ai/dsh-web-app@npm:0.2.1-rc.2'], 'npm:0.2.1-rc.2')
 })
