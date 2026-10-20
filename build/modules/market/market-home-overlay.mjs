@@ -4,6 +4,9 @@ function replace(source, anchor, value) {
   return source.replace(anchor, value)
 }
 
+/** 多行锚点按测试文本里的 LF 拼，不受本文件换行风格影响。 */
+const lines = (...parts) => parts.join('\n')
+
 export function addMarketHome({ settingsTab, locales }) {
   settingsTab = settingsTab.replaceAll('\r\n', '\n')
   locales = locales.replaceAll('\r\n', '\n')
@@ -158,5 +161,81 @@ const t = ((key:`)
   let race = tests.slice(raceStart, raceEnd)
   race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
+  // 发现页挂载会先读一次清单给卡片置灰，进入 Installed 还会再做一次更新检查，
+  // 上游这两个按调用次序排夹具的用例因此错位。改成跟着 Host 的当前清单走，断言
+  // 只问"重新读过了"，不再钉死次数；产品里的刷新按钮现在叫"检查更新"。
+  const bounds = (start, label) => {
+    const from = tests.indexOf(start)
+    const to = tests.indexOf(lines('', '  it('), from + 1)
+    if (from < 0 || to < 0) throw new Error('market-home: upstream test boundary changed: ' + label)
+    return [from, to]
+  }
+
+  const [toggleStart, toggleEnd] = bounds("  it('enables, disables, and uninstalls profile bundles", 'installed toggle')
+  let toggle = tests.slice(toggleStart, toggleEnd)
+  toggle = replace(toggle, lines(
+    '    vi.mocked(readMarketInstallations)',
+    '      .mockResolvedValueOnce({ installations: [installed, core] })',
+    '      .mockResolvedValueOnce({ installations: [{ ...installed, enabled: false }, core] })',
+    '      .mockResolvedValue({ installations: [core] })',
+  ), lines(
+    '    let inventory = [installed, core]',
+    '    vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))',
+  ))
+  toggle = replace(toggle, lines(
+    '    vi.mocked(setMarketInstallationEnabled).mockResolvedValue({',
+    '      packageName: installed.packageName,',
+    '      enabled: false,',
+    "      application: 'applied',",
+    '    })',
+  ), lines(
+    '    vi.mocked(setMarketInstallationEnabled).mockImplementation(async () => {',
+    '      inventory = [{ ...installed, enabled: false }, core]',
+    "      return { packageName: installed.packageName, enabled: false, application: 'applied' }",
+    '    })',
+  ))
+  toggle = replace(toggle, lines(
+    '    vi.mocked(executeMarketOperation).mockResolvedValue({',
+    "      action: 'uninstall',",
+    '      packageName: installed.packageName,',
+    "      application: 'applied',",
+    '    })',
+  ), lines(
+    '    vi.mocked(executeMarketOperation).mockImplementation(async () => {',
+    '      inventory = [core]',
+    "      return { action: 'uninstall', packageName: installed.packageName, application: 'applied' }",
+    '    })',
+  ))
+  // 开关状态是重新读回来的，不是乐观更新；具体次数取决于自动检查，所以只问多于一次。
+  toggle = replace(toggle, '    expect(readMarketInstallations).toHaveBeenCalledTimes(2)',
+    '    expect(vi.mocked(readMarketInstallations).mock.calls.length).toBeGreaterThan(1)')
+  // 卸载后的重读由紧随其后的两条渲染断言覆盖，这里不再数次数。
+  toggle = replace(toggle, lines('    await waitFor(() => { expect(readMarketInstallations).toHaveBeenCalledTimes(3) })', ''), '')
+  tests = tests.slice(0, toggleStart) + toggle + tests.slice(toggleEnd)
+
+  const [flakyStart, flakyEnd] = bounds("  it('shows the saved selection after a failed toggle", 'failed toggle refresh')
+  let flaky = tests.slice(flakyStart, flakyEnd)
+  flaky = replace(flaky, lines(
+    '    vi.mocked(readMarketInstallations)',
+    '      .mockResolvedValueOnce({ installations: [installed] })',
+    '      .mockResolvedValue({ installations: [{ ...installed, enabled: true }] })',
+  ), lines(
+    '    let inventory = [installed]',
+    '    vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))',
+  ))
+  // Host 报了失败却已经把选择落盘，所以之后读回来的是启用后的状态。
+  flaky = replace(flaky,
+    "    vi.mocked(setMarketInstallationEnabled).mockRejectedValue(new Error('The plugin could not be enabled.'))",
+    lines(
+      '    vi.mocked(setMarketInstallationEnabled).mockImplementation(async () => {',
+      '      inventory = [{ ...installed, enabled: true }]',
+      "      throw new Error('The plugin could not be enabled.')",
+      '    })',
+    ))
+  flaky = replace(flaky, 'name: en.refresh', 'name: en.checkUpdates')
+  // 这条用例问的就是重试之后失败横幅消失，直接等横幅消失，不数读取次数。
+  flaky = replace(flaky, '    await waitFor(() => { expect(readMarketInstallations).toHaveBeenCalledTimes(3) })',
+    "    await waitFor(() => { expect(screen.queryByRole('alert')).toBeNull() })")
+  tests = tests.slice(0, flakyStart) + flaky + tests.slice(flakyEnd)
   return tests
 }

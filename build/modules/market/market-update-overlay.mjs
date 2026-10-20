@@ -442,14 +442,18 @@ describe('product market update UI', () => {
   it('renders local inventory while the update lookup is pending and retains it on failure', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     let rejectUpdates!: (error: Error) => void
-    vi.mocked(readMarketInstallations)
-      .mockResolvedValueOnce({ installations: [managed] })
-      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectUpdates = reject }))
-    render(<MarketSettingsTab {...props} initialView="installed" />)
+    // 更新检查就是带 updates 标记的那一次读取。发现页挂载也会先读一次清单给
+    // 卡片置灰，所以按参数作答，不按调用次序排夹具。
+    vi.mocked(readMarketInstallations).mockImplementation(async (_signal, updates) => {
+      if (updates !== true) return { installations: [managed] }
+      return await new Promise<never>((_resolve, reject) => { rejectUpdates = reject })
+    })
+    render(<MarketSettingsTab {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: en.installed }))
     expect(await screen.findByRole('heading', { name: managed.packageName })).toBeTruthy()
     expect(screen.queryByText(en.loadingInstallations)).toBeNull()
     expect(screen.getByRole('button', { name: en.checkingUpdates })).toBeTruthy()
-    expect(readMarketInstallations).toHaveBeenNthCalledWith(2, expect.any(AbortSignal), true)
+    expect(readMarketInstallations).toHaveBeenCalledWith(expect.any(AbortSignal), true)
     rejectUpdates(new Error('offline'))
     expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
     expect(screen.getByRole('heading', { name: managed.packageName })).toBeTruthy()
@@ -458,13 +462,19 @@ describe('product market update UI', () => {
 
   it('shows an available version, confirms explicitly, and keeps the plugin after the update', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [
+    let inventory: readonly import('../src/api-types.js').MarketInstallationView[] = [
       { ...managed, updateVersion: '1.10.0', updateStatus: 'available' },
-    ] })
+    ]
+    vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
     vi.mocked(previewMarketOperation).mockResolvedValue({ action: 'update', previewId: 'update-token', profileName: 'default',
       packageName: managed.packageName, displayName: managed.packageName, version: '1.10.0', updateFrom: '1.9.0', expiresAt: '2099-01-01' })
-    vi.mocked(executeMarketOperation).mockResolvedValue({ action: 'update', packageName: managed.packageName, version: '1.10.0', application: 'applied' })
-    render(<MarketSettingsTab {...props} initialView="installed" />)
+    vi.mocked(executeMarketOperation).mockImplementation(async () => {
+      // 更新成功之后 Host 报的是新版本、而且已经是最新，更新按钮随之消失。
+      inventory = [{ ...managed, version: '1.10.0', updateStatus: 'current' }]
+      return { action: 'update', packageName: managed.packageName, version: '1.10.0', application: 'applied' }
+    })
+    render(<MarketSettingsTab {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: en.installed }))
     const button = await screen.findByRole('button', { name: \`\${en.updatePlugin}: \${managed.packageName}\` })
     expect(screen.getByText(\`\${en.updateAvailable} → 1.10.0\`)).toBeTruthy()
     expect(executeMarketOperation).not.toHaveBeenCalled()
@@ -487,12 +497,15 @@ describe('product market update UI', () => {
       { ...managed, updateStatus: 'failed' },
       { ...managed, packageName: '@tokensapi/other', removable: false, updateStatus: 'unavailable' },
     ] })
-    render(<MarketSettingsTab {...props} initialView="installed" />)
+    render(<MarketSettingsTab {...props} />)
+    fireEvent.click(await screen.findByRole('button', { name: en.installed }))
     expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
     expect(screen.getByText(en.updateUnavailable)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Update:/u })).toBeNull()
+    // 重试要真的再读一次；总次数取决于发现页挂载和进入时的自动检查，不钉死。
+    const reads = vi.mocked(readMarketInstallations).mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: en.checkUpdates }))
-    await waitFor(() => expect(readMarketInstallations).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(vi.mocked(readMarketInstallations).mock.calls.length).toBeGreaterThan(reads))
   })
 })
 `
