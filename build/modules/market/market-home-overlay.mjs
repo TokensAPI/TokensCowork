@@ -14,16 +14,13 @@ export function addMarketHome({ settingsTab, locales }) {
           </Pill>
 `, '')
   // Inventory never blocks catalog discovery and never comes from catalog metadata.
+  // 安装/卸载之后的刷新由上游自己做了（installed 视图或已缓存清单都会重读），
+  // 发现页因为这个 effect 读过一次清单，所以同样落在上游那个条件里。
   settingsTab = replace(settingsTab, '  const items = useMemo(', `  useEffect(() => {
-    if (view === 'discover') void loadInstallations(false)
+    if (view === 'discover') void loadInstallations()
   }, [view, loadInstallations])
 
   const items = useMemo(`)
-  settingsTab = replace(settingsTab,
-    "      if (result.action === 'uninstall' && viewRef.current === 'installed') {\n        void loadInstallations()\n      }",
-    "      if (result.action !== 'update') void loadInstallations()")
-  settingsTab = replace(settingsTab, '            installations={installations}',
-    "            installations={installations.filter(item => item.action === 'uninstall')}")
   settingsTab = replace(settingsTab,
     "      <p>{props.t('desktopUnavailable')}</p>\n    </div>\n  )\n  if (!props.loaded && props.loading)",
     `      <p>{props.t('desktopUnavailable')}</p>
@@ -34,7 +31,7 @@ export function addMarketHome({ settingsTab, locales }) {
   settingsTab = replace(settingsTab, '            items={items}', `            items={items}
             installations={installations}
             inventoryError={installationsError}
-            onRetryInventory={() => { void loadInstallations(false) }}`)
+            onRetryInventory={() => { void loadInstallations() }}`)
   const discoverStart = settingsTab.indexOf('function DiscoverView(')
   const discoverEnd = settingsTab.indexOf('\nfunction InstallableView(', discoverStart)
   let discover = settingsTab.slice(discoverStart, discoverEnd)
@@ -61,9 +58,9 @@ export function addMarketHome({ settingsTab, locales }) {
     `        {installation !== undefined && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
         {actionLabel !== undefined &&`)
   settingsTab = settingsTab.slice(0, cardStart) + card + settingsTab.slice(cardEnd)
+  // 「已安装」的说明文案 2.0.18 起由上游自己写清了启用/停用/卸载与官方插件页的分工，
+  // 产品不再改写；只补一句把空列表指回默认的发现页。
   for (const [old, next] of [
-    ['这里显示当前 Profile 的直接插件依赖，包括通过其他插件市场或命令行安装的插件。可卸载的插件只提供卸载操作。', '这里显示已安装的可选插件，可检查更新或卸载。内置组件不在此列表中。'],
-    ['Direct plugin dependencies in the active Profile appear here, including plugins installed by other markets or the CLI. Removable plugins offer uninstall only.', 'Installed optional plugins appear here. Check for updates or uninstall them. Built-in components are excluded.'],
     ['当前配置中没有可显示的插件。', '当前配置中没有可显示的插件。前往“发现”查找新插件。'],
     ['There are no plugins to show in the active profile.', 'There are no plugins to show in the active profile. Use Discover to find new plugins.'],
   ]) locales = replace(locales, old, next)
@@ -155,19 +152,11 @@ const t = ((key:`)
     tests = tests.replaceAll('name: `${en.install}: ${' + name + '.displayName}`', 'name: new RegExp(' + name + '.displayName)')
   }
   tests = replace(tests, 'expect(readMarketInstallable).toHaveBeenCalledTimes(2)', 'expect(readMarketInstallable).not.toHaveBeenCalled()')
-  tests = replace(tests, 'expect(readMarketInstallations).toHaveBeenCalledOnce()\n      expect(readMarketState)', 'expect(readMarketInstallations).toHaveBeenCalledTimes(2)\n      expect(readMarketState)')
   // The background badge read must not consume either selection-race fixture.
   const raceStart = tests.indexOf("  it('ignores a late inventory result")
   const raceEnd = tests.indexOf("\n  it(", raceStart + 1)
   let race = tests.slice(raceStart, raceEnd)
   race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
-  tests = replace(tests, `    const pluginCard = screen.getByRole('heading', { name: '@tokensapi/tool' }).closest('.dshMarketReceipt')
-    const coreCard = screen.getByRole('heading', { name: 'dsh-plugin-desktop' }).closest('.dshMarketReceipt')
-    expect(pluginCard?.parentElement).toBe(coreCard?.parentElement)
-    expect(document.querySelectorAll('.dshMarketReceipts')).toHaveLength(1)`,
-    `    const pluginCard = screen.getByRole('heading', { name: '@tokensapi/tool' }).closest('.dshMarketReceipt')
-    expect(pluginCard?.parentElement?.className).toBe('dshMarketReceipts')
-    expect(screen.queryByRole('heading', { name: 'dsh-plugin-desktop' })).toBeNull()`)
   return tests
 }

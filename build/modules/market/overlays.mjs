@@ -1,7 +1,7 @@
 /* ====================================================================
  * market 覆盖登记表
- * 固定产品来源、当前 Key 鉴权、插件更新、私有 Registry、发现首页与
- * 品牌文案；以及 Desktop 侧的市场提供方固定、DSH 插件页的安装入口。
+ * 固定产品来源、当前 Key 鉴权、私有 Registry、慢链路下载预算、发现首页
+ * 与品牌文案；以及 Desktop 侧的市场提供方固定、DSH 插件页的安装入口。
  * 同一阶段内按登记顺序执行，后一条读取前一条的结果。
  * ==================================================================== */
 import { readFileSync } from 'node:fs'
@@ -30,7 +30,6 @@ import {
   skipUpstreamBuiltInSourceTests,
   skipUpstreamSourceDescriptionTests,
 } from './market-source-overlay.mjs'
-import { addMarketUpdateChecks, addMarketUpdates, addMarketUpdateUiTests } from './market-update-overlay.mjs'
 
 /** 市场服务的产品来源配置与生成的来源清单。 */
 const source = root => ({
@@ -47,9 +46,7 @@ const f = {
   settingsTab: m('src/client/MarketSettingsTab.tsx'),
   locales: m('src/client/locales.ts'),
   styles: m('src/client/styles.ts'),
-  api: m('src/client/api.ts'),
   installService: m('src/install/service.ts'),
-  apiTypes: m('src/api-types.ts'),
 }
 
 const sourceEntry = (id, overlay) => ({
@@ -87,14 +84,6 @@ export default [
     why: '按当前 API Key 请求产品目录，切换 Key 时缓存失效、授权目录不落盘，重定向到第三方不携带凭据。',
     retireWhen: '上游提供等效的按用户授权与缓存隔离扩展点后改走配置，并保留重定向泄漏回归。',
   }),
-  /* ----------------------- 插件更新 ----------------------- */
-  sourceEntry('updates', {
-    kind: 'customization',
-    files: { service: f.installService, routes: f.routes, types: f.apiTypes, settingsTab: f.settingsTab, locales: f.locales },
-    apply: input => addMarketUpdates(input),
-    why: '对可管理的 npm 插件提供检查、确认与执行更新，保留 Profile 配置、启用状态与重启提示。',
-    retireWhen: '上游具备同等更新、权限、确认与重启语义，并通过产品行为测试后移除。',
-  }),
   /* ----------------------- 私有 Registry ----------------------- */
   sourceEntry('registry', {
     kind: 'customization',
@@ -110,13 +99,6 @@ export default [
     apply: (input, { root }) => addPrivateRegistrySupport(input, source(root).origin),
     why: '支持 tokenscowork 私有包身份、schema、版本验证与共享 Registry 安装路由，保留每插件授权；服务端凭据留在服务端。',
     retireWhen: '上游支持等效 Registry 身份与安装路由后改用原生扩展；公开 npm 与私有包都要回归。',
-  }),
-  sourceEntry('update-checks-api', {
-    kind: 'customization',
-    files: { api: f.api },
-    apply: ({ api }) => ({ api: addMarketUpdateChecks(api) }),
-    why: '客户端 API 增加插件更新检查调用。',
-    retireWhen: '随 market.updates 一起移除。',
   }),
   /* ----------------------- 慢网络 ----------------------- */
   sourceEntry('slow-network', {
@@ -199,13 +181,6 @@ export default [
     why: '来源说明已隐藏，跳过对应设置页用例。',
     retireWhen: '随 market.pin-source 一起移除。',
   }),
-  sourceEntry('test-update-ui', {
-    kind: 'customization',
-    files: { tests: m('tests/market-settings-tab.spec.tsx') },
-    apply: ({ tests }) => ({ tests: addMarketUpdateUiTests(tests) }),
-    why: '设置页补充插件更新界面的产品回归。',
-    retireWhen: '随 market.updates 一起移除。',
-  }),
   sourceEntry('test-discover-home', {
     kind: 'customization',
     files: { tests: m('tests/market-settings-tab.spec.tsx') },
@@ -217,14 +192,14 @@ export default [
   }),
   sourceEntry('test-source-repair', {
     kind: 'customization',
-    files: { tests: m('tests/source-store.spec.ts') },
+    files: { tests: m('tests/market-state-persistence.spec.ts') },
     apply: ({ tests }) => ({ tests: addRequiredSourceRepairTest(tests) }),
     why: '补充旧来源自愈的产品回归。',
     retireWhen: '随 market.pin-source 一起移除。',
   }),
   sourceEntry('test-lifecycle-migration', {
     kind: 'customization',
-    files: { tests: m('tests/market-host-lifecycle.spec.ts') },
+    files: { tests: m('tests/host-routes.spec.ts') },
     apply: ({ tests }) => ({ tests: awaitProductSourceMigrationInLifecycleTest(tests) }),
     why: '生命周期用例等待产品来源迁移完成后再断言。',
     retireWhen: '随 market.pin-source 一起移除。',
@@ -233,11 +208,10 @@ export default [
     kind: 'customization',
     upstream: ['desktop'],
     copy: [
-      [template('market-update.spec.ts'), m('tests/market-update.spec.ts')],
       [template('market-registry-candidates.spec.ts'), m('tests/market-registry-candidates.spec.ts')],
     ],
-    why: '插件更新与私有 Registry 安装候选的产品回归，由 Market 的 Vitest 在 staging 中执行。',
-    retireWhen: '随 market.updates / market.registry 一起移除。',
+    why: '私有 Registry 安装候选的产品回归，由 Market 的 Vitest 在 staging 中执行。',
+    retireWhen: '随 market.registry 一起移除。',
   }),
   /* ----------------------- Desktop 侧 ----------------------- */
   {

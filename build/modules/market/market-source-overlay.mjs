@@ -161,12 +161,9 @@ export function pinProductMarketSource(sources, origin, manifest) {
     sourceStoreClassAnchor,
     `${requiredSourceRepair}${sourceStoreClassAnchor}`,
   )
-  const indexRoutesImportAnchor = `import {
-  registerMarketRoutes,
-  type MarketDesktopPlugins,
-} from './host/routes.js'`
+  const indexRoutesImportAnchor = "import { registerMarketRoutes } from './host/routes.js'"
   const indexRouteEffectAnchor = `  ctx.effect(
-    () => registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider, desktopPluginsProvider),
+    () => registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider),
     'community-market: routes',
   )`
   if (!index.includes(indexRoutesImportAnchor) || !index.includes(indexRouteEffectAnchor)) {
@@ -176,18 +173,14 @@ export function pinProductMarketSource(sources, origin, manifest) {
     .replace(
       indexRoutesImportAnchor,
       `import { ensureRequiredSource } from './catalog/source-store.js'
-import {
-  PRODUCT_SOURCE,
-  registerMarketRoutes,
-  type MarketDesktopPlugins,
-} from './host/routes.js'`,
+import { PRODUCT_SOURCE, registerMarketRoutes } from './host/routes.js'`,
     )
     .replace(
       indexRouteEffectAnchor,
       `  ctx.effect(
     async () => {
       await ensureRequiredSource(state, PRODUCT_SOURCE)
-      return registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider, desktopPluginsProvider)
+      return registerMarketRoutes(ctx, state, installProvider, desktopActionsProvider)
     },
     'community-market: repair product source and register routes',
   )`,
@@ -373,32 +366,36 @@ export function skipUpstreamSourceDescriptionTests(spec) {
 /**
  * 为产品 staging 增加历史来源迁移回归测试。旧版本保存的其他来源不应
  * 继续出现在产品界面；迁移后必须只保留产品源，且稳定状态不重复写入。
- * @param spec - staging 副本中 tests/source-store.spec.ts 的完整内容。
+ * 上游 2.0.18 把 source-store 用例并入 tests/market-state-persistence.spec.ts，
+ * 该文件已自带 Deferred / Memory 两种 store 与 user-added 来源夹具 userSource。
+ * @param spec - staging 副本中 tests/market-state-persistence.spec.ts 的完整内容。
  * @returns 增加产品源自愈断言后的测试内容。
- * @throws 上游测试文件结尾变化时抛出，中断打包待人工复查。
+ * @throws 上游测试文件结构变化时抛出，中断打包待人工复查。
  */
 export function addRequiredSourceRepairTest(spec) {
   const importAnchor = "import { PersistentCatalogSourceStore } from '../src/catalog/source-store.js'"
-  if (!spec.includes(importAnchor)) throw new Error('prepare-desktop: 来源存储测试结构变化')
+  const storeAnchor = "import { DeferredMarketStateStore, MemoryMarketStateStore,"
+  const fixtureAnchor = 'const userSource: LocalSourceRecord = {'
+  for (const anchor of [importAnchor, storeAnchor, fixtureAnchor]) {
+    if (spec.split(anchor).length !== 2) throw new Error(`prepare-desktop: 来源存储测试结构变化：${anchor}`)
+  }
   return spec.replace(importAnchor,
-    "import { PersistentCatalogSourceStore, ensureRequiredSource } from '../src/catalog/source-store.js'")
-    .replace('MemoryMarketStateStore, type MarketStateStore',
-      'MemoryMarketStateStore, DeferredMarketStateStore, type MarketStateStore') + `
+    "import { PersistentCatalogSourceStore, ensureRequiredSource } from '../src/catalog/source-store.js'") + `
 
 it('repairs product sources before and after durable adoption without repeated writes', async () => {
   const state = new DeferredMarketStateStore()
-  await ensureRequiredSource(state, source)
-  expect(state.getSources()).toEqual([source])
-  const durable = new MemoryMarketStateStore({ sources: [{ ...source, enabled: false }] })
+  await ensureRequiredSource(state, userSource)
+  expect(state.getSources()).toEqual([userSource])
+  const durable = new MemoryMarketStateStore({ sources: [{ ...userSource, enabled: false }] })
   const write = vi.spyOn(durable, 'setSources')
   await state.adopt(durable)
-  await ensureRequiredSource(state, source)
+  await ensureRequiredSource(state, userSource)
   expect(state.isDurable).toBe(true)
-  expect(durable.getSources()).toEqual([source])
-  await ensureRequiredSource(state, source)
+  expect(durable.getSources()).toEqual([userSource])
+  await ensureRequiredSource(state, userSource)
   expect(write).toHaveBeenCalledTimes(1)
   state.release()
-  expect(state.getSources()).toEqual([source])
+  expect(state.getSources()).toEqual([userSource])
 })
 `
 }
@@ -406,7 +403,8 @@ it('repairs product sources before and after durable adoption without repeated w
 /**
  * 产品入口在异步 effect 中先持久化必需来源，再注册路由。上游生命周期测试
  * 使用同步简化版 Cordis，需要等待异步 effect 完成才能观察到已注册的路由。
- * @param spec - staging 副本中 tests/market-host-lifecycle.spec.ts 的完整内容。
+ * 上游 2.0.18 把这组用例并入 tests/host-routes.spec.ts，harness 不变。
+ * @param spec - staging 副本中 tests/host-routes.spec.ts 的完整内容。
  * @returns 等待产品迁移 setup 后继续原断言的测试内容。
  */
 export function awaitProductSourceMigrationInLifecycleTest(spec) {
