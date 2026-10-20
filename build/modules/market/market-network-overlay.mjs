@@ -3,9 +3,15 @@
  * 插件包下载走市场代理，整包要在 pnpm 一次请求里传完。pnpm 默认预算
  * 60 秒，8.7 MB 的插件因此需要约 145 KB/s 才装得上；慢链路上三次重试
  * 全部超时，用户只看到“包管理器未成功完成”。
- * 这里只做两件事：把单次下载预算放宽成进程内参数（与上游的
- * minimumReleaseAge 策略同一位置，不改写 Profile 自己的 pnpm 配置），
- * 并把超时失败翻译成一句用户能看懂的网络提示，详细输出照旧保留。
+ *
+ * Desktop v2.0.18 起 pnpm 由官方插件管理器调用，argv 不再经过市场，
+ * 所以下载预算改走 market.registry 建立的那份临时 `.npmrc`（一次操作
+ * 写一次、用完删掉，不持久化改写 Profile 的包管理器配置）。超时也不再
+ * 靠匹配输出：官方管理器自己把失败归类成 `timeout`，直接用它。
+ *
+ * 本覆盖只做三件事：加一行下载预算、把超时归成独立失败码、把这个码
+ * 翻译成一句用户能看懂的网络提示；详细输出照旧保留。
+ * 必须排在 market.registry 之后，它插的那行依赖 registry 建的写入器。
  * ==================================================================== */
 import { AnchorError, countOf, replaceOnce } from '../../pipeline/anchors.mjs'
 
@@ -16,45 +22,37 @@ export const PNPM_FETCH_TIMEOUT_MS = 600000
 function tolerateSlowDownloadsInHost(service) {
   service = replaceOnce(service, "  | 'operation-failed'\n  | 'persistence-failed'",
     "  | 'operation-failed'\n  | 'operation-timeout'\n  | 'persistence-failed'", 'install error codes')
-  service = replaceOnce(service, 'function packageManagerDetails(\n  args: readonly string[],',
-    `/**
- * Product policy: one package download gets a budget long enough for a slow
- * link instead of pnpm's 60-second default, which fails any archive whose
- * transfer runs longer. Keep it process-local, like the Desktop
- * minimumReleaseAge argument: the Profile's own pnpm configuration is never
- * rewritten. Retries stay at the pnpm default: each attempt already has ten
- * times the budget, so raising the count only multiplies the wait before the
- * user learns the download failed.
- */
+  service = replaceOnce(service, '    /* product npmrc lines */',
+    `    // Product policy: one package download gets a budget long enough for a
+    // slow link instead of pnpm's 60-second default, which fails any archive
+    // whose transfer runs longer. Retries stay at the pnpm default: each
+    // attempt already has ten times the budget, so raising the count only
+    // multiplies the wait before the user learns the download failed.
+    lines.push(\`fetch-timeout=\${PNPM_FETCH_TIMEOUT_MS}\`)`, 'package manager download policy')
+  service = replaceOnce(service, "const PRODUCT_NPMRC_FILENAME = '.npmrc'",
+    `/** One package download's budget, in milliseconds; see productNpmrcLines. */
 const PNPM_FETCH_TIMEOUT_MS = ${PNPM_FETCH_TIMEOUT_MS}
+const PRODUCT_NPMRC_FILENAME = '.npmrc'`, 'package manager download budget')
+  service = replaceOnce(service, '  private packageManagerError(message: string, details: string): MarketInstallError {',
+    `/**
+   * Product policy: a download that ran out of time is the one package-manager
+   * failure the user can act on, so it carries its own code and its own copy;
+   * every other failure keeps the official manager's message. The detailed
+   * output is unchanged either way.
+   */
+  private downloadTimeoutError(details: string): MarketInstallError {
+    const message = 'The plugin package download timed out.'
+    try { this.logFailure?.(\`dsh-community-market: \${message}\${details === '' ? '' : \`\\n\${details}\`}\`) } catch {}
+    return new MarketInstallError('operation-timeout', message, ...(details === '' ? [] : [details]))
+  }
 
-function slowNetworkPnpmArgs(args: readonly string[]): readonly string[] {
-  return [\`--config.fetchTimeout=\${PNPM_FETCH_TIMEOUT_MS}\`, ...args]
-}
-
-/**
- * pnpm reports a download that ran out of time through its retry log
- * (\`error (23)\`), the abort message, or the underlying socket error. Matching
- * the output is the only signal available: the package manager exits with the
- * same status for every failure.
- */
-const PNPM_DOWNLOAD_TIMEOUT = /TimeoutError|aborted due to timeout|error \\(23\\)|ETIMEDOUT|ESOCKETTIMEDOUT|UND_ERR_(?:CONNECT|HEADERS|BODY)_TIMEOUT/u
-
-function downloadTimedOut(output: string): boolean {
-  return PNPM_DOWNLOAD_TIMEOUT.test(output)
-}
-
-function packageManagerDetails(
-  args: readonly string[],`, 'package manager download policy')
-  service = replaceOnce(service,
-    '  private async runPnpm(args: readonly string[], signal: AbortSignal): Promise<void> {\n',
-    '  private async runPnpm(requested: readonly string[], signal: AbortSignal): Promise<void> {\n'
-    + '    // The reported argv is the argv that ran, tolerance arguments included.\n'
-    + '    const args = slowNetworkPnpmArgs(requested)\n', 'package manager invocation')
-  return replaceOnce(service, "    return new MarketInstallError('operation-failed', message, details)",
-    `    return downloadTimedOut(details)
-      ? new MarketInstallError('operation-timeout', 'The plugin package download timed out.', details)
-      : new MarketInstallError('operation-failed', message, details)`, 'package manager failure code')
+  private packageManagerError(message: string, details: string): MarketInstallError {`, 'package manager failure code')
+  // 官方管理器把超时与自己终止的运行都标出来，不用再猜 pnpm 的输出。
+  return replaceOnce(service, '        throw this.packageManagerError(managementMessage(result.error) ?? fallback, details)',
+    `        if (result.packageResult?.kind === 'timeout' || result.packageResult?.timedOut === true) {
+          throw this.downloadTimeoutError(details)
+        }
+        throw this.packageManagerError(managementMessage(result.error) ?? fallback, details)`, 'package manager timeout classification')
 }
 
 /** 失败码要有自己的状态码，客户端才能按码给文案，而不是解析英文消息。 */
@@ -69,7 +67,7 @@ function reportTimeoutStatus(routes) {
 function explainTimeoutToUser(settingsTab) {
   const call = 'operationErrorMessage(cause, '
   const calls = countOf(settingsTab, call)
-  if (calls !== 2) throw new AnchorError(`install failure copy：锚点应出现 2 次，实际 ${calls} 次：${call}`)
+  if (calls !== 3) throw new AnchorError(`install failure copy：锚点应出现 3 次，实际 ${calls} 次：${call}`)
   settingsTab = settingsTab.replaceAll(call, 'operationErrorMessage(cause, t, ')
   return replaceOnce(settingsTab, `function operationErrorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message.trim().length > 0
