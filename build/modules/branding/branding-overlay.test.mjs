@@ -29,8 +29,9 @@ test('market installation and restart copy is branded in both languages', () => 
   const original = readFileSync(resolve(import.meta.dirname, '../../../desktop/dsh-community-market/src/client/locales.ts'), 'utf8')
   const result = brandMarketCopy(original, productName)
   assert.ok(result.includes('请确认 TokensCowork 验证的 npm 包、版本和目标配置。'))
-  assert.ok(result.includes('操作完成后需要重启 TokensCowork，改动才会生效。'))
-  assert.ok(result.includes('Restart TokensCowork after this operation'))
+  // 2.0.18 起操作即时生效，只剩需重启时的提示条。
+  assert.ok(result.includes('已保存，重启 TokensCowork 后生效。'))
+  assert.ok(result.includes('after TokensCowork restarts'))
   assert.doesNotMatch(result, /DSH Desktop|DeepSeek Harness|DSH Terminal|DSH 终端/u)
   assert.equal(brandMarketCopy(result, productName), result)
   assert.equal(brandMarketCopy('dsh-community-market /api/dsh @deepseek-ai/dsh', productName), 'dsh-community-market /api/dsh @deepseek-ai/dsh')
@@ -54,9 +55,9 @@ test('certificate branding rejects missing, wrong, and mixed brands in any chunk
     assert.throws(() => verifyDesktopCertificateBranding(chunks.join('\n'), productName), /retains upstream/)
   }
 })
-const bootAnchor = 'The DeepSeek Harness implementation checkout is at'
-const bootBranded = `The ${productName} implementation checkout is at`
+// 0.2.1 起 app-boot 的 "implementation checkout is at" 整句删除，不再有 boot 锚点；GUI 句只剩一处。
 const guiAnchor = 'DeepSeek Harness Web GUI'
+const guiBranded = `${productName} Web GUI`
 const codingStandard = 'You are a coding agent powered by the {{model}} model.'
 const persona = `You are a versatile AI assistant inside ${productName}, powered by the {{model}} model. You handle coding, research, writing, and everyday tasks alike.`
 const cloudEntry = `ctx.effect(() => services.slots.inject("sidebar.footer.action", () => services.slots.register({
@@ -71,7 +72,6 @@ function makeStage(files) {
   const write = (path, text) => { mkdirSync(resolve(path, '..'), { recursive: true }); writeFileSync(path, text) }
   write(resolve(modules, '../@agents-anywhere/dsh-bridge-next/lib/client.js'), cloudEntry)
   write(resolve(modules, 'dsh-client-ui-directory-picker-browse/lib/client.js'), 'DSH Desktop native directory picker is unavailable; DSH Desktop directory validation is unavailable')
-  write(resolve(modules, 'dsh-app-boot', 'lib', 'index.js'), files.boot)
   write(resolve(modules, 'dsh-web-app', 'lib', 'index.js'), files.gui)
   write(resolve(modules, 'dsh-client-ui-layout', 'lib', 'client.js'), files.title)
   write(resolve(modules, 'dsh-web-frontend', 'dist', 'index.html'), files.html)
@@ -79,20 +79,18 @@ function makeStage(files) {
     const original = readFileSync(resolve(import.meta.dirname, '../../../desktop/deepseek-harness/packages/bundle/web-app', file), 'utf8')
     write(resolve(modules, 'dsh-web-app', file), files.standard === persona ? original.replace(codingStandard, persona) : original)
   }
-  return { stage, bootPath: resolve(modules, 'dsh-app-boot', 'lib', 'index.js') }
+  return { stage, guiPath: resolve(modules, 'dsh-web-app', 'lib', 'index.js') }
 }
 
 const pristine = () => ({
-  boot: `x ${bootAnchor} y`,
-  gui: `${guiAnchor} ... ${guiAnchor}`,
+  gui: `x ${guiAnchor} y`,
   title: 'const productTitle = "DeepSeek Harness";',
   html: '<title>DeepSeek Harness</title>',
   standard: codingStandard,
 })
 
 const branded = () => ({
-  boot: `x ${bootBranded} y`,
-  gui: `${productName} Web GUI ... ${productName} Web GUI`,
+  gui: `x ${guiBranded} y`,
   title: `const productTitle = "${productName}";`,
   html: `<title>${productName}</title>`,
   standard: persona,
@@ -119,10 +117,10 @@ test('current web-app declarative presets retain their composition and use the p
 })
 
 test('brands a freshly installed dependency tree', () => {
-  const { stage, bootPath } = makeStage(pristine())
+  const { stage, guiPath } = makeStage(pristine())
   try {
     brandInstalledRuntime({ stage, productName })
-    assert.match(readFileSync(bootPath, 'utf8'), new RegExp(bootBranded))
+    assert.match(readFileSync(guiPath, 'utf8'), new RegExp(guiBranded))
     const preset = readFileSync(resolve(stage, 'dsh-plugin-desktop/node_modules/@deepseek-ai/dsh-web-app/presets/standard.patch.yml'), 'utf8')
     assert.ok(preset.includes(persona))
     const modules = resolve(stage, 'dsh-plugin-desktop/node_modules/@deepseek-ai')
@@ -142,17 +140,17 @@ test('new Desktop bootstrap does not receive a duplicate existsSync import', () 
 // node_modules 跨装配保留(见 build/pipeline/staging-prepare.mjs),所以本函数一定会再次
 // 撞上自己上一轮改过的文件。锚点消失但替换结果在位 = 已生效,不是上游漂移。
 test('second assembly over a preserved tree is a no-op, not a failure', () => {
-  const { stage, bootPath } = makeStage(branded())
+  const { stage, guiPath } = makeStage(branded())
   try {
-    const before = statSync(bootPath).mtimeMs
+    const before = statSync(guiPath).mtimeMs
     brandInstalledRuntime({ stage, productName })
-    assert.equal(statSync(bootPath).mtimeMs, before, '已品牌化的文件不该被重写')
+    assert.equal(statSync(guiPath).mtimeMs, before, '已品牌化的文件不该被重写')
   } finally { rmSync(stage, { recursive: true, force: true }) }
 })
 
 test('upstream drift still fails loudly', () => {
   const files = branded()
-  files.boot = 'x The Something Else implementation checkout is at y'
+  files.gui = 'x Something Else Web GUI y'
   const { stage } = makeStage(files)
   try {
     assert.throws(() => brandInstalledRuntime({ stage, productName }), /品牌锚点/)
@@ -161,7 +159,7 @@ test('upstream drift still fails loudly', () => {
 
 test('an extra upstream occurrence still fails loudly', () => {
   const files = pristine()
-  files.boot = `${bootAnchor} a; ${bootAnchor} b`
+  files.gui = `${guiAnchor} a; ${guiAnchor} b`
   const { stage } = makeStage(files)
   try {
     assert.throws(() => brandInstalledRuntime({ stage, productName }), /出现 2 次,预期 1 次/)
@@ -238,15 +236,15 @@ test('source identity, certificate and migration reject missing and duplicate an
 })
 
 test('runtime verification is read-only and detects missing persona before any partial writes', t => {
-  const { stage, bootPath } = makeStage(pristine())
+  const { stage, guiPath } = makeStage(pristine())
   t.after(() => rmSync(stage, { recursive: true, force: true }))
-  const before = readFileSync(bootPath, 'utf8')
+  const before = readFileSync(guiPath, 'utf8')
   assert.throws(() => verifyInstalledRuntimeBranding({ stage, productName }), /missing/)
-  assert.equal(readFileSync(bootPath, 'utf8'), before)
+  assert.equal(readFileSync(guiPath, 'utf8'), before)
   const presetPath = resolve(stage, 'dsh-plugin-desktop/node_modules/@deepseek-ai/dsh-web-app/cordis.patch.yml')
   writeFileSync(presetPath, 'Unknown persona')
   assert.throws(() => brandInstalledRuntime({ stage, productName }), /品牌锚点/)
-  assert.equal(readFileSync(bootPath, 'utf8'), before)
+  assert.equal(readFileSync(guiPath, 'utf8'), before)
   writeFileSync(presetPath, codingStandard + codingStandard)
   assert.throws(() => brandInstalledRuntime({ stage, productName }), /品牌锚点/)
   writeFileSync(presetPath, readFileSync(resolve(import.meta.dirname, '../../../desktop/deepseek-harness/packages/bundle/web-app/cordis.patch.yml')))

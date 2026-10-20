@@ -106,11 +106,19 @@ export function alignMacReleaseChecks(releaseMac) {
       prepareFsExtForElectron({ platform: 'darwin', arch: 'x64', desktopRoot })
       prepareInstalledMacUniversalRuntime(desktopRoot)`
   if (!releaseMac.includes(runtime)) throw new Error('configure-product: cannot locate universal runtime preparation')
+  // 上游的 node:fs 导入项随版本变化（2.0.17 只有 rmSync，2.0.18 多了 readFileSync）；按现有导入补齐我们用到的名字，
+  // 而不是替换固定句子——替换不中会静默留下未导入的 existsSync/chmodSync，到 typecheck 才暴露。
+  const fsImport = /import \{ ([^}]+) \} from 'node:fs'/u
+  if (!fsImport.test(releaseMac)) throw new Error('configure-product: cannot locate the node:fs import in release-mac.ts')
   return releaseMac.replace(upstreamReleaseCheck,
     '  // TokensCowork product assembly owns the release quality gates before packaging.\n')
     .replace(builder, "    'exec', 'electron-builder', '--mac', 'dmg', `--${releaseEnvironment.DSH_MAC_ARCH}`,\n    '--publish', 'never',")
     .replace("'--config.mac.notarize=true'", "'--config.mac.notarize=false'")
-    .replace("import { rmSync } from 'node:fs'", "import { rmSync, existsSync, chmodSync } from 'node:fs'")
+    .replace(fsImport, (_line, names) => {
+      const imported = new Set(names.split(',').map(name => name.trim()).filter(Boolean))
+      for (const name of ['existsSync', 'chmodSync']) imported.add(name)
+      return `import { ${[...imported].join(', ')} } from 'node:fs'`
+    })
     .replace("import { prepareInstalledMacUniversalRuntime }", "import { MACOS_UNIVERSAL_NATIVE_ENTRIES }")
     .replace(runtime, `      const arch = process.env.DSH_MAC_ARCH
       if (arch !== 'arm64' && arch !== 'x64') throw new Error('Explicit native macOS architecture is required')

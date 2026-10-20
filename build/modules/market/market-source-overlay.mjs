@@ -70,6 +70,9 @@ export function brandMarketCopy(source, productName) {
     .replaceAll('DeepSeek Harness', productName)
     .replaceAll('DSH Terminal', `${productName} Terminal`)
     .replaceAll('DSH 终端', `${productName} 终端`)
+    // 2.0.18 起操作即时生效，只剩需重启时的提示条，裸写 "DSH"；"DSH 核心组件" 指的是 DSH 运行时包本身，保留。
+    .replaceAll('重启 DSH 后生效', `重启 ${productName} 后生效`)
+    .replaceAll('after DSH restarts', `after ${productName} restarts`)
 }
 
 /**

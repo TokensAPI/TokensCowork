@@ -92,14 +92,12 @@ function planInstalledRuntimeBranding({ stage, productName }) {
     ['<title>DeepSeek Harness</title>', `<title>${htmlTitle}</title>`, 1],
   ])
 
-  // 1) app-boot:源码检出说明行("The DeepSeek Harness implementation checkout is at...")。
-  replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js'), [
-    ['The DeepSeek Harness implementation checkout is at', `The ${productName} implementation checkout is at`, 1],
-  ])
+  // 1) app-boot 的源码检出说明行（"The DeepSeek Harness implementation checkout is at…"）
+  //    在 DSH 0.2.1 整句删除，app-boot 已无上游品牌字样，该项退役。
 
-  // 2) web-app:GUI 说明行与 webUrl 变量描述("DeepSeek Harness Web GUI",两处)。
+  // 2) web-app:GUI 说明行("DeepSeek Harness Web GUI"；0.2.0 两处，0.2.1 起只剩一处)。
   replaceOnce(resolve(desktopModules, '@deepseek-ai', 'dsh-web-app', 'lib', 'index.js'), [
-    ['DeepSeek Harness Web GUI', `${productName} Web GUI`, 2],
+    ['DeepSeek Harness Web GUI', `${productName} Web GUI`, 1],
   ])
 
   // 3) agent 预设 persona：0.2 由 web-app 提供声明式预设补丁。

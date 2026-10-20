@@ -6382,16 +6382,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/schemastery@npm:^3.18.4, @deepseek-ai/schemastery@npm:~3.18.4":
-  version: 3.18.4
-  resolution: "@deepseek-ai/schemastery@npm:3.18.4"
-  dependencies:
-    "@deepseek-ai/cosmokit": "npm:~1.8.5"
-    "@standard-schema/spec": "npm:^1.1.0"
-  checksum: 10c0/eb2afd90404460ea88a510f20bc6751a70f9e9973bac9342279999277928fc827c2aba1bbb37f134a92b6475e261e5dd97c1ddbc6f0ca8588d07d34303ec4a1d
-  languageName: node
-  linkType: hard
-
 "@deepseek-ai/schemastery@npm:^3.18.5, @deepseek-ai/schemastery@npm:~3.18.5":
   version: 3.18.5
   resolution: "@deepseek-ai/schemastery@npm:3.18.5"
@@ -6399,6 +6389,16 @@ __metadata:
     "@deepseek-ai/cosmokit": "npm:~1.8.6"
     "@standard-schema/spec": "npm:^1.1.0"
   checksum: 10c0/19a5195e2fd1f32e8841915e4097a89b8c17baa8c5cb1dee26e8d817b0e7ecbbe0d5b8d8b489a9a71072ac398ad3831269a141bd8aab277f47a78ec21aec320d
+  languageName: node
+  linkType: hard
+
+"@deepseek-ai/schemastery@npm:~3.18.4":
+  version: 3.18.4
+  resolution: "@deepseek-ai/schemastery@npm:3.18.4"
+  dependencies:
+    "@deepseek-ai/cosmokit": "npm:~1.8.5"
+    "@standard-schema/spec": "npm:^1.1.0"
+  checksum: 10c0/eb2afd90404460ea88a510f20bc6751a70f9e9973bac9342279999277928fc827c2aba1bbb37f134a92b6475e261e5dd97c1ddbc6f0ca8588d07d34303ec4a1d
   languageName: node
   linkType: hard
 
@@ -8437,7 +8437,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@tokens/dsh-loop-guard@workspace:dsh-plugin-desktop/product-plugins/tokens-loop-guard"
   dependencies:
-    "@deepseek-ai/schemastery": "npm:^3.18.4"
+    "@deepseek-ai/schemastery": "npm:^3.18.5"
   languageName: unknown
   linkType: soft
 
@@ -8458,7 +8458,7 @@ __metadata:
   dependencies:
     "@deepseek-ai/dsh-atomic-write": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-invariants": "npm:0.2.0-rc.2"
-    "@deepseek-ai/schemastery": "npm:^3.18.4"
+    "@deepseek-ai/schemastery": "npm:^3.18.5"
   peerDependencies:
     "@deepseek-ai/cordis": ^4.0.1
   languageName: unknown
@@ -11508,7 +11508,7 @@ __metadata:
     "@deepseek-ai/dsh-workflow": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-working-directory": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-workspace": "npm:0.2.1-rc.2"
-    "@deepseek-ai/schemastery": "npm:^3.18.4"
+    "@deepseek-ai/schemastery": "npm:^3.18.5"
     "@electron/asar": "npm:3.4.1"
     "@electron/fuses": "npm:1.8.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
@@ -17201,7 +17201,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "tokens-dsh-web-search@workspace:dsh-plugin-desktop/product-plugins/tokens-dsh-web-search"
   dependencies:
-    "@deepseek-ai/schemastery": "npm:^3.18.4"
+    "@deepseek-ai/schemastery": "npm:^3.18.5"
   peerDependencies:
     "@deepseek-ai/dsh-settings": 0.2.1-rc.2
     "@deepseek-ai/dsh-tools": 0.2.1-rc.2
