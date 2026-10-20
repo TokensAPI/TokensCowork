@@ -227,9 +227,9 @@ if (mode === 'check') {
   // 由并行的 win-check 任务承担，发布任务等两者都通过；这里只装配、编译并打包，
   // 让 Windows 安装包不再排在门禁后面串行等 4 分钟。
   configureProduct(unsignedEnvironment, 'windows')
-  // Market 由 assemble 阶段编译，产品配置不会修改 Market 源码；这里只重编
-  // 被品牌与 Logo 改写的 Desktop。
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage, unsignedEnvironment)
+  // Market 原先由门禁里的 `dsh-community-market check` 顺带编译；拆开后这里要和
+  // macOS 一样自己编 Market 与 Desktop，品牌校验读的是两者的产物。
+  buildProduct(unsignedEnvironment)
   verifyProductBranding(unsignedEnvironment)
   // 最终物理运行时由 Electron Builder afterPack 与 verify-package 检查。
   run('corepack', [
