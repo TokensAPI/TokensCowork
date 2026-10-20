@@ -8,11 +8,12 @@ import { validateReleaseNotes } from './validate-release-notes.mjs'
 const root = resolve(import.meta.dirname, '..')
 
 export function validateReleaseTarget({ operation, tag, version, commit, tagCommit, release, eventTag }) {
-  if (!['build', 'promote'].includes(operation)) throw new Error('Unknown release operation')
+  if (!['build', 'promote', 'rehearse'].includes(operation)) throw new Error('Unknown release operation')
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version) || tag !== `v${version}`) throw new Error('Release tag differs from product version')
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Invalid source commit')
   if (eventTag && eventTag !== tag) throw new Error('Pushed tag differs from product version')
-  if (tagCommit && tagCommit !== commit) throw new Error('Release tag points to a different source commit')
+  // 演练只构建安装包、不发布，所以允许当前版本已经发出或标签指向别的提交；用来调发布流程本身。
+  if (operation !== 'rehearse' && tagCommit && tagCommit !== commit) throw new Error('Release tag points to a different source commit')
   if (operation === 'build' && release) throw new Error('Release already exists; do not rebuild or resubmit notarization')
   if (operation === 'promote' && (!release || release.draft || !release.prerelease)) throw new Error('Promotion requires an existing published pre-release')
   return { operation, tag, version, commit, release_notes: `docs/releases/${tag}.md`, prerelease: 'true' }
@@ -31,7 +32,7 @@ export async function readRelease(repository, tag, token, request = fetch) {
 
 export async function main(env = process.env) {
   const operation = env.RELEASE_OPERATION || 'build'
-  if (!['build', 'promote'].includes(operation)) throw new Error('Unknown release operation')
+  if (!['build', 'promote', 'rehearse'].includes(operation)) throw new Error('Unknown release operation')
   const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
   let tag, version, commit
   if (operation === 'promote') {
