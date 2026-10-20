@@ -245,6 +245,12 @@ export async function removeProductNpmrc(dir: string): Promise<void> {
   service = replaceOnce(service, "        () => this.manager.installBundle(`${intent.packageName}@${intent.version}`, { enabled: intent.enabled, saveExact: true }),",
     "        () => this.withProductNpmrc(() => this.manager.installBundle(`${intent.packageName}@${intent.version}`, { enabled: intent.enabled, saveExact: true, registry: NPM_REGISTRY })),",
     'private update install routing')
+  // 产品自己的拒绝（用户写的 .npmrc、格式不对的 API Key）本身就带着能给用户看
+  // 的 code，不能被当成包管理器的失败重新包装，否则用户只看到一条 pnpm 输出。
+  service = replaceOnce(service,
+    "    } catch (cause) {\n      throw this.packageManagerError(\n        'The plugin manager could not run the package operation.',",
+    "    } catch (cause) {\n      if (cause instanceof MarketInstallError) throw cause\n      throw this.packageManagerError(\n        'The plugin manager could not run the package operation.',",
+    'product refusal reaches the user')
 
   /* -------------------- 更新检查：按插件授权 -------------------- */
   // 更新角标用刚授权过的目录给出的版本提示；预览和执行各自独立再授权、
