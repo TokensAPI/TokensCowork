@@ -1,7 +1,19 @@
-import { expect, it, vi } from 'vitest'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, expect, it, vi } from 'vitest'
 import { DSH_1024STORE_ADAPTER_ID, DSH_1024STORE_PROVIDER_ID } from '../src/adapters/dsh-1024store.js'
 import type { CatalogSnapshot } from '../src/contracts/index.js'
-import { MarketInstallService, createMarketPackageVerifier, type MarketDesktopPnpm } from '../src/install/service.js'
+import { MarketInstallService, createMarketPackageVerifier, type MarketPluginManager } from '../src/install/service.js'
+
+const temporary: string[] = []
+afterEach(async () => {
+  await Promise.all(temporary.splice(0).map(path => rm(path, { recursive: true, force: true })))
+})
+
+const idleManager = { listBundles: vi.fn(async () => []), listPlugins: vi.fn(async () => []),
+  installBundle: vi.fn(), setBundleEnabled: vi.fn(), removeBundle: vi.fn() } as unknown as MarketPluginManager
 
 it('preserves self-hosted identity through the real composite verifier', async () => {
   const name='@tokensapi/dsh-plugin-check', origin='https://market.example'
@@ -14,28 +26,49 @@ it('preserves self-hosted identity through the real composite verifier', async (
   expect(getJson).toHaveBeenCalledTimes(1)
 })
 
-it.each(['', 'sk-fixture'])('builds scoped install options without redirecting third-party dependencies (%s)', async key => {
-  const service=new MarketInstallService(()=>({name:'test',dir:'.'}),{} as MarketDesktopPnpm,{verify:vi.fn()},
-    {registryOrigin:'https://market.example',registryToken:async()=>key})
-  const options=await (service as unknown as {installOptions(c:object):Promise<string[]>}).installOptions({packageName:'@tokensapi/tool',packageRegistry:'tokenscowork',itemId:'tool'})
-  expect(options).toContain('--registry=https://registry.npmjs.org/')
-  expect(options).toContain('--@tokensapi:registry=https://market.example/registry/by-package/')
-  expect(options.filter(x=>x.includes('_authToken'))).toEqual(key?['--//market.example/registry/:_authToken='+key]:[])
+/**
+ * The per-operation pnpm configuration: only the product scope goes to the
+ * private Registry, so a third-party dependency of a private plugin still
+ * resolves through the registry the official manager asks.
+ */
+it.each(['', 'sk-fixture'])('scopes the private Registry without redirecting third-party dependencies (%s)', async key => {
+  const dir = await mkdtemp(join(tmpdir(), 'market-registry-'))
+  temporary.push(dir)
+  const service = new MarketInstallService(() => ({ name: 'test', dir }), idleManager, { verify: vi.fn() },
+    { registryOrigin: 'https://market.example', registryToken: async () => key })
+  const lines = await (service as unknown as { productNpmrcLines(): Promise<string[]> }).productNpmrcLines()
+  expect(lines).toContain('@tokensapi:registry=https://market.example/registry/by-package/')
+  expect(lines.filter(line => line.includes('registry=') && !line.startsWith('@'))).toEqual([])
+  expect(lines.filter(line => line.includes('_authToken')))
+    .toEqual(key ? ['//market.example/registry/:_authToken=' + key] : [])
 })
 
-it.each(['', 'sk-fixture'])('keeps private dependencies resolvable while removing a plugin (%s)', async key => {
-  const service=new MarketInstallService(()=>({name:'test',dir:'.'}),{} as MarketDesktopPnpm,{verify:vi.fn()},
-    {registryOrigin:'https://market.example',registryToken:async()=>key})
-  const options=await (service as unknown as {privateRegistryOptions():Promise<string[]>}).privateRegistryOptions()
-  expect(options).toContain('--config.registry=https://registry.npmjs.org/')
-  expect(options).toContain('--config.@tokensapi:registry=https://market.example/registry/by-package/')
-  expect(options.filter(x=>x.includes('_authToken'))).toEqual(key?['--config.//market.example/registry/:_authToken='+key]:[])
+it('writes the product configuration for one operation only, and refuses a profile npmrc of the user', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'market-registry-'))
+  temporary.push(dir)
+  const npmrc = join(dir, '.npmrc')
+  const service = new MarketInstallService(() => ({ name: 'test', dir }), idleManager, { verify: vi.fn() },
+    { registryOrigin: 'https://market.example', registryToken: async () => 'sk-fixture' })
+  const run = (operation: () => Promise<unknown>) =>
+    (service as unknown as { withProductNpmrc(task: () => Promise<unknown>): Promise<unknown> }).withProductNpmrc(operation)
+  let seen = ''
+  await run(async () => { seen = await readFile(npmrc, 'utf8') })
+  expect(seen).toMatch(/_authToken=sk-fixture/u)
+  expect(existsSync(npmrc)).toBe(false)
+  await expect(run(async () => { throw new Error('pnpm failed') })).rejects.toThrow('pnpm failed')
+  expect(existsSync(npmrc)).toBe(false)
+  const mine = 'registry=https://my-mirror.example/\n'
+  await writeFile(npmrc, mine)
+  let ran = false
+  await expect(run(async () => { ran = true })).rejects.toMatchObject({ code: 'conflict' })
+  expect(ran).toBe(false)
+  expect(await readFile(npmrc, 'utf8')).toBe(mine)
 })
 
 it.each(['npm', 'tokenscowork'] as const)('includes %s packages in the actual installable page', registry => {
   const service = new MarketInstallService(
     () => ({ name: 'desktop', dir: '.' }),
-    {} as MarketDesktopPnpm,
+    idleManager,
     { verify: vi.fn() },
   )
   const sourceRecordId = 'source-1', providerId = DSH_1024STORE_PROVIDER_ID

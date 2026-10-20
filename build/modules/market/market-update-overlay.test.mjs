@@ -35,9 +35,32 @@ test('registry composition reuses catalog version hints without removing update 
   assert.match(preview, /await authorize\(operationSignal\)/)
   assert.match(preview, /await this.verifier.verify\(\{ packageName,/)
   assert.match(preview, /await intent.authorize\(operationSignal\)/)
+  // pnpm 走共享作用域入口（同一 scope 的依赖共用一次鉴权）；元数据校验仍按
+  // 真实插件 ID 单独授权，两者不能混。
   assert.match(result.service, /const registry = `\$\{this.registryOrigin\}\/registry\/by-package\/`/)
   assert.match(result.service, /host\}\/registry\/:_authToken=/)
-  assert.doesNotMatch(result.service, /registry\/\$\{encodeURIComponent\(candidate.itemId\)\}/)
+  assert.match(result.service, /\$\{origin\}\/registry\/\$\{encodeURIComponent\(candidate.itemId \?\? ''\)\}/)
+  // 授权这一步要把它授权到的目标交回来，预览不靠上一次检查留下的缓存。
+  assert.match(result.service, /const authorized = await authorize\(operationSignal\)/)
+  assert.match(result.service, /const updateTarget = authorized \?\? this.updateRegistry.get\(packageName\)/)
+  assert.match(result.routes, /const authorize = async \(operationSignal: AbortSignal\): Promise<UpdateTarget> =>/)
+  assert.match(result.routes, /preview = await install.previewUpdate\(packageName, signal, authorize\)\n/)
+})
+
+test('an update removes the installed package before installing the new version', () => {
+  const update = output.service.slice(output.service.indexOf('async executeUpdate('))
+  const body = update.slice(0, update.indexOf('\n  async '))
+  const removal = body.indexOf('this.manager.removeBundle(intent.packageName)')
+  const install = body.indexOf('this.manager.installBundle(')
+  assert.ok(removal > 0 && install > removal, '必须先移除已装的包，再安装新版本')
+  // 选中状态来自预览时读到的值，配置本身不在这两步的改写范围里。
+  assert.match(body, /\{ enabled: intent.enabled, saveExact: true \}/)
+  // 两步不是原子的：移除失败什么都没变，安装失败插件已经没了，文案要分开说。
+  assert.match(body, /the update did not start and nothing changed/)
+  assert.match(body, /Install the plugin again from the plugin market/)
+  // 预览确认框要说清会先卸载再安装，以及配置保留。
+  assert.match(output.locales, /confirmUpdateBody: "更新会先卸载当前版本，再安装下面这个版本，插件自己的配置会保留。"/)
+  assert.match(output.locales, /confirmUpdateBody: "An update uninstalls the current version first/)
 })
 
 test('composes with source and authorization while preserving the native installed list', () => {

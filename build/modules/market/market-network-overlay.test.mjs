@@ -2,70 +2,110 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
+import { resolve } from 'node:path'
 import { AnchorError } from '../../pipeline/anchors.mjs'
+import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
+import { addMarketUpdates } from './market-update-overlay.mjs'
 import { PNPM_FETCH_TIMEOUT_MS, tolerateSlowDownloads } from './market-network-overlay.mjs'
 
-const upstream = path => readFileSync(new URL(`../../../desktop/dsh-community-market/${path}`, import.meta.url), 'utf8')
-const input = () => ({
-  service: upstream('src/install/service.ts'),
-  routes: upstream('src/host/routes.ts'),
-  settingsTab: upstream('src/client/MarketSettingsTab.tsx'),
-  locales: upstream('src/client/locales.ts'),
-})
+const root = resolve(import.meta.dirname, '../../..')
+const upstream = path => readFileSync(resolve(root, 'desktop/dsh-community-market', path), 'utf8')
+const origin = JSON.parse(readFileSync(resolve(root, 'market/server/source.config.json'), 'utf8')).origin
 
-/** 从加工后的源码里取出整段实现并执行，而不是只比对字符串。 */
-function evaluate(source, pattern, expression) {
-  const match = source.match(pattern)
-  assert.ok(match, `生成的源码里找不到 ${pattern}`)
-  return new Function(`${stripTypeScriptTypes(match[0])}\nreturn (${expression})`)()
+/**
+ * 慢网络覆盖排在插件更新与私有 Registry 之后：下载预算写进 Registry 建的
+ * 那份临时 .npmrc，所以这里按装配顺序叠三层，拿到真实 staging 的形态。
+ */
+function input() {
+  const updated = addMarketUpdates({
+    service: upstream('src/install/service.ts'),
+    routes: upstream('src/host/routes.ts'),
+    types: upstream('src/api-types.ts'),
+    settingsTab: upstream('src/client/MarketSettingsTab.tsx'),
+    locales: upstream('src/client/locales.ts'),
+  })
+  const registry = addPrivateRegistrySupport({
+    http: upstream('src/network/restricted-http.ts'),
+    index: upstream('src/index.ts'),
+    service: updated.service,
+    routes: updated.routes,
+    identity: upstream('src/contracts/identity.ts'),
+    types: upstream('src/contracts/types.ts'),
+    providerSchema: upstream('docs/schemas/catalog-provider-page.schema.json'),
+    snapshotSchema: upstream('docs/schemas/catalog-snapshot.schema.json'),
+    providerTypes: upstream('src/contracts/generated/catalog-provider-page.ts'),
+    snapshotTypes: upstream('src/contracts/generated/catalog-snapshot.ts'),
+  }, origin)
+  return {
+    service: registry.service,
+    routes: registry.routes,
+    settingsTab: updated.settingsTab,
+    locales: updated.locales,
+  }
 }
 
-test('actual upstream package-manager calls run with the slow-link download budget', () => {
+/** 从加工后的源码里取出整段实现并执行，而不是只比对字符串。 */
+function evaluate(source, pattern, expression, scope = {}) {
+  const match = source.match(pattern)
+  assert.ok(match, `生成的源码里找不到 ${pattern}`)
+  // 类方法先改写成独立函数，剥类型注解才认得。
+  const body = match[0]
+    .replace(/^ {2}private async (\w+)/u, 'async function $1')
+    .replace(/^ {2}private (\w+)/u, 'function $1')
+  const names = Object.keys(scope)
+  return new Function(...names, `${stripTypeScriptTypes(body)}\nreturn (${expression})`)(...names.map(name => scope[name]))
+}
+
+test('the slow-link download budget reaches pnpm through the per-operation npmrc', async () => {
   const { service } = tolerateSlowDownloads(input())
-  const args = evaluate(service, /const PNPM_FETCH_TIMEOUT_MS[\s\S]*?function slowNetworkPnpmArgs[\s\S]*?\n\}/u,
-    "slowNetworkPnpmArgs(['add', '--save-exact', '@fixture/tool@1.0.0'])")
-  assert.deepEqual(args, [`--config.fetchTimeout=${PNPM_FETCH_TIMEOUT_MS}`, 'add', '--save-exact', '@fixture/tool@1.0.0'])
+  const lines = await evaluate(service, / {2}private async productNpmrcLines\(\)[\s\S]*?\n {2}\}/u,
+    'productNpmrcLines.call({ registryOrigin: undefined })',
+    { PNPM_FETCH_TIMEOUT_MS, PRIVATE_REGISTRY_SCOPE: '@tokensapi', MarketInstallError: Error })
+  // 没有私有 Registry 时也要写预算：慢链路和公共 npm 一样会超时。
+  assert.deepEqual(lines, [`fetch-timeout=${PNPM_FETCH_TIMEOUT_MS}`])
   // 8.7 MB 的插件在 100 KB/s 的链路上要 ~87 秒，默认的 60 秒必然不够。
   assert.ok(PNPM_FETCH_TIMEOUT_MS >= 300000, '下载预算不足以覆盖慢链路')
-  // 安装、更新、卸载都经过 runPnpm，预算和报告的 argv 都只在这一处注入。
-  assert.match(service, /const args = slowNetworkPnpmArgs\(requested\)/u)
-  assert.equal(service.split('this.pnpm.run(args').length - 1, 1)
+  // 预算只在这一处注入，安装、更新、卸载共用同一个写入器。
+  assert.equal(service.split('fetch-timeout=').length - 1, 1)
+  assert.equal(service.split('withProductNpmrc(() =>').length - 1, 4)
 })
 
-test('the pnpm output of the reported failure is classified as a download timeout', () => {
+test('a timed-out download is read off the official manager own classification', () => {
   const { service } = tolerateSlowDownloads(input())
-  const timedOut = evaluate(service, /const PNPM_DOWNLOAD_TIMEOUT[\s\S]*?function downloadTimedOut[\s\S]*?\n\}/u,
-    'downloadTimedOut')
-  // 2026-10-19 真实失败输出（单子 T0017）。
-  assert.equal(timedOut([
-    'pnpm --config.fetchTimeout=600000 add --save-exact @tokensapi/dsh-connect@2.9.4',
-    '[WARN] GET https://market.tokensapi.ai/registry/tokens-connect/%40tokensapi%2Fdsh-connect/2.9.4/tarball error (23).'
-    + ' Will retry in 10 seconds. 2 retries left.',
-    '[23] The operation was aborted due to timeout',
-    'TimeoutError: The operation was aborted due to timeout',
-  ].join('\n')), true)
-  for (const output of ['connect ETIMEDOUT 5.223.77.54:443', 'UND_ERR_HEADERS_TIMEOUT', 'ESOCKETTIMEDOUT']) {
-    assert.equal(timedOut(output), true, output)
-  }
-  for (const output of [
-    'ERR_PNPM_NO_MATCHING_VERSION  No matching version found for @tokensapi/dsh-connect@2.9.4',
-    'ERR_PNPM_FETCH_401  GET https://market.tokensapi.ai/registry/by-package/: Unauthorized',
-    '',
-  ]) assert.equal(timedOut(output), false, output)
+  // 固定上游的失败分类里必须真有 timeout 这个取值，上游改名就在这里报错，
+  // 而不是等到用户只看到“包管理器未成功完成”。
+  const kinds = readFileSync(
+    resolve(root, 'desktop/deepseek-harness/packages/boot/plugin-manager/src/types.ts'), 'utf8',
+  ).match(/export type PluginInstallFailureKind =[\s\S]*?\n\n/u)
+  assert.ok(kinds)
+  assert.match(kinds[0], /\| 'timeout'/u)
+  assert.match(service, /result\.packageResult\?\.kind === 'timeout' \|\| result\.packageResult\?\.timedOut === true/u)
+  // 分类必须排在通用失败之前，否则超时会被通用文案吞掉。
+  assert.ok(service.indexOf("=== 'timeout'") < service.indexOf('throw this.packageManagerError(managementMessage'))
 })
 
 test('a timed-out download reaches the user as network copy with the detailed output kept', () => {
   const { service, routes, settingsTab, locales } = tolerateSlowDownloads(input())
-  assert.match(service, /new MarketInstallError\('operation-timeout', 'The plugin package download timed out\.', details\)/u)
   assert.match(service, /\| 'operation-timeout'/u)
+  const error = evaluate(service, / {2}private downloadTimeoutError\(details[\s\S]*?\n {2}\}/u,
+    'downloadTimeoutError', { MarketInstallError: class extends Error {
+      constructor(code, message, details) { super(message); this.code = code; this.details = details }
+    } })
+  const logged = []
+  const timeout = error.call({ logFailure: message => logged.push(message) }, 'pnpm …')
+  assert.equal(timeout.code, 'operation-timeout')
+  assert.equal(timeout.details, 'pnpm …', '详细输出必须原样保留')
+  assert.match(logged[0], /download timed out/u)
+  // 空输出时不要造出一个只有换行的 details。
+  assert.equal(error.call({}, '').details, undefined)
   assert.match(routes, /cause\.code === 'operation-timeout' \? 504/u)
   const isTimeout = evaluate(settingsTab, /function isDownloadTimeout[\s\S]*?\n\}/u, 'isDownloadTimeout')
   assert.equal(isTimeout({ name: 'MarketApiError', status: 504, code: 'operation-timeout', details: 'pnpm …' }), true)
   assert.equal(isTimeout({ name: 'MarketApiError', status: 502, code: 'operation-failed' }), false)
   assert.equal(isTimeout(new Error('boom')), false)
   assert.equal(isTimeout(undefined), false)
-  // 两个失败分支都拿到 t；详细输出仍由 operationErrorDetails 单独取。
-  assert.equal(settingsTab.split('operationErrorMessage(cause, t, ').length - 1, 2)
+  // 三个失败分支都拿到 t；详细输出仍由 operationErrorDetails 单独取。
+  assert.equal(settingsTab.split('operationErrorMessage(cause, t, ').length - 1, 3)
   assert.match(settingsTab, /if \(isDownloadTimeout\(cause\)\) return t\('operationTimeout'\)/u)
   assert.match(settingsTab, /setOperationErrorDetailsValue\(operationErrorDetails\(cause\)\)/u)
   assert.match(locales, /operationTimeout: "下载安装包超时，请检查网络后重试。"/u)

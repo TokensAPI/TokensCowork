@@ -1,6 +1,14 @@
 
 describe('product Discover home and installed details', () => {
-  const localPlugin = { kind: 'profile', bundleId: 'home-plugin', packageName: '@tokensapi/home-plugin', status: 'active', action: 'uninstall' } as const
+  const localPlugin = {
+    kind: 'profile' as const,
+    packageName: '@tokensapi/home-plugin',
+    version: '1.0.0',
+    enabled: true,
+    installed: true,
+    toggleable: true,
+    removable: true,
+  }
   const homeProps = { t, readLocale: () => 'en' } as MarketSettingsTabProps
   const installedItem = makeInstallableItem(firstSource, 'installed-card', 'Installed Card', localPlugin.packageName)
   const freshItem = makeInstallableItem(firstSource, 'fresh-card', 'Fresh Card', '@tokensapi/fresh-card')
@@ -30,6 +38,7 @@ describe('product Discover home and installed details', () => {
     expect(within(fresh).queryByText(messages.installed)).toBeNull()
     expect(screen.getByRole('textbox')).toBeTruthy()
     expect(readMarketInstallable).not.toHaveBeenCalled()
+    // Badges read the local inventory only; no update lookup leaves Discover.
     expect(readMarketInstallations).toHaveBeenCalledWith(expect.any(AbortSignal))
     expect(vi.mocked(readMarketInstallations).mock.calls.some(call => call[1] === true)).toBe(false)
   })
@@ -56,7 +65,7 @@ describe('product Discover home and installed details', () => {
     })
     vi.mocked(executeMarketOperation).mockImplementation(async () => {
       inventory = [installed]
-      return { action: 'install', packageName: installed.packageName, version: '2.3.4', restartToken: 'restart' }
+      return { action: 'install', packageName: installed.packageName, version: '2.3.4', application: 'applied' }
     })
     render(<MarketSettingsTab {...homeProps} />)
     const card = await screen.findByRole('button', { name: /Fresh Card/ })
@@ -66,8 +75,7 @@ describe('product Discover home and installed details', () => {
     expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'install', sourceRecordId: firstSource.sourceRecordId, itemId: freshItem.id }, expect.any(AbortSignal))
     expect(executeMarketOperation).not.toHaveBeenCalled()
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
-    await screen.findByRole('heading', { name: en.installComplete })
-    fireEvent.click(screen.getByRole('button', { name: en.restartLater }))
+    expect(await screen.findByText(en.installComplete)).toBeTruthy()
     await waitFor(() => expect(card.getAttribute('data-installed')).toBe('true'))
     fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: freshItem.displayName })
@@ -92,15 +100,15 @@ describe('product Discover home and installed details', () => {
     })
     vi.mocked(executeMarketOperation).mockImplementation(async () => {
       updated = true
-      return { action: 'update', packageName: localPlugin.packageName, version: '1.1.0', restartToken: 'restart' }
+      return { action: 'update', packageName: localPlugin.packageName, version: '1.1.0', application: 'applied' }
     })
     render(<MarketSettingsTab {...homeProps} t={translate} readLocale={() => locale} />)
     const card = await screen.findByRole('button', { name: /Installed Card/ })
     fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
-    const update = await within(details).findByRole('button', { name: messages.updatePlugin + ': ' + localPlugin.packageName })
-    expect(within(details).getByText(messages.installedVersion + ': 1.0.0')).toBeTruthy()
-    expect(within(details).getByText(messages.updateAvailable + ' → 1.1.0')).toBeTruthy()
+    const update = await within(details).findByRole('button', { name: `${messages.updatePlugin}: ${localPlugin.packageName}` })
+    expect(within(details).getByText(`${messages.pluginVersion}: 1.0.0`)).toBeTruthy()
+    expect(within(details).getByText(`${messages.updateAvailable} → 1.1.0`)).toBeTruthy()
     expect(within(details).queryByRole('button', { name: messages.checkUpdates })).toBeNull()
     expect(within(details).queryByRole('button', { name: messages.retry })).toBeNull()
     expect(readMarketInstallations).toHaveBeenCalledWith(expect.any(AbortSignal), true)
@@ -109,22 +117,23 @@ describe('product Discover home and installed details', () => {
     fireEvent.click(update)
     const confirmation = await screen.findByRole('dialog', { name: messages.confirmUpdateTitle })
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'update', bundleId: localPlugin.bundleId }, expect.any(AbortSignal))
+    // The copy states the two steps and that configuration survives them.
+    expect(within(confirmation).getByText(messages.confirmUpdateBody)).toBeTruthy()
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'update', packageName: localPlugin.packageName }, expect.any(AbortSignal))
     expect(executeMarketOperation).not.toHaveBeenCalled()
     fireEvent.click(within(confirmation).getByRole('button', { name: messages.cancel }))
     const returned = await screen.findByRole('dialog', { name: installedItem.displayName })
-    fireEvent.click(within(returned).getByRole('button', { name: messages.updatePlugin + ': ' + localPlugin.packageName }))
+    fireEvent.click(within(returned).getByRole('button', { name: `${messages.updatePlugin}: ${localPlugin.packageName}` }))
     const confirmed = await screen.findByRole('dialog', { name: messages.confirmUpdateTitle })
     fireEvent.click(within(confirmed).getByRole('button', { name: messages.confirmUpdate }))
-    await screen.findByRole('heading', { name: messages.updateComplete })
-    fireEvent.click(screen.getByRole('button', { name: messages.restartLater }))
+    expect(await screen.findByText(messages.updateComplete)).toBeTruthy()
     fireEvent.click(card)
     const current = await screen.findByRole('dialog', { name: installedItem.displayName })
     expect(await within(current).findByText(messages.upToDate)).toBeTruthy()
     expect(within(current).queryByRole('button', { name: messages.checkUpdates })).toBeNull()
     expect(within(current).queryByRole('button', { name: messages.retry })).toBeNull()
-    expect(within(current).getByText(messages.installedVersion + ': 1.1.0')).toBeTruthy()
-    expect(within(current).queryByRole('button', { name: messages.updatePlugin + ': ' + localPlugin.packageName })).toBeNull()
+    expect(within(current).getByText(`${messages.pluginVersion}: 1.1.0`)).toBeTruthy()
+    expect(within(current).queryByRole('button', { name: `${messages.updatePlugin}: ${localPlugin.packageName}` })).toBeNull()
     expect(executeMarketOperation).toHaveBeenCalledWith('discover-update', expect.any(AbortSignal))
     expect(card.getAttribute('data-installed')).toBe('true')
   })
@@ -142,51 +151,51 @@ describe('product Discover home and installed details', () => {
     await waitFor(() => expect(rejectUpdates).toBeDefined())
     await act(async () => { rejectUpdates(new Error('updates offline')) })
     expect(await within(details).findByText(en.updateCheckFailed)).toBeTruthy()
-    expect(within(details).getByRole('button', { name: en.uninstall + ': ' + localPlugin.packageName })).toBeTruthy()
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, version: '1.0.0', updateVersion: '1.1.0', updateStatus: 'available' }] })
+    expect(within(details).getByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, updateVersion: '1.1.0', updateStatus: 'available' }] })
     fireEvent.click(within(details).getByRole('button', { name: en.retry }))
-    expect(await within(details).findByRole('button', { name: en.updatePlugin + ': ' + localPlugin.packageName })).toBeTruthy()
+    expect(await within(details).findByRole('button', { name: `${en.updatePlugin}: ${localPlugin.packageName}` })).toBeTruthy()
     expect(within(details).queryByText(en.updateCheckFailed)).toBeNull()
   })
 
   it('keeps update authorization errors in the details and executes nothing', async () => {
     browse()
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, version: '1.0.0', updateVersion: '1.1.0', updateStatus: 'available' }] })
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, updateVersion: '1.1.0', updateStatus: 'available' }] })
     vi.mocked(previewMarketOperation).mockRejectedValue(new Error('Plugin is no longer authorized'))
     render(<MarketSettingsTab {...homeProps} />)
     fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
-    fireEvent.click(await within(details).findByRole('button', { name: en.updatePlugin + ': ' + localPlugin.packageName }))
+    fireEvent.click(await within(details).findByRole('button', { name: `${en.updatePlugin}: ${localPlugin.packageName}` }))
     expect(await within(details).findByText('Plugin is no longer authorized')).toBeTruthy()
     expect(executeMarketOperation).not.toHaveBeenCalled()
-    expect(within(details).getByRole('button', { name: en.uninstall + ': ' + localPlugin.packageName })).toBeTruthy()
+    expect(within(details).getByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
   })
 
   it('retries a failed update status returned by Host without a transport error', async () => {
     browse()
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, version: '1.0.0', updateStatus: 'failed' }] })
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, updateStatus: 'failed' }] })
     render(<MarketSettingsTab {...homeProps} />)
     fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
     expect(await within(details).findByText(en.updateCheckFailed)).toBeTruthy()
     expect(within(details).queryByRole('button', { name: en.checkUpdates })).toBeNull()
     const retry = await within(details).findByRole('button', { name: en.retry })
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, version: '1.0.0', updateStatus: 'available', updateVersion: '1.1.0' }] })
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, updateStatus: 'available', updateVersion: '1.1.0' }] })
     fireEvent.click(retry)
-    expect(await within(details).findByRole('button', { name: en.updatePlugin + ': ' + localPlugin.packageName })).toBeTruthy()
-    expect(within(details).getByText(en.updateAvailable + ' → 1.1.0')).toBeTruthy()
+    expect(await within(details).findByRole('button', { name: `${en.updatePlugin}: ${localPlugin.packageName}` })).toBeTruthy()
+    expect(within(details).getByText(`${en.updateAvailable} → 1.1.0`)).toBeTruthy()
     expect(within(details).queryByRole('button', { name: en.retry })).toBeNull()
   })
 
   it('keeps failed updates in the confirmation and returns to details on cancel', async () => {
     browse()
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, version: '1.0.0', updateVersion: '1.1.0', updateStatus: 'available' }] })
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, updateVersion: '1.1.0', updateStatus: 'available' }] })
     vi.mocked(previewMarketOperation).mockResolvedValue({ action: 'update', previewId: 'failed-update', ...makeOperationTarget({ packageName: localPlugin.packageName }), expiresAt: '2099-01-01' })
     vi.mocked(executeMarketOperation).mockRejectedValue(new Error('Update failed'))
     render(<MarketSettingsTab {...homeProps} />)
     fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
-    fireEvent.click(await within(details).findByRole('button', { name: en.updatePlugin + ': ' + localPlugin.packageName }))
+    fireEvent.click(await within(details).findByRole('button', { name: `${en.updatePlugin}: ${localPlugin.packageName}` }))
     const confirmation = await screen.findByRole('dialog', { name: en.confirmUpdateTitle })
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmUpdate }))
     expect(await within(confirmation).findByText('Update failed')).toBeTruthy()
@@ -202,38 +211,41 @@ describe('product Discover home and installed details', () => {
     vi.mocked(previewMarketOperation).mockResolvedValue({ action: 'uninstall', previewId: 'discover-uninstall', ...makeOperationTarget({ packageName: localPlugin.packageName }), expiresAt: '2099-01-01' })
     vi.mocked(executeMarketOperation).mockImplementation(async () => {
       inventory = []
-      return { action: 'uninstall', packageName: localPlugin.packageName, restartToken: 'restart' }
+      return { action: 'uninstall', packageName: localPlugin.packageName, application: 'applied' }
     })
     render(<MarketSettingsTab {...homeProps} />)
     const card = await screen.findByRole('button', { name: /Installed Card/ })
     fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
-    fireEvent.click(await within(details).findByRole('button', { name: en.uninstall + ': ' + localPlugin.packageName }))
+    fireEvent.click(await within(details).findByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` }))
     const confirmation = await screen.findByRole('dialog', { name: en.confirmUninstallTitle })
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmUninstall }))
-    await screen.findByRole('heading', { name: en.uninstallComplete })
-    fireEvent.click(screen.getByRole('button', { name: en.restartLater }))
+    expect(await screen.findByText(en.uninstallComplete)).toBeTruthy()
     await waitFor(() => expect(card.hasAttribute('data-installed')).toBe(false))
     expect(within(card).queryByText(en.installed)).toBeNull()
-    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', bundleId: localPlugin.bundleId }, expect.any(AbortSignal))
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', packageName: localPlugin.packageName }, expect.any(AbortSignal))
   })
 
   it('does not give read-only components update, uninstall or install actions', async () => {
     browse()
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{ ...localPlugin, action: 'none', version: '1.0.0', updateStatus: 'available', updateVersion: '2.0.0' }] })
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [{
+      ...localPlugin, toggleable: false, removable: false, updateStatus: 'available', updateVersion: '2.0.0',
+    }] })
     render(<MarketSettingsTab {...homeProps} />)
     fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
     expect(await within(details).findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
-    expect(within(details).queryByRole('button', { name: en.updatePlugin + ': ' + localPlugin.packageName })).toBeNull()
-    expect(within(details).queryByRole('button', { name: en.uninstall + ': ' + localPlugin.packageName })).toBeNull()
+    expect(within(details).getByText(en.immutablePlugin)).toBeTruthy()
+    expect(within(details).queryByRole('switch')).toBeNull()
+    expect(within(details).queryByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeNull()
     expect(within(details).queryByRole('button', { name: en.confirmInstall })).toBeNull()
     expect(previewMarketOperation).not.toHaveBeenCalled()
+    // A bundle the market cannot remove is never checked for updates either.
     expect(vi.mocked(readMarketInstallations).mock.calls.some(call => call[1] === true)).toBe(false)
     fireEvent.click(within(details).getByRole('button', { name: en.close }))
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
-    expect(await screen.findByRole('heading', { name: en.noInstalled })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
   })
 
   it.each([500, 503])('keeps Discover available and retries a bounded inventory failure (%s)', async status => {
@@ -282,12 +294,13 @@ describe('product Discover home and installed details', () => {
     const receipt = (await screen.findByRole('heading', { name: localPlugin.packageName })).closest('article')!
     expect(receipt.className).toBe('dshMarketReceipt')
     expect(receipt.parentElement?.className).toBe('dshMarketReceipts')
-    expect(within(receipt).getByRole('button', { name: en.uninstall + ': ' + localPlugin.packageName })).toBeTruthy()
+    expect(within(receipt).getByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
   })
 
   it('shows the native empty Discover state and the empty Installed state separately', async () => {
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
     vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, []))
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
     render(<MarketSettingsTab {...homeProps} />)
     expect(await screen.findByRole('heading', { name: en.noResults })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: en.noInstalled })).toBeNull()
