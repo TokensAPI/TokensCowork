@@ -1,42 +1,17 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-15",
+  "reviewedAt": "2026-10-20",
   "reviewNote": "2026-10-12 按当前固定 Desktop/DSH/插件复查：逐项在原始输入上确认覆盖仍生效或已删除，独立 staging 装配输出与此前一致。安装、编译后的真实 GUI、签名与跨平台验收不由本地结果代替。",
   "baseline": {
-    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": {
-      "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
-      "version": "0.2.0-rc.2"
+      "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+      "version": "0.2.1-rc.2"
     },
     "plugins": {
-      "tokens-version-updates": {
-        "commit": "e69006ca4965ce229bbe5436569fe93946d08873",
-        "version": "0.1.1",
-        "artifact": null
-      },
-      "dsh-tokensapi-ui": {
-        "commit": "26d1435fbbe7c3eac8130fd376c508f8969e40d2",
-        "version": "0.2.23",
-        "artifact": "8fa6950293d9bf7f5907c20e59c6f44256082793119fbd13d3977c466a7a25d6"
-      },
-      "tokens-login": {
-        "commit": "b3084412b1db4aede18efe8bee9bc35bf7f64f6f",
-        "version": "0.1.8",
-        "artifact": null
-      },
-      "tokens-model-manager": {
-        "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
-        "version": "0.2.24",
-        "artifact": null
-      },
       "tokens-dsh-web-search": {
         "commit": "79253f1cc64f08ef739f7bd69bb9bc2eecf170f1",
         "version": "0.2.1",
-        "artifact": null
-      },
-      "tokens-loop-guard": {
-        "commit": "a4abda43136185aaa8dabf0c15557a47fe717949",
-        "version": "0.1.0",
         "artifact": null
       }
     }
@@ -97,6 +72,22 @@
         "runtime.profile-runtime-series"
       ],
       "verified": "2026-10-12：自 v0.5.25 合入。0.5.x 版本同时限制祖先目录查找，2.0.17 上游已自带该限制，仅保留跨版本系列保护。profile-package-overlay.test.mjs 以固定 2.0.17 源码验证：原选择 Profile 中的 0.3.0，覆盖后保留安装包 0.2.0-rc.2；同系列 0.2.1 与非 DSH 插件新版仍采用 Profile。v0.5.25 发布包已在隔离目录复现并修复用户报告的恢复模式问题；0.6 真实宿主尚未验收。"
+    },
+    {
+      "overlays": [
+        "runtime.dsh-version",
+        "runtime.skip-setup-wizard",
+        "runtime.gui-stderr",
+        "runtime.cli-smoke-platform",
+        "runtime.resolver-test-urls",
+        "runtime.open-external",
+        "runtime.profile-runtime-series",
+        "runtime.plugin-dependencies",
+        "runtime.rpc-scope",
+        "runtime.compaction-summary",
+        "runtime.web-search-settings"
+      ],
+      "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
     }
   ]
 }

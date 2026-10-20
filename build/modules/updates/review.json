@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-12",
+  "reviewedAt": "2026-10-20",
   "reviewNote": "2026-10-12 按当前固定 Desktop/DSH/插件复查：逐项在原始输入上确认覆盖仍生效或已删除，独立 staging 装配输出与此前一致。安装、编译后的真实 GUI、签名与跨平台验收不由本地结果代替。",
   "baseline": {
-    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": null,
     "plugins": {
       "tokens-version-updates": {
@@ -27,6 +27,14 @@
         "updates.release-source"
       ],
       "verified": "test:build updates 含纯净/产品菜单谓词行为及 Release 配置；Profile 菜单与 staging-branding-verify、真实下载/回退/安装仍需验收。"
+    },
+    {
+      "overlays": [
+        "updates.disable-official",
+        "updates.profile-menu-check",
+        "updates.tray-command-id"
+      ],
+      "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
     }
   ]
 }

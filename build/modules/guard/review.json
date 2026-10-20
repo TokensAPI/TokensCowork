@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-19",
+  "reviewedAt": "2026-10-20",
   "reviewNote": "循环护栏覆盖的登记基线。锚点守护已在装配期生效:补丁层出现重复行即中断打包;行为验收见 verification。升级后不要机械更新基线。",
   "baseline": {
-    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": null,
     "plugins": {
       "tokens-loop-guard": {
@@ -19,6 +19,12 @@
         "guard.disable-repeat-reminder"
       ],
       "verified": "2026-10-19:随 v0.6.0(Desktop 2.0.17 / DSH 0.2.0-rc.2)复查。overlay-doctor --doctor 判定覆盖生效,cordis.patch.yml 在旧基线与当前 pin 之间上游无改动;插件自 c4ae69e1 以来新增的三条提交(durable reminder 识别、生成内文本退化护栏、e2e 用例)未动精确/近似重复与硬阻断,覆盖前提不变;按固定提交 a4abda43 在 .build 隔离副本中执行插件 npm test,21 项全通过。未执行真实会话回归与完整打包验证。"
+    },
+    {
+      "overlays": [
+        "guard.disable-repeat-reminder"
+      ],
+      "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
     }
   ]
 }

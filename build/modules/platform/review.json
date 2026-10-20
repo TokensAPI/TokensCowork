@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-10",
+  "reviewedAt": "2026-10-20",
   "reviewNote": "Desktop/DSH 升级已复查并完成本地 staging 门禁；其他插件历史基线保留，平台签名、公证、安装与真实 GUI 验收不由本地结果代替。",
   "baseline": {
-    "desktop": "838ba60fd79362087c0a0d134efee671c284786a",
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": {
-      "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
-      "version": "0.2.0-rc.2"
+      "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+      "version": "0.2.1-rc.2"
     },
     "plugins": {}
   },
@@ -49,6 +49,27 @@
         "platform.mac-notarization-hook"
       ],
       "verified": "2026-10-09：platform 回归覆盖模式选择、原生架构、公证状态/超时、恢复来源与摘要校验、无重提交流程；macOS 实际签名、回调及安装需原生 runner 验收。"
+    },
+    {
+      "overlays": [
+        "platform.system-proxy-bridge",
+        "platform.mac-adhoc-sign",
+        "platform.mac-entitlements-plist",
+        "platform.harness-primary-runtime-lock",
+        "platform.windows-acl-assets",
+        "platform.fs-ext-architecture",
+        "platform.windows-acl-console",
+        "platform.windows-acl-fuse",
+        "platform.web-fetch-proxy-fallback",
+        "platform.package-identity",
+        "platform.mac-packaged-uv-check",
+        "platform.nsis-resources",
+        "platform.windows-installer-guard",
+        "platform.mac-single-arch-release",
+        "platform.mac-release-verification",
+        "platform.mac-entitlement-arch"
+      ],
+      "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
     }
   ]
 }
