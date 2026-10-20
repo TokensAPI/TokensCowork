@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: '操作：build 构建预发布；promote 将已有预发布转为稳定版'
+        description: '操作：build 构建预发布；promote 将已有预发布转为稳定版；rehearse 只构建安装包不发布（调流程用）'
         required: true
         default: build
         type: choice
-        options: [build, promote]
+        options: [build, promote, rehearse]
       tag:
         description: '目标版本；转稳定版必填 vX.Y.Z，构建时留空使用 VERSION'
         required: false
@@ -76,7 +76,7 @@ jobs:
   build-packages:
     name: ${{ matrix.name }}
     needs: metadata
-    if: needs.metadata.outputs.operation == 'build'
+    if: needs.metadata.outputs.operation == 'build' || needs.metadata.outputs.operation == 'rehearse'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     concurrency:
@@ -98,10 +98,13 @@ jobs:
             runner: macos-14
             electron_arch: arm64
             binary_arch: arm64
+          # Intel 包也在 Apple Silicon runner 上打：macos-15-intel 的 CPU 慢 3–4 倍
+          #（安装 3 分钟、签名 2.5 分钟、DMG 4.7 分钟），而上游通用包本就在一台机器上
+          # 交叉编译两个架构。x64 产物的启动 smoke 靠 Rosetta 跑。
           - name: 构建 · macOS AMD64 安装包
             platform: macos
             arch: amd64
-            runner: macos-15-intel
+            runner: macos-14
             electron_arch: x64
             binary_arch: x86_64
     steps:
@@ -298,6 +301,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: printf 'mode=%s\n' "$(node build/modules/platform/mac-signing-resolve.mjs)" >> "${GITHUB_OUTPUT}"
 
+      - name: 准备 · Rosetta（在 Apple Silicon 上验证 Intel 包）
+        if: matrix.platform == 'macos' && matrix.electron_arch == 'x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true
+
       - name: 构建 · macOS 签名、公证与打包
         if: matrix.platform == 'macos'
         shell: bash
@@ -380,6 +393,8 @@ jobs:
   publish-release:
     name: 发布 · 预发布版本
     needs: [metadata, build-packages]
+    # 演练只产出安装包附件，不建 Release；任一安装包失败仍然不发布。
+    if: needs.metadata.outputs.operation == 'build'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -119,8 +119,12 @@ function assertNativeMacArchitecture() {
   if (!['arm64', 'x64'].includes(requestedArch)) {
     throw new Error(`unsupported macOS architecture: ${requestedArch}`)
   }
+  // Intel 包允许在 Apple Silicon 上交叉打包（上游通用包亦如此），打包后的启动 smoke
+  // 要靠 Rosetta 执行 x64 二进制；反过来 arm64 包在 Intel 机上没法跑 smoke，仍拒绝。
   if (!planOnly && process.arch !== requestedArch) {
-    throw new Error(`macOS ${requestedArch} packaging requires a native ${requestedArch} Node runner`)
+    const rosetta = requestedArch === 'x64' && process.arch === 'arm64'
+      && spawnSync('arch', ['-x86_64', '/usr/bin/true']).status === 0
+    if (!rosetta) throw new Error(`macOS ${requestedArch} packaging requires a native ${requestedArch} Node runner (or Rosetta for x64)`)
   }
   return requestedArch
 }

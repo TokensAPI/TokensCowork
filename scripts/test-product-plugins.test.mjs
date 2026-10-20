@@ -124,13 +124,19 @@ test('prerelease builds only three installers with fail-fast publication gating'
   assert.match(parallel, /needs: metadata\s+if: needs.metadata.outputs.operation == 'build'/)
   assert.match(parallel, /fail-fast: true/)
   assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows', 'macos', 'macos'])
-  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'macos-14', 'macos-15-intel'])
+  // Intel 包在 Apple Silicon 上交叉打包，x64 smoke 靠 Rosetta；Intel runner 慢 3–4 倍。
+  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'macos-14', 'macos-14'])
+  assert.match(parallel, /softwareupdate --install-rosetta --agree-to-license/)
+  assert.match(parallel, /if: matrix.platform == 'macos' && matrix.electron_arch == 'x64'/)
   assert.doesNotMatch(parallel, /test:plugins|matrix.task|task: plugins/)
   assert.match(parallel, /ref: \$\{\{ needs.metadata.outputs.commit \}\}/)
   assert.match(parallel, /if: always\(\) && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'/)
+  assert.match(parallel, /if: needs.metadata.outputs.operation == 'build' \|\| needs.metadata.outputs.operation == 'rehearse'/)
   const publication = workflowJob(workflow, 'publish-release')
   assert.match(publication, /needs: \[metadata, build-packages\]/)
-  assert.doesNotMatch(publication, /if:|continue-on-error:/)
+  // 演练不发布；发布任务不得用 always() 或 continue-on-error 放过失败的安装包。
+  assert.match(publication, /if: needs.metadata.outputs.operation == 'build'\n/)
+  assert.doesNotMatch(publication, /always\(\)|continue-on-error:/)
   // 只有缓存可忽略失败，编译、签名、公证和附件校验均不可放宽。
   assert.equal((parallel.match(/continue-on-error: true/g) ?? []).length, 1)
   assert.match(parallel, /uses: actions\/cache@v5\s+continue-on-error: true/)
@@ -229,5 +235,6 @@ test('the weekly cache warm-up reads exactly the cache the release build writes'
   assert.match(warm, /schedule:\n    - cron:/)
   // 预热不执行任何命令：没有 run 步骤，只有 checkout 与缓存读取。
   assert.doesNotMatch(warm, /\n\s+run:/)
-  for (const runner of ['windows-2022', 'macos-14', 'macos-15-intel']) assert.ok(warm.includes(runner), `预热缺少 ${runner}`)
+  for (const runner of ['windows-2022', 'macos-14']) assert.ok(warm.includes(runner), `预热缺少 ${runner}`)
+  assert.ok(!warm.includes('macos-15-intel'), '发布已不用 Intel runner，不必预热它的缓存')
 })

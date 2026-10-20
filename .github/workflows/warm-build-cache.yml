@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [windows-2022, macos-14, macos-15-intel]
+        runner: [windows-2022, macos-14]
     steps:
       - name: 准备 · 获取锁文件
         uses: actions/checkout@v7
