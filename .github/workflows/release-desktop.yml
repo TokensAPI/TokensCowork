@@ -88,6 +88,12 @@ jobs:
       fail-fast: true
       matrix:
         include:
+          # 质量门禁与 Windows 打包并行：门禁约 4 分钟，原先串在打包前面。
+          # 发布任务等矩阵全部通过，任一门禁失败仍然不发布。
+          - name: 检查 · Windows 质量门禁
+            platform: windows-check
+            arch: amd64
+            runner: windows-2022
           - name: 构建 · Windows AMD64 安装包
             platform: windows
             arch: amd64
@@ -151,11 +157,15 @@ jobs:
           restore-keys: |
             desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: 构建 · Windows 检查与打包
-        if: matrix.platform == 'windows'
+      - name: 检查 · Windows 质量门禁
+        if: matrix.platform == 'windows-check'
         run: |
           corepack yarn test:uninstall
-          corepack yarn product:dist:win
+          corepack yarn product:check:win
+
+      - name: 构建 · Windows 打包
+        if: matrix.platform == 'windows'
+        run: corepack yarn product:dist:win
 
       - name: 检查 · Windows 文件占用升级恢复
         if: matrix.platform == 'windows'

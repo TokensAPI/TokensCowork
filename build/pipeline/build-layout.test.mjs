@@ -48,7 +48,7 @@ test('a pin change flags only the overlays declaring that upstream input', async
   assert.deepEqual(flagged('platform.package-identity'), [])
   assert.deepEqual(Object.keys(loadReviews()).sort(), ['branding', 'guard', 'market', 'platform', 'runtime', 'updates'])
 })
-for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
+for (const mode of ['check', 'win', 'win-check', 'mac', 'mac-unsigned']) {
   test(`${mode} plan is executable cross-platform and preserves common preflight order`, () => {
     const result = spawnSync(process.execPath, ['build/build.mjs', mode, '--plan'], {
       cwd: root, encoding: 'utf8', env: { ...process.env, PRODUCT_STAGE_NAME: 'desktop-plan-does-not-exist' },
@@ -69,9 +69,17 @@ for (const mode of ['check', 'win', 'mac', 'mac-unsigned']) {
     }
     if (mode === 'check') assert.ok(!output.includes('electron-builder'))
     if (mode === 'win') {
-      assert.ok(output.indexOf('check:win-package') < output.indexOf('staging-product-configure'))
-      assert.ok(output.indexOf('typecheck') < output.indexOf('electron-builder'))
+      // 门禁由并行的 win-check 承担；打包路径只装配、配置、编译、打包、校验。
+      assert.doesNotMatch(output, /check:win-package|typecheck|verify:cli|dsh-community-fabric check/)
+      assert.ok(output.indexOf('staging-product-configure.mjs windows') < output.indexOf('electron-builder'))
       assert.ok(output.indexOf('electron-builder') < output.indexOf('packaged-app-verify'))
+    }
+    if (mode === 'win-check') {
+      assert.ok(output.indexOf('check:win-package') < output.indexOf('staging-product-configure'))
+      for (const gate of ['dsh-community-fabric check', 'dsh-community-market check', 'typecheck', 'verify:cli', 'verify:loader', 'verify:profile']) {
+        assert.ok(output.includes(gate), `win-check 缺少门禁 ${gate}`)
+      }
+      assert.ok(!output.includes('electron-builder'))
     }
     if (mode === 'mac') assert.ok(output.includes('dist:mac'))
     if (mode.startsWith('mac')) {

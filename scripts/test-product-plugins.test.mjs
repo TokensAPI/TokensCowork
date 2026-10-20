@@ -123,9 +123,12 @@ test('prerelease builds only three installers with fail-fast publication gating'
   const parallel = workflowJob(workflow, 'build-packages')
   assert.match(parallel, /needs: metadata\s+if: needs.metadata.outputs.operation == 'build'/)
   assert.match(parallel, /fail-fast: true/)
-  assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows', 'macos', 'macos'])
+  // 三个安装包 + 一个与 Windows 打包并行的质量门禁任务。
+  assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-check', 'windows', 'macos', 'macos'])
   // Intel 包在 Apple Silicon 上交叉打包，x64 smoke 靠 Rosetta；Intel runner 慢 3–4 倍。
-  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'macos-14', 'macos-14'])
+  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'windows-2022', 'macos-14', 'macos-14'])
+  assert.match(parallel, /if: matrix.platform == 'windows-check'\n        run: \|\n          corepack yarn test:uninstall\n          corepack yarn product:check:win/)
+  assert.match(parallel, /if: matrix.platform == 'windows'\n        run: corepack yarn product:dist:win/)
   assert.match(parallel, /softwareupdate --install-rosetta --agree-to-license/)
   assert.match(parallel, /if: matrix.platform == 'macos' && matrix.electron_arch == 'x64'/)
   assert.doesNotMatch(parallel, /test:plugins|matrix.task|task: plugins/)

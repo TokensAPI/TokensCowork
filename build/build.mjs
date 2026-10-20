@@ -18,7 +18,7 @@ const planOnly = process.argv.includes('--plan')
 if (process.argv.slice(3).some(arg => arg !== '--plan')) throw new Error('Unexpected build argument')
 let stepNumber = 0
 let phase = 'assemble'
-if (!['check', 'win', 'mac', 'mac-unsigned'].includes(mode)) {
+if (!['check', 'win', 'win-check', 'mac', 'mac-unsigned'].includes(mode)) {
   throw new Error('build-desktop: expected check, win, mac, or mac-unsigned')
 }
 
@@ -223,28 +223,15 @@ if (mode === 'check') {
     'WIN_CSC_KEY_PASSWORD',
     'WIN_CSC_LINK',
   ]) delete unsignedEnvironment[key]
-  // Windows 发布任务复用同一份 staging 承担完整产品门禁，避免 CI 先在 Linux
-  // 从零装配一次、随后又在 Windows 重复安装和构建。Fabric 与 Market 完整检查
-  // 不依赖产品品牌，因此先与上游 Windows 安装包测试一起执行。
-  run('corepack', ['yarn', 'workspace', 'dsh-community-fabric', 'check'], stage, unsignedEnvironment)
-  run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'check'], stage, unsignedEnvironment)
-
-  // Windows 专项测试会验收 DSH Desktop 的原始版本和应用标识。通过后再注入
-  // TokensCowork 品牌并重新编译，避免把正常的产品改写误报为上游回归。
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, unsignedEnvironment)
+  // 产品质量门禁（Fabric、Market、上游 Windows 包测试、类型、CLI/Loader/Profile）
+  // 由并行的 win-check 任务承担，发布任务等两者都通过；这里只装配、编译并打包，
+  // 让 Windows 安装包不再排在门禁后面串行等 4 分钟。
   configureProduct(unsignedEnvironment, 'windows')
-  // Market 已由上面的完整检查生成，产品配置也不会修改 Market 源码；这里只重编
-  // 被品牌与 Logo 改写的 Desktop，避免在同一 staging 中重复构建 Market。
+  // Market 由 assemble 阶段编译，产品配置不会修改 Market 源码；这里只重编
+  // 被品牌与 Logo 改写的 Desktop。
   run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage, unsignedEnvironment)
   verifyProductBranding(unsignedEnvironment)
-
-  // 产品品牌会改写 TypeScript 与客户端 Logo 源码，因此在最终产品编译后保留
-  // 类型、CLI、Loader 和 Profile 门禁。依赖闭包已由 check:win-package 验收，
-  // 最终物理运行时还会由 Electron Builder afterPack 与 verify-package 再次检查。
-  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage, unsignedEnvironment)
-  for (const script of ['verify:cli', 'verify:loader', 'verify:profile']) {
-    run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', script], stage, unsignedEnvironment)
-  }
+  // 最终物理运行时由 Electron Builder afterPack 与 verify-package 检查。
   run('corepack', [
     'yarn',
     'workspace',
@@ -260,6 +247,35 @@ if (mode === 'check') {
     '--config.npmRebuild=false',
   ], stage, unsignedEnvironment)
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'packaged-app-verify.mjs'), 'windows'], root)
+} else if (mode === 'win-check') {
+  phase = 'windows-check'
+  /* ----------------------- Windows 质量门禁 ------------------------ */
+  // 与 Windows 打包并行执行的完整产品门禁；复用同一套 staging 装配，避免 CI 先在
+  // Linux 从零装配一次。Fabric 与 Market 完整检查不依赖产品品牌，先与上游 Windows
+  // 安装包测试一起执行。
+  if (!planOnly && (process.platform !== 'win32' || process.arch !== 'x64')) {
+    throw new Error('Windows quality gates require native Windows x64 Node')
+  }
+  const gateEnvironment = {
+    ...process.env,
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+    VITEST_MAX_WORKERS: process.env.VITEST_MAX_WORKERS ?? '2',
+    DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
+  }
+  run('corepack', ['yarn', 'workspace', 'dsh-community-fabric', 'check'], stage, gateEnvironment)
+  run('corepack', ['yarn', 'workspace', 'dsh-community-market', 'check'], stage, gateEnvironment)
+  // Windows 专项测试会验收 DSH Desktop 的原始版本和应用标识。通过后再注入
+  // TokensCowork 品牌并重新编译，避免把正常的产品改写误报为上游回归。
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'check:win-package'], stage, gateEnvironment)
+  configureProduct(gateEnvironment, 'windows')
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'build'], stage, gateEnvironment)
+  verifyProductBranding(gateEnvironment)
+  // 产品品牌会改写 TypeScript 与客户端 Logo 源码，因此在最终产品编译后保留
+  // 类型、CLI、Loader 和 Profile 门禁。
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'typecheck'], stage, gateEnvironment)
+  for (const script of ['verify:cli', 'verify:loader', 'verify:profile']) {
+    run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', script], stage, gateEnvironment)
+  }
 } else {
   phase = 'mac-signed'
   /* ----------------------- 正式 macOS 安装包 ----------------------- */

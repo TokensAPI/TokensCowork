@@ -27,6 +27,7 @@
     "product:release:promote": "node scripts/promote-release.mjs",
     "product:check-desktop": "node build/build.mjs check",
     "product:dist:win": "node build/build.mjs win",
+    "product:check:win": "node build/build.mjs win-check",
     "product:dist:mac": "node build/build.mjs mac",
     "product:dist:mac-unsigned": "node build/build.mjs mac-unsigned",
     "product:dist:mac:auto": "node build/pipeline/macos-build.mjs",
