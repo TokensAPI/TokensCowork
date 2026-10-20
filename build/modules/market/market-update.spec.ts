@@ -56,8 +56,9 @@ async function fixture(latest = '1.10.0') {
     listPlugins: vi.fn(async () => [{ entryId: 'entry-1' as never, fiberPhase: 'active' as never }] as never),
     installBundle: vi.fn(async (spec: string) => {
       record()
-      current = bundle({ version: spec.slice(packageName.length + 1) })
-      return applied('install', { bundle: packageName, version: current.version })
+      const version = spec.slice(packageName.length + 1)
+      current = bundle({ version })
+      return applied('install', { bundle: packageName, version })
     }),
     setBundleEnabled: vi.fn(async () => applied('enable')),
     removeBundle: vi.fn(async () => {
@@ -169,7 +170,9 @@ describe('product manual npm updates', () => {
 
   it('refuses a bundle whose version the official manager cannot report', async () => {
     const f = await fixture()
-    f.setInstalled(bundle({ version: undefined }))
+    const unreported = bundle()
+    delete unreported.version
+    f.setInstalled(unreported)
     const views = await f.service.listInstallations(signal())
     expect((await f.service.checkUpdates(views, new Set([packageName]), signal()))[0]?.updateStatus).toBe('unavailable')
     await expect(f.service.previewUpdate(packageName, signal(), f.authorize)).rejects.toMatchObject({ code: 'not-available' })
