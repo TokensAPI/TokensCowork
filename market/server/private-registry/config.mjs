@@ -29,12 +29,19 @@ export function registryConfig(env = {}) {
       return { enabled: true, ready: false, reason: 'invalid-url' }
     if (!url.pathname.endsWith('/')) url.pathname += '/'
     const timeoutMs = Number(env.MARKET_PRIVATE_REGISTRY_TIMEOUT_MS ?? 8000)
+    // An archive is forwarded as a stream, so its deadline covers the response
+    // headers only: the body may legitimately take minutes on a slow client,
+    // and a fixed whole-body budget would reject large packages by size.
+    const tarballTimeoutMs = Number(env.MARKET_PRIVATE_REGISTRY_TARBALL_TIMEOUT_MS ?? 20000)
     return {
       enabled: true,
       ready: true,
       url: url.toString(),
       authorization: header,
       timeoutMs: Number.isSafeInteger(timeoutMs) && timeoutMs >= 1000 && timeoutMs <= 30000 ? timeoutMs : 8000,
+      tarballTimeoutMs: Number.isSafeInteger(tarballTimeoutMs) && tarballTimeoutMs >= 1000 && tarballTimeoutMs <= 120000
+        ? tarballTimeoutMs
+        : 20000,
     }
   } catch { return { enabled: true, ready: false, reason: 'invalid-url' } }
 }

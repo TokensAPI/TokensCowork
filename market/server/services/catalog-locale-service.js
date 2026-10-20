@@ -30,7 +30,9 @@ function layered(fallback, layers, locale, max) {
 async function localeFiles(item, manifest, env) {
   if (item.registry !== 'tokenscowork' || !declaresLocaleFiles(manifest)) return undefined
   try {
-    const result = await createRegistryClient(env).tarball(manifest.dist?.tarball)
+    // Reading locale files means inspecting the archive, so this is the one
+    // path that buffers it instead of streaming it through to a client.
+    const result = await createRegistryClient(env).tarballBytes(manifest.dist?.tarball)
     return result.ok ? await packageLocaleMetadata(result.bytes) : undefined
   } catch { return undefined }
 }

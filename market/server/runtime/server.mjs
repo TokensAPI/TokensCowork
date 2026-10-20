@@ -8,8 +8,10 @@
 import { createServer } from 'node:http'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import worker from '../_worker.js'
-import { createAssets, createD1Database } from './adapters.mjs'
+import { createAssets, createD1Database, createTarballCache } from './adapters.mjs'
 
 const serverRoot = resolve(import.meta.dirname, '..')
 const dataDir = process.env.MARKET_HOST_DATA_DIR || '/data'
@@ -22,12 +24,23 @@ if (publicOrigin.protocol !== 'https:' || publicOrigin.username || publicOrigin.
   throw new Error('MARKET_HOST_PUBLIC_ORIGIN must be a bare credential-free HTTPS origin')
 }
 
+// Registry archives are immutable per version, so they are cached on the data
+// volume. 0 turns the cache off; the archive route then streams from the
+// Registry on every authorized download, as it did before.
+const cacheBudget = Number(process.env.MARKET_TARBALL_CACHE_MAX_BYTES ?? 2 * 1024 ** 3)
+if (!Number.isSafeInteger(cacheBudget) || cacheBudget < 0) {
+  throw new Error('MARKET_TARBALL_CACHE_MAX_BYTES must be a non-negative integer')
+}
+
 mkdirSync(dataDir, { recursive: true })
 const env = {
   // Every MARKET_* variable passes through verbatim; the bindings are replaced.
   ...Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('MARKET_'))),
   MARKET_DB: createD1Database(resolve(dataDir, 'market.sqlite'), resolve(serverRoot, 'database/migrations')),
   ASSETS: createAssets(serverRoot),
+  ...(cacheBudget === 0
+    ? {}
+    : { MARKET_TARBALL_CACHE: createTarballCache(resolve(dataDir, 'tarball-cache'), { maxBytes: cacheBudget }) }),
 }
 
 const server = createServer(async (incoming, outgoing) => {
@@ -69,10 +82,23 @@ const server = createServer(async (incoming, outgoing) => {
     const cookies = response.headers.getSetCookie()
     if (cookies.length) outHeaders['set-cookie'] = cookies
     outgoing.writeHead(response.status, outHeaders)
-    if (response.body) {
-      for await (const chunk of response.body) outgoing.write(chunk)
+    // Forward with backpressure. Writing every chunk regardless of drain
+    // buffers the whole response in this process, which would hold a large
+    // plugin archive in memory for as long as the slowest client takes to
+    // read it -- and that is exactly the case the archive route streams for.
+    if (!response.body) { outgoing.end(); return }
+    try {
+      await pipeline(Readable.fromWeb(response.body), outgoing)
+    } catch (error) {
+      // The status line is already on the wire, so a failure here cannot be
+      // reported: drop the connection instead, so the client sees a truncated
+      // transfer rather than a silently short archive. Destroying the source
+      // is what lets the archive cache discard its partial file.
+      outgoing.destroy()
+      // A client that walks away mid-download is routine on a slow link, not
+      // a server fault; an upstream body that dies is worth the log.
+      if (error?.code !== 'ERR_STREAM_PREMATURE_CLOSE') console.error(error)
     }
-    outgoing.end()
   } catch (error) {
     console.error(error)
     if (!outgoing.headersSent) outgoing.writeHead(500, { 'content-type': 'text/plain' })

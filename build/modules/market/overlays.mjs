@@ -16,6 +16,7 @@ import {
   addMarketHome,
   addMarketHomeStyles,
 } from './market-home-overlay.mjs'
+import { tolerateSlowDownloads } from './market-network-overlay.mjs'
 import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 import { addPrivateRegistrySupport } from './market-registry-overlay.mjs'
 import {
@@ -116,6 +117,14 @@ export default [
     apply: ({ api }) => ({ api: addMarketUpdateChecks(api) }),
     why: '客户端 API 增加插件更新检查调用。',
     retireWhen: '随 market.updates 一起移除。',
+  }),
+  /* ----------------------- 慢网络 ----------------------- */
+  sourceEntry('slow-network', {
+    kind: 'customization',
+    files: { service: f.installService, routes: f.routes, settingsTab: f.settingsTab, locales: f.locales },
+    apply: input => tolerateSlowDownloads(input),
+    why: '插件包整包走一次 pnpm 请求，默认 60 秒预算在慢链路上必然超时；放宽进程内的下载预算（不改写 Profile 的 pnpm 配置），并把超时失败显示成网络提示而不是“包管理器未成功完成”，详细输出保留。',
+    retireWhen: '上游自己为插件下载设置足够的预算并区分超时失败后移除。',
   }),
   /* ----------------------- 发现首页与文案 ----------------------- */
   sourceEntry('discover-home', {

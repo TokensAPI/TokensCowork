@@ -4,7 +4,7 @@
 
 | 服务 | 公网域名 | 本机监听 | 持久数据 |
 | --- | --- | --- | --- |
-| 市场 | market.tokensapi.ai | 127.0.0.1:4880 | tokenscowork-market-host-data，SQLite |
+| 市场 | market.tokensapi.ai | 127.0.0.1:4880 | tokenscowork-market-host-data，SQLite 与归档缓存 |
 | Registry | npm.tokensapi.ai | 127.0.0.1:4873 | Registry storage/plugins volumes |
 
 Cloudflare Pages 旧入口已退役。旧来源需切换到
@@ -39,11 +39,20 @@ location / {
 Registry 域名继续代理到 4873。TLS、DNS 和 Nginx 由运维维护，不在市场 CI 中修改。
 不要再使用两个服务共用 npm 域名的旧分流规则。
 
+插件归档（`/registry/<插件>/<包>/<版本>/tarball`）是边拉边回的流式响应：反代不要
+对这个前缀设置短的 `proxy_read_timeout`，也不要关掉响应缓冲之后再限制
+`proxy_max_temp_file_size`——慢网络的客户端可能要几分钟才取完一个包。
+
 ## 配置与数据
 
 业务 Secret 只存服务器 `.env`，不得提交或输出。特别是 HMAC 和 Key 加密密钥，
 更新、恢复或搬机都必须沿用已有值；更换会使已授权 Key 指纹及加密数据失效。
 市场运行时无安装 npm 依赖的步骤，所有插件压缩包从独立 Registry 获取。
+
+数据卷里的 `tarball-cache/` 是已验证归档的缓存：只保存摘要与 Registry 的 `integrity`
+核对通过的完整包，同一版本的后续下载不再回源。它可以随时整目录删除（下次下载重新
+回源填充），不需要备份；上限用 `MARKET_TARBALL_CACHE_MAX_BYTES` 控制，设 0 即关闭。
+缓存只是存储：授权判断仍在查缓存之前，撤权后连已缓存的包也不发。
 
 备份市场 SQLite 时应使用 SQLite 一致性备份方式，不能将运行中的数据库直接打包作为可靠快照。
 日常部署的快照和恢复方法见 [CI 部署说明](../deploy/README.md)。

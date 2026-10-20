@@ -48,6 +48,8 @@ test('registered market overlays assemble product behaviors and leave unchanged 
   assert.match(read('src/install/service.ts'), /registry\/by-package/)
   assert.match(read('src/host/routes.ts'), /service.invalidateSource/)
   assert.doesNotMatch(read('src/client/locales.ts'), /DeepSeek Harness/)
+  // 慢网络文案在最后的品牌替换之后仍然在位。
+  assert.match(read('src/client/locales.ts'), /operationTimeout: "下载安装包超时/)
   assert.equal(read('tests/client-api.spec.ts'), apiTests)
   for (const template of ['market-update.spec.ts', 'market-registry-candidates.spec.ts']) {
     assert.equal(read(`tests/${template}`), readFileSync(resolve(import.meta.dirname, template), 'utf8'))

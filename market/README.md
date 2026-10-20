@@ -213,7 +213,7 @@ TokensAPI 组织即租户。上表由平台决定「插件提供给哪些组织�
 | --- | --- |
 | `server/market-worker.js` | 总路由：目录 `/v1/plugins`、`/roster.json`，下载 `/registry/*`，管理接口 `/api/v1/*`，后台静态页 |
 | `server/routes/api.js` | `/api/v1` 路由，每个接口先判定调用者能不能用 |
-| `server/private-registry/routes.js` | 插件下载，先过权限判断，再用市场的服务账号去私有 Registry 取包 |
+| `server/private-registry/routes.js` | 插件下载，先过权限判断，再查已验证归档的缓存，最后才用市场的服务账号去私有 Registry 边拉边回 |
 | `server/services/auth.js` | 调用者是谁：平台管理员 / 组织管理员，登录与会话 |
 | `server/services/access.js` | **唯一的可见性判断**，目录和下载共用 |
 | `server/services/plugins.js` | 插件资料、生命周期、访问范围与授权写入 |
@@ -322,7 +322,7 @@ build/modules/market/        构建时的桌面市场适配，不直接修改上
 
 | 服务 | Compose 位置 | 本机监听 | 持久数据 |
 | --- | --- | --- | --- |
-| 市场 | `market/server/` | `127.0.0.1:4880` → 容器 `8080` | `tokenscowork-market-host-data`，包含 SQLite `market.sqlite` |
+| 市场 | `market/server/` | `127.0.0.1:4880` → 容器 `8080` | `tokenscowork-market-host-data`，包含 SQLite `market.sqlite` 与归档缓存 `tarball-cache/`（可删，不需备份） |
 | 仓库 | `market/registry/` | `127.0.0.1:4873` → 容器 `4873` | Registry storage/plugins volumes |
 
 业务保留 Worker/D1 接口兼容，但自托管 runtime 使用 SQLite，不能把当前部署描述为全部运行在 Cloudflare D1。

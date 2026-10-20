@@ -7,11 +7,12 @@
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：23 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：24 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
 | [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配、隐藏来源管理及统一品牌文案 |
 | [market-auth-overlay.mjs](market-auth-overlay.mjs) | 当前 API Key 目录鉴权、Key 切换缓存失效、不持久化授权目录、防止凭据向第三方透传 |
 | [market-update-overlay.mjs](market-update-overlay.mjs) | npm 插件检查、确认和执行更新，保留配置、启用状态及重启提示 |
 | [market-registry-overlay.mjs](market-registry-overlay.mjs) | 私有包身份、schema、版本验证及共享 Registry 安装路由；服务端凭据留在服务端 |
+| [market-network-overlay.mjs](market-network-overlay.mjs) | 慢链路下的下载预算（进程内 pnpm 参数）与超时失败的用户文案 |
 | [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、灰色已安装卡片、详情自动检查更新和失败重试，复用原生布局与操作 |
 | [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好，保留 Safe Mode 例外 |
 | [market-catalog-verify.mjs](market-catalog-verify.mjs) | 校验生成来源、产品组件清单和初始 SQLite 目录；产品输入检查自动调用 |

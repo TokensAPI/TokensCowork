@@ -51,24 +51,44 @@ async function metadataResponse(request, env, id, name) {
   return reply({ ...result.data, name, versions })
 }
 
-async function tarballResponse(request, env, id, name, version) {
-  if (!versionOK(version)) return reply({ error: '版本无效' }, 400)
-  const item = await privatePackage(request, env, id, name)
-  if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
-  const client = createRegistryClient(env)
-  if (!client.status().ready) return reply({ error: '私有 Registry 未配置' }, 503)
-  const result = await client.resolve(name, version)
-  if (!result.ok) return reply({ error: result.reason === 'version-not-found' ? '私有 Registry 未找到此版本' : '私有 Registry 暂时不可用' }, result.reason === 'version-not-found' ? 404 : 503)
-  const packageResult = await client.tarball(result.tarball)
-  if (!packageResult.ok) return reply({ error: '私有 Registry 安装包暂时不可用' }, 503)
-  return new Response(packageResult.bytes, {
+/** 缓存键：包名已过 packageOK、版本已过 versionOK，编码后不含路径分隔符。 */
+function tarballKey(name, version) {
+  return `${encodeURIComponent(name)}-${version}`
+}
+
+function archiveResponse(body, name, version, contentType, contentLength) {
+  return new Response(body, {
     headers: {
-      'content-type': packageResult.contentType,
+      'content-type': contentType,
+      // 已知长度就透传：客户端才能显示进度，并在包被截断时报错而不是接受半个包。
+      ...(contentLength === undefined ? {} : { 'content-length': String(contentLength) }),
+      // 归档只按授权逐次发放，中间层不得留副本；服务端缓存在授权判断之后。
       'cache-control': 'private, no-store',
       vary: 'Authorization',
       'content-disposition': `attachment; filename="${encodeURIComponent(name.replace(/^@/u, '').replaceAll('/', '-'))}-${version}.tgz"`,
     },
   })
+}
+
+async function tarballResponse(request, env, id, name, version) {
+  if (!versionOK(version)) return reply({ error: '版本无效' }, 400)
+  // 授权永远在前：缓存是存储，不是许可。
+  const item = await privatePackage(request, env, id, name)
+  if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
+  const cache = env.MARKET_TARBALL_CACHE
+  const key = tarballKey(name, version)
+  // 同一版本在 Registry 上不可变，已校验过的归档不再回源。
+  const cached = await cache?.read(key)
+  if (cached) return archiveResponse(cached.body, name, version, 'application/octet-stream', cached.size)
+  const client = createRegistryClient(env)
+  if (!client.status().ready) return reply({ error: '私有 Registry 未配置' }, 503)
+  const result = await client.resolve(name, version)
+  if (!result.ok) return reply({ error: result.reason === 'version-not-found' ? '私有 Registry 未找到此版本' : '私有 Registry 暂时不可用' }, result.reason === 'version-not-found' ? 404 : 503)
+  const archive = await client.tarball(result.tarball)
+  if (!archive.ok) return reply({ error: '私有 Registry 安装包暂时不可用' }, 503)
+  // 边拉边回：首字节不再等整包传完，缓存只收下摘要核对通过的完整归档。
+  const body = cache === undefined ? archive.body : cache.capture(key, archive.body, result.integrity)
+  return archiveResponse(body, name, version, archive.contentType, archive.contentLength)
 }
 
 // A download whose authorization cannot be decided -- TokensAPI or the database unavailable -- is
