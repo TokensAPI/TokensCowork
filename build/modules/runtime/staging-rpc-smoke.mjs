@@ -16,7 +16,9 @@ const web = ctx.plugin(scope => { scope.provide('webServer', { register(route) {
   return () => routes.delete(route.path)
 } }) })
 await web.await()
-const provider = ctx.plugin(scope => { new HostConnectionService(scope, [], { isAuthenticated: () => false }) })
+// DSH 0.2.1 的 admit() 在浏览器会话未认证后还会按 API cookie 认证（authenticateApi 返回 Peer id 或 undefined）；
+// 夹具两条路都拒绝，RPC 仍应得到 401。
+const provider = ctx.plugin(scope => { new HostConnectionService(scope, [], { isAuthenticated: () => false, authenticateApi: () => undefined }) })
 await provider.await()
 let disposeRoute
 let caught

@@ -1479,15 +1479,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/dsh-atomic-write@npm:0.2.0-rc.2":
-  version: 0.2.0-rc.2
-  resolution: "@deepseek-ai/dsh-atomic-write@npm:0.2.0-rc.2"
-  peerDependencies:
-    "@deepseek-ai/cordis": ~4.0.4
-  checksum: 10c0/aa5143e1c3fcdc3f4fac89a2bf24ed291fad91f9401f70125b4f8fda8aad2579fc12b58d251f343e89f02dc45aa9f54f1b2c9d761f6e98080ca909bf88558064
-  languageName: node
-  linkType: hard
-
 "@deepseek-ai/dsh-atomic-write@npm:0.2.1-rc.2":
   version: 0.2.1-rc.2
   resolution: "@deepseek-ai/dsh-atomic-write@npm:0.2.1-rc.2"
@@ -11361,7 +11352,7 @@ __metadata:
     "@deepseek-ai/dsh-api-settings-controller": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-api-workspace-controller": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-app-boot": "npm:0.2.1-rc.2"
-    "@deepseek-ai/dsh-atomic-write": "npm:0.2.0-rc.2"
+    "@deepseek-ai/dsh-atomic-write": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-attachment": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-authorization": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-base": "npm:0.2.1-rc.2"
