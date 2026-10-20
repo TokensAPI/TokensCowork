@@ -13,9 +13,12 @@ export function removePluginPageInstall(source) {
     }
     return source
   }
-  // 工具栏 children 里刷新按钮之后的“添加插件”按钮；刷新按钮保留。
+  // 工具栏 children 里刷新按钮之后的“添加插件”整段；刷新按钮保留。
+  // DSH 0.2.1 起这里是个三元：没有安装在进行时渲染“添加插件”下拉组
+  // （AddPluginMenu，主按钮 + 菜单项 + 扩展插槽），否则渲染“查看安装任务”。
+  // 两支都只通向 openInstall，整段一起去掉；入口没了，也就不会有安装在进行。
   let next = replacePatternOnce(source,
-    /, \(0, react_jsx_runtime\.jsx\)\(_deepseek_ai_dsh_client_ui_primitives\.Button, \{\s*variant: "primary",\s*size: "sm",\s*className: PluginManagerPage_module_css_default\.addButton,[\s\S]*?onClick: props\.openInstall,\s*children: t\(state\.install\.requestId === void 0 \? "addPlugin" : "installViewTask"\)\s*\}\)\]/u,
+    /, state\.install\.requestId === void 0 \? \(0, react_jsx_runtime\.jsx\)\(AddPluginMenu, \{[\s\S]*?children: t\("installViewTask"\)\s*\}\)\]/u,
     ` ${MARKER}]`,
     'plugin page add button')
   // 没有其他入口调用 openInstall；保留属性避免调用方报错，但不再打开对话框。

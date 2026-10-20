@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { AnchorError } from '../../pipeline/anchors.mjs'
 import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 
-// Verbatim from @deepseek-ai/dsh-client-ui-plugin-manager 0.2.0-rc.2 lib/client.js (the DSH 0.2 pin):
+// Verbatim from @deepseek-ai/dsh-client-ui-plugin-manager 0.2.1-rc.2 lib/client.js (the DSH pin):
 // the plugin page toolbar children and the store's openInstall. Refresh this fixture when the pin moves.
 const TOOLBAR = `
 							children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
@@ -29,14 +29,19 @@ const TOOLBAR = `
 										}) : (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconRefreshOutlineRegular, {})
 									})
 								})
-							}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+							}), state.install.requestId === void 0 ? (0, react_jsx_runtime.jsx)(AddPluginMenu, {
+								t,
+								disabled: !loaded,
+								openInstall: props.openInstall,
+								renderSlot
+							}) : (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
 								variant: "primary",
 								size: "sm",
 								className: PluginManagerPage_module_css_default.addButton,
 								icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconPlusOutlineRegular, { size: 13 }),
 								disabled: !loaded,
 								onClick: props.openInstall,
-								children: t(state.install.requestId === void 0 ? "addPlugin" : "installViewTask")
+								children: t("installViewTask")
 							})]`
 const OPEN_INSTALL = `
 					openInstall: () => {
@@ -55,7 +60,8 @@ const OPEN_INSTALL = `
 						} else this.patchInstall({ open: true });
 						this.reconcileInstall();
 					},`
-const source = `function toolbar(props, state, loaded, refreshing, t) { return {${TOOLBAR}} }
+const source = `function AddPluginMenu(props) { return { type: "AddPluginMenu", props } }
+function toolbar(props, state, loaded, refreshing, t, renderSlot) { return {${TOOLBAR}} }
 class Store {
   constructor(ctx) { this.ctx = ctx; this.calls = []; this.registryMemory = { getSnapshot: () => null } }
   getSnapshot() { return { install: { requestId: void 0 } } }
@@ -76,19 +82,30 @@ function load(code) {
 }
 const props = { refresh() {}, openInstall() {} }
 
-test('the original page renders refresh and an add button wired to openInstall', () => {
-  const { toolbar } = load(source)
-  const children = toolbar(props, { install: { requestId: void 0 } }, true, false, key => key).children
-  assert.equal(children.length, 2)
-  assert.equal(children[1].props.onClick, props.openInstall)
+const render = (code, requestId) => {
+  const { toolbar, Store } = load(code)
+  return { children: toolbar(props, { install: { requestId } }, true, false, key => key, () => null).children, Store }
+}
+
+test('the original page renders refresh and an add entry wired to openInstall', () => {
+  // 没有安装在进行时是“添加插件”下拉组；有安装在进行时是“查看安装任务”。
+  const idle = render(source, void 0).children
+  assert.equal(idle.length, 2)
+  assert.equal(idle[1].props.openInstall, props.openInstall)
+  const busy = render(source, 'request-1').children
+  assert.equal(busy.length, 2)
+  assert.equal(busy[1].props.onClick, props.openInstall)
 })
 
 test('the plugin page keeps refresh but no longer offers to add a plugin', () => {
-  const { toolbar, Store } = load(removePluginPageInstall(source))
-  const children = toolbar(props, { install: { requestId: void 0 } }, true, false, key => key).children
-  assert.equal(children.length, 1)
-  assert.equal(children[0].type, 'Tooltip')
-  assert.equal(children[0].props.children.props.onClick, props.refresh)
+  const patched = removePluginPageInstall(source)
+  for (const requestId of [void 0, 'request-1']) {
+    const children = render(patched, requestId).children
+    assert.equal(children.length, 1)
+    assert.equal(children[0].type, 'Tooltip')
+    assert.equal(children[0].props.children.props.onClick, props.refresh)
+  }
+  const { Store } = render(patched, void 0)
   const tracked = []
   const store = new Store({ get: () => ({ track: event => tracked.push(event) }) })
   store.api().openInstall()
@@ -101,7 +118,7 @@ test('the removal is idempotent and refuses a half-patched or drifted upstream',
   assert.equal(removePluginPageInstall(once), once)
   const half = once.replace('/* TokensCowork: plugin page install entry removed; install through the plugin market. */ return;', '') + OPEN_INSTALL
   assert.throws(() => removePluginPageInstall(half), /incomplete plugin page install entry removal/)
-  assert.throws(() => removePluginPageInstall(source.replace('className: PluginManagerPage_module_css_default.addButton,', '')), AnchorError)
+  assert.throws(() => removePluginPageInstall(source.replace('children: t("installViewTask")', 'children: t("addPlugin")')), AnchorError)
   assert.throws(() => removePluginPageInstall(source.replace('"plugin_add_button_click"', '"plugin_add_click"')), AnchorError)
 })
 
