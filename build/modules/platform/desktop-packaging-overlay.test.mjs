@@ -109,6 +109,12 @@ test('the entitlements plist is copied to the path the upstream mac config signs
   const overlay = (await import('./overlays.mjs')).default.find(item => item.id === 'platform.mac-entitlements-plist')
   const [[source, target]] = overlay.copy
   assert.equal(readFileSync(source, 'utf8').includes('com.apple.security.device.audio-input'), true)
+  // 2.0.18 起解释器载荷里的 Node 二进制按架构用不同的 entitlements 签名，两份也要进 staging。
+  for (const file of ['jit-entitlements.plist', 'node-x64-entitlements.plist']) {
+    const entry = overlay.copy.find(([, to]) => to.endsWith(`/${file}`))
+    assert.ok(entry, `缺少 ${file}`)
+    assert.ok(readFileSync(entry[0], 'utf8').includes('com.apple.security.cs.allow-jit'), `${file} 应声明 JIT`)
+  }
   // 上游配置相对 dsh-plugin-desktop；换算到 staging 根必须正好落在复制目标上。
   const mac = JSON.parse(read('package.json')).build.mac
   for (const key of ['entitlements', 'entitlementsInherit']) {

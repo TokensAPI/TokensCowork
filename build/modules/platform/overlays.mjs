@@ -48,11 +48,12 @@ export default [
     phase: 'prepare',
     upstream: ['dsh'],
     kind: 'compatibility',
-    copy: [[
-      resolve(import.meta.dirname, '../../..', 'desktop/deepseek-harness/apps/desktop/scripts/macos-entitlements.plist'),
-      'deepseek-harness/apps/desktop/scripts/macos-entitlements.plist',
-    ]],
-    why: '上游 mac 打包配置把 entitlements 指向同级 Harness 仓库，而 staging 不复制 Harness；按原路径放入清单，codesign 才能读到。',
+    // macos-entitlements：应用与 Helper 的签名；jit / node-x64：2.0.18 起给解释器载荷里的 Node 二进制签名（sign-runtime.ts）。
+    copy: ['macos-entitlements.plist', 'jit-entitlements.plist', 'node-x64-entitlements.plist'].map(file => [
+      resolve(import.meta.dirname, '../../..', 'desktop/deepseek-harness/apps/desktop/scripts', file),
+      `deepseek-harness/apps/desktop/scripts/${file}`,
+    ]),
+    why: '上游 mac 打包配置与解释器载荷签名都把 entitlements 指向同级 Harness 仓库，而 staging 不复制 Harness；按原路径放入清单，codesign 才能读到。',
     retireWhen: '上游把 entitlements 清单移回 dsh-plugin-desktop 内部后移除。',
   },
   {
