@@ -22,11 +22,13 @@ export function addWindowsAclHostConsole(source) {
 `
   // 上游自带 AllocConsole；产品已附着无窗口控制台，不能再次分配。
   const upstreamConsole = "import { ensureWindowsConsoleHost } from './windows-console-host.ts'\n"
-  const upstreamConsoleCall = '  ensureWindowsConsoleHost()\n'
+  // 2.0.18 起上游把控制台初始化改成了 await 调用；两种写法都只允许出现一次。
+  const upstreamConsoleCall = ['  await ensureWindowsConsoleHost()\n', '  ensureWindowsConsoleHost()\n']
+    .find(call => source.split(call).length === 2)
   if (source.split(importAnchor).length !== 2
     || source.split(validationAnchor).length !== 2
     || source.split(upstreamConsole).length !== 2
-    || source.split(upstreamConsoleCall).length !== 2) {
+    || upstreamConsoleCall === undefined) {
     throw new Error('prepare-desktop: 未找到 Windows ACL trampoline 锚点，请复查宿主控制台覆盖')
   }
   return source
@@ -53,7 +55,9 @@ export function alignWindowsAclConsoleSpec(source) {
   const blockAnchor = "describe('Windows ACL runner trampoline', () => {"
   const upstreamModule = "'../src/windows-console-host.ts'"
   const mockedExport = '() => ({ ensureWindowsConsoleHost })'
-  const throwingExport = '      ensureWindowsConsoleHost: () => {'
+  // 2.0.18 起上游把抛错的 mock 改成 async 函数；两种写法都只允许出现一次。
+  const throwingExport = ['      ensureWindowsConsoleHost: async () => {', '      ensureWindowsConsoleHost: () => {']
+    .find(line => source.includes(line)) ?? '      ensureWindowsConsoleHost: () => {'
   const start = source.indexOf(blockAnchor)
   // trampoline 之后的 describe 仍直接测试上游实现，产品保留该文件，不改那部分。
   const end = source.indexOf('\ndescribe(', start + blockAnchor.length)

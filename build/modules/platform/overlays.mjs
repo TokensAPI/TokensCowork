@@ -56,6 +56,18 @@ export default [
     retireWhen: '上游把 entitlements 清单移回 dsh-plugin-desktop 内部后移除。',
   },
   {
+    id: 'platform.harness-primary-runtime-lock',
+    phase: 'prepare',
+    upstream: ['dsh'],
+    kind: 'compatibility',
+    copy: [
+      [resolve(import.meta.dirname, '../../..', 'desktop/deepseek-harness/scripts/primary-runtime/lock.json'), 'deepseek-harness/scripts/primary-runtime/lock.json'],
+      [resolve(import.meta.dirname, '../../..', 'desktop/deepseek-harness/scripts/primary-runtime/smoke.py'), 'deepseek-harness/scripts/primary-runtime/smoke.py'],
+    ],
+    why: '2.0.18 起随包分发 Python/Node 解释器载荷，准备脚本从同级 Harness 读 primary-runtime/lock.json 与 smoke.py，而 staging 不复制 Harness；按原路径放入这两个文件。',
+    retireWhen: '上游把解释器锁文件移进 dsh-plugin-desktop 后移除。',
+  },
+  {
     id: 'platform.windows-acl-assets',
     phase: 'prepare',
     upstream: ['desktop'],

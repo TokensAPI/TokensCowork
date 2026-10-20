@@ -28,7 +28,9 @@ export function macForeignArchExclusions(build, arch) {
   if (arch !== 'arm64' && arch !== 'x64') throw new Error(`configure-product: unsupported macOS architecture ${arch}`)
   const foreign = arch === 'arm64' ? 'x64' : 'arm64'
   const list = build.mac?.x64ArchFiles
-  const match = typeof list === 'string' ? /^\*\*\/node_modules\/\{(.+)\}$/u.exec(list) : null
+  // 2.0.17 是 `**/node_modules/{…}`；2.0.18 起外面再包一层 `{…,Contents/Resources/runtime/**,…}`
+  // 把解释器载荷也交给通用包合并。这里只取 node_modules 那组，载荷目录按 DSH_MAC_SMOKE_ARCH 只准备本架构。
+  const match = typeof list === 'string' ? /\*\*\/node_modules\/\{([^{}]+)\}/u.exec(list) : null
   if (!match) throw new Error('configure-product: upstream mac.x64ArchFiles format changed')
   const patterns = match[1].split(',').map(entry => entry.trim())
   if (patterns.length === 0 || patterns.some(entry => !entry.includes('darwin-*/**'))) {

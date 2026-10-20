@@ -72,6 +72,9 @@ for (const mode of ['check', 'win', 'win-check', 'mac', 'mac-unsigned']) {
       // 门禁由并行的 win-check 承担；打包路径只装配、配置、编译、打包、校验。
       assert.doesNotMatch(output, /check:win-package|typecheck|verify:cli|dsh-community-fabric check/)
       assert.ok(output.indexOf('staging-product-configure.mjs windows') < output.indexOf('electron-builder'))
+      // 2.0.18 起解释器载荷由 extraResources 进包，必须在打包前准备好，afterPack 会校验。
+      assert.ok(output.indexOf('prepare:runtime') > output.indexOf('staging-product-configure.mjs windows'))
+      assert.ok(output.indexOf('prepare:runtime') < output.indexOf('electron-builder'))
       assert.ok(output.indexOf('electron-builder') < output.indexOf('packaged-app-verify'))
     }
     if (mode === 'win-check') {

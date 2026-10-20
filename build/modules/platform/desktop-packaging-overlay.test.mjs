@@ -28,14 +28,17 @@ test('native verifier checks only selected runtime while retaining signature gat
   const source = alignMacReleaseVerification(read('scripts/verify-mac-release.ts'))
   const inventory = new URL('../../../desktop/dsh-plugin-desktop/scripts/mac-universal.ts', import.meta.url).href
   const entitlements = new URL('../../../desktop/dsh-plugin-desktop/scripts/verify-mac-entitlements.ts', import.meta.url).href
-  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)))
+  // 2.0.18 起还 import ./verify-mac-runtime.ts（解释器载荷校验）；data: 模块里相对路径解析不了，一并映射成文件 URL。
+  // 它依赖只在 staging 里安装的 @deepseek-ai/dsh-tool-workspace-dependencies；用例按 verifyRuntime 空实现跳过载荷校验，这里只需能解析。
+  const macRuntime = 'data:text/javascript,export const verifyDesktopMacRuntime = () => {}'
+  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)).replace("'./verify-mac-runtime.ts'", JSON.stringify(macRuntime)))
   const { verifyMacRelease } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
   const previous = process.env.DSH_MAC_ARCH
   try {
     for (const [arch, binaryArch] of [['arm64', 'arm64'], ['x64', 'x86_64']]) {
       process.env.DSH_MAC_ARCH = arch
       const calls = []
-      const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {}, run: (command, args) => calls.push([command, args]) }
+      const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {}, verifyRuntime: () => {}, run: (command, args) => calls.push([command, args]) }
       verifyMacRelease(options)
       const nativeChecks = calls.filter(([command]) => command === 'lipo')
       assert.ok(nativeChecks.length > 1)
@@ -156,7 +159,10 @@ test('the release verifier retries a flaky stapler lookup without loosening the 
   const source = alignMacReleaseVerification(read('scripts/verify-mac-release.ts'))
   const inventory = new URL('../../../desktop/dsh-plugin-desktop/scripts/mac-universal.ts', import.meta.url).href
   const entitlements = new URL('../../../desktop/dsh-plugin-desktop/scripts/verify-mac-entitlements.ts', import.meta.url).href
-  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)))
+  // 2.0.18 起还 import ./verify-mac-runtime.ts（解释器载荷校验）；data: 模块里相对路径解析不了，一并映射成文件 URL。
+  // 它依赖只在 staging 里安装的 @deepseek-ai/dsh-tool-workspace-dependencies；用例按 verifyRuntime 空实现跳过载荷校验，这里只需能解析。
+  const macRuntime = 'data:text/javascript,export const verifyDesktopMacRuntime = () => {}'
+  const code = stripTypeScriptTypes(source.slice(0, source.indexOf('const invokedPath =')).replace("'./mac-universal.ts'", JSON.stringify(inventory)).replace("'./verify-mac-entitlements.ts'", JSON.stringify(entitlements)).replace("'./verify-mac-runtime.ts'", JSON.stringify(macRuntime)))
   const { verifyMacRelease } = await import(`data:text/javascript,${encodeURIComponent(code)}`)
   const previous = process.env.DSH_MAC_ARCH
   process.env.DSH_MAC_ARCH = 'arm64'
@@ -164,7 +170,7 @@ test('the release verifier retries a flaky stapler lookup without loosening the 
   try {
     const validateCalls = []
     let failures = 2
-    const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {},
+    const options = { distDir: '/dist', productName: 'TokensCowork', listDmgs: () => ['/dist/package.dmg'], makeMountPoint: () => '/mount', removeMountPoint: () => {}, verifyRuntime: () => {},
       run: (command, args) => { if (command === 'xcrun' && args[1] === 'validate') { validateCalls.push(args); if (failures-- > 0) throw new Error('The network connection was lost.') } } }
     verifyMacRelease(options)
     assert.equal(validateCalls.length, 3)

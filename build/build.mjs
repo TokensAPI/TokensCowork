@@ -183,6 +183,8 @@ if (mode === 'check') {
     ...buildEnvironment,
     DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
     DSH_MAC_ARCH: requestedArch,
+    // 2.0.18 起随包分发 Python/Node 解释器载荷；上游按通用包准备两个 CPU，单架构包只准备本架构。
+    DSH_MAC_SMOKE_ARCH: requestedArch,
   }
   run('corepack', [
     'yarn',
@@ -231,6 +233,9 @@ if (mode === 'check') {
   // macOS 一样自己编 Market 与 Desktop，品牌校验读的是两者的产物。
   buildProduct(unsignedEnvironment)
   verifyProductBranding(unsignedEnvironment)
+  // 2.0.18 起随包分发 Python/Node 解释器载荷（extraResources `.desktop-build/runtime`），上游在
+  // package-win.ts 里先准备再打包；我们直接调 electron-builder，所以这里自己准备，afterPack 会校验它。
+  run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', 'prepare:runtime'], stage, unsignedEnvironment)
   // 最终物理运行时由 Electron Builder afterPack 与 verify-package 检查。
   run('corepack', [
     'yarn',
@@ -288,6 +293,8 @@ if (mode === 'check') {
     ...(planOnly ? process.env : adaptAppleReleaseEnvironment(process.env)),
     DSH_ELECTRON_BUILDER_TRAVERSAL_ONLY: '1',
     DSH_MAC_ARCH: signedArch,
+    // 解释器载荷只准备并校验本架构那一份（上游默认按通用包准备两个 CPU）。
+    DSH_MAC_SMOKE_ARCH: signedArch,
     TOKENS_MAC_RECOVERY_DIR: resolve(root, '.build', 'mac-recovery', signedArch),
   }
   run(
