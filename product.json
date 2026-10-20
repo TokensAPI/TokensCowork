@@ -13,9 +13,9 @@
   "desktop": {
     "path": "desktop",
     "repository": "https://github.com/anywhere-labs/deepseek-harness-desktop.git",
-    "commit": "838ba60fd79362087c0a0d134efee671c284786a",
-    "deepseekHarnessCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
-    "runtimeVersion": "0.2.0-rc.2"
+    "commit": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
+    "deepseekHarnessCommit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+    "runtimeVersion": "0.2.1-rc.2"
   },
   "plugins": [
     {
