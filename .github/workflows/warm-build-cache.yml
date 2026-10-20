@@ -43,6 +43,7 @@ jobs:
             ~/Library/Caches/electron-builder
             ~/AppData/Local/electron/Cache
             ~/AppData/Local/electron-builder/Cache
+            .build/desktop/dsh-plugin-desktop/.desktop-build/downloads
           key: desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('build/pipeline/product.yarn.lock') }}
           restore-keys: |
             desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-
