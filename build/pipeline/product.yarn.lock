@@ -1055,13 +1055,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/cosmokit@npm:~1.8.5":
-  version: 1.8.5
-  resolution: "@deepseek-ai/cosmokit@npm:1.8.5"
-  checksum: 10c0/b7c8c2f1b6c08e3e6ce3bc0804d77ef43035229811afb89a43a680e0c198ed93cd0f2bb1cfbf30c8626ac839e1eaf58f655a31c577c69cd7b0bf3237278e156e
-  languageName: node
-  linkType: hard
-
 "@deepseek-ai/cosmokit@npm:~1.8.6":
   version: 1.8.6
   resolution: "@deepseek-ai/cosmokit@npm:1.8.6"
@@ -3407,17 +3400,6 @@ __metadata:
   peerDependencies:
     "@deepseek-ai/cordis": ~4.0.5
   checksum: 10c0/05121cef2e58ed2255300629eb629f0e0e00d9a86d859d3e1dc099805a7beac4675a8a6514a356561497424a30a4d169f1b004681572597c2fe68546a914c2aa
-  languageName: node
-  linkType: hard
-
-"@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2":
-  version: 0.2.0-rc.2
-  resolution: "@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2"
-  dependencies:
-    "@deepseek-ai/schemastery": "npm:~3.18.4"
-  peerDependencies:
-    "@deepseek-ai/cordis": ~4.0.4
-  checksum: 10c0/015eb1f4df46afc88589f1af4af71294b39121f5484f2eac33047895f9c3e14243126973d2edcf961e1d0d67a197b1d2037751d3d25b8b60b3eaf5220c78f184
   languageName: node
   linkType: hard
 
@@ -6392,16 +6374,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@deepseek-ai/schemastery@npm:~3.18.4":
-  version: 3.18.4
-  resolution: "@deepseek-ai/schemastery@npm:3.18.4"
-  dependencies:
-    "@deepseek-ai/cosmokit": "npm:~1.8.5"
-    "@standard-schema/spec": "npm:^1.1.0"
-  checksum: 10c0/eb2afd90404460ea88a510f20bc6751a70f9e9973bac9342279999277928fc827c2aba1bbb37f134a92b6475e261e5dd97c1ddbc6f0ca8588d07d34303ec4a1d
-  languageName: node
-  linkType: hard
-
 "@dotenvx/dotenvx@npm:^1.48.4":
   version: 1.75.1
   resolution: "@dotenvx/dotenvx@npm:1.75.1"
@@ -8457,10 +8429,13 @@ __metadata:
   resolution: "@tokens/dsh-version-updates@workspace:dsh-plugin-desktop/product-plugins/tokens-version-updates"
   dependencies:
     "@deepseek-ai/dsh-atomic-write": "npm:0.2.1-rc.2"
-    "@deepseek-ai/dsh-invariants": "npm:0.2.0-rc.2"
     "@deepseek-ai/schemastery": "npm:^3.18.5"
   peerDependencies:
     "@deepseek-ai/cordis": ^4.0.1
+    "@deepseek-ai/dsh": 0.2.1-rc.2
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh":
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -11427,7 +11402,6 @@ __metadata:
     "@deepseek-ai/dsh-host-plugin-inventory": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-host-webserver": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-http-proxy": "npm:0.2.1-rc.2"
-    "@deepseek-ai/dsh-invariants": "npm:0.2.0-rc.2"
     "@deepseek-ai/dsh-jobs": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-jobs-local": "npm:0.2.1-rc.2"
     "@deepseek-ai/dsh-launch-environment": "npm:0.2.1-rc.2"

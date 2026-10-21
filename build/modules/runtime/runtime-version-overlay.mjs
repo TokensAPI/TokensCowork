@@ -17,20 +17,11 @@ export function alignConnectionRpcScope(source) {
   return source.replace(before, after)
 }
 
-/**
- * 上游停发的 DSH 包：运行时升到 0.2.1 后不再有同版本可对齐，保留最后一个发布版。
- * 目前只有 tokens-version-updates 还依赖 dsh-invariants（断言工具，不依赖其他 dsh 包）；
- * 插件去掉这个依赖后删除该条。
- */
-export const DISCONTINUED_DSH_PACKAGES = Object.freeze({
-  '@deepseek-ai/dsh-invariants': '0.2.0-rc.2',
-})
-
 /** One runtime family for every product workspace, including plugin peers. */
 export function alignRuntimeDependencies(manifest, version) {
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     for (const name of Object.keys(manifest[field] ?? {})) {
-      if (isDshPackage(name)) manifest[field][name] = DISCONTINUED_DSH_PACKAGES[name] ?? version
+      if (isDshPackage(name)) manifest[field][name] = version
     }
   }
   return manifest
@@ -41,7 +32,7 @@ export function alignRuntimeResolutions(resolutions, version) {
   const result = {}
   for (const [selector, source] of Object.entries(resolutions)) {
     const name = selector.split('@npm:')[0]
-    if (!isDshPackage(name) || DISCONTINUED_DSH_PACKAGES[name] !== undefined) { result[selector] = source; continue }
+    if (!isDshPackage(name)) { result[selector] = source; continue }
     if (!selector.includes('@npm:')) throw new Error(`Unsupported DSH selector: ${selector}`)
     // 上游的 Yarn 补丁是对着 vendor/ 里的 tarball 写的，而 npm 上同版本可能是另一次构建
     //（2.0.18 的 dsh-experimental-inspector：chunk 文件名全不同，补丁在 npm 版上 ENOENT）。

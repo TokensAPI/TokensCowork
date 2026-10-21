@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { DISCONTINUED_DSH_PACKAGES, alignConnectionRpcScope, alignRuntimeDependencies, alignRuntimeResolutions } from './runtime-version-overlay.mjs'
+import { alignConnectionRpcScope, alignRuntimeDependencies, alignRuntimeResolutions } from './runtime-version-overlay.mjs'
 import { alignResolverTestFileUrls } from './desktop-runtime-overlay.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -88,16 +88,6 @@ test('RPC compatibility patch is idempotent and rejects a changed upstream ancho
   assert.match(patched, /caller.inject/)
   assert.equal(alignConnectionRpcScope(patched), patched)
   assert.throws(() => alignConnectionRpcScope('changed'))
-})
-
-test('a discontinued DSH package keeps its last published version instead of the runtime version', () => {
-  // 0.2.1 起上游不再发布 dsh-invariants；对齐到运行时版本会让 yarn 解析失败（No candidates found）。
-  const manifest = { dependencies: { '@deepseek-ai/dsh-invariants': '0.1.0-rc.6', '@deepseek-ai/dsh-atomic-write': '0.1.0-rc.6' } }
-  alignRuntimeDependencies(manifest, '0.2.1-rc.2')
-  assert.equal(manifest.dependencies['@deepseek-ai/dsh-invariants'], DISCONTINUED_DSH_PACKAGES['@deepseek-ai/dsh-invariants'])
-  assert.equal(manifest.dependencies['@deepseek-ai/dsh-atomic-write'], '0.2.1-rc.2')
-  const resolutions = alignRuntimeResolutions({ '@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2': 'npm:0.2.0-rc.2' }, '0.2.1-rc.2')
-  assert.deepEqual(resolutions, { '@deepseek-ai/dsh-invariants@npm:0.2.0-rc.2': 'npm:0.2.0-rc.2' })
 })
 
 test('a patched vendored package at the pinned version keeps its vendored source', () => {

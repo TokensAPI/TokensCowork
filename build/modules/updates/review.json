@@ -7,8 +7,8 @@
     "dsh": null,
     "plugins": {
       "tokens-version-updates": {
-        "commit": "e69006ca4965ce229bbe5436569fe93946d08873",
-        "version": "0.1.1",
+        "commit": "0304f8580fe278d09611a1e6de1fbd5a02726c10",
+        "version": "0.1.2",
         "artifact": null
       }
     }
@@ -35,6 +35,14 @@
         "updates.tray-command-id"
       ],
       "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
+    },
+    {
+      "overlays": [
+        "updates.profile-menu-check",
+        "updates.tray-command-id",
+        "updates.release-source"
+      ],
+      "verified": "2026-10-21：更新插件 pin 换到 0.1.2（0304f85，去掉停发的 dsh-invariants、修复 DSH 0.2 上侧栏下载按钮渲染即崩）。产品锁随之刷新（dsh-invariants 条目消失）、runtime 模块删除 DISCONTINUED_DSH_PACKAGES 兜底；overlay-doctor --doctor 60 条生效、0 失效、0 可删（tray-command-id 在 0.1.2 的 index.js 上锚点仍命中）；test:build 144 项通过。完整 build.mjs check 与安装包验收随下一次发版。"
     }
   ]
 }
