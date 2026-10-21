@@ -10,8 +10,8 @@
     },
     "plugins": {
       "tokens-dsh-web-search": {
-        "commit": "79253f1cc64f08ef739f7bd69bb9bc2eecf170f1",
-        "version": "0.2.1",
+        "commit": "8505c033d9519bda8ef335feabf496e3bbfb2dd0",
+        "version": "0.2.2",
         "artifact": null
       }
     }

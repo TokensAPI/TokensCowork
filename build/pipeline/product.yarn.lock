@@ -17179,6 +17179,11 @@ __metadata:
   peerDependencies:
     "@deepseek-ai/dsh-settings": 0.2.1-rc.2
     "@deepseek-ai/dsh-tools": 0.2.1-rc.2
+  peerDependenciesMeta:
+    "@deepseek-ai/dsh-settings":
+      optional: true
+    "@deepseek-ai/dsh-tools":
+      optional: true
   languageName: unknown
   linkType: soft
 
