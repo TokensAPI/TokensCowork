@@ -61,7 +61,7 @@ test('upstream architecture and macOS quality-check anchors still match', () => 
   assert.match(alignFsExtArchitecture(fsExt), /arch: process.argv\[2\] \?\? process.arch/)
   assert.match(alignMacReleaseChecks(release), /product assembly owns the release quality gates/)
   assert.match(alignMacReleaseChecks(release), /'--publish', 'never'/)
-  assert.match(alignMacReleaseChecks(release), /'--config.forceCodeSigning=true', '--config.mac.notarize=false'/)
+  assert.match(alignMacReleaseChecks(release), /'--config.forceCodeSigning=true', '--config.mac.notarize=false',\n\s+'--config.dmg.format=ULFO', '--config.dmg.writeUpdateInfo=false',/)
   assert.doesNotMatch(alignMacReleaseChecks(release), /--universal|prepareInstalledMacUniversalRuntime/)
   assert.match(alignMacReleaseChecks(release), /--\$\{releaseEnvironment.DSH_MAC_ARCH\}/)
   assert.doesNotMatch(alignMacReleaseChecks(release), /FORBIDDEN_MACOS_UNIVERSAL_ENTRIES|Unexpected generated native runtime/)

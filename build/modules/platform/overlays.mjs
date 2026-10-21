@@ -181,8 +181,8 @@ export default [
     kind: 'compatibility',
     files: { script: d.releaseMac },
     apply: ({ script }) => ({ script: alignMacReleaseChecks(script) }),
-    why: 'macOS 只构建 runner 原生架构，不重复 Universal；共享质量检查由 Windows 任务承担，公证交给产品回调。',
-    retireWhen: '上游支持配置化架构与质量门禁后缩减。',
+    why: 'macOS 只构建 runner 原生架构，不重复 Universal；共享质量检查由 Windows 任务承担，公证交给产品回调；DMG 用 ULFO 压缩并不生成 blockmap（产品更新整包下载，不走 electron-updater 差分），缩短打包时间。',
+    retireWhen: '上游支持配置化架构与质量门禁后缩减；上游自己配置 dmg.format / writeUpdateInfo 时删掉对应两项。',
   },
   {
     id: 'platform.mac-release-verification',

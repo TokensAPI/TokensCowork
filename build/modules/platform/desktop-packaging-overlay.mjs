@@ -113,7 +113,9 @@ export function alignMacReleaseChecks(releaseMac) {
   return releaseMac.replace(upstreamReleaseCheck,
     '  // TokensCowork product assembly owns the release quality gates before packaging.\n')
     .replace(builder, "    'exec', 'electron-builder', '--mac', 'dmg', `--${releaseEnvironment.DSH_MAC_ARCH}`,\n    '--publish', 'never',")
-    .replace("'--config.mac.notarize=true'", "'--config.mac.notarize=false'")
+    // DMG 用 Apple 自家的 lzfse（ULFO）压缩，比默认 UDZO 快得多；blockmap 是 electron-updater 差分更新用的，
+    // 产品更新插件整包下载并按 SHA-256 校验，用不上，一并关掉。两处合计每个 macOS 作业省 1.5–2 分钟。
+    .replace("'--config.mac.notarize=true'", "'--config.mac.notarize=false',\n    '--config.dmg.format=ULFO', '--config.dmg.writeUpdateInfo=false'")
     .replace(fsImport, (_line, names) => {
       const imported = new Set(names.split(',').map(name => name.trim()).filter(Boolean))
       for (const name of ['existsSync', 'chmodSync']) imported.add(name)
