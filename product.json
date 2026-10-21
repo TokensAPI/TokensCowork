@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.7.1"
+    "version": "0.7.2"
   },
   "desktop": {
     "path": "desktop",
@@ -70,9 +70,9 @@
       "description": "统一管理 TokensAPI API Key、主模型与文本视觉桥接，并同步当前会话模型。",
       "path": "plugins/tokens_DshModelManager_code",
       "repository": "https://github.com/TokensAPI/tokens_DshModelManager_code.git",
-      "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
+      "commit": "6d9a407347147810746b1455cb27a01ea09937a6",
       "package": "@tokens/dsh-model-manager",
-      "version": "0.2.24",
+      "version": "0.2.25",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml"
     },

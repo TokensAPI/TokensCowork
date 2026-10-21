@@ -25,8 +25,8 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "25807d33433a9b448dc493240dea367f5256b8b4",
-        "version": "0.2.24",
+        "commit": "6d9a407347147810746b1455cb27a01ea09937a6",
+        "version": "0.2.25",
         "artifact": null
       },
       "tokens-dsh-web-search": {
