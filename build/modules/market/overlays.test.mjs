@@ -55,6 +55,12 @@ test('registered market overlays assemble product behaviors and leave unregister
   assert.doesNotMatch(read('src/client/locales.ts'), /DeepSeek Harness/)
   // 慢网络文案在最后的品牌替换之后仍然在位。
   assert.match(read('src/client/locales.ts'), /operationTimeout: "下载安装包超时/)
+  assert.match(read('src/client/locales.ts'), /catalogRefreshFailed: "显示的是上次的插件目录/)
+  // 发现页首屏：过期快照先返回、远程预算收窄、清单只读一次。
+  assert.match(read('src/host/routes.ts'), /allowStale: !force,/)
+  assert.match(read('src/catalog/service.ts'), /return cachedScanView\(cached, 'stale'\)/)
+  assert.match(read('src/network/restricted-http.ts'), /totalTimeoutMs: PRODUCT_CATALOG_REQUEST_BUDGET_MS,/)
+  assert.match(read('src/adapters/standard-http.ts'), /async function resolveSourceManifest\(/)
   assert.equal(read('tests/contracts.spec.ts'), untouchedTests)
   assert.match(read('tests/client-api.spec.ts'), /expect\(test\.registrations\)\.toHaveLength\(4\)/)
   assert.match(read('tests/client-api.spec.ts'), /name: 'plugins\.tab',\n {8}id: 'discover',/)

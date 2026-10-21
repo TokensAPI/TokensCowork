@@ -1,7 +1,8 @@
 /* ====================================================================
  * market 覆盖登记表
  * 固定产品来源、当前 Key 鉴权、插件更新、私有 Registry、慢链路下载预算、
- * 发现首页与品牌文案；以及 Desktop 侧的市场提供方固定、侧栏「插件」页只留
+ * 发现首页与品牌文案、发现页首屏延迟（过期快照先显示、远程请求快速失败、
+ * 清单按来源缓存）；以及 Desktop 侧的市场提供方固定、侧栏「插件」页只留
  * 产品市场（不露出远程控制卡）、DSH 插件页的安装入口。
  * 同一阶段内按登记顺序执行，后一条读取前一条的结果。
  * ==================================================================== */
@@ -12,6 +13,15 @@ import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-o
 import {
   addOfficialPluginMarketOffTest, pinDesktopMarketProvider, pinDesktopOfficialPluginMarketOff,
 } from './market-desktop-overlay.mjs'
+import {
+  allowStaleCatalogOnDiscover,
+  cacheStandardSourceManifests,
+  expectStaleScanOptionInRuntimeTest,
+  failFastOnCatalogRequests,
+  keepStaleCatalogOnRefreshFailure,
+  reportStaleCatalogMetadata,
+  serveStaleCatalogScans,
+} from './market-discover-latency-overlay.mjs'
 import {
   adaptMarketHomeOverlayTests,
   adaptMarketHomeTests,
@@ -63,6 +73,9 @@ const f = {
   api: m('src/client/api.ts'),
   installService: m('src/install/service.ts'),
   apiTypes: m('src/api-types.ts'),
+  catalogService: m('src/catalog/service.ts'),
+  standardAdapter: m('src/adapters/standard-http.ts'),
+  contractTypes: m('src/contracts/types.ts'),
 }
 
 const sourceEntry = (id, overlay) => ({
@@ -163,6 +176,44 @@ export default [
     apply: input => addMarketPluginsTab(input),
     why: '侧栏「插件」页的「发现」标签原本由官方「自定义插件市场」bundle 提供，要用户自己添加索引源（真机上就是一个「还没有插件市场」的空壳）；产品固定关掉那个 bundle 后由产品市场接上这一格，复用同一个发现面板，目录走产品固定的私有源、安装走市场自己的流程。',
     retireWhen: '产品不再在插件页提供发现入口，或上游把这一页的发现标签改为可配置的产品市场时移除。',
+  }),
+  /* ----------------------- 发现页首屏延迟 ----------------------- */
+  sourceEntry('catalog-fast-fail', {
+    kind: 'customization',
+    files: { http: f.http },
+    apply: ({ http }) => ({ http: failFastOnCatalogRequests(http) }),
+    why: '目录扫描按来源串行，上游单次远程请求的总预算是 30 s；用户机器经本地代理时偶发握手挂起十几秒，一条挂住的连接把后续每次打开都排在它后面——真机上就是「发现」转几十秒然后突然好。只把产品目录源那个受限客户端的预算收到 8 s（代理下正常一次请求约 1.1 s），1024Store、dshfind 与 npm Registry 的客户端保持上游默认。',
+    retireWhen: '上游自己为目录请求设置可配置且足够短的预算后移除。',
+  }),
+  sourceEntry('catalog-manifest-cache', {
+    kind: 'customization',
+    files: { adapter: f.standardAdapter, service: f.catalogService, types: f.contractTypes },
+    apply: (input, { root }) => cacheStandardSourceManifests(input, source(root).origin),
+    why: 'source.json 只带提供方身份与查询端点（随产品发版才变），上游却在每次目录扫描前重拉一次：代理下这一跳要多付约 0.8 s 握手，首次打开因此是两跳 1.5 s。产品来源改为按来源缓存 24 h，并以来源记录里那份注册时已校验的固定清单起步（产品自己构建并托管这份清单，记录里那份就是发出去的那份），首次扫描降到一跳；两条不变量（提供方身份、查询端点在注册 origin 内）在每条路径上都重新校验，用户按刷新时绕过缓存重读。只认产品 origin：用户自添的标准源仍按上游语义每次重读，清单漂移照旧当场发现。',
+    retireWhen: '上游自己缓存清单或支持 ETag/If-None-Match 后移除。',
+  }),
+  sourceEntry('catalog-stale-first', {
+    kind: 'customization',
+    // 必须在 market.discover-home 之后：客户端两处锚点是它切出 DiscoverView 时的产物。
+    files: {
+      service: f.catalogService, routes: f.routes, types: f.apiTypes,
+      settingsTab: f.settingsTab, locales: f.locales,
+    },
+    apply: ({ service, routes, types, settingsTab, locales }) => ({
+      service: serveStaleCatalogScans(service),
+      routes: allowStaleCatalogOnDiscover(routes),
+      types: reportStaleCatalogMetadata(types),
+      ...keepStaleCatalogOnRefreshFailure({ settingsTab, locales }),
+    }),
+    why: '上游在内存快照过期后丢掉它、进扫描锁重建，于是「发现」每次过期都要等一次远程扫描，挂住就一直转。改为过期但来源未变的快照立即按 stale 返回、不进扫描锁，界面先渲染上次的目录，再由客户端已有的 refresh=1 在后台替换；刷新失败保留旧内容并给出可见的重试，而不是把能看的页面换成错误页。',
+    retireWhen: '上游自己先返回过期快照再后台刷新后移除。',
+  }),
+  sourceEntry('test-stale-scan-option', {
+    kind: 'customization',
+    files: { tests: m('tests/market-runtime.spec.ts') },
+    apply: ({ tests }) => ({ tests: expectStaleScanOptionInRuntimeTest(tests) }),
+    why: '上游用例逐字断言目录路由传给 scanCatalog 的选项，产品多传一个 allowStale；断言的本意（限额与重复 category 原样透传）不变，补上这一项。',
+    retireWhen: '随 market.catalog-stale-first 一起移除。',
   }),
   sourceEntry('brand-copy', {
     kind: 'customization',
@@ -276,9 +327,10 @@ export default [
     copy: [
       [template('market-update.spec.ts'), m('tests/market-update.spec.ts')],
       [template('market-registry-candidates.spec.ts'), m('tests/market-registry-candidates.spec.ts')],
+      [template('market-discover-latency.spec.ts'), m('tests/market-discover-latency.spec.ts')],
     ],
-    why: '插件更新与私有 Registry 安装候选的产品回归，由 Market 的 Vitest 在 staging 中执行。',
-    retireWhen: '随 market.updates / market.registry 一起移除。',
+    why: '插件更新、私有 Registry 安装候选与「发现」首屏延迟的产品回归，由 Market 的 Vitest 在 staging 中执行。',
+    retireWhen: '随 market.updates / market.registry / market.catalog-stale-first 一起移除。',
   }),
   /* ----------------------- Desktop 侧 ----------------------- */
   {
