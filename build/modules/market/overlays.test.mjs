@@ -20,8 +20,12 @@ function fixture(t) {
     recursive: true,
     filter: path => !['.git', 'node_modules', 'lib'].includes(basename(path)),
   })
-  mkdirSync(resolve(stage, 'dsh-plugin-desktop/src'), { recursive: true })
-  cpSync(resolve(root, 'desktop/dsh-plugin-desktop/src/main.ts'), resolve(stage, 'dsh-plugin-desktop/src/main.ts'))
+  mkdirSync(resolve(stage, 'dsh-plugin-desktop/src/client'), { recursive: true })
+  mkdirSync(resolve(stage, 'dsh-plugin-desktop/tests'), { recursive: true })
+  for (const file of ['src/main.ts', 'src/client/plugin-controls.tsx', 'src/client/desktop-settings.ts',
+    'tests/client-desktop-settings.spec.ts']) {
+    cpSync(resolve(root, `desktop/dsh-plugin-desktop/${file}`), resolve(stage, `dsh-plugin-desktop/${file}`))
+  }
   return stage
 }
 
@@ -55,6 +59,13 @@ test('registered market overlays assemble product behaviors and leave unchanged 
     assert.equal(read(`tests/${template}`), readFileSync(resolve(import.meta.dirname, template), 'utf8'))
   }
   assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/src/main.ts'), 'utf8'), /市场提供方固定为社区市场/)
+  const controls = readFileSync(resolve(stage, 'dsh-plugin-desktop/src/client/plugin-controls.tsx'), 'utf8')
+  assert.match(controls, /title: 'TokensCowork 插件市场'/)
+  assert.doesNotMatch(controls, /MarketSourcesButton|MARKET_OPTIONS|dshNextPluginSections/)
+  assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/src/client/desktop-settings.ts'), 'utf8'),
+    /\[COMMUNITY_MARKET, DSH_MARKET, REMOTE_CONTROL_BUNDLE, OFFICIAL_MARKET\]/)
+  assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/tests/client-desktop-settings.spec.ts'), 'utf8'),
+    /toHaveBeenNthCalledWith\(6, \{/)
   const assembled = snapshot(market)
   await assert.rejects(assemble(stage), /^Error: \[market\.synthetic-proxy\] dsh-community-market\/src\/network\/restricted-http\.ts:/)
   assert.deepEqual(snapshot(market), assembled)

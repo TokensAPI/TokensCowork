@@ -1,7 +1,8 @@
 /* ====================================================================
  * market 覆盖登记表
  * 固定产品来源、当前 Key 鉴权、插件更新、私有 Registry、慢链路下载预算、
- * 发现首页与品牌文案；以及 Desktop 侧的市场提供方固定、DSH 插件页的安装入口。
+ * 发现首页与品牌文案；以及 Desktop 侧的市场提供方固定、侧栏「插件」页只留
+ * 产品市场（不露出远程控制卡）、DSH 插件页的安装入口。
  * 同一阶段内按登记顺序执行，后一条读取前一条的结果。
  * ==================================================================== */
 import { readFileSync } from 'node:fs'
@@ -17,6 +18,9 @@ import {
   addMarketHomeStyles,
 } from './market-home-overlay.mjs'
 import { tolerateSlowDownloads } from './market-network-overlay.mjs'
+import {
+  expectOfficialMarketHiddenInTest, hideOfficialMarketBundle, hideRemoteControlCard, pinProductMarketOnPluginPage,
+} from './market-plugin-controls-overlay.mjs'
 import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-registry-overlay.mjs'
 import {
@@ -39,6 +43,8 @@ const source = root => ({
 })
 const template = name => resolve(import.meta.dirname, name)
 const pluginPageClient = desktopInstalled('@deepseek-ai/dsh-client-ui-plugin-manager', 'lib/client.js')
+/** Desktop 客户端源码；只有市场相关的两个文件，不登记进 stage-targets。 */
+const desktopClient = file => `dsh-plugin-desktop/src/client/${file}`
 
 const f = {
   http: m('src/network/restricted-http.ts'),
@@ -260,6 +266,43 @@ export default [
     apply: ({ main }) => ({ main: pinDesktopMarketProvider(main) }),
     why: '正常启动固定 community-market 并修复误关的持久记录（崩溃恢复会把 disabled 写盘）；Safe Mode 例外。',
     retireWhen: '产品不再固定市场，或上游提供等效策略配置时移除；不能丢失其他偏好字段。',
+  },
+  {
+    id: 'market.plugin-page-single-market',
+    phase: 'prepare',
+    upstream: ['desktop', 'product'],
+    kind: 'customization',
+    files: { controls: desktopClient('plugin-controls.tsx') },
+    apply: ({ controls }, { product }) => ({ controls: pinProductMarketOnPluginPage(controls, product.product.name) }),
+    why: 'Desktop 2.0.18 的侧栏「插件」页把 community-market 与 dsh-market 并排成卡，并给出「来源配置」弹窗（dshmarket / dshfind / deepseek1024 等非产品源与官方自定义插件市场）和「启用插件市场」开关；产品只有一个固定市场，切走只在当次会话生效、关掉下次启动又被 market.desktop-provider 改回来。收敛为一张产品市场卡，文案用产品名、不带上游仓库外链。',
+    retireWhen: '产品改回多来源/多市场策略，或上游为这一页提供与设置页同样的 capability 开关时移除。',
+  },
+  {
+    id: 'market.plugin-page-hide-remote-control',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    // 与上一条同文件：先收敛市场区，再去掉远程控制卡。
+    files: { controls: desktopClient('plugin-controls.tsx') },
+    apply: ({ controls }) => ({ controls: hideRemoteControlCard(controls) }),
+    why: 'Agents Anywhere 随包分发但产品不露出入口（侧栏入口早已藏掉），2.0.18 又在插件页给它一张带启用开关和「打开面板」的卡。只藏界面，不改 bundle 的启停状态与运行时行为，与产品既有口径一致。',
+    retireWhen: '产品决定正式提供远程控制功能时移除。',
+  },
+  {
+    id: 'market.plugin-page-hide-official-market',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    files: {
+      settings: desktopClient('desktop-settings.ts'),
+      tests: 'dsh-plugin-desktop/tests/client-desktop-settings.spec.ts',
+    },
+    apply: ({ settings, tests }) => ({
+      settings: hideOfficialMarketBundle(settings),
+      tests: expectOfficialMarketHiddenInTest(tests),
+    }),
+    why: '官方「自定义插件市场」bundle 在上游 MORE_BUNDLES 里，插件页「更多」清单从一开始就显示它，开启后再挂一个按用户自添索引的「发现」页——又一个与产品市场并列的入口。沿用上游已有的 plugins.bundle.hidden 机制一起挡掉，并给上游按注册次序断言的用例补上第四条。',
+    retireWhen: '随 market.plugin-page-single-market 一起移除，或产品决定支持用户自定义插件市场索引时移除。',
   },
   /* ----------------------- DSH 插件页 ----------------------- */
   {

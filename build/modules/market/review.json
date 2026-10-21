@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-20",
-  "reviewNote": "2026-10-20（T0018）：pin 换到 Desktop v2.0.18 / DSH 0.2.1-rc.2 后逐条复查。上游把全部包操作交给官方插件管理器（de7b7e4556）并合并了测试文件（80a42398c2），市场的 pnpm 直调、restart token、Profile 清单读写全部消失；24 条覆盖重新落点后 overlay-doctor --doctor 全量 0 ✖ 0 ○，build-verify market 28 项通过。真实宿主视觉、账户权限、真机安装/更新激活语义未验收。",
+  "reviewedAt": "2026-10-21",
+  "reviewNote": "2026-10-21（T0037）：在 T0018 的 Desktop v2.0.18 / DSH 0.2.1-rc.2 基线上新增侧栏「插件」页的三条覆盖，baseline 未变。overlay-doctor --doctor 全量 0 ✖ 0 ○（28 条 market 覆盖），build-verify market 40 项通过。上一轮 2026-10-20（T0018）：pin 换到 Desktop v2.0.18 / DSH 0.2.1-rc.2 后逐条复查。上游把全部包操作交给官方插件管理器（de7b7e4556）并合并了测试文件（80a42398c2），市场的 pnpm 直调、restart token、Profile 清单读写全部消失；24 条覆盖重新落点后 overlay-doctor --doctor 全量 0 ✖ 0 ○，build-verify market 28 项通过。真实宿主视觉、账户权限、真机安装/更新激活语义未验收。",
   "baseline": {
     "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": {
@@ -170,6 +170,14 @@
         "market.plugin-page-install"
       ],
       "verified": "2026-10-20（T0018）：DSH 0.2.1-rc.2 把插件页的「添加插件」按钮换成三元——没有安装在进行时渲染下拉组 AddPluginMenu（主按钮 + 菜单项 + plugins.add.actions 插槽），否则渲染「查看安装任务」；两支都只通向 openInstall，覆盖改为整段去掉，工具栏只留刷新。入口没了也就不会有安装在进行。证据：npm pack @deepseek-ai/dsh-client-ui-plugin-manager@0.2.1-rc.2（shasum 865001f0f4ed056b040677273b5f5d1f9e2f9c87）后对其 lib/client.js 实际执行覆盖——onClick: props.openInstall 1→0、plugin_add_button_click 1→0、AddPluginMenu 引用 2→1、installViewTask 3→2，重复执行结果不变。测试夹具按同一文件原文刷新，三元两支都有断言。本覆盖改的是已安装 npm 包，--doctor 只能报「读取已装配副本」，上面这次 pack 就是替代证据；真机界面待 .build/desktop 用新 pin 重装后验收。"
+    },
+    {
+      "overlays": [
+        "market.plugin-page-single-market",
+        "market.plugin-page-hide-remote-control",
+        "market.plugin-page-hide-official-market"
+      ],
+      "verified": "2026-10-21（T0037）：新增。Desktop 2.0.18 的侧栏「插件」页（dsh-plugin-desktop/src/client/plugin-controls.tsx）无条件渲染 community-market 与 dsh-market 两张 Choice 卡，并带「来源配置」弹窗（MarketSourcesDialog：dshmarket/dshfind/deepseek1024 内置源与官方「自定义插件市场」）和「启用插件市场」开关；设置页那份 DesktopSettingsSection 有 pluginSelectors: false 挡住，这一页没有任何 capability 开关。覆盖把市场区收敛为一张产品市场卡（标题/说明用 product.name，不再经 marketTitle/marketBody 包成指向上游仓库的 RepositoryLink），删掉来源按钮、开关与整个 MarketSourcesButton/MarketSourcesDialog 及其专用的 readCommunityMarketSources / reloadDiscoverIndexesIfMounted；上游对 preferredMarket 的记账原样保留（恒为 community-market），只把读取位置留空。第二条沿用上游 plugins.bundle.hidden，把官方「自定义插件市场」bundle（@deepseek-ai/dsh-experimental-plugin-market-bundle，在上游 MORE_BUNDLES 里，插件页「更多」清单一直显示它、开启后再挂一个 plugins.tab 的「发现」页）一起挡掉，并给上游按注册次序断言的 tests/client-desktop-settings.spec.ts 追加第四条断言。第三条（market.plugin-page-hide-remote-control，同文件、登记在市场那条之后）去掉同页 dshNextPluginSections 里的「远程控制」卡：不渲染卡片、启用开关与「打开面板」按钮，连 PluginCard / RemoteControlSettings / remoteDescription 与随之失去引用的 ReactNode、PluginArtworkDefault、Switch、REMOTE、remoteRow、onOpenBundle、Translate 一起删掉；只藏界面——`export { REMOTE_CONTROL_BUNDLE }` 保留给 client/index.ts，整个文件只剩市场卡那一处 setBundleEnabled，AA bundle 的启停与运行时行为不动（侧栏入口产品此前已藏，口径一致）。验证：build-verify market 40 项通过（新增 10 项，含上游原状对照、单卡渲染、远程控制三件套清零、导入零未用、半成品与 14 处锚点漂移各自失败），全量 build 测试 154 项通过；overlay-doctor --check 登记合法、--doctor 在临时 staging 中三条均判「生效」，全量 0 ✖ 0 ○；在该 staging 上把 .build/desktop 的依赖树 junction 进来后，dsh-plugin-desktop 五个 tsconfig（含 tsconfig.client.json，覆盖 src/client/**/*.tsx 且开着 noUnusedLocals）tsc --noEmit 全部 exit 0，vitest 跑 client-desktop-settings / market-toggle / client-environment / client-sidebar-dom-anchor 四个 spec 75 项通过。遗留：真机界面未验收（单卡外观、无来源按钮与开关、无远程控制卡、「更多」清单里没有自定义插件市场、「发现」页仍能从产品私有源安装）；plugin-controls-styles.ts 里 dshNextPluginCard / dshNextMarketSource* 等样式已无对应元素，留着不动以缩小覆盖面；dshmarket bundle（1.66.35，约 8.1 MB）仍随包分发，界面已无入口，裁剪属 platform 打包范围。"
     }
   ],
   "notes": [
