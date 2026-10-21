@@ -323,3 +323,50 @@ describe('product Discover home and installed details', () => {
     expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
   })
 })
+
+describe('product Discover tab contributed to the Plugins page', () => {
+  const tabProps = { t, readLocale: () => 'en' } as MarketPluginsTabProps
+  const tabItem = makeInstallableItem(firstSource, 'tab-card', 'Tab Card', '@tokensapi/tab-card')
+
+  function browseTab() {
+    vi.mocked(readMarketState).mockResolvedValue(enabledState)
+    vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [tabItem]))
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
+  }
+
+  it('shows the product catalog without the panel header or its own view switch', async () => {
+    browseTab()
+    render(<MarketPluginsTab {...tabProps} />)
+    expect(await screen.findByRole('button', { name: /Tab Card/ })).toBeTruthy()
+    // The page's own tabs are Installed / Discover; a nested view switch would
+    // show a second Installed and a Sources entry the product does not offer.
+    for (const label of [en.discover, en.installed, en.sources]) {
+      expect(screen.queryByRole('button', { name: label })).toBeNull()
+    }
+    expect(screen.queryByRole('heading', { name: en.title })).toBeNull()
+    expect(screen.queryByRole('link', { name: new RegExp(en.currentSource) })).toBeNull()
+    expect(readMarketCatalog).toHaveBeenCalled()
+    expect(readMarketInstallable).not.toHaveBeenCalled()
+  })
+
+  it('installs through the market confirmation instead of the Plugins page install dialog', async () => {
+    browseTab()
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install', previewId: 'tab-install', ...makeOperationTarget({ packageName: '@tokensapi/tab-card' }), expiresAt: '2099-01-01',
+    })
+    vi.mocked(executeMarketOperation).mockResolvedValue({
+      action: 'install', packageName: '@tokensapi/tab-card', version: '1.2.3', application: 'applied',
+    })
+    const install = vi.fn()
+    render(<MarketPluginsTab {...tabProps} install={install} openPackage={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Tab Card/ }))
+    const confirmation = await screen.findByRole('dialog', { name: en.confirmInstallTitle })
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'install', sourceRecordId: firstSource.sourceRecordId, itemId: tabItem.id }, expect.any(AbortSignal))
+    fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
+    expect(await screen.findByText(en.installComplete)).toBeTruthy()
+    expect(executeMarketOperation).toHaveBeenCalledWith('tab-install', expect.any(AbortSignal))
+    // The page's own install dialog takes a spec and skips the product's private
+    // Registry authorization and compatibility checks; the tab never calls it.
+    expect(install).not.toHaveBeenCalled()
+  })
+})

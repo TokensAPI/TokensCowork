@@ -22,8 +22,8 @@ function fixture(t) {
   })
   mkdirSync(resolve(stage, 'dsh-plugin-desktop/src/client'), { recursive: true })
   mkdirSync(resolve(stage, 'dsh-plugin-desktop/tests'), { recursive: true })
-  for (const file of ['src/main.ts', 'src/client/plugin-controls.tsx', 'src/client/desktop-settings.ts',
-    'tests/client-desktop-settings.spec.ts']) {
+  for (const file of ['src/main.ts', 'src/profile.ts', 'src/client/plugin-controls.tsx', 'src/client/desktop-settings.ts',
+    'tests/client-desktop-settings.spec.ts', 'tests/profile.spec.ts']) {
     cpSync(resolve(root, `desktop/dsh-plugin-desktop/${file}`), resolve(stage, `dsh-plugin-desktop/${file}`))
   }
   return stage
@@ -40,11 +40,12 @@ function snapshot(directory) {
 
 const assemble = stage => runOverlays('prepare', { stage, product, overlays: marketOverlays })
 
-test('registered market overlays assemble product behaviors and leave unchanged API tests intact', async t => {
+test('registered market overlays assemble product behaviors and leave unregistered tests intact', async t => {
   const stage = fixture(t)
   const market = resolve(stage, 'dsh-community-market')
   const read = path => readFileSync(resolve(market, path), 'utf8')
-  const apiTests = read('tests/client-api.spec.ts')
+  // 产品不碰的用例留一份对照：覆盖只改登记过的文件，不向整个 tests/ 外溢。
+  const untouchedTests = read('tests/contracts.spec.ts')
   const results = await assemble(stage)
   assert.ok(results.every(result => result.status === 'changed'), JSON.stringify(results.filter(result => result.status !== 'changed')))
   assert.match(read('src/client/MarketSettingsTab.tsx'), /initialView = 'discover'/)
@@ -54,11 +55,22 @@ test('registered market overlays assemble product behaviors and leave unchanged 
   assert.doesNotMatch(read('src/client/locales.ts'), /DeepSeek Harness/)
   // 慢网络文案在最后的品牌替换之后仍然在位。
   assert.match(read('src/client/locales.ts'), /operationTimeout: "下载安装包超时/)
-  assert.equal(read('tests/client-api.spec.ts'), apiTests)
+  assert.equal(read('tests/contracts.spec.ts'), untouchedTests)
+  assert.match(read('tests/client-api.spec.ts'), /expect\(test\.registrations\)\.toHaveLength\(4\)/)
+  assert.match(read('tests/client-api.spec.ts'), /name: 'plugins\.tab',\n {8}id: 'discover',/)
   for (const template of ['market-update.spec.ts', 'market-registry-candidates.spec.ts']) {
     assert.equal(read(`tests/${template}`), readFileSync(resolve(import.meta.dirname, template), 'utf8'))
   }
-  assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/src/main.ts'), 'utf8'), /市场提供方固定为社区市场/)
+  assert.match(read('src/client/MarketSettingsTab.tsx'), /export function MarketPluginsTab\(/)
+  assert.match(read('src/client/index.ts'), /ctx\.slots\.inject\('plugins\.tab'/)
+  assert.match(read('tests/market-settings-tab.spec.tsx'), /product Discover tab contributed to the Plugins page/)
+  const main = readFileSync(resolve(stage, 'dsh-plugin-desktop/src/main.ts'), 'utf8')
+  assert.match(main, /市场提供方固定为社区市场/)
+  assert.match(main, /if \(safeModePaths === undefined\) disableDesktopOfficialPluginMarket\(activeProfileDir\)/)
+  assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/src/profile.ts'), 'utf8'),
+    /export function disableDesktopOfficialPluginMarket\(profileDir: string\): boolean \{/)
+  assert.match(readFileSync(resolve(stage, 'dsh-plugin-desktop/tests/profile.spec.ts'), 'utf8'),
+    /also clears its preconfigured index source/)
   const controls = readFileSync(resolve(stage, 'dsh-plugin-desktop/src/client/plugin-controls.tsx'), 'utf8')
   assert.match(controls, /title: 'TokensCowork 插件市场'/)
   assert.doesNotMatch(controls, /MarketSourcesButton|MARKET_OPTIONS|dshNextPluginSections/)

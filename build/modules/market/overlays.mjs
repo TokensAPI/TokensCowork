@@ -9,13 +9,17 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { desktopFiles as d, desktopInstalled, market as m } from '../../pipeline/stage-targets.mjs'
 import { addMarketAuth, skipUpstreamPersistedCatalogTest } from './market-auth-overlay.mjs'
-import { pinDesktopMarketProvider } from './market-desktop-overlay.mjs'
+import {
+  addOfficialPluginMarketOffTest, pinDesktopMarketProvider, pinDesktopOfficialPluginMarketOff,
+} from './market-desktop-overlay.mjs'
 import {
   adaptMarketHomeOverlayTests,
   adaptMarketHomeTests,
   adaptMarketHomeTestSetup,
   addMarketHome,
   addMarketHomeStyles,
+  addMarketPluginsTab,
+  expectPluginsTabInClientTest,
 } from './market-home-overlay.mjs'
 import { tolerateSlowDownloads } from './market-network-overlay.mjs'
 import {
@@ -45,6 +49,9 @@ const template = name => resolve(import.meta.dirname, name)
 const pluginPageClient = desktopInstalled('@deepseek-ai/dsh-client-ui-plugin-manager', 'lib/client.js')
 /** Desktop 客户端源码；只有市场相关的两个文件，不登记进 stage-targets。 */
 const desktopClient = file => `dsh-plugin-desktop/src/client/${file}`
+/** Desktop 的 Profile 装配与它的用例；只有市场的官方市场关闭覆盖用到，不登记进 stage-targets。 */
+const desktopProfile = 'dsh-plugin-desktop/src/profile.ts'
+const desktopProfileTests = 'dsh-plugin-desktop/tests/profile.spec.ts'
 
 const f = {
   http: m('src/network/restricted-http.ts'),
@@ -147,6 +154,16 @@ export default [
     why: '已安装卡片的灰色样式；不改原生布局。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
+  sourceEntry('plugins-page-discover-tab', {
+    kind: 'customization',
+    // dsh：这一格的 Slot 契约（kind/scope/owner）照 dsh-client-ui-plugin-manager 就地声明，
+    // 市场包不依赖那个包，所以 DSH 升级要连它一起复查。
+    upstream: ['desktop', 'market-server', 'dsh'],
+    files: { clientIndex: m('src/client/index.ts'), settingsTab: f.settingsTab },
+    apply: input => addMarketPluginsTab(input),
+    why: '侧栏「插件」页的「发现」标签原本由官方「自定义插件市场」bundle 提供，要用户自己添加索引源（真机上就是一个「还没有插件市场」的空壳）；产品固定关掉那个 bundle 后由产品市场接上这一格，复用同一个发现面板，目录走产品固定的私有源、安装走市场自己的流程。',
+    retireWhen: '产品不再在插件页提供发现入口，或上游把这一页的发现标签改为可配置的产品市场时移除。',
+  }),
   sourceEntry('brand-copy', {
     kind: 'customization',
     upstream: ['desktop', 'product'],
@@ -190,6 +207,13 @@ export default [
     apply: ({ tests }) => ({ tests: adaptMarketHomeOverlayTests(tests) }),
     why: '默认视图改为发现页后，调整上游浮层用例的进入方式。',
     retireWhen: '随 market.discover-home 一起移除。',
+  }),
+  sourceEntry('test-client-registration', {
+    kind: 'customization',
+    files: { tests: m('tests/client-api.spec.ts') },
+    apply: ({ tests }) => ({ tests: expectPluginsTabInClientTest(tests) }),
+    why: '上游注册用例按次序断言市场客户端的三条 Slot 注册；产品多注册一条插件页「发现」标签，追加第四条断言。',
+    retireWhen: '随 market.plugins-page-discover-tab 一起移除。',
   }),
   sourceEntry('test-setup', {
     kind: 'customization',
@@ -266,6 +290,26 @@ export default [
     apply: ({ main }) => ({ main: pinDesktopMarketProvider(main) }),
     why: '正常启动固定 community-market 并修复误关的持久记录（崩溃恢复会把 disabled 写盘）；Safe Mode 例外。',
     retireWhen: '产品不再固定市场，或上游提供等效策略配置时移除；不能丢失其他偏好字段。',
+  },
+  {
+    id: 'market.desktop-official-market-off',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    files: { main: d.main, profile: desktopProfile },
+    apply: ({ main, profile }) => pinDesktopOfficialPluginMarketOff(main, profile),
+    why: '官方「自定义插件市场」bundle 在 0.7.0 可以从插件页的「更多」清单点开，T0037 把那个入口藏掉之后，已经开过它的 Profile 界面上再没有地方关掉，于是永久卡在上游那个要用户自己「添加索引源」的「发现」空壳上。正常启动一律调上游 configureDesktopOfficialPluginMarket(dir, false) 关掉，并清掉它预置到 cordis.patch.yml 的索引源；Safe Mode 诊断会话不改 Profile。',
+    retireWhen: '产品决定支持用户自定义插件市场索引，或上游给这个 bundle 提供产品级禁用配置时移除。',
+  },
+  {
+    id: 'market.desktop-official-market-off-test',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    files: { tests: desktopProfileTests },
+    apply: ({ tests }) => ({ tests: addOfficialPluginMarketOffTest(tests) }),
+    why: '构建模块自己的回归没有 yaml 依赖，只能校验锚点落点；关闭 bundle 连同清理预置索引源的实际行为由这份补进上游 Profile 用例的产品回归在 staging 的 Desktop Vitest 里跑真实 yaml。',
+    retireWhen: '随 market.desktop-official-market-off 一起移除。',
   },
   {
     id: 'market.plugin-page-single-market',

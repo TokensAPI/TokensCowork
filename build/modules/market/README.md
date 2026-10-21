@@ -12,14 +12,14 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：28 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：32 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
 | [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配、隐藏来源管理及统一品牌文案 |
 | [market-auth-overlay.mjs](market-auth-overlay.mjs) | 当前 API Key 目录鉴权、Key 切换缓存失效、不持久化授权目录、防止凭据向第三方透传 |
 | [market-update-overlay.mjs](market-update-overlay.mjs) | npm 插件检查、确认和执行更新（按官方插件页同一语义先卸载再安装），保留配置与选中状态 |
 | [market-registry-overlay.mjs](market-registry-overlay.mjs) | 私有包身份、schema、版本验证，以及「一次操作写一次」的临时 `.npmrc` 安装路由；服务端凭据留在服务端 |
 | [market-network-overlay.mjs](market-network-overlay.mjs) | 慢链路下的下载预算（写进同一份临时 `.npmrc`）与超时失败的用户文案 |
-| [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、灰色已安装卡片、详情自动检查更新和失败重试，复用原生布局与操作 |
-| [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好，保留 Safe Mode 例外 |
+| [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、灰色已安装卡片、详情自动检查更新和失败重试，以及把同一发现面板接到侧栏「插件」页的「发现」标签；复用原生布局与操作 |
+| [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好、固定关掉官方「自定义插件市场」bundle 并清掉它预置的索引源，保留 Safe Mode 例外 |
 | [market-plugin-controls-overlay.mjs](market-plugin-controls-overlay.mjs) | 侧栏「插件」页：市场区只留产品市场一张卡（去掉 dsh-market、来源配置弹窗与启用开关），隐藏官方「自定义插件市场」bundle 与远程控制卡 |
 | [market-plugin-page-overlay.mjs](market-plugin-page-overlay.mjs) | 侧栏「插件」页去掉「添加插件」入口，安装统一走插件市场 |
 | [market-catalog-verify.mjs](market-catalog-verify.mjs) | 校验生成来源、产品组件清单和初始 SQLite 目录；产品输入检查自动调用 |
@@ -35,9 +35,9 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 1. 产品来源和网络适配 → 当前 Key 鉴权。
 2. 插件更新 → 私有 Registry → 客户端 API。
-3. 发现首页和样式 → 最终品牌文案。
+3. 发现首页和样式 → 插件页「发现」标签 → 最终品牌文案。
 4. 适配上游测试、载入产品回归模板。
-5. Desktop 侧：固定市场提供者 → 插件页市场区收敛 → 隐藏远程控制卡 → 隐藏官方自定义插件市场。
+5. Desktop 侧：固定市场提供者 → 固定关掉官方自定义市场 bundle（及其用例）→ 插件页市场区收敛 → 隐藏远程控制卡 → 隐藏官方自定义插件市场。
 
 覆盖函数只转换内容，后一步读取前一步结果；执行器在整个阶段成功后才写盘，锚点失配时市场文件不会部分改写。不支持对已加工源码重复应用。
 
