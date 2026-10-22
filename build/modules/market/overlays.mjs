@@ -36,6 +36,7 @@ import {
   expectOfficialMarketHiddenInTest, hideOfficialMarketBundle, hideRemoteControlCard, pinProductMarketOnPluginPage,
 } from './market-plugin-controls-overlay.mjs'
 import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
+import { addMarketRestartPrompt, addMarketRestartUiTests } from './market-restart-overlay.mjs'
 import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-registry-overlay.mjs'
 import {
   addRequiredSourceRepairTest,
@@ -215,6 +216,17 @@ export default [
     why: '上游用例逐字断言目录路由传给 scanCatalog 的选项，产品多传一个 allowStale；断言的本意（限额与重复 category 原样透传）不变，补上这一项。',
     retireWhen: '随 market.catalog-stale-first 一起移除。',
   }),
+  /* ----------------------- 更新后的重启提示 ----------------------- */
+  sourceEntry('restart-prompt', {
+    kind: 'customization',
+    files: {
+      types: f.apiTypes, service: f.installService, routes: f.routes, index: f.index,
+      api: f.api, settingsTab: f.settingsTab, locales: f.locales, styles: f.styles,
+    },
+    apply: input => addMarketRestartPrompt(input),
+    why: '官方插件管理器只热替换插件自己的模块：插件依赖的共享模块（真机上是 undici）已在本进程加载时，宿主 HMR 以 module-comparison 为由沿用旧代码，插件跑在「新代码 + 旧依赖」上（连接中心 2.9.6→2.9.7 更新后微信入站仍按旧版失败，重启才好）。宿主已经把它报成 ChangeResult 的 restart-required + restartReason，市场却只把它接成一条几秒就消失的 Toast 文案，既不说是哪个插件也没有重启入口。把 restartReason 透传到渲染层，面板顶部常驻横幅列出待重启的插件，并用宿主已有的 desktopActions.requestRestart() 提供「立即重启」；application 为 applied 时不提示。',
+    retireWhen: '上游自己在市场界面给出待重启插件与重启入口，或官方管理器能连同共享依赖一起热替换后移除。',
+  }),
   sourceEntry('brand-copy', {
     kind: 'customization',
     upstream: ['desktop', 'product'],
@@ -295,6 +307,15 @@ export default [
     }),
     why: '调整上游设置页用例的默认视图，并追加发现页、灰色卡片、自动检查与重试的产品回归（market-home-ui-tests.inc）。',
     retireWhen: '随 market.discover-home 一起移除。',
+  }),
+  sourceEntry('test-restart-ui', {
+    kind: 'customization',
+    // 排在 market.test-discover-home 之后：横幅会一直留在页面上，产品回归要排在
+    // 上游和发现页用例的最后，不影响它们的断言。
+    files: { tests: m('tests/market-settings-tab.spec.tsx') },
+    apply: ({ tests }) => ({ tests: addMarketRestartUiTests(tests) }),
+    why: '设置页补充「更新后需重启」横幅的产品回归：宿主报 restart-required + module-comparison 时说出是哪个插件、为什么要重启并能一键重启，宿主没给原因时退回通用文案，宿主即时生效时不提示，重新挂载时按状态端点报的清单恢复横幅；同时给上游显式列举的 api.js 替身补上新导出。',
+    retireWhen: '随 market.restart-prompt 一起移除。',
   }),
   sourceEntry('test-source-repair', {
     kind: 'customization',

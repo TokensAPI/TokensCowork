@@ -7,15 +7,17 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 - **私有 Registry 鉴权与下载预算**走 Profile 目录下一份**临时 `.npmrc`**：一次操作写一次、`finally` 删掉，被杀进程留下的残留在服务启动时按产品标记清掉；用户自己的 `.npmrc` 一律不覆盖（遇到就让这次操作失败并提示）。不是持久化改写 Profile 的包管理器配置。Windows 不强制 `0o600`，那里靠的是文件存在的时间窗而不是权限位。只有产品作用域被路由到私有 Registry，第三方依赖仍按官方管理器询问的 registry 解析。
 - **插件更新**没有原地升级可用（`installBundle` 在 `hmr` 已挂载时拒绝覆盖已依赖的包），改为「先移除再安装」，与官方插件页的更新按钮同一语义。两步不是原子的：移除失败什么都没变，安装失败插件已被移除，文案分开说。
+- **「即时生效」只对插件自己的模块成立**：插件依赖的共享模块（真机上是 undici）若已在进程里加载，宿主 HMR 以 `module-comparison` 为由沿用旧代码，插件实际跑在「新代码 + 旧依赖」上。官方管理器把这件事报成 `restart-required` + `restartReason`，产品把它记在 Profile 的安装服务里、经状态端点交给界面，面板顶部常驻横幅说明是哪个插件、为什么要重启，并用宿主的 `desktopActions.requestRestart()` 提供「立即重启」。
 
 ## 文件职责
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：32 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：38 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
 | [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配、隐藏来源管理及统一品牌文案 |
 | [market-auth-overlay.mjs](market-auth-overlay.mjs) | 当前 API Key 目录鉴权、Key 切换缓存失效、不持久化授权目录、防止凭据向第三方透传 |
 | [market-update-overlay.mjs](market-update-overlay.mjs) | npm 插件检查、确认和执行更新（按官方插件页同一语义先卸载再安装），保留配置与选中状态 |
+| [market-restart-overlay.mjs](market-restart-overlay.mjs) | 把官方管理器的 `restart-required` / `restartReason` 记进安装服务、经状态端点交给界面，面板顶部的待重启横幅与「立即重启」端点 |
 | [market-registry-overlay.mjs](market-registry-overlay.mjs) | 私有包身份、schema、版本验证，以及「一次操作写一次」的临时 `.npmrc` 安装路由；服务端凭据留在服务端 |
 | [market-network-overlay.mjs](market-network-overlay.mjs) | 慢链路下的下载预算（写进同一份临时 `.npmrc`）与超时失败的用户文案 |
 | [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、灰色已安装卡片、详情自动检查更新和失败重试，以及把同一发现面板接到侧栏「插件」页的「发现」标签；复用原生布局与操作 |
@@ -35,7 +37,7 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 1. 产品来源和网络适配 → 当前 Key 鉴权。
 2. 插件更新 → 私有 Registry → 客户端 API。
-3. 发现首页和样式 → 插件页「发现」标签 → 最终品牌文案。
+3. 发现首页和样式 → 插件页「发现」标签 → 发现页首屏延迟 → 待重启横幅 → 最终品牌文案。
 4. 适配上游测试、载入产品回归模板。
 5. Desktop 侧：固定市场提供者 → 固定关掉官方自定义市场 bundle（及其用例）→ 插件页市场区收敛 → 隐藏远程控制卡 → 隐藏官方自定义插件市场。
 
