@@ -6,24 +6,37 @@ import { canServeRegistryPackage } from '../services/catalog-source-service.js'
 
 const pluginId = /^[a-z0-9][a-z0-9-]{0,79}$/u
 
+// Runtime packages are not catalog plugins. Grant only these reviewed, exact
+// dependencies through their parent's ACL; never open an entire npm scope.
+const portraitParent = Object.freeze({ id: 'tokens-dark-image-edit', name: '@tokensapi/dsh-dark-image-edit', version: '0.1.14' })
+const portraitDependencies = new Map(['darwin-arm64', 'darwin-x64', 'win32-x64']
+  .map(platform => [`@tokensapi/dsh-portrait-runtime-${platform}`, '0.1.0']))
+
 function pathParts(url) {
   const raw = url.pathname.slice('/registry/'.length).split('/').filter(Boolean)
   try { return raw.map(value => decodeURIComponent(value)) } catch { return undefined }
 }
 
-async function privatePackage(request, env, id, name) {
+async function privatePackage(request, env, id, name, requestedVersion) {
   if (!pluginId.test(id) || !packageOK(name)) return undefined
+  const dependencyVersion = portraitDependencies.get(name)
+  if (dependencyVersion && (id !== portraitParent.id || (requestedVersion !== undefined && requestedVersion !== dependencyVersion))) return undefined
   const row = await env.MARKET_DB.prepare("SELECT * FROM market_plugins WHERE id=? AND state='published'").bind(id).first()
   if (!row) return undefined
   let metadata
   try { metadata = JSON.parse(row.metadata) } catch { return undefined }
-  if (!canServeRegistryPackage(metadata) || metadata.package !== name) return undefined
+  if (!canServeRegistryPackage(metadata) || metadata.package !== (dependencyVersion ? portraitParent.name : name)) return undefined
   // Visibility is decided in the admin backend, nowhere else, and through the same
   // function the catalog uses so installing can never diverge from listing. The Registry is
   // storage — the proxy always fetches with the service account, so which scope
   // hosts the package never affects who can install the plugin.
   if (!await allowed(request, env, id)) return undefined
-  return { id, name, metadata }
+  if (dependencyVersion) {
+    const parent = await createRegistryClient(env).resolve(portraitParent.name, portraitParent.version)
+    if (!parent.ok) throw new Error('Runtime dependency declaration unavailable')
+    if (parent.manifest.optionalDependencies?.[name] !== dependencyVersion) return undefined
+  }
+  return { id, name, metadata, dependencyVersion }
 }
 
 function tarballUrl(requestUrl, id, name, version) {
@@ -39,6 +52,7 @@ async function metadataResponse(request, env, id, name) {
   if (!result.ok) return reply({ error: result.reason === 'not-found' ? '私有 Registry 未找到此包' : '私有 Registry 暂时不可用' }, result.reason === 'not-found' ? 404 : 503)
   const versions = {}
   for (const [key, value] of Object.entries(result.data.versions)) {
+    if (item.dependencyVersion && key !== item.dependencyVersion) continue
     if (!versionOK(key) || !value || typeof value !== 'object' || value.name !== name || value.version !== key) continue
     const dist = value.dist
     if (!dist || typeof dist !== 'object' || typeof dist.tarball !== 'string') continue
@@ -48,7 +62,9 @@ async function metadataResponse(request, env, id, name) {
     }
   }
   if (!Object.keys(versions).length) return reply({ error: '私有 Registry 返回的包元数据无效' }, 502)
-  return reply({ ...result.data, name, versions })
+  return reply({ ...result.data, name, versions,
+    ...(item.dependencyVersion ? { 'dist-tags': { latest: item.dependencyVersion } } : {}),
+  })
 }
 
 /** 缓存键：包名已过 packageOK、版本已过 versionOK，编码后不含路径分隔符。 */
@@ -73,7 +89,7 @@ function archiveResponse(body, name, version, contentType, contentLength) {
 async function tarballResponse(request, env, id, name, version) {
   if (!versionOK(version)) return reply({ error: '版本无效' }, 400)
   // 授权永远在前：缓存是存储，不是许可。
-  const item = await privatePackage(request, env, id, name)
+  const item = await privatePackage(request, env, id, name, version)
   if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
   const cache = env.MARKET_TARBALL_CACHE
   const key = tarballKey(name, version)
@@ -110,6 +126,7 @@ async function route(request, env) {
     // plugin ID so every archive request repeats the same ACL check.
     const name = parts.join('/')
     if (!packageOK(name)) return reply({ error: 'Invalid package name' }, 400)
+    if (portraitDependencies.has(name)) return metadataResponse(request, env, portraitParent.id, name)
     const { results } = await env.MARKET_DB.prepare("SELECT id FROM market_plugins WHERE state='published' AND json_extract(metadata,'$.package')=? LIMIT 2").bind(name).all()
     if (results.length !== 1) return reply({ error: '插件不存在或没有下载权限' }, 403)
     id = results[0].id
