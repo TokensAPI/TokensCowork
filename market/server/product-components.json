@@ -27,8 +27,8 @@
       "displayName": "TokensAPI 账户",
       "summary": "用自己的浏览器登录 TokensAPI 账户，并自动配置账户下的 API Key 供模型插件共用。",
       "repository": "https://github.com/TokensAPI/tokens_DshLogin_code.git",
-      "version": "0.1.11",
-      "commit": "3d95c34e06e36b38b8a443f2f707627e5cdd2eb3",
+      "version": "0.1.12",
+      "commit": "e6f6bcae0181212443b08ede35629d558a6231ff",
       "category": "builtin"
     },
     {

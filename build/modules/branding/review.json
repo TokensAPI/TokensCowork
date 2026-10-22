@@ -10,8 +10,8 @@
     },
     "plugins": {
       "tokens-login": {
-        "commit": "3d95c34e06e36b38b8a443f2f707627e5cdd2eb3",
-        "version": "0.1.11",
+        "commit": "e6f6bcae0181212443b08ede35629d558a6231ff",
+        "version": "0.1.12",
         "artifact": null
       }
     }
