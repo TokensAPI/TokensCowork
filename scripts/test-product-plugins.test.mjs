@@ -139,7 +139,7 @@ test('prerelease builds only three installers with fail-fast publication gating'
   assert.match(parallel, /if: always\(\) && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'/)
   assert.match(parallel, /if: needs.metadata.outputs.operation == 'build' \|\| needs.metadata.outputs.operation == 'rehearse'/)
   const publication = workflowJob(workflow, 'publish-release')
-  assert.match(publication, /needs: \[metadata, build-packages\]/)
+  assert.match(publication, /needs: \[metadata, build-packages, plugin-tests\]/)
   // 演练不发布；发布任务不得用 always() 或 continue-on-error 放过失败的安装包。
   assert.match(publication, /if: needs.metadata.outputs.operation == 'build'\n/)
   assert.doesNotMatch(publication, /always\(\)|continue-on-error:/)
