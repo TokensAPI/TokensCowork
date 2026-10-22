@@ -172,7 +172,9 @@ export async function main(args = process.argv.slice(2)) {
       const [command, args] = installCommand(harness, hostManifest)
       run(command, args, harness)
       if (plan.some(plugin => plugin.id === 'tokens-model-manager' && plugin.script)) {
-        run('corepack', ['pnpm@11.7.0', 'run', 'build:lib:host'], harness)
+        // 跟 harness 自己声明的 pnpm 版本走（2.0.18 起是 11.28.5）；写死旧版本会被 pnpm 拒绝。
+        const pnpm = hostManifest.packageManager?.startsWith('pnpm@') ? hostManifest.packageManager : 'pnpm@11.7.0'
+        run('corepack', [pnpm, 'run', 'build:lib:host'], harness)
       }
     } catch (error) {
       hostError = error.message

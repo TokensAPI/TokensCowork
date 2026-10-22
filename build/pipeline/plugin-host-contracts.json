@@ -14,7 +14,7 @@
     {
       "id": "tokens-meeting-transcription",
       "package": "@tokensapi/dsh-meeting-transcription",
-      "repository": "https://github.com/TokensAPI/tokens_DshMeetingTranscription_code.git",
+      "repository": "https://github.com/sobermh/tokens_DshMeetingTranscription_code.git",
       "local": "../tokens_DshMeetingTranscription_code"
     },
     {
