@@ -7,11 +7,11 @@
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：10 条覆盖的阶段、目标文件、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：12 条覆盖的阶段、目标文件、原因与删除条件 |
 | [runtime-version-overlay.mjs](runtime-version-overlay.mjs) | 统一 DSH resolutions、Yarn 冷却豁免与产品插件依赖；client-connection RPC 作用域；联网搜索插件的 DSH 0.2 设置适配 |
 | [desktop-runtime-overlay.mjs](desktop-runtime-overlay.mjs) | 跳过页面级首次向导并写入 skip 标记、Windows GUI stderr 容错、CLI smoke 与 Windows 测试 URL 适配 |
 | [open-external-overlay.mjs](open-external-overlay.mjs) | 为 tokens-login 在 desktopRuntime 桥上增加仅限 HTTPS / 回环 HTTP 的 openExternal |
-| [mask-secrets-overlay.mjs](mask-secrets-overlay.mjs) | 宿主日志保留短错误码：`code` 只在值长度 ≥ 16 时脱敏，auth_code / URL 查询串照旧；同步上游 diagnostics.spec |
+| [mask-secrets-overlay.mjs](mask-secrets-overlay.mjs) | 宿主日志不把 `code` 当密钥：错误码可读，auth_code / authorization_code 与 URL 查询串照旧脱敏；同步上游 diagnostics.spec |
 | [compaction-overlay.mjs](compaction-overlay.mjs) | 摘要任务独立系统提示、历史作为引用数据、拒绝无效 checkpoint |
 | [staging-compaction-smoke.mjs](staging-compaction-smoke.mjs) | runtime-patch 末尾自动调用，用已安装包验证压缩与 replay |
 | [staging-rpc-smoke.mjs](staging-rpc-smoke.mjs) | `build.mjs` 在运行时适配后调用，用真实 Cordis 作用域验证 RPC 注册与释放 |

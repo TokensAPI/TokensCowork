@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
-import { alignDiagnosticsSpec, keepShortErrorCodes } from './mask-secrets-overlay.mjs'
+import { alignDiagnosticsSpec, keepErrorCodesReadable } from './mask-secrets-overlay.mjs'
 
 // Exercise the actual pinned upstream sources, not copied fixtures.
 const root = resolve(import.meta.dirname, '../../..')
@@ -19,27 +19,26 @@ async function loadMasker(text) {
   return (await import(pathToFileURL(file).href)).maskSecrets
 }
 
-test('upstream masks every code value; the overlay keeps short error codes and still masks long ones', async () => {
+test('upstream masks every code value; the overlay keeps error codes and still masks explicit auth codes', async () => {
   const upstream = await loadMasker(source)
   assert.equal(upstream('{"code":"internal"}'), '{"code":"****"}')
 
-  const patched = keepShortErrorCodes(source)
-  assert.equal(keepShortErrorCodes(patched), patched, '幂等')
+  const patched = keepErrorCodesReadable(source)
+  assert.equal(keepErrorCodesReadable(patched), patched, '幂等')
   const masked = await loadMasker(patched)
   assert.equal(masked('{"name":"HarnessRpcError","method":"workspace.list","code":"internal","details":{}}'),
     '{"name":"HarnessRpcError","method":"workspace.list","code":"internal","details":{}}')
   assert.equal(masked('polling stopped: {"code":"ECONNRESET","deliveryOutcome":"unknown"}'),
     'polling stopped: {"code":"ECONNRESET","deliveryOutcome":"unknown"}')
-  assert.equal(masked('{"code":"4/0AX4XfWhLongEnoughToBeAnOAuthCode"}'), '{"code":"****"}')
-  assert.equal(masked('{"authorization_code":"short"}'), '{"authorization_code":"****"}')
-  assert.equal(masked('{"auth_code":"short"}'), '{"auth_code":"****"}')
-  assert.equal(masked('code=4/0AX4XfWhLongEnoughToBeAnOAuthCode'), 'code=****')
   assert.equal(masked('code: session-not-found'), 'code: session-not-found')
   assert.equal(masked('{"code":"gateway/invocation-unavailable"}'), '{"code":"gateway/invocation-unavailable"}')
-  assert.equal(masked('{"code":"HTTP_429_RATE_LIMITED"}'), '{"code":"HTTP_429_RATE_LIMITED"}')
+  assert.equal(masked('{"authorization_code":"short"}'), '{"authorization_code":"****"}')
+  assert.equal(masked('{"auth_code":"short"}'), '{"auth_code":"****"}')
+  assert.equal(masked('auth-code=abc'), 'auth-code=****')
   // Everything else the upstream masker did still holds.
   assert.equal(masked('{"api_key":"short-secret","token":"abc123"}'), '{"api_key":"****","token":"****"}')
   assert.equal(masked('GET https://example.com/cb?code=abc&mode=fast'), 'GET https://example.com/cb?code=****&mode=fast')
+  assert.equal(masked('Authorization: Bearer abc.def.ghi'), 'Authorization: Bearer ****')
 })
 
 test('the upstream diagnostics spec follows the product rule', () => {
@@ -51,6 +50,6 @@ test('the upstream diagnostics spec follows the product rule', () => {
 })
 
 test('anchors fail loudly when upstream changes', () => {
-  assert.throws(() => keepShortErrorCodes('changed upstream'), /未找到唯一锚点/)
+  assert.throws(() => keepErrorCodesReadable('changed upstream'), /未找到唯一锚点/)
   assert.throws(() => alignDiagnosticsSpec('changed upstream'), /未找到唯一锚点/)
 })
