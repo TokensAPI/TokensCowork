@@ -30,8 +30,8 @@
         "artifact": null
       },
       "tokens-dsh-web-search": {
-        "commit": "8505c033d9519bda8ef335feabf496e3bbfb2dd0",
-        "version": "0.2.2",
+        "commit": "f8b8fdcd95ab79a3f9f215475e6d0ff71baa186d",
+        "version": "0.2.3",
         "artifact": null
       },
       "tokens-loop-guard": {
