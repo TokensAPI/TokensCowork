@@ -11,6 +11,7 @@ import {
   protectDesktopStderr,
   skipDesktopSetupWizard,
 } from './desktop-runtime-overlay.mjs'
+import { alignDiagnosticsSpec, keepShortErrorCodes } from './mask-secrets-overlay.mjs'
 import { addDesktopOpenExternal } from './open-external-overlay.mjs'
 import { keepDshRuntimeSeries } from './profile-package-overlay.mjs'
 import {
@@ -53,6 +54,26 @@ export default [
     apply: ({ main }) => ({ main: skipDesktopSetupWizard(main) }),
     why: '使用产品已装配的默认 Profile，跳过页面级首次向导并写入 skip 标记；Safe Mode 不写入。',
     retireWhen: '产品恢复向导，或上游提供显式配置时移除。',
+  },
+  {
+    id: 'runtime.log-error-codes',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    files: { mask: d.maskSecrets },
+    apply: ({ mask }) => ({ mask: keepShortErrorCodes(mask) }),
+    why: '上游把字段名 code 当凭据一律脱敏，宿主/插件日志里的错误码全成 ****；产品改为值长度 ≥ 16 才脱敏，短错误码可读，auth_code/authorization_code 与 URL 查询串照旧脱敏。',
+    retireWhen: '上游按值判断 code 或把错误码改用别的字段名时移除。',
+  },
+  {
+    id: 'runtime.test-log-error-codes',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'customization',
+    files: { spec: d.diagnosticsSpec },
+    apply: ({ spec }) => ({ spec: alignDiagnosticsSpec(spec) }),
+    why: '上游 diagnostics.spec 把短 code 当必须脱敏的样例；改成产品口径并加长码/短码对照，staging 的 Desktop vitest 保持可跑。',
+    retireWhen: '随 runtime.log-error-codes 一起移除。',
   },
   {
     id: 'runtime.gui-stderr',

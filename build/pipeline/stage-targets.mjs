@@ -20,6 +20,8 @@ export const desktopFiles = {
   hostProcess: `${desktop}/src/host-process.ts`,
   hostProcessEntry: `${desktop}/src/host-process-entry.ts`,
   logger: `${desktop}/src/desktop-logger.ts`,
+  maskSecrets: `${desktop}/src/mask-secrets.ts`,
+  diagnosticsSpec: `${desktop}/tests/diagnostics.spec.ts`,
   hostRuntimeBridge: `${desktop}/src/host-runtime-bridge.ts`,
   runtimeTypes: `${desktop}/src/runtime.ts`,
   windowsAclRunner: `${desktop}/src/windows-acl-runner.ts`,
