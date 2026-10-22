@@ -7,8 +7,8 @@
       "displayName": "TokensCowork 更新",
       "summary": "从 TokensCowork GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
-      "version": "0.1.2",
-      "commit": "0304f8580fe278d09611a1e6de1fbd5a02726c10",
+      "version": "0.1.3",
+      "commit": "665914729b211230f1c3dedb03287b68bd4ffd14",
       "category": "builtin"
     },
     {
