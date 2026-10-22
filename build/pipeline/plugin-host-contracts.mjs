@@ -72,11 +72,17 @@ export function buildPlan({ product, config, only }) {
 }
 
 export function parseOptions(args) {
-  const options = { plan: false, only: undefined }
+  const options = { plan: false, only: undefined, pins: new Map() }
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--plan') options.plan = true
     else if (args[i] === '--only' && args[i + 1]) options.only = new Set(args[++i].split(',').map(s => s.trim()).filter(Boolean))
-    else throw new Error('Usage: plugin-host-contracts.mjs [--plan] [--only <id,...>]')
+    else if (args[i] === '--pin' && args[i + 1]) {
+      // 把某个市场插件固定到指定提交复现（如排查某个已发版本）。注意它跑的是该提交自带的用例，
+      // 不能用来验门禁分辨力：验分辨力要用当前用例套旧版源码（见 build/modules/README.md 升级第 3 步）。
+      const [id, commit] = args[++i].split('=')
+      if (!id || !/^[a-f0-9]{7,40}$/.test(commit ?? '')) throw new Error('--pin expects <id>=<commit>')
+      options.pins.set(id, commit)
+    } else throw new Error('Usage: plugin-host-contracts.mjs [--plan] [--only <id,...>] [--pin <id>=<commit>]')
   }
   return options
 }
@@ -109,7 +115,8 @@ export async function main(args = process.argv.slice(2)) {
     const result = { id: item.id, kind: item.kind, status: 'not-run' }
     results.push(result)
     try {
-      const resolved = item.kind === 'market' ? marketSource(item.entry) : { source: item.source, commit: item.commit, origin: item.source }
+      let resolved = item.kind === 'market' ? marketSource(item.entry) : { source: item.source, commit: item.commit, origin: item.source }
+      if (options.pins.has(item.id)) resolved = { ...resolved, commit: options.pins.get(item.id), origin: `${resolved.origin} pinned to ${options.pins.get(item.id)}` }
       result.commit = resolved.commit
       result.origin = resolved.origin
       const directory = join(runRoot, item.kind, item.id)

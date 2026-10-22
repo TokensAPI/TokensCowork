@@ -72,6 +72,7 @@
    - `△`：pin 变化后，被覆盖文件在新旧 pin 之间的 `git diff --stat`。没有覆盖但上游新增的品牌文案、入口，由构建中的 staging 检查拦截。
 2. 处理后运行 `yarn test:build`，再用独立 staging 跑 `yarn product:check-desktop`。
 3. **插件真实宿主契约**：`product:check-desktop`（以及 CI 的 Windows 质量门禁）最后一步 `yarn product:host-contracts` 会把每个内置插件（按 pin）和市场插件（`build/pipeline/plugin-host-contracts.json` 列的仓库默认分支）隔离检出，带 `DSH_HOST_ROOT` 跑它们自己的 `npm run check:host`——插件用到的每个宿主接口对装配好的宿主各调一次。任一插件红，先在该插件仓库修并发版、换 pin，再发产品；不允许"先发产品、插件以后再说"（0.7.0–0.7.3 连接中心全坏四个版本没被发现，就是因为以前没有这一步）。没有 `check:host` 的内置插件必须在配置的 `exempt` 里写明原因。
+   - **验门禁分辨力**不要用 `--pin <id>=<旧提交>`：那会连旧用例一起跑，旧用例当然绿。正确做法是取当前默认分支的快照，只把被测源码文件换回旧版（如 `git checkout v2.9.6 -- plugin-src/host/modern-harness-api.mjs`），再带 `DSH_HOST_ROOT` 跑 `npm run check:host`，必须红；换回当前版必须绿。2026-10-22 主控实测：连接中心 2.9.6 的桥在 0.2.1-rc.2 上整段 HOST-RPC/HOST-CHANNEL 红（`Cannot read properties of undefined (reading 'signal')`，与用户微信报错一致），2.9.7 绿。各插件仓库的 `check:host -- --mutate` / `verify-host-contract-mutations.mjs` 是同一思路的常驻版本。
 4. 人工更新对应模块 `review.json` 的 `baseline` 和 `evidence`。工具不会自动删除覆盖，也不会自动更新基线。
 
 完整的升级风险清单见[上游升级检查指南](../../docs/upstream-upgrade.md)。

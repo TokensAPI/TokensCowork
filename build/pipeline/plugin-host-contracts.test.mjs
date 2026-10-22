@@ -32,11 +32,14 @@ test('exemptions name only built-in plugins that really have no check:host scrip
   }
 })
 
-test('--only narrows the plan and --plan is accepted', () => {
-  assert.deepEqual(parseOptions(['--plan']), { plan: true, only: undefined })
+test('--only narrows the plan, --plan is accepted and --pin fixes one plugin to a commit', () => {
+  assert.deepEqual(parseOptions(['--plan']), { plan: true, only: undefined, pins: new Map() })
   const only = parseOptions(['--only', 'tokens-login, tokens-connect']).only
   assert.deepEqual([...only], ['tokens-login', 'tokens-connect'])
   assert.deepEqual(buildPlan({ product, config, only }).map(item => item.id), ['tokens-login', 'tokens-connect'])
+  // 有效性复验：把连接中心钉到旧标签的提交，在新宿主上必须变红，否则门禁没有分辨力。
+  assert.deepEqual([...parseOptions(['--pin', 'tokens-connect=7940e77']).pins], [['tokens-connect', '7940e77']])
+  assert.throws(() => parseOptions(['--pin', 'tokens-connect=main']), /--pin expects/)
   assert.throws(() => parseOptions(['--bogus']), /Usage/)
 })
 
