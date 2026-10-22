@@ -405,7 +405,7 @@ jobs:
 
   publish-release:
     name: 发布 · 预发布版本
-    needs: [metadata, build-packages]
+    needs: [metadata, build-packages, plugin-tests]
     # 演练只产出安装包附件，不建 Release；任一安装包失败仍然不发布。
     if: needs.metadata.outputs.operation == 'build'
     runs-on: ubuntu-24.04

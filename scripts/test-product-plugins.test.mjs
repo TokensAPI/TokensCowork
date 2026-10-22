@@ -107,7 +107,10 @@ test('promotion runs the tag regression gate before applying Release changes', (
   const promotion = workflowJob(workflow, 'promote-release')
   assert.match(pluginTests, /uses: \.\/\.github\/workflows\/test-builtin-plugins.yml/)
   assert.match(pluginTests, /ref: \$\{\{ needs.metadata.outputs.commit \}\}/)
-  assert.match(pluginTests, /if: needs.metadata.outputs.operation == 'promote'/)
+  // T0047: the regression also runs on pre-release builds and gates their publish, not only promotions.
+  assert.match(pluginTests, /if: needs.metadata.outputs.operation == 'build' \|\| needs.metadata.outputs.operation == 'promote'/)
+  const publish = workflowJob(workflow, 'publish-release')
+  assert.match(publish, /needs: \[metadata, build-packages, plugin-tests\]/)
   assert.match(promotion, /needs: \[metadata, plugin-tests\]/)
   assert.match(promotion, /if: needs.metadata.outputs.operation == 'promote'/)
   assert.match(regression, /workflow_dispatch:/)
