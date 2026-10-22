@@ -1,0 +1,33 @@
+{
+  "comment": "插件真实宿主契约门禁（T0047）：内置插件按 product.json 的 pin 跑；市场插件按下面的仓库跑；没有 check:host 的内置插件必须在 exempt 里说明原因。",
+  "exempt": {
+    "dsh-tokensapi-ui": "品牌/主题插件，无 agent 会话；只注册 slots 与样式，随 Tokens Cowork UI 仓库自己的用例验收",
+    "tokens-loop-guard": "纯工具调用护栏，无 agent 会话；只订阅工具事件，随 guard 模块的 staging 用例验收"
+  },
+  "market": [
+    {
+      "id": "tokens-connect",
+      "package": "@tokensapi/dsh-connect",
+      "repository": "https://github.com/sobermh/tokens_DshConnect_code.git",
+      "local": "../tokens_DshConnect_code"
+    },
+    {
+      "id": "tokens-meeting-transcription",
+      "package": "@tokensapi/dsh-meeting-transcription",
+      "repository": "https://github.com/TokensAPI/tokens_DshMeetingTranscription_code.git",
+      "local": "../tokens_DshMeetingTranscription_code"
+    },
+    {
+      "id": "tokens-plugin-check",
+      "package": "@tokensapi/dsh-plugin-check",
+      "repository": "https://github.com/TokensAPI/tokens_DshPluginCheck_code.git",
+      "local": "../tokens_DshPluginCheck_code"
+    },
+    {
+      "id": "tokens-progressive-tools",
+      "package": "@tokensapi/dsh-progressive-tools",
+      "repository": "https://github.com/TokensAPI/tokens_DshProgressiveTools_code.git",
+      "local": "../tokens_DshProgressiveTools_code"
+    }
+  ]
+}

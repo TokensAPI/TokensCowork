@@ -172,6 +172,9 @@ if (mode === 'check') {
     run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', script], stage, buildEnvironment)
   }
   verifyProductBranding(buildEnvironment)
+  // 插件真实宿主契约（T0047）：每个插件对装配好的宿主把它用到的接口各调一次；
+  // 内置插件按 pin，市场插件按其仓库默认分支。任一红即门禁失败。
+  run(process.execPath, [resolve(root, 'build', 'pipeline', 'plugin-host-contracts.mjs')], root, buildEnvironment)
 } else if (mode === 'mac-unsigned') {
   phase = 'mac-unsigned'
   /* ----------------------- 未签名 macOS DMG ------------------------ */
@@ -281,6 +284,8 @@ if (mode === 'check') {
   for (const script of ['verify:cli', 'verify:loader', 'verify:profile']) {
     run('corepack', ['yarn', 'workspace', 'dsh-plugin-desktop', script], stage, gateEnvironment)
   }
+  // 插件真实宿主契约（T0047）：预发布构建也跑，不再只在转稳定版时验插件。
+  run(process.execPath, [resolve(root, 'build', 'pipeline', 'plugin-host-contracts.mjs')], root, gateEnvironment)
 } else {
   phase = 'mac-signed'
   /* ----------------------- 正式 macOS 安装包 ----------------------- */

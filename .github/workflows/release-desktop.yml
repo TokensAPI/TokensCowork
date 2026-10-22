@@ -68,7 +68,9 @@ jobs:
   plugin-tests:
     name: 检查 · 内置插件回归
     needs: metadata
-    if: needs.metadata.outputs.operation == 'promote'
+    # 预发布构建也跑插件回归（T0047）：0.7.0–0.7.3 连接中心全坏却四个版本没被发现，
+    # 原因之一就是这一步只在转稳定版时执行。
+    if: needs.metadata.outputs.operation == 'build' || needs.metadata.outputs.operation == 'promote'
     uses: ./.github/workflows/test-builtin-plugins.yml
     with:
       ref: ${{ needs.metadata.outputs.commit }}
