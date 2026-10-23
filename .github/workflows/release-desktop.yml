@@ -152,6 +152,12 @@ jobs:
           restore-keys: |
             desktop-build-v1-${{ runner.os }}-${{ runner.arch }}-
 
+      - name: 准备 · pnpm 垫片（插件回归用）
+        if: matrix.platform == 'windows-check'
+        # 模型管理 / 联网搜索的 vitest 全局准备直接执行裸 `pnpm build`；Node 自带的 corepack 只给 `corepack` 命令，
+        # 不启用 pnpm 垫片，少了它 vitest 一条用例都收不到、功能用例全部 blocked。沿用独立回归任务时期的做法。
+        run: npm install --global corepack@0.35.0 --force
+
       - name: 检查 · Windows 质量门禁
         if: matrix.platform == 'windows-check'
         env:
@@ -160,6 +166,17 @@ jobs:
         run: |
           corepack yarn test:uninstall
           corepack yarn product:check:win
+
+      - name: 报告 · 保存插件契约与回归报告
+        if: always() && matrix.platform == 'windows-check'
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-gate-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .build/plugin-host-contracts/*/report.json
+            .build/plugin-tests/*/report.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: 构建 · Windows 打包
         if: matrix.platform == 'windows'

@@ -12,6 +12,18 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
  * 没有宿主时它们按设计报 NOT EXECUTED 并判失败）。宿主来自 DSH_HOST_ROOT，或本检出 staging 里的
  * dsh-plugin-desktop；两者都没有就直接报错，而不是让每个插件各自红一遍。
  */
+/**
+ * pnpm 系插件（模型管理、联网搜索）的 vitest 全局准备直接执行裸 `pnpm build`。CI 的 Node 自带 corepack
+ * 不启用 pnpm 垫片，那时 vitest 收不到任何用例、功能用例全部 blocked，看不出原因。这里先查一次并把话说清。
+ */
+export function assertPnpmShim(spawn = spawnSync) {
+  const result = spawn('pnpm', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32', env: isolatedPackageEnvironment(process.env) })
+  if (result.error || result.status !== 0) {
+    throw new Error('pnpm is not on PATH: plugin suites run a bare `pnpm build`; enable the corepack shims (`corepack enable` or `npm install --global corepack`) first')
+  }
+  return result.stdout.trim()
+}
+
 export function stagedHostRoot(environment = process.env, stage = productStage(root)) {
   if (environment.DSH_HOST_ROOT) return environment.DSH_HOST_ROOT
   const staged = join(stage, 'dsh-plugin-desktop')
@@ -168,6 +180,7 @@ export async function main(args = process.argv.slice(2)) {
   const hostRoot = stagedHostRoot()
   if (!hostRoot) throw new Error('test-product-plugins: no staged host for the plugins\' HOST cases; set DSH_HOST_ROOT or run the staging steps (build.mjs) first')
   console.log(`Staged host for HOST cases: ${hostRoot}`)
+  console.log(`pnpm shim: ${assertPnpmShim()}`)
   const generated = join(root, '.build', 'plugin-tests')
   mkdirSync(generated, { recursive: true })
   const runRoot = mkdtempSync(join(generated, 'run-'))

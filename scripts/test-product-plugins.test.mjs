@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, outputTail, parseOptions, runPluginTests, stagedHostRoot, testEnvironment, testScript, withGitBash } from './test-product-plugins.mjs'
+import { assertCompleteTestOutput, assertPnpmShim, isolatedPackageEnvironment, installCommand, outputTail, parseOptions, runPluginTests, stagedHostRoot, testEnvironment, testScript, withGitBash } from './test-product-plugins.mjs'
 
 function workflowJob(source, id) {
   const jobs = source.replaceAll('\r\n', '\n').split(/^jobs:\s*$/m)[1]
@@ -39,6 +39,13 @@ test('the staged host reaches the plugins under both names the plugins read', ()
   assert.equal(env.DSH_HOST_ROOT, 'D:/stage/dsh-plugin-desktop')
   assert.equal(stagedHostRoot({ DSH_HOST_ROOT: 'D:/explicit' }, 'D:/missing-stage'), 'D:/explicit')
   assert.equal(stagedHostRoot({}, 'D:/missing-stage'), undefined)
+})
+
+test('a missing pnpm shim is reported before any plugin suite runs', () => {
+  // 模型管理 / 联网搜索的 vitest 全局准备跑裸 `pnpm build`；没有垫片时 vitest 收不到用例、功能用例全部 blocked。
+  assert.equal(assertPnpmShim(() => ({ status: 0, stdout: '11.7.0\n' })), '11.7.0')
+  assert.throws(() => assertPnpmShim(() => ({ status: 1, stdout: '' })), /pnpm is not on PATH/)
+  assert.throws(() => assertPnpmShim(() => ({ error: new Error('ENOENT') })), /pnpm is not on PATH/)
 })
 
 test('exit zero with skipped or incomplete tests cannot satisfy the promotion gate', () => {
@@ -125,7 +132,14 @@ test('the plugin regression runs inside the Windows gate, after the host contrac
     assert.ok(contracts > 0 && regression > contracts, `${mode} must run the regression after the host contracts`)
   }
   // 私有市场插件仓库（会议转写）要令牌；github.token 只能读本仓库。
-  assert.match(workflowJob(workflow, 'build-packages'), /GH_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \|\| github.token \}\}\s+run: \|\s+corepack yarn test:uninstall\s+corepack yarn product:check:win/)
+  const matrix = workflowJob(workflow, 'build-packages')
+  assert.match(matrix, /GH_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \|\| github.token \}\}\s+run: \|\s+corepack yarn test:uninstall\s+corepack yarn product:check:win/)
+  // 裸 `pnpm` 垫片必须在门禁之前装好；契约与回归报告无论成败都保存下来，CI 红了才看得到原因。
+  const shim = matrix.indexOf('npm install --global corepack@0.35.0 --force')
+  const gate = matrix.indexOf('corepack yarn product:check:win')
+  const reports = matrix.indexOf('.build/plugin-tests/*/report.json')
+  assert.ok(shim > 0 && shim < gate && gate < reports)
+  assert.match(matrix, /if: always\(\) && matrix.platform == 'windows-check'\s+uses: actions\/upload-artifact@v7/)
   const promotion = workflowJob(workflow, 'promote-release')
   assert.match(promotion, /needs: \[metadata\]/)
   assert.match(promotion, /if: needs.metadata.outputs.operation == 'promote'/)
