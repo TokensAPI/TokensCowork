@@ -16,8 +16,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
  * pnpm 系插件（模型管理、联网搜索）的 vitest 全局准备直接执行裸 `pnpm build`。CI 的 Node 自带 corepack
  * 不启用 pnpm 垫片，那时 vitest 收不到任何用例、功能用例全部 blocked，看不出原因。这里先查一次并把话说清。
  */
-export function assertPnpmShim(spawn = spawnSync) {
-  const result = spawn('pnpm', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32', env: isolatedPackageEnvironment(process.env) })
+export function assertPnpmShim(spawn = spawnSync, cwd = root) {
+  // pnpm 自己会检查所在项目的 packageManager：在产品根目录（yarn）跑会被拒（ERR_PNPM_OTHER_PM_EXPECTED），
+  // 所以调用方要给一个没有 packageManager 声明的目录，和插件快照里的情形一致。
+  const result = spawn('pnpm', ['--version'], { cwd, encoding: 'utf8', shell: process.platform === 'win32', env: isolatedPackageEnvironment(process.env) })
   if (result.error || result.status !== 0) {
     throw new Error(`pnpm is not resolvable: plugin suites run a bare \`pnpm build\`; the corepack shims must be enabled (\`npm install --global corepack\`) and a pnpm version used once so corepack has a last-known-good one${outputTail(`${result.stdout ?? ''}\n${result.stderr ?? ''}`, 5)}`)
   }
@@ -214,7 +216,12 @@ export async function main(args = process.argv.slice(2)) {
     }
     // 裸 `pnpm` 走 corepack 垫片，而垫片在没有项目声明时只认"最近用过"的版本：上面 harness 的
     // `corepack pnpm@x install` 刚好把它暖好了，所以这一步必须排在宿主准备之后，否则会假阴性。
-    if (!hostError) console.log(`pnpm shim: ${assertPnpmShim()}`)
+    if (!hostError) {
+      const probe = join(temporaryRoot, 'pnpm-shim-probe')
+      mkdirSync(probe, { recursive: true })
+      writeFileSync(join(probe, 'package.json'), '{"name":"pnpm-shim-probe","private":true}\n')
+      console.log(`pnpm shim: ${assertPnpmShim(spawnSync, probe)}`)
+    }
   }
   const results = runPluginTests(plan, plugin => {
     console.log(`\n==> ${plugin.id}@${plugin.version}: ${plugin.script} (${plugin.commit})`)
