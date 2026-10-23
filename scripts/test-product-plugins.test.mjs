@@ -44,8 +44,8 @@ test('the staged host reaches the plugins under both names the plugins read', ()
 test('a missing pnpm shim is reported before any plugin suite runs', () => {
   // 模型管理 / 联网搜索的 vitest 全局准备跑裸 `pnpm build`；没有垫片时 vitest 收不到用例、功能用例全部 blocked。
   assert.equal(assertPnpmShim(() => ({ status: 0, stdout: '11.7.0\n' })), '11.7.0')
-  assert.throws(() => assertPnpmShim(() => ({ status: 1, stdout: '' })), /pnpm is not on PATH/)
-  assert.throws(() => assertPnpmShim(() => ({ error: new Error('ENOENT') })), /pnpm is not on PATH/)
+  assert.throws(() => assertPnpmShim(() => ({ status: 1, stdout: '', stderr: 'Usage Error: No version specified' })), /pnpm is not resolvable[\s\S]*No version specified/)
+  assert.throws(() => assertPnpmShim(() => ({ error: new Error('ENOENT') })), /pnpm is not resolvable/)
 })
 
 test('exit zero with skipped or incomplete tests cannot satisfy the promotion gate', () => {

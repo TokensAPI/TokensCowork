@@ -19,7 +19,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export function assertPnpmShim(spawn = spawnSync) {
   const result = spawn('pnpm', ['--version'], { encoding: 'utf8', shell: process.platform === 'win32', env: isolatedPackageEnvironment(process.env) })
   if (result.error || result.status !== 0) {
-    throw new Error('pnpm is not on PATH: plugin suites run a bare `pnpm build`; enable the corepack shims (`corepack enable` or `npm install --global corepack`) first')
+    throw new Error(`pnpm is not resolvable: plugin suites run a bare \`pnpm build\`; the corepack shims must be enabled (\`npm install --global corepack\`) and a pnpm version used once so corepack has a last-known-good one${outputTail(`${result.stdout ?? ''}\n${result.stderr ?? ''}`, 5)}`)
   }
   return result.stdout.trim()
 }
@@ -180,7 +180,6 @@ export async function main(args = process.argv.slice(2)) {
   const hostRoot = stagedHostRoot()
   if (!hostRoot) throw new Error('test-product-plugins: no staged host for the plugins\' HOST cases; set DSH_HOST_ROOT or run the staging steps (build.mjs) first')
   console.log(`Staged host for HOST cases: ${hostRoot}`)
-  console.log(`pnpm shim: ${assertPnpmShim()}`)
   const generated = join(root, '.build', 'plugin-tests')
   mkdirSync(generated, { recursive: true })
   const runRoot = mkdtempSync(join(generated, 'run-'))
@@ -213,6 +212,9 @@ export async function main(args = process.argv.slice(2)) {
         throw new Error(`Host preparation failed: ${hostError}`)
       }
     }
+    // 裸 `pnpm` 走 corepack 垫片，而垫片在没有项目声明时只认"最近用过"的版本：上面 harness 的
+    // `corepack pnpm@x install` 刚好把它暖好了，所以这一步必须排在宿主准备之后，否则会假阴性。
+    if (!hostError) console.log(`pnpm shim: ${assertPnpmShim()}`)
   }
   const results = runPluginTests(plan, plugin => {
     console.log(`\n==> ${plugin.id}@${plugin.version}: ${plugin.script} (${plugin.commit})`)
