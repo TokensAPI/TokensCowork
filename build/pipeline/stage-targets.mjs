@@ -21,6 +21,7 @@ export const desktopFiles = {
   hostProcessEntry: `${desktop}/src/host-process-entry.ts`,
   logger: `${desktop}/src/desktop-logger.ts`,
   maskSecrets: `${desktop}/src/mask-secrets.ts`,
+  desktopActions: `${desktop}/src/desktop-actions.ts`,
   diagnosticsSpec: `${desktop}/tests/diagnostics.spec.ts`,
   hostRuntimeBridge: `${desktop}/src/host-runtime-bridge.ts`,
   runtimeTypes: `${desktop}/src/runtime.ts`,

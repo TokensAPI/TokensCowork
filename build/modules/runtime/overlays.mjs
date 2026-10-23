@@ -5,6 +5,7 @@
  * ==================================================================== */
 import { desktopFiles as d, desktopInstalled, installedOverlay, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
 import { alignCompactionSummary } from './compaction-overlay.mjs'
+import { keepRestartRequestable } from './desktop-actions-overlay.mjs'
 import {
   alignCliRuntimeSmokeWithPlatform,
   alignResolverTestFileUrls,
@@ -74,6 +75,16 @@ export default [
     apply: ({ spec }) => ({ spec: alignDiagnosticsSpec(spec) }),
     why: '上游 diagnostics.spec 把 code 当必须脱敏的样例；改成产品口径（code 保留、auth_code 仍脱敏），staging 的 Desktop vitest 保持可跑。',
     retireWhen: '随 runtime.log-error-codes 一起移除。',
+  },
+  {
+    id: 'runtime.restart-requestable',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'workaround',
+    files: { actions: d.desktopActions },
+    apply: ({ actions }) => ({ actions: keepRestartRequestable(actions) }),
+    why: '上游 desktopActions.requestRestart() 在确认框被取消后也把重启记成"已完成"，之后的调用直接返回；市场的"立即重启"按钮取消一次后就再也弹不出确认框，只能手动退出重开（T0048 真机验收命中）。去掉"已完成"闩，只保留进行中去重。',
+    retireWhen: '上游 requestRestart 不再在取消后闩住（restartCompleted 只在真正重启时置位）时移除。',
   },
   {
     id: 'runtime.gui-stderr',

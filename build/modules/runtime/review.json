@@ -96,5 +96,11 @@
       ],
       "verified": "2026-10-22：排查微信 INTERNAL_UNKNOWN 时发现宿主日志把所有 code 字段脱敏成 ****（上游 SECRET_FIELD_NAME 含 code）。用户决定 code 一律不按字段名脱敏（按值猜形状的规则会漂）；auth_code/authorization_code、URL 查询串与长 token 通用规则不变。用例用 stripTypeScriptTypes 加载打补丁后的真实 mask-secrets.ts 逐条断言（internal / ECONNRESET / session-not-found / gateway/invocation-unavailable 保留，auth_code 与 ?code= 仍 ****），并同步上游 diagnostics.spec。test:build、overlay-doctor --check 通过；完整门禁与 staging Desktop vitest 随下一版。"
     }
+    ,{
+      "overlays": [
+        "runtime.restart-requestable"
+      ],
+      "verified": "2026-10-23：v0.7.4 真机验收 T0048 时，市场\"立即重启\"取消过一次后再点无反应。上游 desktop-actions.ts 在确认框取消（bootstrap 正常返回）时也把 restartCompleted 置 true，之后直接返回。覆盖去掉该闩、只保留进行中去重并在结束后清槽。用例以 stripTypeScriptTypes 加载真实 desktop-actions.ts（仅把 cordis Service 换成空壳）：上游取消一次后第二次不再弹框、覆盖后每次都弹，进行中复用同一 Promise、失败后可重试，锚点漂移报错。test:build、overlay-doctor --check 通过；完整门禁随 v0.7.5。"
+    }
   ]
 }
