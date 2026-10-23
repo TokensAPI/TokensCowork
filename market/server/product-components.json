@@ -47,8 +47,8 @@
       "displayName": "联网搜索",
       "summary": "为原生 web_search 提供免额外 API Key 的多引擎联网搜索与自动回退。",
       "repository": "https://github.com/sobermh/tokens_DshWebSearch_code.git",
-      "version": "0.2.3",
-      "commit": "f8b8fdcd95ab79a3f9f215475e6d0ff71baa186d",
+      "version": "0.2.4",
+      "commit": "0d74dae47ef3f7f94a0d851f2822594b31eb0333",
       "category": "builtin"
     },
     {
