@@ -72,7 +72,7 @@ corepack yarn product:check
 
 `product.appId` 使用新身份 `com.tokensapi.tokenscowork`。Windows 安装器另外固定 `windowsInstallerGuid`，其值等同旧版本根据原 appId 生成的安装 GUID，因此应用身份已经改名，覆盖升级仍能识别旧安装记录；该 GUID 不包含旧品牌文本，也不影响 macOS 新身份。
 
-macOS 打包细节：`product:dist:mac:auto` 是本地和 GitHub Actions 的统一 DMG 入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择架构。当 `MAC_CERT_P12_BASE64`、`CSC_KEY_PASSWORD`、`MACOS_SIGN_IDENTITY`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD` 和 `APPLE_TEAM_ID` 全部存在时执行 Developer ID 签名、公证和 staple；全部缺失时自动 ad-hoc 签名；只配置一部分时立即失败。`BUILD-INFO.txt` 记录实际采用的签名模式。
+macOS 打包细节：`product:dist:mac:auto` 是本地和 GitHub Actions 的统一 DMG 入口，通过 `DSH_MAC_ARCH=arm64|x64` 选择架构。当 `APPLE_CERT_BASE64`、`APPLE_CERT_PASSWORD`、`APPLE_ID`、`APPLE_APP_PASSWORD` 和 `APPLE_TEAM_ID` 全部存在时执行 Developer ID 签名、公证和 staple（清单以 `build/modules/platform/mac-signing-resolve.mjs` 为准）；全部缺失时自动 ad-hoc 签名；只配置一部分时立即失败。`BUILD-INFO.txt` 记录实际采用的签名模式。
 
 Windows 最终验收（`build/pipeline/packaged-app-verify.mjs`）除品牌与原生架构检查外，还会拒绝产物中出现任何非 ASCII 文件名——NSIS 的解压组件不支持 UTF-8 zip 条目，此类文件会导致用户安装时报 "Failed to decompress files"（v0.3.7 事故）。
 

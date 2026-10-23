@@ -136,7 +136,7 @@ test('the plugin regression runs inside the Windows gate, after the host contrac
   }
   // 私有市场插件仓库（会议转写）要令牌；github.token 只能读本仓库。
   const matrix = workflowJob(workflow, 'build-packages')
-  assert.match(matrix, /GH_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \|\| github.token \}\}\s+run: \|\s+corepack yarn test:uninstall\s+corepack yarn product:check:win/)
+  assert.match(matrix, /GH_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \|\| github.token \}\}\s+run: \|\s+corepack yarn test:uninstall\s+corepack yarn test:build\s+corepack yarn product:check:win/)
   // 裸 `pnpm` 垫片必须在门禁之前装好；契约与回归报告无论成败都保存下来，CI 红了才看得到原因。
   const shim = matrix.indexOf('npm install --global corepack@0.35.0 --force')
   const gate = matrix.indexOf('corepack yarn product:check:win')
@@ -158,7 +158,8 @@ test('prerelease builds only three installers with fail-fast publication gating'
   assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-check', 'windows', 'macos', 'macos'])
   // Intel 包在 Apple Silicon 上交叉打包，x64 smoke 靠 Rosetta；Intel runner 慢 3–4 倍。
   assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'windows-2022', 'macos-14', 'macos-14'])
-  assert.match(parallel, /if: matrix.platform == 'windows-check'\n        env:\n(?:          .*\n)+        run: \|\n          corepack yarn test:uninstall\n          corepack yarn product:check:win/)
+  // 构建代码回归（build/** 的 node --test）也在这里跑：它读 desktop/ 子模块源码，只有这个任务有完整检出。
+  assert.match(parallel, /if: matrix.platform == 'windows-check'\n        env:\n(?:          .*\n)+        run: \|\n          corepack yarn test:uninstall\n          corepack yarn test:build\n          corepack yarn product:check:win/)
   assert.match(parallel, /if: matrix.platform == 'windows'\n        run: corepack yarn product:dist:win/)
   assert.match(parallel, /softwareupdate --install-rosetta --agree-to-license/)
   assert.match(parallel, /if: matrix.platform == 'macos' && matrix.electron_arch == 'x64'/)

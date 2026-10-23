@@ -165,6 +165,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
         run: |
           corepack yarn test:uninstall
+          corepack yarn test:build
           corepack yarn product:check:win
 
       - name: 报告 · 保存插件契约与回归报告
