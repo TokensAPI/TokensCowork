@@ -67,6 +67,10 @@ export function buildCatalogPage(roster) {
       // 字段后，市场 Host 会将其识别为可托管安装的候选，并在预览与执行
       // 时对 npm 实时核验身份、仓库与完整性。这里的 latestVersion 是名册
       // 里的兜底值，线上由 worker 换成 dist-tags.latest。
+      // registry 这里恒为 'npm' 是有意的：名册（数据库）里只记 npm；线上
+      // worker 在请求时按客户端 x-dsh-catalog-registries 声明把它投影成
+      // 'tokenscowork'（market-worker.js / catalog-source-service.js），
+      // 那是运行时视图，不是另一份名册，所以本构造器与校验器不复制它。
       ...(item.npm === true
         ? { package: { registry: 'npm', name: item.package } }
         : {}),
