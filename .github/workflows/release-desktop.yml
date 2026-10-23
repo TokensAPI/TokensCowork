@@ -65,16 +65,8 @@ jobs:
           corepack yarn test:ci
           corepack yarn product:release:check
 
-  plugin-tests:
-    name: 检查 · 内置插件回归
-    needs: metadata
-    # 预发布构建也跑插件回归（T0047）：0.7.0–0.7.3 连接中心全坏却四个版本没被发现，
-    # 原因之一就是这一步只在转稳定版时执行。
-    if: needs.metadata.outputs.operation == 'build' || needs.metadata.outputs.operation == 'promote'
-    uses: ./.github/workflows/test-builtin-plugins.yml
-    with:
-      ref: ${{ needs.metadata.outputs.commit }}
-
+  # 内置插件回归不再是独立任务：T0047 后每个插件的 test:cases 都带需要 staging 宿主的 HOST 用例，
+  # 而宿主只在 Windows 质量门禁里装配，所以回归作为该门禁的最后一步执行（build.mjs win-check）。
   build-packages:
     name: ${{ matrix.name }}
     needs: metadata
@@ -162,6 +154,9 @@ jobs:
 
       - name: 检查 · Windows 质量门禁
         if: matrix.platform == 'windows-check'
+        env:
+          # 插件契约门禁要克隆市场插件仓库，其中会议转写是私有仓库；RELEASE_TOKEN 能读它，github.token 只能读本仓库。
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
         run: |
           corepack yarn test:uninstall
           corepack yarn product:check:win
@@ -405,7 +400,7 @@ jobs:
 
   publish-release:
     name: 发布 · 预发布版本
-    needs: [metadata, build-packages, plugin-tests]
+    needs: [metadata, build-packages]
     # 演练只产出安装包附件，不建 Release；任一安装包失败仍然不发布。
     if: needs.metadata.outputs.operation == 'build'
     runs-on: ubuntu-24.04
@@ -508,7 +503,8 @@ jobs:
 
   promote-release:
     name: 发布 · 转稳定版
-    needs: [metadata, plugin-tests]
+    # 晋级复用该 tag 构建时的安装包；插件契约与功能回归都已在那次构建的 Windows 门禁里通过。
+    needs: [metadata]
     if: needs.metadata.outputs.operation == 'promote'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -536,7 +532,7 @@ jobs:
   summary:
     name: 报告 · 发布结果
     if: always()
-    needs: [metadata, plugin-tests, build-packages, publish-release, promote-release]
+    needs: [metadata, build-packages, publish-release, promote-release]
     runs-on: ubuntu-24.04
     steps:
       - name: 报告 · 汇总发布结果
@@ -548,11 +544,10 @@ jobs:
             echo '| Package | Result | Artifact |'
             echo '| --- | --- | --- |'
             echo '| Three platform packages | `${{ needs.build-packages.result }}` | `desktop-{windows-amd64,macos-arm64,macos-amd64}-${{ needs.metadata.outputs.version }}` |'
-            echo '| Promotion plugin regression | `${{ needs.plugin-tests.result }}` | 固定源码提交 `${{ needs.metadata.outputs.commit }}` |'
             echo '| Pre-release publication | `${{ needs.publish-release.result }}` | `${{ needs.metadata.outputs.tag }}` |'
             echo '| Stable promotion | `${{ needs.promote-release.result }}` | 复用已有安装包 |'
             echo
-            echo 'Pre-release builds run three package jobs in parallel without full plugin regression. Any package failure cancels remaining builds and blocks publication. Stable promotion requires full plugin regression against the original source commit and reuses existing installers. Saved macOS recovery artifacts retain the original notarization submission.'
+            echo 'Pre-release builds run three package jobs in parallel with the Windows quality gate, which ends with every plugin'"'"'s real-host contracts and the built-in plugin regression against the staged host. Any package or gate failure cancels remaining builds and blocks publication. Stable promotion reuses the installers and gate results of the original source commit. Saved macOS recovery artifacts retain the original notarization submission.'
             echo
             echo 'macOS uses Developer ID signing and notarization when the complete secret set exists; otherwise it uses ad-hoc signing. BUILD-INFO files record the selected mode.'
           } >> "${GITHUB_STEP_SUMMARY}"

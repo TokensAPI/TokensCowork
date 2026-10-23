@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, outputTail, parseOptions, runPluginTests, testEnvironment, testScript, withGitBash } from './test-product-plugins.mjs'
+import { assertCompleteTestOutput, isolatedPackageEnvironment, installCommand, outputTail, parseOptions, runPluginTests, stagedHostRoot, testEnvironment, testScript, withGitBash } from './test-product-plugins.mjs'
 
 function workflowJob(source, id) {
   const jobs = source.replaceAll('\r\n', '\n').split(/^jobs:\s*$/m)[1]
@@ -29,6 +29,16 @@ test('host fixtures use the isolated workspace drive instead of the system tempo
   for (const key of ['TEMP', 'TMP', 'TMPDIR']) assert.equal(env[key], 'D:/workspace/tmp')
   assert.equal(env.TOKENS_OUTER_ROOT, 'D:/workspace/outer')
   assert.equal(env.DSH_RUNTIME_ROOT, join('D:/workspace/outer', 'desktop', 'deepseek-harness', 'apps', 'cli'))
+  assert.equal(env.TOKENS_HOST_ROOT, undefined)
+})
+
+test('the staged host reaches the plugins under both names the plugins read', () => {
+  // test:cases 读 TOKENS_HOST_ROOT，check:host 读 DSH_HOST_ROOT；HOST 用例没有宿主时按设计判失败，所以两个都给。
+  const env = testEnvironment('D:/workspace/outer', 'D:/workspace/tmp', 'D:/stage/dsh-plugin-desktop')
+  assert.equal(env.TOKENS_HOST_ROOT, 'D:/stage/dsh-plugin-desktop')
+  assert.equal(env.DSH_HOST_ROOT, 'D:/stage/dsh-plugin-desktop')
+  assert.equal(stagedHostRoot({ DSH_HOST_ROOT: 'D:/explicit' }, 'D:/missing-stage'), 'D:/explicit')
+  assert.equal(stagedHostRoot({}, 'D:/missing-stage'), undefined)
 })
 
 test('exit zero with skipped or incomplete tests cannot satisfy the promotion gate', () => {
@@ -100,24 +110,25 @@ test('lockfiles select frozen dependency installation instead of rewriting sourc
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
 
-test('promotion runs the tag regression gate before applying Release changes', () => {
+test('the plugin regression runs inside the Windows gate, after the host contracts, with the staged host', () => {
+  // T0047 后每个插件的 test:cases 都带需要 staging 宿主的 HOST 用例；宿主只在 win-check 里装配，
+  // 所以回归不再是独立任务，而是门禁最后一步，预发布与晋级都靠它。
   const workflow = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
-  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
-  const pluginTests = workflowJob(workflow, 'plugin-tests')
+  const build = readFileSync(new URL('../build/build.mjs', import.meta.url), 'utf8')
+  assert.throws(() => workflowJob(workflow, 'plugin-tests'), /Missing workflow job/)
+  assert.doesNotMatch(workflow, /test-builtin-plugins\.yml|needs\.plugin-tests/)
+  assert.equal(existsSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url)), false)
+  for (const mode of ["mode === 'check'", "mode === 'win-check'"]) {
+    const block = build.split(mode)[1].split('} else')[0]
+    const contracts = block.indexOf("'plugin-host-contracts.mjs'")
+    const regression = block.indexOf("'test-product-plugins.mjs'), '--fail-fast'")
+    assert.ok(contracts > 0 && regression > contracts, `${mode} must run the regression after the host contracts`)
+  }
+  // 私有市场插件仓库（会议转写）要令牌；github.token 只能读本仓库。
+  assert.match(workflowJob(workflow, 'build-packages'), /GH_TOKEN: \$\{\{ secrets.RELEASE_TOKEN \|\| github.token \}\}\s+run: \|\s+corepack yarn test:uninstall\s+corepack yarn product:check:win/)
   const promotion = workflowJob(workflow, 'promote-release')
-  assert.match(pluginTests, /uses: \.\/\.github\/workflows\/test-builtin-plugins.yml/)
-  assert.match(pluginTests, /ref: \$\{\{ needs.metadata.outputs.commit \}\}/)
-  // T0047: the regression also runs on pre-release builds and gates their publish, not only promotions.
-  assert.match(pluginTests, /if: needs.metadata.outputs.operation == 'build' \|\| needs.metadata.outputs.operation == 'promote'/)
-  const publish = workflowJob(workflow, 'publish-release')
-  assert.match(publish, /needs: \[metadata, build-packages, plugin-tests\]/)
-  assert.match(promotion, /needs: \[metadata, plugin-tests\]/)
+  assert.match(promotion, /needs: \[metadata\]/)
   assert.match(promotion, /if: needs.metadata.outputs.operation == 'promote'/)
-  assert.match(regression, /workflow_dispatch:/)
-  assert.match(regression, /submodules: recursive/)
-  assert.match(regression, /runs-on: windows-2025/)
-  assert.match(regression, /corepack yarn test:plugins --ref "\$env:PRODUCT_REF"/)
-  assert.doesNotMatch(regression, /continue-on-error/)
   assert.doesNotMatch(promotion, /if: always\(\)|continue-on-error/)
 })
 
@@ -130,7 +141,7 @@ test('prerelease builds only three installers with fail-fast publication gating'
   assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-check', 'windows', 'macos', 'macos'])
   // Intel 包在 Apple Silicon 上交叉打包，x64 smoke 靠 Rosetta；Intel runner 慢 3–4 倍。
   assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'windows-2022', 'macos-14', 'macos-14'])
-  assert.match(parallel, /if: matrix.platform == 'windows-check'\n        run: \|\n          corepack yarn test:uninstall\n          corepack yarn product:check:win/)
+  assert.match(parallel, /if: matrix.platform == 'windows-check'\n        env:\n(?:          .*\n)+        run: \|\n          corepack yarn test:uninstall\n          corepack yarn product:check:win/)
   assert.match(parallel, /if: matrix.platform == 'windows'\n        run: corepack yarn product:dist:win/)
   assert.match(parallel, /softwareupdate --install-rosetta --agree-to-license/)
   assert.match(parallel, /if: matrix.platform == 'macos' && matrix.electron_arch == 'x64'/)
@@ -139,7 +150,7 @@ test('prerelease builds only three installers with fail-fast publication gating'
   assert.match(parallel, /if: always\(\) && matrix.platform == 'macos' && steps.signing.outputs.mode == 'signed'/)
   assert.match(parallel, /if: needs.metadata.outputs.operation == 'build' \|\| needs.metadata.outputs.operation == 'rehearse'/)
   const publication = workflowJob(workflow, 'publish-release')
-  assert.match(publication, /needs: \[metadata, build-packages, plugin-tests\]/)
+  assert.match(publication, /needs: \[metadata, build-packages\]/)
   // 演练不发布；发布任务不得用 always() 或 continue-on-error 放过失败的安装包。
   assert.match(publication, /if: needs.metadata.outputs.operation == 'build'\n/)
   assert.doesNotMatch(publication, /always\(\)|continue-on-error:/)
@@ -159,15 +170,8 @@ test('fresh package and regression checkouts fetch the target Harness pin before
   assert.match(pin, /git -C desktop\/deepseek-harness checkout --detach "\$commit"/)
   assert.match(pin, /submodule update --init --recursive/)
   assert.ok(parallel.indexOf('准备 · 固定 Harness 提交') < parallel.indexOf('corepack yarn product:dist:win'))
-  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
-  const prepare = regression.split('      - name: 准备 · 固定 Harness 提交\n')[1]?.split('      - name:')[0]
-  assert.ok(prepare, 'Promotion/manual regression must prepare the pinned Harness on fresh runners')
-  assert.match(prepare, /PRODUCT_REF: \$\{\{ inputs.ref \|\| github.sha \}\}/)
-  assert.match(prepare, /parseOptions\(\["--ref", process.env.PRODUCT_REF\]\)/)
-  assert.match(prepare, /execFileSync\("git", \["show", `\$\{ref\}:product.json`\]/)
-  assert.match(prepare, /product.desktop.deepseekHarnessCommit/)
-  assert.match(prepare, /checkout --detach "\$commit"/)
-  assert.ok(regression.indexOf('准备 · 固定 Harness 提交') < regression.indexOf('corepack yarn test:plugins'))
+  // 回归现在跟在同一矩阵的 Windows 门禁后面，所以也在这一步之后。
+  assert.ok(parallel.indexOf('准备 · 固定 Harness 提交') < parallel.indexOf('corepack yarn product:check:win'))
 })
 
 test('download cache fallback stays platform-specific and excludes generated applications', () => {
@@ -181,14 +185,10 @@ test('download cache fallback stays platform-specific and excludes generated app
   assert.doesNotMatch(cache, /node_modules|signed-app|mac-recovery|dist\//)
 })
 
-test('regression shares its own lock while release requests cannot cancel an active release', () => {
+test('release requests cannot cancel an active release', () => {
   const release = readFileSync(new URL('../.github/workflows/release-desktop.yml', import.meta.url), 'utf8')
-  const regression = readFileSync(new URL('../.github/workflows/test-builtin-plugins.yml', import.meta.url), 'utf8')
   assert.match(release, /group: product-release\s+cancel-in-progress: false/)
-  assert.match(regression, /group: product-plugin-regression\s+cancel-in-progress: false/)
   assert.match(release, /group: product-package-\$\{\{ github.run_id \}\}-\$\{\{ matrix.platform \}\}-\$\{\{ matrix.arch \}\}/)
-  // 取消后重试保留原报告，避免同名附件冲突再次触发失败。
-  assert.match(regression, /name: plugin-regression-\$\{\{ github.run_id \}\}-\$\{\{ github.run_attempt \}\}/)
 })
 
 test('download deployment has one release trigger and no release-event redispatch loop', () => {

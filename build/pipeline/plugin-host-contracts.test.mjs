@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { test } from 'node:test'
-import { buildPlan, HOST_ROOT, parseOptions, summarize } from './plugin-host-contracts.mjs'
+import { buildPlan, gitAuthArgs, HOST_ROOT, parseOptions, summarize } from './plugin-host-contracts.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const product = JSON.parse(readFileSync(resolve(root, 'product.json'), 'utf8'))
@@ -41,6 +41,16 @@ test('--only narrows the plan, --plan is accepted and --pin fixes one plugin to 
   assert.deepEqual([...parseOptions(['--pin', 'tokens-connect=7940e77']).pins], [['tokens-connect', '7940e77']])
   assert.throws(() => parseOptions(['--pin', 'tokens-connect=main']), /--pin expects/)
   assert.throws(() => parseOptions(['--bogus']), /Usage/)
+})
+
+test('GitHub auth is added only for github.com URLs and only when CI has a token', () => {
+  assert.deepEqual(gitAuthArgs('https://github.com/sobermh/x.git', {}), [])
+  assert.deepEqual(gitAuthArgs('../local-checkout', { GH_TOKEN: 't' }), [])
+  const args = gitAuthArgs('https://github.com/sobermh/x.git', { GITHUB_TOKEN: 'secret' })
+  assert.equal(args[0], '-c')
+  assert.match(args[1], /^http\.https:\/\/github\.com\/\.extraheader=AUTHORIZATION: basic /)
+  assert.equal(Buffer.from(args[1].split('basic ')[1], 'base64').toString(), 'x-access-token:secret')
+  assert.doesNotMatch(args[1], /secret/)
 })
 
 test('summaries count executed, failed and not-executed lines', () => {

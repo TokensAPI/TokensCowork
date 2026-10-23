@@ -3,8 +3,20 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { withoutPnpLoader } from '../build/pipeline/node-environment.mjs'
+import { productStage } from '../build/pipeline/paths.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/**
+ * 插件功能回归里的 HOST-xxx 用例要一个装配好的宿主（T0047 后每个插件的 test:cases 都带这类用例，
+ * 没有宿主时它们按设计报 NOT EXECUTED 并判失败）。宿主来自 DSH_HOST_ROOT，或本检出 staging 里的
+ * dsh-plugin-desktop；两者都没有就直接报错，而不是让每个插件各自红一遍。
+ */
+export function stagedHostRoot(environment = process.env, stage = productStage(root)) {
+  if (environment.DSH_HOST_ROOT) return environment.DSH_HOST_ROOT
+  const staged = join(stage, 'dsh-plugin-desktop')
+  return existsSync(join(staged, 'package.json')) ? staged : undefined
+}
 
 /** Yarn 命令入口会注入根项目 PnP loader；独立 npm/pnpm 副本必须使用自己的依赖树。 */
 export function isolatedPackageEnvironment(environment) {
@@ -51,11 +63,13 @@ export function withGitBash(environment, platform = process.platform, locateGit 
 }
 
 /** Windows 宿主测试不能跨盘加载夹具；所有临时文件留在生成工作区。 */
-export function testEnvironment(outerRoot, temporaryRoot) {
+export function testEnvironment(outerRoot, temporaryRoot, hostRoot) {
   return {
     ...withGitBash(process.env),
     TOKENS_OUTER_ROOT: outerRoot,
     TOKENS_HARNESS_ROOT: outerRoot,
+    // 插件的 test:cases 读 TOKENS_HOST_ROOT，check:host 读 DSH_HOST_ROOT；两个名字指同一个 staged 宿主。
+    ...(hostRoot ? { TOKENS_HOST_ROOT: hostRoot, DSH_HOST_ROOT: hostRoot } : {}),
     DSH_RUNTIME_ROOT: join(outerRoot, 'desktop', 'deepseek-harness', 'apps', 'cli'),
     TEMP: temporaryRoot,
     TMP: temporaryRoot,
@@ -151,6 +165,9 @@ export async function main(args = process.argv.slice(2)) {
     return
   }
   if (!plan.some(plugin => plugin.script)) throw new Error('No configured plugin tests')
+  const hostRoot = stagedHostRoot()
+  if (!hostRoot) throw new Error('test-product-plugins: no staged host for the plugins\' HOST cases; set DSH_HOST_ROOT or run the staging steps (build.mjs) first')
+  console.log(`Staged host for HOST cases: ${hostRoot}`)
   const generated = join(root, '.build', 'plugin-tests')
   mkdirSync(generated, { recursive: true })
   const runRoot = mkdtempSync(join(generated, 'run-'))
@@ -191,7 +208,7 @@ export async function main(args = process.argv.slice(2)) {
     snapshot(join(root, plugin.path), plugin.commit, directory)
     const [command, args] = installCommand(directory, plugin.manifest)
     run(command, args, directory)
-    const env = testEnvironment(outerRoot, temporaryRoot)
+    const env = testEnvironment(outerRoot, temporaryRoot, hostRoot)
     run('npm', ['run', plugin.script], directory, env, true)
     const functionalReport = join(directory, 'test-output', 'functional-cases-latest.json')
     if (existsSync(functionalReport)) {

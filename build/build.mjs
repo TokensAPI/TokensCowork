@@ -175,6 +175,9 @@ if (mode === 'check') {
   // 插件真实宿主契约（T0047）：每个插件对装配好的宿主把它用到的接口各调一次；
   // 内置插件按 pin，市场插件按其仓库默认分支。任一红即门禁失败。
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'plugin-host-contracts.mjs')], root, buildEnvironment)
+  // 内置插件功能回归：每个内置插件在固定 pin 上跑自己的 test:cases，HOST 用例用上面装配好的宿主。
+  // 以前是独立的 Windows 任务，没有 staging 就没有宿主，T0047 后那些用例全报未执行。
+  run(process.execPath, [resolve(root, 'scripts', 'test-product-plugins.mjs'), '--fail-fast'], root, buildEnvironment)
 } else if (mode === 'mac-unsigned') {
   phase = 'mac-unsigned'
   /* ----------------------- 未签名 macOS DMG ------------------------ */
@@ -286,6 +289,8 @@ if (mode === 'check') {
   }
   // 插件真实宿主契约（T0047）：预发布构建也跑，不再只在转稳定版时验插件。
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'plugin-host-contracts.mjs')], root, gateEnvironment)
+  // 内置插件功能回归放在同一个有 staging 宿主的任务里（见 check 模式的说明）。
+  run(process.execPath, [resolve(root, 'scripts', 'test-product-plugins.mjs'), '--fail-fast'], root, gateEnvironment)
 } else {
   phase = 'mac-signed'
   /* ----------------------- 正式 macOS 安装包 ----------------------- */

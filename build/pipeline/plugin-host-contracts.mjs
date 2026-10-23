@@ -35,12 +35,24 @@ function must(result, label) {
   return result
 }
 
+/**
+ * 市场插件仓库可能是私有的（会议转写）。CI 里带 GH_TOKEN / GITHUB_TOKEN 时，对 github.com 的
+ * ls-remote / clone / fetch 用 http.extraheader 鉴权；令牌只进子进程参数，不进日志与报告。
+ */
+export function gitAuthArgs(url, environment = process.env) {
+  const token = environment.GH_TOKEN || environment.GITHUB_TOKEN
+  if (!token || !/^https:\/\/github\.com\//.test(url)) return []
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+  return ['-c', `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`]
+}
+
 /** 只读 Git 对象导出固定源码，不碰工作树。 */
 function snapshot(source, commit, target) {
   mkdirSync(dirname(target), { recursive: true })
-  must(sh('git', ['clone', '--shared', '--no-checkout', source, target], root, process.env), 'git clone')
+  const auth = gitAuthArgs(source)
+  must(sh('git', [...auth, 'clone', '--shared', '--no-checkout', source, target], root, process.env), 'git clone')
   if (git(['cat-file', '-e', `${commit}^{commit}`], target).status !== 0) {
-    must(sh('git', ['fetch', '--no-tags', 'origin', commit], target, process.env), 'git fetch')
+    must(sh('git', [...auth, 'fetch', '--no-tags', 'origin', commit], target, process.env), 'git fetch')
   }
   const options = process.platform === 'win32' ? ['-c', 'core.symlinks=false'] : []
   must(sh('git', [...options, 'checkout', '--detach', commit], target, process.env), 'git checkout')
@@ -56,7 +68,7 @@ function marketSource(entry) {
     const commit = must(sh('git', ['rev-parse', '--verify', `${branch}^{commit}`], local, process.env), `git rev-parse ${entry.id}`).stdout.trim()
     return { source: local, commit, origin: `${entry.repository} (${branch})` }
   }
-  const remote = must(sh('git', ['ls-remote', entry.repository, 'HEAD'], root, process.env), `git ls-remote ${entry.id}`).stdout
+  const remote = must(sh('git', [...gitAuthArgs(entry.repository), 'ls-remote', entry.repository, 'HEAD'], root, process.env), `git ls-remote ${entry.id}`).stdout
   const commit = remote.split(/\s+/)[0]
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error(`Cannot resolve HEAD of ${entry.repository}`)
   return { source: entry.repository, commit, origin: `${entry.repository} (HEAD)` }
