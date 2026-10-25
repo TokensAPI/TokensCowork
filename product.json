@@ -24,9 +24,9 @@
       "description": "从 TokensCowork GitHub Release 检查并下载产品更新，替代官方 DSH 更新入口。",
       "path": "plugins/tokens_DshVersionUpdates_code",
       "repository": "https://github.com/sobermh/tokens_DshVersionUpdates_code.git",
-      "commit": "cb8c524de7e054b743d40dbf38b7e1f380f97c3d",
+      "commit": "ab389c9cee7ad1aa3900ad8021c2a8b9433cc4ab",
       "package": "@tokens/dsh-version-updates",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {

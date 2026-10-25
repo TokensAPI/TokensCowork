@@ -10,8 +10,8 @@
     },
     "plugins": {
       "tokens-version-updates": {
-        "commit": "cb8c524de7e054b743d40dbf38b7e1f380f97c3d",
-        "version": "0.1.4",
+        "commit": "ab389c9cee7ad1aa3900ad8021c2a8b9433cc4ab",
+        "version": "0.1.5",
         "artifact": null
       },
       "dsh-tokensapi-ui": {
