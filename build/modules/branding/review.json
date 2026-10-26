@@ -70,5 +70,11 @@
       ],
       "verified": "2026-10-20：随 v0.7.0（Desktop 2.0.18 / DSH 0.2.1-rc.2）复查。overlay-doctor --doctor 全量 0 失效 0 可删；build.mjs check 19 步全过（装配、immutable 安装、运行时补丁、压缩/RPC smoke、插件编译与裁剪、许可证、Fabric/Market 检查、配置、Desktop 编译、typecheck、closure/CLI/Loader/Profile 校验、品牌门禁）；构建代码回归 216 项通过。安装包的真机安装与演练构建另记。"
     }
+    ,{
+      "overlays": [
+        "branding.turn-status-copy"
+      ],
+      "verified": "2026-10-26：用户反馈运行状态又变回上游品牌「深度求索中，用时 1分59秒」。原因是 Tokens Cowork UI 插件按渲染后的文字匹配替换，DSH 0.2.1 改了这两条文案（去省略号、新增用时变体）后不再命中。改为直接换聊天包语言表的四条值（中英各两条），不依赖渲染结果也不依赖该插件。用例以装配后的 dsh-client-ui-chat/lib/client.js 为输入（未装配时用逐字相同片段），断言四条换掉、键名与其余条目逐字还原、幂等，锚点漂移报错。test:build 185 项、overlay-doctor --check 通过；真机运行状态随本版验收。"
+    }
   ]
 }

@@ -5,6 +5,7 @@
 import { resolve } from 'node:path'
 import { desktopFiles as d, desktopInstalled, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
 import { applyProductLogo, brandDesktopIconConfiguration, generateProductIcons } from './branding-assets.mjs'
+import { brandTurnStatusCopy } from './turn-status-copy-overlay.mjs'
 import {
   brandDesktopPatch,
   brandDesktopSources,
@@ -61,6 +62,16 @@ export default [
     apply: ({ client }) => ({ client: hideUpstreamAccountSection(client) }),
     why: '设置中不显示上游 DeepSeek 官方账号页；产品账号由 tokens-login 的“TokensAPI 账户”页管理。只停止注册该页，账号插件其余逻辑不变。',
     retireWhen: '产品改为支持 DeepSeek 官方账号，或上游提供关闭该页的配置时移除。',
+  },
+  {
+    id: 'branding.turn-status-copy',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'customization',
+    files: { client: desktopInstalled('@deepseek-ai/dsh-client-ui-chat', 'lib/client.js') },
+    apply: ({ client }) => ({ client: brandTurnStatusCopy(client) }),
+    why: '一轮执行中的状态行是上游品牌说法「深度求索中」/「Deep diving」；改语言表的四条值，不依赖渲染后匹配（UI 插件原来的按文字替换在 DSH 0.2.1 改文案后已失效）。',
+    retireWhen: '上游改为可配置的产品措辞，或该状态行改由插槽提供时移除。',
   },
   {
     id: 'branding.desktop-source',

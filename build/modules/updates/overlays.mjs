@@ -3,6 +3,7 @@
  * 关闭官方 DSH Desktop 更新，更新入口交给内置的产品更新插件。
  * ==================================================================== */
 import { desktopFiles as d, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
+import { attachReleaseNotesToResult, showReleaseNotesInManualCheck } from './release-notes-dialog-overlay.mjs'
 import {
   alignProductUpdateCommand,
   configureProductUpdates,
@@ -46,6 +47,28 @@ export default [
     apply: ({ entry }) => ({ entry: alignProductUpdateCommand(entry) }),
     why: '新版顶部菜单按 check-for-updates ID 查找命令；给产品更新插件的托盘项补齐 ID，复用原有手动检查。',
     retireWhen: '更新插件原生注册相同 ID，或 Desktop 改用新的更新命令 API 时移除；不能只按菜单文案验收。',
+  },
+  {
+    id: 'updates.manual-check-notes-source',
+    phase: 'plugins',
+    upstream: ['plugin:tokens-version-updates'],
+    kind: 'workaround',
+    when: ({ product }) => hasUpdatePlugin(product),
+    files: { entry: productPlugin('tokens-version-updates', 'index.js') },
+    apply: ({ entry }) => ({ entry: attachReleaseNotesToResult(entry) }),
+    why: '插件跑在宿主进程里拿不到 Electron 对话框，回退给宿主显示时会丢掉它查到的发布说明；回退前把插件自己渲染好的正文挂到结果上。',
+    retireWhen: '插件自己在回退路径带上正文，或宿主给插件开放通用弹窗入口时移除；与 updates.manual-check-notes 同进退。',
+  },
+  {
+    id: 'updates.manual-check-notes',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'workaround',
+    when: ({ product }) => hasUpdatePlugin(product),
+    files: { runtime: d.electronRuntime },
+    apply: ({ runtime }) => ({ runtime: showReleaseNotesInManualCheck(runtime) }),
+    why: '宿主手动检查结果的弹窗只有版本号；用户要求看到这一版改了什么，显示更新插件随结果带来的发布说明。',
+    retireWhen: '上游弹窗自己显示发布说明，或宿主给插件开放通用弹窗入口时移除；与 updates.manual-check-notes-source 同进退。',
   },
   {
     id: 'updates.release-source',

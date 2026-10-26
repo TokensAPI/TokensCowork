@@ -44,5 +44,12 @@
       ],
       "verified": "2026-10-21：更新插件 pin 换到 0.1.2（0304f85，去掉停发的 dsh-invariants、修复 DSH 0.2 上侧栏下载按钮渲染即崩）。产品锁随之刷新（dsh-invariants 条目消失）、runtime 模块删除 DISCONTINUED_DSH_PACKAGES 兜底；overlay-doctor --doctor 60 条生效、0 失效、0 可删（tray-command-id 在 0.1.2 的 index.js 上锚点仍命中）；test:build 144 项通过。完整 build.mjs check 与安装包验收随下一次发版。"
     }
+    ,{
+      "overlays": [
+        "updates.manual-check-notes-source",
+        "updates.manual-check-notes"
+      ],
+      "verified": "2026-10-26：用户反馈「检查更新」弹窗只有版本号。查实弹窗不是更新插件画的——插件跑在宿主进程里，import('electron') 拿不到 dialog（宿主以 electron-as-node 运行），于是走 index.js 的回退 adapter.showManualCheckResult(result)，由宿主用 native-dialog-copy 的文案显示，插件 0.1.5 查到的发布说明被丢掉；宿主 updates 适配器形状固定、无通用弹窗入口，故插件侧挂 notesText、宿主侧显示。用例以固定的上游 electron-runtime.ts 与插件 index.js 为输入，真跑注入的 withReleaseNotes（有正文才接，空白/非字符串按没有处理），两处锚点漂移各报错一次。test:build 185 项、overlay-doctor --check、staging Desktop typecheck 通过；真机弹窗观感随本版验收。"
+    }
   ]
 }

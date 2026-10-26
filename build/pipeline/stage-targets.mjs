@@ -22,6 +22,7 @@ export const desktopFiles = {
   logger: `${desktop}/src/desktop-logger.ts`,
   maskSecrets: `${desktop}/src/mask-secrets.ts`,
   desktopActions: `${desktop}/src/desktop-actions.ts`,
+  electronRuntime: `${desktop}/src/electron-runtime.ts`,
   diagnosticsSpec: `${desktop}/tests/diagnostics.spec.ts`,
   hostRuntimeBridge: `${desktop}/src/host-runtime-bridge.ts`,
   runtimeTypes: `${desktop}/src/runtime.ts`,
