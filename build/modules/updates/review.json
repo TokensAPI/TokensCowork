@@ -7,8 +7,8 @@
     "dsh": null,
     "plugins": {
       "tokens-version-updates": {
-        "commit": "ab389c9cee7ad1aa3900ad8021c2a8b9433cc4ab",
-        "version": "0.1.5",
+        "commit": "7948ee45b254cda77ebdceb577647761e714b270",
+        "version": "0.1.6",
         "artifact": null
       }
     }
