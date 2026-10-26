@@ -17,8 +17,8 @@
       "displayName": "Tokens Cowork UI",
       "summary": "为 Tokens Cowork 提供品牌视觉、主题皮肤、技能入口和侧栏界面扩展。",
       "repository": "https://github.com/TokensAPI/dsh-tokensapi-ui.git",
-      "version": "0.2.25",
-      "commit": "dbea23b33050abb45113b36935cfe639ac209e15",
+      "version": "0.2.27",
+      "commit": "fdcdcc0f41029ce3f1781ce0933bdf3a3c6e247d",
       "category": "builtin"
     },
     {
