@@ -20,8 +20,8 @@
         "artifact": "1df2a00f3a136bcf392d8c489a15b689e0861f4f07d98385f14e068439b35ee1"
       },
       "tokens-login": {
-        "commit": "e6f6bcae0181212443b08ede35629d558a6231ff",
-        "version": "0.1.12",
+        "commit": "5fc765a13c9d44dfbae503c44b8f7ff9cd5104b4",
+        "version": "0.1.13",
         "artifact": null
       },
       "tokens-model-manager": {
