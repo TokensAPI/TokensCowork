@@ -233,6 +233,25 @@ test('source identity, certificate and migration reject missing and duplicate an
   }
   const patch = brandDesktopPatch('- id: desktop', productName)
   assert.throws(() => brandDesktopPatch(patch, productName), /applied twice/)
+  // 上游原样保留，品牌条目追加在后面。
+  assert.ok(patch.startsWith('- id: desktop'))
+  assert.match(patch, /- id: system-prompt\n {2}config:\n {4}includeHarnessIdentity: false\n {4}persona: You are the AI agent inside TokensCowork\./)
+  // DSH 0.2.1 的 harness-dev-context 自带写死上游品牌的提示词段，persona 管不到，必须整条停用。
+  assert.match(patch, /- id: harness-dev-context\n {2}disabled: true/)
+  for (const row of ['ui-brand-official', 'harness-dev-context']) {
+    assert.equal(patch.split(`- id: ${row}`).length, 2, `${row} 应当只出现一次`)
+  }
+})
+
+test('the system prompt carries no upstream harness branding', async () => {
+  // 真的去装配好的依赖树里确认：这个插件确实会往提示词里写上游品牌，所以必须停用它，
+  // 而不是以为 persona 覆盖得到。没装配时跳过——这条断言的对象是上游产物。
+  const context = resolve(import.meta.dirname, '../../../.build/desktop/dsh-plugin-desktop/node_modules/@deepseek-ai/dsh-harness-dev-context/lib/index.js')
+  if (!existsSync(context)) return
+  const source = readFileSync(context, 'utf8')
+  assert.match(source, /DeepSeek Harness Web GUI/)
+  assert.match(source, /systemPrompt\.section/)
+  assert.match(brandDesktopPatch('- id: desktop', productName), /- id: harness-dev-context\n {2}disabled: true/)
 })
 
 test('runtime verification is read-only and detects missing persona before any partial writes', t => {

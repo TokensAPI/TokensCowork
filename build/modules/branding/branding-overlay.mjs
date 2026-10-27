@@ -129,6 +129,14 @@ export function brandDesktopPatch(desktopPatch, productName) {
     + '  config:\n'
     + '    includeHarnessIdentity: false\n'
     + `    persona: You are the AI agent inside ${productName}.`
+    // DSH 0.2.1 新增的 harness-dev-context 面向「检查或扩展承载本 GUI 的 harness」的开发者，
+    // 它自己往系统提示词里加两段写死上游品牌的内容（"DeepSeek Harness Web GUI"、
+    // "DeepSeek Harness implementation checkout" 及其路径与 URL）。system-prompt 的
+    // persona 与 includeHarnessIdentity 管不到它们，于是产品里又出现了上游品牌
+    // （2026-10-27 用户实测：模型自称运行在 "DeepSeek Harness Web GUI"）。本产品不开发
+    // harness 本身，整条停用。
+    + '\n\n# 产品覆盖：停用面向 harness 开发者的提示词上下文。\n'
+    + '- id: harness-dev-context\n  disabled: true'
 }
 
 /** 仅替换显示文案；安装身份和历史数据路径不做全局文本替换。 */

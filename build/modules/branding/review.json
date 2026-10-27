@@ -76,5 +76,11 @@
       ],
       "verified": "2026-10-26：用户反馈运行状态又变回上游品牌「深度求索中，用时 1分59秒」。原因是 Tokens Cowork UI 插件按渲染后的文字匹配替换，DSH 0.2.1 改了这两条文案（去省略号、新增用时变体）后不再命中。改为直接换聊天包语言表的四条值（中英各两条），不依赖渲染结果也不依赖该插件。用例以装配后的 dsh-client-ui-chat/lib/client.js 为输入（未装配时用逐字相同片段），断言四条换掉、键名与其余条目逐字还原、幂等，锚点漂移报错。test:build 185 项、overlay-doctor --check 通过；真机运行状态随本版验收。"
     }
+    ,{
+      "overlays": [
+        "branding.desktop-patch"
+      ],
+      "verified": "2026-10-27：用户实测模型自称「运行在 TokensCowork（DeepSeek Harness Web GUI…）里，由 DeepSeek Harness 插件桌面环境承载」。查实不是覆盖丢了：DSH 0.2.1 新增的 @deepseek-ai/dsh-harness-dev-context（由 dsh-web-app 组合包挂载，面向检查或扩展承载本 GUI 的 harness 的开发者）自己往系统提示词写两段写死上游品牌的内容——\"DeepSeek Harness Web GUI\" 与 \"DeepSeek Harness implementation checkout\" 及其 URL 与路径；system-prompt 的 persona 与 includeHarnessIdentity 管不到它们。本产品不开发 harness 本身，故在产品补丁里整条停用。用例断言补丁里出现且只出现一次 harness-dev-context 停用条目，并对装配后的该包断言它确实往 systemPrompt.section 写入上游品牌（装配缺失时跳过）。test:build 全量通过。真机问模型「你是什么模型」的回答随本版验收。"
+    }
   ]
 }
