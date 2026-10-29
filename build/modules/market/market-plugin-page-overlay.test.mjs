@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { AnchorError } from '../../pipeline/anchors.mjs'
-import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
+import { hidePluginPageSidebarEntry, removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 
 // Verbatim from @deepseek-ai/dsh-client-ui-plugin-manager 0.2.1-rc.2 lib/client.js (the DSH pin):
 // the plugin page toolbar children and the store's openInstall. Refresh this fixture when the pin moves.
@@ -128,4 +128,49 @@ test('the registered overlay skips a staging without the plugin page package and
   assert.equal(overlay.phase, 'installed')
   assert.equal(overlay.when({ files: { has: () => false } }), false)
   assert.equal(overlay.when({ files: { has: path => path === overlay.files.client } }), true)
+})
+
+// Verbatim from @deepseek-ai/dsh-client-ui-plugin-manager 0.2.1-rc.2 lib/client.js: the end of
+// apply(), where the plugin page registers its sidebar navigation item. Refresh with the pin.
+const SIDEBAR_ENTRY = `
+			yield () => {
+				disposeNavigation();
+			};
+		});
+		ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({
+			name: "sidebar.panellist",
+			id: PANEL_ID,
+			order: 0,
+			label: () => t("panel"),
+			locale: NS
+		}, PluginsPanelIcon));
+	}
+	//#endregion
+	exports.NS = NS;
+	exports.PANEL_ID = PANEL_ID;
+`
+
+test('the sidebar plugins entry is gone while the plugin page itself stays registered', () => {
+  const patched = hidePluginPageSidebarEntry(SIDEBAR_ENTRY)
+  assert.ok(!patched.includes('sidebar.panellist'), 'the navigation item must not be registered')
+  // 只去掉导航项：页面导出、详情跳转（pluginNavigation）与其余代码原样保留。
+  assert.ok(patched.includes('exports.PANEL_ID = PANEL_ID;'))
+  assert.ok(patched.includes('disposeNavigation();'))
+  assert.equal(hidePluginPageSidebarEntry(patched), patched, '幂等')
+  assert.throws(() => hidePluginPageSidebarEntry(patched + 'ctx.slots.inject("sidebar.panellist", () => 0)'),
+    /incomplete plugin page sidebar entry removal/)
+  // 上游改了注册形状就必须报错，而不是悄悄把入口留在侧栏。
+  assert.throws(() => hidePluginPageSidebarEntry(SIDEBAR_ENTRY.replace('id: PANEL_ID,', 'id: "plugins",')), AnchorError)
+})
+
+test('the sidebar entry overlay runs on the same file and condition as the install-entry overlay', async () => {
+  const { default: overlays } = await import('./overlays.mjs')
+  const entry = overlays.find(item => item.id === 'market.plugin-page-sidebar-entry')
+  const install = overlays.find(item => item.id === 'market.plugin-page-install')
+  assert.equal(entry.phase, 'installed')
+  assert.equal(entry.files.client, install.files.client)
+  assert.equal(entry.when({ files: { has: () => false } }), false)
+  assert.equal(entry.when({ files: { has: path => path === entry.files.client } }), true)
+  // 页面仍可从设置进入，所以去「添加插件」那条覆盖必须仍在。
+  assert.ok(install, 'market.plugin-page-install must stay registered')
 })

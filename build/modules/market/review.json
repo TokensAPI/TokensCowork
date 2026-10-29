@@ -208,6 +208,12 @@
         "market.test-restart-ui"
       ],
       "verified": "2026-10-22（T0048）：新增。真机现象——用户从市场把连接中心 2.9.6 热更新到 2.9.7，更新「完成」，微信入站仍以 2.9.6 的错误失败，完全重启后才好；宿主日志 `[W] [hmr] changed modules keep running their previous code until a restart: [undici/index.js, …]`（reason: module-comparison）。根因不在市场的更新流程：官方插件管理器只热替换插件自己的模块，插件依赖的共享模块（这次是 undici）已在进程里加载时，HMR 沿用旧代码。查固定上游源码确认宿主其实已经把这件事报出来了——plugin-manager 的 reload() 取 hmr.reconcileProfile() 的 `pending`/`restartReason`（boot/hmr/src/index.ts:893-895），change() 据此把 ChangeResult 的 application 由 applied 改成 restart-required 并保留 restartReason（index.ts:907-921）；市场的 runChange() 收得到，但只把它拼进一条几秒就消失的 Toast（applicationHint → restartHint），既不说是哪个插件也没有重启入口。所以本覆盖不碰 dsh-hmr，接的是这条已有信号：(1) 安装服务把 restart-required 的包名与原因记进 Profile 级的 pendingRestarts（dispose 时清空），并随四种完成响应回传 restartReason；(2) /state 端点报 pendingRestarts 与 desktopActions.restart，渲染层每次挂载按它起步——面板在侧栏与插件页之间重新挂载时横幅不会丢，也不用模块级全局；(3) 面板顶部常驻横幅列出待重启插件、按原因选共享依赖/通用文案，并经新增 POST /api/community-market/desktop/restart 调宿主已有的 desktopActions.requestRestart()；该端点先把 200 冲出去再排队重启（重启确认是原生对话框、确认后进程就走，先 await 会让渲染层永远拿不到响应）。宿主报 applied 时一个字都不多说。api-types 里 pendingRestarts 与 desktopActions.restart 都是可选字段，上游的状态夹具不改也能读成「没有待重启」。验证：build-verify market 55 项通过（新增 6 项外层：产品重声明的 MarketRestartReason 与宿主 RestartReason 逐字相同——上游加一个取值就在这里报错；宿主只记 restart-required、陈旧原因不外传、无原因也照样进清单；重启端点先回执再排队、非 POST 405、无能力 503；横幅清单合并与共享依赖判定；状态端点字段与挂载时起步；重复应用抛 AnchorError）；变异验证——把端点改成先 await requestRestart 再回执，顺序用例立刻红（actual ['restart','json:200',…]）。把 .build/desktop 的依赖树 junction 进临时 staging 后，dsh-community-market 三个 tsconfig tsc --noEmit 全部 exit 0，vitest 全量 16 个文件 354 项通过（上一轮 349，新增 5 项界面回归：restart-required + module-comparison 时说出插件名+共享依赖文案且按钮调 requestMarketRestart；无原因退回通用文案；applied 时不提示；重新挂载时按状态端点的清单恢复横幅；宿主不能重启时只提示不给按钮）；变异验证——把 sharedModulesPending 短路成 false，依赖原因映射的两项立刻红、其余三项仍绿。遗留：真机未验收（横幅在侧栏面板与插件页「发现」标签两处的外观与位置、「立即重启」确认对话框与重启后横幅消失、取消确认后横幅仍在且按钮可再按）；横幅只在市场界面上，不进侧栏或全局通知；pendingRestarts 跟着 Profile 的安装服务生命周期，宿主换 Profile 即清空，不落盘。"
+    },
+    {
+      "overlays": [
+        "market.plugin-page-sidebar-entry"
+      ],
+      "verified": "2026-10-29：用户要求收掉侧栏「插件」导航（插件统一从侧栏底部的「插件市场」管理）。只去掉 dsh-client-ui-plugin-manager 在 sidebar.panellist 的注册；插件页本身、设置页「前往插件页」与 pluginNavigation 详情跳转仍可达，因此本页其余四条覆盖（去「添加插件」、收敛市场卡、藏远程控制、藏官方市场）保留不删——另一份审查清单建议一并删除，核实后否决：删了「添加插件」会从设置入口回来，可绕过私有源按 npm/Git/本地目录直装。用例对 0.2.1-rc.2 的逐字片段断言导航项消失、页面导出与详情跳转保留、幂等、半删报错、锚点漂移报错，并断言与 market.plugin-page-install 同文件同条件；另在真实 staging 文件上叠加两条覆盖确认共存（仅少 6 行）。test:build、overlay-doctor --check 通过；真机侧栏观感随下一版验收。"
     }
   ],
   "notes": [

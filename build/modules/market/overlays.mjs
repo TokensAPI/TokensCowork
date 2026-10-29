@@ -35,7 +35,7 @@ import { tolerateSlowDownloads } from './market-network-overlay.mjs'
 import {
   expectOfficialMarketHiddenInTest, hideOfficialMarketBundle, hideRemoteControlCard, pinProductMarketOnPluginPage,
 } from './market-plugin-controls-overlay.mjs'
-import { removePluginPageInstall } from './market-plugin-page-overlay.mjs'
+import { hidePluginPageSidebarEntry, removePluginPageInstall } from './market-plugin-page-overlay.mjs'
 import { addMarketRestartPrompt, addMarketRestartUiTests } from './market-restart-overlay.mjs'
 import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-registry-overlay.mjs'
 import {
@@ -434,6 +434,18 @@ export default [
     apply: ({ client }) => ({ client: removePluginPageInstall(client) }),
     why: '插件安装统一走插件市场。DSH 0.2 侧栏“插件”页的“添加插件”可按 npm 包名、Git 地址或本地目录直接安装，绕过私有 Registry、版本与兼容性检查；去掉该按钮并让 openInstall 不再打开安装对话框，刷新、启停、配置与卸载保留。',
     retireWhen: '上游提供关闭安装入口的配置，或该页安装改为走产品插件市场时移除。',
+  },
+  {
+    id: 'market.plugin-page-sidebar-entry',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'customization',
+    // 与 market.plugin-page-install 同一个文件、同样的启用条件：没装这个包就没有这个入口。
+    when: ({ files }) => files.has(pluginPageClient),
+    files: { client: pluginPageClient },
+    apply: ({ client }) => ({ client: hidePluginPageSidebarEntry(client) }),
+    why: '插件统一从侧栏底部的「插件市场」管理，侧栏再放一个「插件」是重复入口（用户 2026-10-29 要求收掉）。只去掉 sidebar.panellist 导航项：插件页照常注册，设置页「前往插件页」与插件详情跳转仍可达，所以本页其余覆盖（去「添加插件」、收敛市场卡、藏远程控制与官方市场）必须保留，否则这些入口会从后门回来。',
+    retireWhen: '产品重新在侧栏露出插件页，或上游提供关闭该导航项的配置时移除。',
   },
 ]
 

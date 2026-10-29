@@ -5,6 +5,24 @@ import { replacePatternOnce } from '../../pipeline/anchors.mjs'
 
 const MARKER = '/* TokensCowork: plugin page install entry removed; install through the plugin market. */'
 
+const NAV_MARKER = '/* TokensCowork: sidebar plugins entry hidden; plugins are managed from the plugin market. */'
+
+/**
+ * 不在侧栏注册「插件」入口。插件统一从侧栏底部的「插件市场」管理，侧栏再放一个「插件」
+ * 只是重复入口（用户 2026-10-29 要求收掉）。只去掉导航项：插件页本身照常注册，设置页的
+ * 「前往插件页」与跳到某个插件详情的导航仍然可达，页面上的其余产品覆盖继续生效。可重复执行。
+ */
+export function hidePluginPageSidebarEntry(source) {
+  if (source.includes(NAV_MARKER)) {
+    if (source.includes('ctx.slots.inject("sidebar.panellist"')) throw new Error('incomplete plugin page sidebar entry removal')
+    return source
+  }
+  return replacePatternOnce(source,
+    /ctx\.slots\.inject\("sidebar\.panellist", \(\) => ctx\.slots\.register\(\{\s*name: "sidebar\.panellist",\s*id: PANEL_ID,[\s\S]*?\}, PluginsPanelIcon\)\);/u,
+    NAV_MARKER,
+    'plugin page sidebar entry')
+}
+
 /** 不渲染右上角“添加插件”按钮，并让 openInstall 不再打开安装对话框。可重复执行。 */
 export function removePluginPageInstall(source) {
   if (source.includes(MARKER)) {
