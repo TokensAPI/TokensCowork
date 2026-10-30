@@ -23,9 +23,9 @@ export const phases = ['prepare', 'assemble', 'installed', 'plugins', 'configure
 
 /**
  * 同一阶段内按此顺序执行。cordis.patch.yml 的追加条目依次为
- * updates → branding → guard；不同模块修改同一文件时，后者读取前者的结果。
+ * updates → branding → guard → sessionlog；不同模块修改同一文件时，后者读取前者的结果。
  */
-export const modules = ['platform', 'market', 'runtime', 'updates', 'branding', 'guard']
+export const modules = ['platform', 'market', 'runtime', 'updates', 'branding', 'guard', 'sessionlog']
 
 export const kinds = ['customization', 'compatibility', 'workaround']
 

@@ -8445,6 +8445,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@tokensapi/dsh-session-log@workspace:*, @tokensapi/dsh-session-log@workspace:dsh-plugin-desktop/product-plugins/tokens-session-log":
+  version: 0.0.0-use.local
+  resolution: "@tokensapi/dsh-session-log@workspace:dsh-plugin-desktop/product-plugins/tokens-session-log"
+  dependencies:
+    "@deepseek-ai/schemastery": "npm:^3.18.5"
+  languageName: unknown
+  linkType: soft
+
 "@trycua/cua-driver-darwin-arm64@npm:0.28.0":
   version: 0.28.0
   resolution: "@trycua/cua-driver-darwin-arm64@npm:0.28.0"
@@ -11491,6 +11499,7 @@ __metadata:
     "@tokens/dsh-model-manager": "workspace:*"
     "@tokens/dsh-version-updates": "workspace:*"
     "@tokensapi/dsh-login": "workspace:*"
+    "@tokensapi/dsh-session-log": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/mdast": "npm:^4.0.4"
     "@types/node": "npm:^22.20.0"

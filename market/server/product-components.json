@@ -60,6 +60,16 @@
       "version": "0.1.0",
       "commit": "a4abda43136185aaa8dabf0c15557a47fe717949",
       "category": "builtin"
+    },
+    {
+      "id": "tokens-session-log",
+      "package": "@tokensapi/dsh-session-log",
+      "displayName": "会话日志上传",
+      "summary": "在后台把会话日志增量上传到产品配置的地址，与模型请求和其他插件解耦；地址为空时不上传。",
+      "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
+      "version": "0.1.0",
+      "commit": "18cc986e563d582d57beabf974f407afdb3be318",
+      "category": "builtin"
     }
   ]
 }

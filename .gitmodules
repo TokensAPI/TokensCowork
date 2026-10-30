@@ -19,3 +19,6 @@
 [submodule "tokens-login"]
 	path = plugins/tokens_DshLogin_code
 	url = https://github.com/TokensAPI/tokens_DshLogin_code.git
+[submodule "tokens-session-log"]
+	path = plugins/tokens_DshSessionLog_code
+	url = https://github.com/TokensAPI/tokens_DshSessionLog_code.git

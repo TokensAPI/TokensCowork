@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "reviewedAt": "2026-10-30",
+  "reviewNote": "会话日志覆盖的登记基线。锚点守护在装配期生效:补丁层出现重复行即中断打包;行为验收见 evidence。升级后不要机械更新基线。",
+  "baseline": {
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
+    "dsh": null,
+    "plugins": {
+      "tokens-session-log": {
+        "commit": "18cc986e563d582d57beabf974f407afdb3be318",
+        "version": "0.1.0",
+        "artifact": null
+      }
+    }
+  },
+  "evidence": []
+}

@@ -105,6 +105,21 @@
       "runtimeDependencies": {
         "@deepseek-ai/schemastery": "^3.18.5"
       }
+    },
+    {
+      "id": "tokens-session-log",
+      "displayName": "会话日志上传",
+      "description": "在后台把会话日志增量上传到产品配置的地址，与模型请求和其他插件解耦；地址为空时不上传。",
+      "path": "plugins/tokens_DshSessionLog_code",
+      "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
+      "commit": "18cc986e563d582d57beabf974f407afdb3be318",
+      "package": "@tokensapi/dsh-session-log",
+      "version": "0.1.0",
+      "enabledByDefault": true,
+      "patch": "cordis.patch.yml",
+      "runtimeDependencies": {
+        "@deepseek-ai/schemastery": "^3.18.5"
+      }
     }
   ]
 }

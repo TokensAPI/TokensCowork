@@ -28,7 +28,7 @@
 | `plugins` | `staging-plugins-compile.mjs` | 产品插件编译产物 |
 | `configure` | `staging-product-configure.mjs` | 打包前的产品身份、品牌、安装器、签名与更新来源 |
 
-同一阶段内按模块 `platform → market → runtime → updates → branding → guard`、再按登记表顺序执行。
+同一阶段内按模块 `platform → market → runtime → updates → branding → guard → sessionlog`、再按登记表顺序执行。
 多个覆盖修改同一文件时，后一个读取前一个的结果；阶段内全部成功后才写盘。
 `plugins` 与 `configure` 不允许修改同一文件，因此本地开发和正式构建的执行先后不影响结果。
 
@@ -88,3 +88,4 @@
 | updates | 关闭官方更新，配置产品 Release 来源与更新菜单 | [README](updates/README.md) |
 | branding | 产品身份、文案、提示词、Logo 与图标、旧数据迁移、隐藏上游云入口 | [README](branding/README.md) |
 | guard | 内置循环护栏时停用上游重复工具提醒 | 只有一条登记 |
+| sessionlog | 内置会话日志上传时停用上游 Session Log 设置开关 | 只有一条登记 |

@@ -46,7 +46,7 @@ test('a pin change flags only the overlays declaring that upstream input', async
   assert.deepEqual(flagged('runtime.rpc-scope'), ['dsh'])
   assert.deepEqual(flagged('updates.tray-command-id'), ['plugin:tokens-version-updates'])
   assert.deepEqual(flagged('platform.package-identity'), [])
-  assert.deepEqual(Object.keys(loadReviews()).sort(), ['branding', 'guard', 'market', 'platform', 'runtime', 'updates'])
+  assert.deepEqual(Object.keys(loadReviews()).sort(), ['branding', 'guard', 'market', 'platform', 'runtime', 'sessionlog', 'updates'])
 })
 for (const mode of ['check', 'win', 'win-check', 'mac', 'mac-unsigned']) {
   test(`${mode} plan is executable cross-platform and preserves common preflight order`, () => {
