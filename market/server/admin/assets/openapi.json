@@ -2170,7 +2170,7 @@
             "name": "key",
             "in": "query",
             "required": false,
-            "description": "Key 指纹，十六进制，可只给前缀（至少 4 位）。",
+            "description": "Key：完整 Key，或已加密保存的 Key 的开头；也接受 Key 指纹的十六进制前缀（至少 4 位）。匹配会话用过的任意一把 Key。",
             "schema": {
               "type": "string"
             }
@@ -3301,6 +3301,7 @@
         "required": [
           "id",
           "formatVersion",
+          "key",
           "keyFingerprint",
           "keyLabel",
           "accountId",
@@ -3326,12 +3327,19 @@
           "formatVersion": {
             "type": "integer"
           },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "会话最近一次上传所带的 Key，解密后的完整原文；未带 Key、没存原文（服务端未配置 `MARKET_KEY_ENCRYPTION_SECRET`）或解不开时为 null。"
+          },
           "keyFingerprint": {
             "type": [
               "string",
               "null"
             ],
-            "description": "上传所带 Key 的 HMAC 指纹（与 Key 名录同一算法）；未带 Key 时为 null。Key 原文从不保存。"
+            "description": "会话最近一次上传所带 Key 的 HMAC 指纹（与 Key 名录同一算法）；未带 Key 时为 null。"
           },
           "keyLabel": {
             "type": [
@@ -3460,7 +3468,8 @@
           "items",
           "total",
           "page",
-          "pageSize"
+          "pageSize",
+          "keyDisplayReady"
         ],
         "properties": {
           "items": {
@@ -3477,6 +3486,10 @@
           },
           "pageSize": {
             "type": "integer"
+          },
+          "keyDisplayReady": {
+            "type": "boolean",
+            "description": "服务端是否配置了 Key 加密（`MARKET_KEY_ENCRYPTION_SECRET`）。为 false 时不保存 Key 原文，只有指纹。"
           }
         }
       },
@@ -3484,12 +3497,58 @@
         "type": "object",
         "required": [
           "session",
+          "keys",
+          "keyDisplayReady",
           "events",
           "next"
         ],
         "properties": {
           "session": {
             "$ref": "#/components/schemas/SessionLog"
+          },
+          "keys": {
+            "type": "array",
+            "description": "这个会话上传时用过的全部 Key，按首次使用排序。",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "fingerprint",
+                "label",
+                "firstUsedAt",
+                "lastUsedAt"
+              ],
+              "properties": {
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "解密后的 Key 原文；没存原文或解不开时为 null。"
+                },
+                "fingerprint": {
+                  "type": "string",
+                  "description": "Key 的 HMAC 指纹。"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "指纹在 Key 名录里登记过时的备注。"
+                },
+                "firstUsedAt": {
+                  "type": "integer"
+                },
+                "lastUsedAt": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "keyDisplayReady": {
+            "type": "boolean",
+            "description": "服务端是否配置了 Key 加密（`MARKET_KEY_ENCRYPTION_SECRET`）。为 false 时不保存 Key 原文，只有指纹。"
           },
           "events": {
             "type": "array",

@@ -346,12 +346,13 @@
             </div>
             <p class="notice">
               日志<b>不脱敏</b>，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情都会写一条操作记录。
-              「上报账号」是客户端自己报的，<b>未核验</b>；Key 只存指纹，不存原文。
+              「上报账号」是客户端自己报的，<b>未核验</b>；上传所带的 Key 加密保存，这里显示完整 Key。
+              <span id="session-log-key-note" hidden><b>未配置 Key 加密，未保存原文</b>（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹。</span>
               <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
             </p>
             <form id="session-log-filters" class="toolbar">
               <input id="session-log-account" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" />
-              <input id="session-log-key" type="search" placeholder="Key 指纹（可只填前缀）" aria-label="按 Key 指纹筛选" />
+              <input id="session-log-key" type="search" placeholder="Key（可只填开头）" aria-label="按 Key 筛选" />
               <input id="session-log-version" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" />
               <input id="session-log-model" type="search" placeholder="模型" aria-label="按模型筛选" />
               <input id="session-log-from" type="date" aria-label="会话创建时间起（含）" />
@@ -392,6 +393,7 @@
               <div>
                 <h2 id="session-log-title">会话</h2>
                 <p id="session-log-meta" class="muted"></p>
+                <div id="session-log-keys"></div>
               </div>
               <div class="row-actions">
                 <button id="session-log-parent" type="button" class="secondary" hidden>打开父会话</button

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,14 +21,15 @@ const SESSION_ID = 'session-11111111-2222-4333-8444-555555555555'
 const CHILD_ID = 'session-66666666-7777-4888-9999-000000000000'
 const CREATED = Date.UTC(2026, 9, 20, 8, 0, 0)
 
-async function fixture(t, extra = {}) {
+// onDisk keeps the index in a real file, for tests that read its bytes.
+async function fixture(t, extra = {}, { onDisk = false } = {}) {
   const dir = await mkdtemp(resolve(tmpdir(), 'market-session-logs-'))
   const market = createD1Database(':memory:', MIGRATIONS)
-  const index = createD1Database(':memory:', resolve(import.meta.dirname, '../database/session-log-migrations'))
+  const index = createD1Database(onDisk ? resolve(dir, 'index.sqlite') : ':memory:', resolve(import.meta.dirname, '../database/session-log-migrations'))
   market.database.exec("INSERT INTO market_organizations(id,name,enabled) VALUES(7,'Seven',1)")
   t.after(async () => { market.close(); index.close(); await rm(dir, { recursive: true, force: true }) })
   const env = {
-    MARKET_ADMIN_TOKEN: 'fixture-admin', MARKET_HMAC_SECRET: 'fixture-hmac',
+    MARKET_ADMIN_TOKEN: 'fixture-admin', MARKET_HMAC_SECRET: 'fixture-hmac', MARKET_KEY_ENCRYPTION_SECRET: 'fixture-vault',
     MARKET_DB: market, MARKET_SESSION_LOG_DB: index, MARKET_SESSION_LOG_STORE: createLocalObjectStore(resolve(dir, 'objects')),
     ASSETS: createAssets(resolve(fileURLToPath(new URL('..', import.meta.url)))),
     MARKET_ORGANIZATIONS: {
@@ -150,8 +151,12 @@ test('oversized, malformed and flooding uploads get 413, 400 and 429', async t =
   assert.equal(catalog.status, 200)
 })
 
-test('the raw Key never reaches the index, the objects, the activity log or the console output; its fingerprint is stable', async t => {
-  const { upload, api, rows, objects, env, market } = await fixture(t)
+// Every byte the index has on disk: the database file and its write-ahead log.
+const indexBytes = async dir => Buffer.concat(await Promise.all(['index.sqlite', 'index.sqlite-wal']
+  .map(name => readFile(resolve(dir, name)).catch(() => Buffer.alloc(0)))))
+
+test('the Key is stored only sealed: never plain in the index file, the objects, the activity log or the console output', async t => {
+  const { upload, api, rows, objects, env, market, dir } = await fixture(t, {}, { onDisk: true })
   const printed = []
   for (const name of ['log', 'error', 'warn', 'info']) t.mock.method(console, name, (...args) => printed.push(args.join(' ')))
   await upload(batch([event(0), event(1, 'assistant/message', { message: { content: [{ type: 'text', text: 'hi' }], source: { model: 'fixture-model' } },
@@ -159,18 +164,60 @@ test('the raw Key never reaches the index, the objects, the activity log or the 
   await upload(batch([event(2)], { afterSeq: 1 }))
   await upload(batch([event(0)], { id: CHILD_ID }), { key: OTHER_KEY })
   await upload(null, { raw: Buffer.from('{broken') })
-  await api(`/session-logs/${SESSION_ID}/4`)
+  const detail = (await api(`/session-logs/${SESSION_ID}/4`)).json
+  // The fingerprint is stable and still keys the session; the Key itself is a ciphertext.
   const fingerprints = rows('SELECT session_id,key_fingerprint FROM session_log_sessions ORDER BY session_id')
   assert.deepEqual(fingerprints.map(row => row.key_fingerprint),
     [await fingerprint(KEY, 'fixture-hmac'), await fingerprint(OTHER_KEY, 'fixture-hmac')])
-  const stored = [
-    JSON.stringify(rows('SELECT * FROM session_log_sessions')), JSON.stringify(rows('SELECT * FROM session_log_events')),
-    JSON.stringify(rows('SELECT * FROM session_log_settings')),
-    JSON.stringify(market.database.prepare('SELECT * FROM market_audit_events').all()),
-    ...await Promise.all((await objects()).map(async key => gunzipSync(await env.MARKET_SESSION_LOG_STORE.get(key)).toString())),
-    ...printed,
-  ].join('\n')
+  const sealed = rows('SELECT encrypted_key FROM session_log_keys').map(row => row.encrypted_key)
+  assert.equal(sealed.length, 2)
+  for (const value of sealed) assert.match(value, /^[a-f0-9]{24}\.[a-f0-9]+$/u)
+  // The console gets the Key back in full.
+  assert.equal(detail.session.key, KEY)
+  assert.equal(detail.keyDisplayReady, true)
+
+  const stored = Buffer.concat([
+    await indexBytes(dir),
+    Buffer.from(JSON.stringify(market.database.prepare('SELECT * FROM market_audit_events').all())),
+    ...await Promise.all((await objects()).map(async key => gunzipSync(await env.MARKET_SESSION_LOG_STORE.get(key)))),
+    Buffer.from(printed.join('\n')),
+  ])
+  assert.ok(stored.length > 4096, 'the index file was read')
   for (const secret of [KEY, OTHER_KEY, KEY.slice(3)]) assert.ok(!stored.includes(secret), 'raw Key found in storage')
+})
+
+test('without MARKET_KEY_ENCRYPTION_SECRET the Key is not kept at all, and uploads go on', async t => {
+  const { upload, api, rows, dir } = await fixture(t, { MARKET_KEY_ENCRYPTION_SECRET: '' }, { onDisk: true })
+  assert.equal((await upload(batch([event(0)]))).status, 200)
+  assert.deepEqual(rows('SELECT key_fingerprint,encrypted_key FROM session_log_keys'),
+    [{ key_fingerprint: await fingerprint(KEY, 'fixture-hmac'), encrypted_key: null }])
+  const list = (await api('/session-logs')).json
+  assert.equal(list.keyDisplayReady, false)
+  assert.equal(list.items[0].key, null)
+  assert.equal(list.items[0].keyFingerprint, await fingerprint(KEY, 'fixture-hmac'))
+  const detail = (await api(`/session-logs/${SESSION_ID}/4`)).json
+  assert.deepEqual(detail.keys.map(item => [item.key, item.fingerprint]), [[null, await fingerprint(KEY, 'fixture-hmac')]])
+  // The full Key still finds its sessions through the fingerprint.
+  assert.equal((await api('/session-logs?key=' + KEY)).json.total, 1)
+  assert.ok(!(await indexBytes(dir)).includes(KEY), 'raw Key found in the index file')
+})
+
+test('a session uploaded with two Keys lists both; the list shows the latest and either one finds it', async t => {
+  const { upload, api } = await fixture(t)
+  await upload(batch([event(0)]))
+  await upload(batch([event(1)]), { key: OTHER_KEY })
+  await upload(batch([event(0)], { id: CHILD_ID }), { key: OTHER_KEY })
+  const list = (await api('/session-logs')).json
+  assert.equal(list.items.find(item => item.id === SESSION_ID).key, OTHER_KEY)
+  const detail = (await api(`/session-logs/${SESSION_ID}/4`)).json
+  assert.deepEqual(detail.keys.map(item => item.key), [KEY, OTHER_KEY])
+  for (const item of detail.keys) assert.ok(item.firstUsedAt > 0 && item.lastUsedAt >= item.firstUsedAt)
+  // Filter by the whole Key, by its beginning, or by a fingerprint prefix: any Key the session used counts.
+  for (const [query, expected] of [[KEY, [SESSION_ID]], [OTHER_KEY, [SESSION_ID, CHILD_ID]], ['sk-fixture-session-log-key-000', [SESSION_ID, CHILD_ID]],
+    [(await fingerprint(KEY, 'fixture-hmac')).slice(0, 12), [SESSION_ID]], ['sk-nobody', []]]) {
+    const found = (await api('/session-logs?key=' + encodeURIComponent(query))).json.items.map(item => item.id).sort()
+    assert.deepEqual(found, expected, query)
+  }
 })
 
 test('only the platform administrator reads, deletes or configures session logs', async t => {
@@ -220,11 +267,12 @@ test('upload, list and replay a session with a sub-agent, then find the parent f
   assert.deepEqual(parent.models, ['fixture-model-a', 'fixture-model-b'])
   assert.deepEqual(parent.tokens, { input: 100, output: 20, total: 120 })
   assert.deepEqual(parent.client, { product: 'TokensCowork', version: '0.7.8', platform: 'win32' })
-  // Filters: account, Key fingerprint prefix, client version, model and time all narrow the index.
-  for (const [query, expected] of [['account=9001', 1], [`key=${parent.keyFingerprint.slice(0, 16)}`, 1], ['clientVersion=0.7.8', 2],
+  assert.equal(parent.key, KEY)
+  // Filters: account, Key, client version, model and time all narrow the index.
+  for (const [query, expected] of [['account=9001', 1], [`key=${KEY.slice(0, 12)}`, 1], ['key=not-a-key', 0], ['clientVersion=0.7.8', 2],
     ['clientVersion=0.6.0', 0], ['model=fixture-model-b', 1], [`from=${CREATED + 1}`, 0], [`to=${CREATED + 1}`, 2], [`session=${SESSION_ID}`, 1]])
     assert.equal((await api('/session-logs?' + query)).json.total, expected, query)
-  assert.equal((await api('/session-logs?key=not-hex')).status, 400)
+  assert.equal((await api('/session-logs?key=' + 'k'.repeat(301))).status, 400)
 
   // Replay reads the events back from both objects, in seq order, page by page.
   const first = (await api(`/session-logs/${SESSION_ID}/4?limit=4`)).json
@@ -235,7 +283,8 @@ test('upload, list and replay a session with a sub-agent, then find the parent f
   assert.equal(rest.next, null)
   const child = (await api(`/session-logs/${CHILD_ID}/4`)).json.session
   assert.equal(child.parentSession, SESSION_ID)
-  assert.equal(child.keyFingerprint, null)
+  assert.deepEqual([child.key, child.keyFingerprint], [null, null])
+  assert.deepEqual((await api(`/session-logs/${CHILD_ID}/4`)).json.keys, [])
   assert.equal((await api(`/session-logs?session=${child.parentSession}`)).json.items[0].formatVersion, 4)
   assert.equal((await api('/session-logs/session-none/4')).status, 404)
 })

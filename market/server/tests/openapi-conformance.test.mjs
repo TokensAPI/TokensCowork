@@ -235,7 +235,7 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/plugins/beta', '/plugins/{pluginId}', 200],
     ['DELETE', '/users/103', '/users/{userId}', 200],
     ['GET', '/session-logs', '/session-logs', 200],
-    ['GET', '/session-logs?key=zz', '/session-logs', 400],
+    ['GET', '/session-logs?page=0', '/session-logs', 400],
     ['GET', '/session-logs/settings', '/session-logs/settings', 200],
     ['PUT', '/session-logs/settings', '/session-logs/settings', 200, { retentionDays: 30 }],
     ['PUT', '/session-logs/settings', '/session-logs/settings', 400, { retentionDays: -1 }],

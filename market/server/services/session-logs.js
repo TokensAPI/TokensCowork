@@ -1,6 +1,7 @@
 import { reply } from '../http/response.js'
 import { bearer } from '../http/request.js'
 import { fingerprint } from '../security/key-fingerprint.js'
+import { openKey, sealKey } from '../security/key-vault.js'
 import { auditStatements } from './audit.js'
 import { invalid } from './plugins.js'
 
@@ -10,9 +11,11 @@ import { invalid } from './plugins.js'
 //                              runtime/session-log-storage.mjs for the contract);
 //   MARKET_SESSION_LOG_DB    — the index, a SQLite file of its own.
 // Nobody is looked up anywhere: the uploader is identified only by the account id the client
-// reports (unverified) and a keyed fingerprint of the Bearer Key. The Key itself is never stored,
-// logged or cached. The logs are not redacted, so only the platform administrator reads them, and
-// every read is written to the activity log.
+// reports (unverified) and the Bearer Key. The index keys sessions by the Key's keyed fingerprint
+// and keeps the Key itself only sealed with MARKET_KEY_ENCRYPTION_SECRET, so the console can show
+// it; without that secret the Key is not kept at all. It is never logged or written to an object.
+// The logs are not redacted, so only the platform administrator reads them, and every read is
+// written to the activity log.
 
 const MiB = 1024 * 1024
 /** Uncompressed JSON per request, as the contract promises the client. */
@@ -21,6 +24,8 @@ export const SESSION_LOG_JSON_LIMIT = 8 * MiB
 export const SESSION_LOG_BODY_LIMIT = SESSION_LOG_JSON_LIMIT + MiB / 2
 const SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/u
 const FINGERPRINT_PREFIX = /^[a-f0-9]{4,64}$/u
+/** Bound into the AES-GCM associated data, so a sealed session-log Key opens only as one. */
+const SEALED_FOR = 'session-log'
 const PAGE_SIZE = 50
 const DEFAULT_RATE = 120
 const DAY = 24 * 60 * 60 * 1000
@@ -132,7 +137,7 @@ async function serialized(name, task) {
   try { return await current } finally { if (sessionQueues.get(name) === current) sessionQueues.delete(name) }
 }
 
-async function store(env, { batch, id, formatVersion }, keyFingerprint, now) {
+async function store(env, { batch, id, formatVersion }, { keyFingerprint, sealedKey }, now) {
   const db = env.MARKET_SESSION_LOG_DB
   const unique = new Map()
   for (const event of batch.events) if (!unique.has(event.seq)) unique.set(event.seq, event)
@@ -178,6 +183,12 @@ async function store(env, { batch, id, formatVersion }, keyFingerprint, now) {
         clip(batch.client?.platform, 40), clip(session.cwd, 1000), clip(session.parentSession, 128), clip(session.origin, 200),
         summary.title, Number.isSafeInteger(session.createdAt) ? session.createdAt : null, now, now, object.byteLength,
         JSON.stringify(models), summary.tokens.input, summary.tokens.output, summary.tokens.total),
+    // Every Key the session was uploaded with. The newest seal wins, so a rotated encryption
+    // secret is healed by the next upload.
+    ...(keyFingerprint ? [db.prepare(`INSERT INTO session_log_keys(session_id,format_version,key_fingerprint,encrypted_key,first_used_at,last_used_at)
+        VALUES(?,?,?,?,?,?) ON CONFLICT(session_id,format_version,key_fingerprint) DO UPDATE SET
+        encrypted_key=COALESCE(excluded.encrypted_key,encrypted_key), last_used_at=excluded.last_used_at`)
+      .bind(id, formatVersion, keyFingerprint, sealedKey, now, now)] : []),
     ...fresh.map(event => db.prepare('INSERT OR IGNORE INTO session_log_events(session_id,format_version,seq,object_key,time,type,turn) VALUES(?,?,?,?,?,?,?)')
       .bind(id, formatVersion, event.seq, key, Number.isSafeInteger(event.time) ? event.time : null,
         typeof event.type === 'string' ? event.type.slice(0, 128) : '', Number.isSafeInteger(event.data?.turn) ? event.data.turn : null)),
@@ -209,7 +220,9 @@ export async function sessionLogUpload(request, env) {
     else if (encoding && encoding !== 'identity') return reply({ error: 'unsupported content encoding' }, 415)
     else if (bytes.byteLength > SESSION_LOG_JSON_LIMIT) throw sizedError('too large', 413)
     const parsed = parseBatch(bytes)
-    const result = await serialized(`${parsed.id}\0${parsed.formatVersion}`, () => store(env, parsed, keyFingerprint, now))
+    // No encryption secret, no Key: it is never stored in the clear.
+    const sealedKey = key && env.MARKET_KEY_ENCRYPTION_SECRET ? await sealKey(key, SEALED_FOR, keyFingerprint, env) : null
+    const result = await serialized(`${parsed.id}\0${parsed.formatVersion}`, () => store(env, parsed, { keyFingerprint, sealedKey }, now))
     return reply({ ok: true, ...result })
   } catch (error) {
     if ([400, 413].includes(error?.status)) return reply({ error: error.message }, error.status)
@@ -223,12 +236,15 @@ export async function sessionLogUpload(request, env) {
 
 const ready = env => { if (!configured(env)) throw invalid('会话日志存储未配置', 503) }
 const target = (id, formatVersion) => `${id}:${formatVersion}`
-function sessionView(row, keyLabels = new Map()) {
+/** Whether Keys are kept (sealed) and can be shown; false means only fingerprints are known. */
+const keyDisplayReady = env => Boolean(env.MARKET_KEY_ENCRYPTION_SECRET)
+function sessionView(row, keys) {
   let models = []
   try { models = JSON.parse(row.models) } catch {}
   return {
     id: row.session_id, formatVersion: row.format_version,
-    keyFingerprint: row.key_fingerprint, keyLabel: keyLabels.get(row.key_fingerprint) ?? null, accountId: row.account_id,
+    key: keys.text.get(row.key_fingerprint) ?? null, keyFingerprint: row.key_fingerprint,
+    keyLabel: keys.labels.get(row.key_fingerprint) ?? null, accountId: row.account_id,
     client: { product: row.client_product, version: row.client_version, platform: row.client_platform },
     cwd: row.cwd, parentSession: row.parent_session, origin: row.origin, title: row.title,
     createdAt: row.created_at, firstReceivedAt: row.first_received_at, lastReceivedAt: row.last_received_at,
@@ -237,13 +253,42 @@ function sessionView(row, keyLabels = new Map()) {
     tokens: { input: row.input_tokens, output: row.output_tokens, total: row.total_tokens },
   }
 }
-// Names a Key the Key directory knows, so the console can show its note beside the fingerprint.
-async function keyLabels(env, rows) {
-  const fingerprints = [...new Set(rows.map(row => row.key_fingerprint).filter(Boolean))]
-  if (!fingerprints.length || !env.MARKET_DB) return new Map()
-  const { results } = await env.MARKET_DB.prepare(`SELECT fingerprint,label FROM market_keys WHERE fingerprint IN (${fingerprints.map(() => '?').join(',')})`)
-    .bind(...fingerprints).all()
-  return new Map(results.map(row => [row.fingerprint, row.label || null]))
+const marks = values => values.map(() => '?').join(',')
+// The Keys behind some fingerprints, opened from the newest seal of each (every seal of one
+// fingerprint holds the same Key). Without the encryption secret nothing can be opened.
+async function openKeys(env, fingerprints) {
+  const text = new Map()
+  if (!env.MARKET_KEY_ENCRYPTION_SECRET) return text
+  const { results } = await env.MARKET_SESSION_LOG_DB.prepare(`SELECT key_fingerprint,encrypted_key,MAX(last_used_at) FROM session_log_keys
+    WHERE encrypted_key IS NOT NULL${fingerprints ? ` AND key_fingerprint IN (${marks(fingerprints)})` : ''} GROUP BY key_fingerprint`)
+    .bind(...(fingerprints ?? [])).all()
+  for (const row of results) {
+    try { text.set(row.key_fingerprint, await openKey(row.encrypted_key, SEALED_FOR, row.key_fingerprint, env)) } catch {}
+  }
+  return text
+}
+// Each Key as text where it was sealed, and its note where the Key directory knows it.
+async function describeKeys(env, fingerprints) {
+  const unique = [...new Set(fingerprints.filter(Boolean))]
+  if (!unique.length) return { text: new Map(), labels: new Map() }
+  const labels = new Map()
+  if (env.MARKET_DB) {
+    const { results } = await env.MARKET_DB.prepare(`SELECT fingerprint,label FROM market_keys WHERE fingerprint IN (${marks(unique)})`).bind(...unique).all()
+    for (const row of results) labels.set(row.fingerprint, row.label || null)
+  }
+  return { text: await openKeys(env, unique), labels }
+}
+// The fingerprints a Key filter names: the whole Key, the beginning of a Key that was sealed, or
+// (as before the Keys were kept) the beginning of a fingerprint.
+async function keysMatching(env, value) {
+  const found = new Set([await fingerprint(value, env.MARKET_HMAC_SECRET)])
+  for (const [print, key] of await openKeys(env)) if (key.startsWith(value)) found.add(print)
+  if (FINGERPRINT_PREFIX.test(value)) {
+    const { results } = await env.MARKET_SESSION_LOG_DB.prepare("SELECT DISTINCT key_fingerprint FROM session_log_keys WHERE key_fingerprint LIKE ? || '%'")
+      .bind(value).all()
+    for (const row of results) found.add(row.key_fingerprint)
+  }
+  return [...found]
 }
 function timestamp(value, name) {
   if (value === null || value === undefined || value === '') return null
@@ -264,7 +309,15 @@ export async function listSessionLogs(env, url) {
     values.push(value)
   }
   filter('account', 'account_id=?')
-  filter('key', "key_fingerprint LIKE ? || '%'", value => FINGERPRINT_PREFIX.test(value))
+  // Any Key the session used, not only its latest one.
+  const key = url.searchParams.get('key')?.trim()
+  if (key) {
+    if (key.length > 300) throw invalid('筛选条件 key 无效')
+    const prints = await keysMatching(env, key)
+    where.push(`EXISTS (SELECT 1 FROM session_log_keys k WHERE k.session_id=session_log_sessions.session_id
+      AND k.format_version=session_log_sessions.format_version AND k.key_fingerprint IN (${marks(prints)}))`)
+    values.push(...prints)
+  }
   filter('clientVersion', 'client_version=?')
   filter('model', 'EXISTS (SELECT 1 FROM json_each(models) WHERE value=?)')
   filter('session', 'session_id=?', value => SESSION_ID.test(value))
@@ -279,8 +332,8 @@ export async function listSessionLogs(env, url) {
   const total = (await db.prepare('SELECT COUNT(*) AS total FROM session_log_sessions' + clause).bind(...values).first()).total
   const { results } = await db.prepare(`SELECT * FROM session_log_sessions${clause} ORDER BY last_received_at DESC,session_id LIMIT ? OFFSET ?`)
     .bind(...values, PAGE_SIZE, (page - 1) * PAGE_SIZE).all()
-  const labels = await keyLabels(env, results)
-  return { items: results.map(row => sessionView(row, labels)), total, page, pageSize: PAGE_SIZE }
+  const keys = await describeKeys(env, results.map(row => row.key_fingerprint))
+  return { items: results.map(row => sessionView(row, keys)), total, page, pageSize: PAGE_SIZE, keyDisplayReady: keyDisplayReady(env) }
 }
 
 function address(id, version) {
@@ -320,8 +373,15 @@ export async function sessionLogDetail(env, segments, url, actor) {
     objects.set(key, events)
   }
   await env.MARKET_DB.batch(auditStatements(env, 'session-log.viewed', target(id, formatVersion), {}, actor))
+  const used = (await env.MARKET_SESSION_LOG_DB.prepare(
+    'SELECT key_fingerprint,first_used_at,last_used_at FROM session_log_keys WHERE session_id=? AND format_version=? ORDER BY first_used_at,key_fingerprint',
+  ).bind(id, formatVersion).all()).results
+  const keys = await describeKeys(env, [row.key_fingerprint, ...used.map(item => item.key_fingerprint)])
   return {
-    session: sessionView(row, await keyLabels(env, [row])),
+    session: sessionView(row, keys),
+    keys: used.map(item => ({ key: keys.text.get(item.key_fingerprint) ?? null, fingerprint: item.key_fingerprint,
+      label: keys.labels.get(item.key_fingerprint) ?? null, firstUsedAt: item.first_used_at, lastUsedAt: item.last_used_at })),
+    keyDisplayReady: keyDisplayReady(env),
     events: results.map(item => objects.get(item.object_key).get(item.seq)
       ?? { seq: item.seq, time: item.time, type: item.type, unavailable: true }),
     next: results.length === limit ? results.at(-1).seq : null,

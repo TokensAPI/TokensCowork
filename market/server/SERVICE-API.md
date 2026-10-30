@@ -273,9 +273,11 @@ PUT /api/v1/users/102/grants
 - 请求体 gzip JSON（`Content-Encoding: gzip`），解压后不超过 8 MiB；解压中一超限就停，回 `413`（解压炸弹防护）。
 - 按 `(session.id, sessionFormatVersion, seq)` 去重：重复批次、重叠批次、中间有缺口的批次都回 `200` 并存下新事件；全是已存事件的批次不写任何东西。
 - 不按 `type` 白名单过滤，未知类型与字段原样保存。非法 JSON、缺 `session.id` / `sessionFormatVersion` / `events`、事件缺整数 `seq` 回 `400`。
-- **不调用任何 TokensAPI 接口认人。** 只记客户端上报的 `account.id`（后台标「未核验」）和 `Authorization: Bearer <Key>` 的指纹——
-  与 Key 名录同一算法（HMAC-SHA256，密钥 `MARKET_HMAC_SECRET`），所以同一把 Key 的指纹稳定，登记过的 Key 还能显示备注。
-  Key 原文不落库、不写对象、不写日志。**不带 Key 照收，记为匿名，从不回 `401`。**
+- **不调用任何 TokensAPI 接口认人。** 只记客户端上报的 `account.id`（后台标「未核验」）和 `Authorization: Bearer <Key>`。
+  Key 用 `MARKET_KEY_ENCRYPTION_SECRET` 加密（AES-GCM，与 Key 名录同一套 `security/key-vault.js`）后存进索引，后台解密显示完整 Key；
+  会话按 Key 指纹归并（HMAC-SHA256，密钥 `MARKET_HMAC_SECRET`，与 Key 名录同一算法，登记过的 Key 还能显示备注）。
+  **没配加密密钥时不存 Key，只存指纹**，后台提示「未配置 Key 加密，未保存原文」，接收照常。Key 从不明文落库，也不写对象、不写日志。
+  同一会话先后用过几把 Key 都会记下。**不带 Key 照收，记为匿名，从不回 `401`。**
 - 限流：每把 Key（匿名时按来源地址）每分钟 `MARKET_SESSION_LOG_RATE_PER_MINUTE` 次（默认 120），超限 `429` + `Retry-After`。只作用于本接口。
 - 响应 `200 { ok, stored, duplicates }`；客户端只看状态码。存储未配置时 `503`。
 
@@ -283,8 +285,8 @@ PUT /api/v1/users/102/grants
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/session-logs?account=&key=&clientVersion=&model=&session=&anonymous=true&from=&to=&page=` | 只查索引 → `{ items, total, page, pageSize }`，每页 50，按最近上传倒序。`key` 可只给指纹前缀；`from`/`to` 为毫秒时间戳，按会话创建时间筛选 |
-| GET | `/session-logs/:sessionId/:formatVersion?after=-1&limit=200` | `{ session, events, next }`：从原文对象读出 `after` 之后的事件，按 seq 合并去重；`next` 非空时还有下一页。**每次调用写一条操作记录** |
+| GET | `/session-logs?account=&key=&clientVersion=&model=&session=&anonymous=true&from=&to=&page=` | 只查索引 → `{ items, total, page, pageSize, keyDisplayReady }`，每页 50，按最近上传倒序。每项的 `key` 是最近一把 Key 的原文（没存原文时为 `null`）。`key` 筛选可给完整 Key、已加密保存的 Key 的开头或指纹前缀，匹配会话用过的任意一把；`from`/`to` 为毫秒时间戳，按会话创建时间筛选 |
+| GET | `/session-logs/:sessionId/:formatVersion?after=-1&limit=200` | `{ session, keys, keyDisplayReady, events, next }`：`keys` 是会话用过的全部 Key（`key` 原文、`fingerprint`、`label`、首末次使用时间）；从原文对象读出 `after` 之后的事件，按 seq 合并去重；`next` 非空时还有下一页。**每次调用写一条操作记录** |
 | DELETE | `/session-logs/:sessionId/:formatVersion` | 删除一个会话（先删原文对象，再删索引），写操作记录 |
 | DELETE | `/session-logs` | `{ from?, to }`：删除创建时间落在 `[from, to)` 的全部会话，写操作记录 |
 | GET / PUT | `/session-logs/settings` | `{ retentionDays }`：`null` 为永久保留（默认），或 1-36500 天；服务每小时删除最近上传早于该天数的会话，并写 `session-log.purged` 记录 |

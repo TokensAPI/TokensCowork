@@ -78,7 +78,7 @@ Registry 域名继续代理到 4873。TLS、DNS 和 Nginx 由运维维护，不�
 
 | 路径 | 内容 |
 | --- | --- |
-| `session-logs/index.sqlite` | 索引：会话表、事件索引（去重唯一键）、保留期设置。不含 Key 原文 |
+| `session-logs/index.sqlite` | 索引：会话表、事件索引（去重唯一键）、会话用过的 Key（`MARKET_KEY_ENCRYPTION_SECRET` 加密，未配置时只有指纹）、保留期设置。不含明文 Key |
 | `session-logs/objects/session-logs/<yyyy>/<mm>/<会话>/<格式版本>/<afterSeq>-<throughSeq>.json.gz` | 原文：每个被接受的批次一份 gzip |
 
 `.env` 配置项（都可省略）：
@@ -89,6 +89,10 @@ Registry 域名继续代理到 4873。TLS、DNS 和 Nginx 由运维维护，不�
 | `MARKET_SESSION_LOG_DIR` | `/data/session-logs` | 索引与本地原文的目录 |
 | `MARKET_SESSION_LOG_RATE_PER_MINUTE` | `120` | 每把 Key（匿名按来源地址）每分钟可上传几批 |
 | `MARKET_SESSION_LOG_S3_ENDPOINT` / `_REGION` / `_BUCKET` / `_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | — | `s3` 后端用。**S3 实现目前只是桩**：配成 `s3` 服务会拒绝启动，不会悄悄退回本地磁盘 |
+
+后台显示完整的上传 Key，前提是 `.env` 配了 `MARKET_KEY_ENCRYPTION_SECRET`（与 Key 名录共用）：没配时不保存 Key，只记指纹，
+后台会提示「未配置 Key 加密，未保存原文」。配上之后，同一把 Key 只要再有一次上传被存下，之前只记了指纹的会话也能显示这把 Key
+（同一指纹即同一把 Key）。换这个密钥会让已存的 Key 解不开（显示为未保存原文），同样要等这把 Key 再上传一次。
 
 换存储后端只改配置：业务代码只依赖 `put / get / delete / list(prefix)` 四个方法（`runtime/session-log-storage.mjs`），
 新后端要先通过 `tests/session-log-storage.test.mjs` 里的共用契约用例。索引始终是本地 SQLite 文件。

@@ -1,7 +1,7 @@
 -- The session-log index. It lives in its own SQLite file (session-logs/index.sqlite), never in
 -- market.sqlite, so it is backed up, cleaned and moved on its own. Raw batches stay in the
--- object store; these tables only point at them. No raw API Key is ever stored: key_fingerprint
--- is the same keyed HMAC the Key directory uses.
+-- object store; these tables only point at them. key_fingerprint is the same keyed HMAC the Key
+-- directory uses; the Key itself is only ever kept sealed (002-session-log-keys.sql).
 CREATE TABLE IF NOT EXISTS session_log_sessions (
   session_id TEXT NOT NULL,
   format_version INTEGER NOT NULL,

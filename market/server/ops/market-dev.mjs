@@ -426,6 +426,8 @@ async function smoke() {
     assert.equal(logs.total, 2)
     const replay = await read(`/api/v1/session-logs/${logs.items.find(item => !item.parentSession).id}/4`, undefined, cookie)
     assert.equal(replay.events.length, 11)
+    // The fixture encryption secret is set, so the seeded Key is kept sealed and shown in full.
+    assert.deepEqual([replay.session.key, replay.keys.map(item => item.key)], ['sk-test-direct', ['sk-test-direct']])
     assert.equal((await call('/v1/plugins')).status, 200)
     assert.equal((await call('/server/services/auth.js')).status, 404)
     await assert.rejects(globalThis.fetch('https://tokensapi.ai/api/organizations/all'), /External network/u)

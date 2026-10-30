@@ -1135,6 +1135,9 @@ nav a[aria-current='page'] {
   word-break: break-all;
   user-select: all;
 }
+.session-log-key {
+  margin-top: 6px;
+}
 .row-actions {
   display: flex;
   gap: 6px;

@@ -17,7 +17,12 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
   const short = (value, length = 12) => (value ? value.slice(0, length) : '')
   const bytes = (value) => (value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`)
   const time = (value) => (value ? formatTime(value) : '—')
-  const keyText = (item) => (item.keyFingerprint ? [item.keyLabel, short(item.keyFingerprint, 16)].filter(Boolean).join(' · ') : '未带 Key（匿名）')
+  // The Key in full when the server kept it (sealed); otherwise only its fingerprint is known.
+  function keyLines(target, { key, fingerprint, label }) {
+    if (label) target.append(node('div', label))
+    if (key) target.append(node('div', key, 'key-value'))
+    else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'fingerprint muted'))
+  }
   const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
 
   // ── List ───────────────────────────────────────────────────────────────────
@@ -27,7 +32,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
       return value ? String(new Date(value + 'T00:00:00').getTime() + offset) : ''
     }
     return {
-      account: $('session-log-account').value.trim(), key: $('session-log-key').value.trim().toLowerCase(),
+      account: $('session-log-account').value.trim(), key: $('session-log-key').value.trim(),
       clientVersion: $('session-log-version').value.trim(), model: $('session-log-model').value.trim(),
       from: day('session-log-from'), to: day('session-log-to', DAY),
     }
@@ -39,6 +44,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     pageSize = result.pageSize
     $('session-log-list').replaceChildren(...result.items.map(row))
     $('session-log-empty').hidden = result.items.length > 0
+    $('session-log-key-note').hidden = result.keyDisplayReady
     const pages = Math.max(1, Math.ceil(total / pageSize))
     $('session-log-page').textContent = `第 ${page} / ${pages} 页 · 共 ${total} 个会话`
     $('session-log-prev').disabled = page <= 1
@@ -53,7 +59,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     name.append(node('strong', item.title || '未命名会话'), id,
       node('div', clientText(item.client) + (item.parentSession ? ' · 子代理会话' : ''), 'muted'))
     const key = node('td')
-    if (item.keyFingerprint) key.append(node('div', item.keyLabel || '未登记的 Key'), node('div', short(item.keyFingerprint, 16), 'fingerprint muted'))
+    if (item.keyFingerprint) keyLines(key, { key: item.key, fingerprint: item.keyFingerprint, label: item.keyLabel })
     else key.append(node('span', '未带 Key（匿名）', 'muted'))
     const usage = node('td')
     usage.append(node('div', item.models.join('、') || '—'))
@@ -184,6 +190,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     const result = await json(`/api/v1/session-logs/${encodeURIComponent(current.id)}/${current.formatVersion}?${query}`)
     current = result.session
     showMeta()
+    showKeys(result.keys)
     const visible = result.events.filter((event) => !QUIET.has(event.type))
     $('session-log-timeline').append(...visible.map(entry))
     loaded += result.events.length
@@ -195,11 +202,23 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
   function showMeta() {
     $('session-log-title').textContent = current.title || current.id
     $('session-log-meta').textContent = [
-      current.id, `格式 v${current.formatVersion}`, `上报账号 ${current.accountId || '—'}（未核验）`, keyText(current), clientText(current.client),
+      current.id, `格式 v${current.formatVersion}`, `上报账号 ${current.accountId || '—'}（未核验）`, clientText(current.client),
       current.cwd ? `目录 ${current.cwd}` : '', `创建 ${time(current.createdAt)}`, `最近上传 ${time(current.lastReceivedAt)}`,
       current.missingEvents ? `缺 ${current.missingEvents} 条事件` : '',
     ].filter(Boolean).join(' · ')
     $('session-log-parent').hidden = !current.parentSession
+  }
+  // Every Key the session was uploaded with, oldest first.
+  function showKeys(keys) {
+    const list = $('session-log-keys')
+    list.replaceChildren()
+    if (!keys.length) return list.append(node('p', '未带 Key（匿名）', 'muted'))
+    for (const item of keys) {
+      const line = node('div', '', 'session-log-key')
+      line.append(node('div', `Key · 首次 ${time(item.firstUsedAt)} · 最近 ${time(item.lastUsedAt)}`, 'muted'))
+      keyLines(line, item)
+      list.append(line)
+    }
   }
   async function open(id, formatVersion) {
     current = { id, formatVersion }
@@ -214,6 +233,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
   function back() {
     current = null
     $('session-log-timeline').replaceChildren()
+    $('session-log-keys').replaceChildren()
     $('session-log-detail').hidden = true
     $('session-log-browser').hidden = false
   }
