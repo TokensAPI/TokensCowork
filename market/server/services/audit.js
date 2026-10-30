@@ -3,6 +3,7 @@ import { registryConfig } from '../private-registry/config.mjs'
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,79}$/u
 const ORGANIZATION = /^[1-9][0-9]*$/u
 const FINGERPRINT = /^[a-f0-9]{64}$/u
+const SESSION_LOG = /^[A-Za-z0-9._-]{1,128}:[0-9]{1,6}$/u
 // Every action the market records, the target it names, and the only details it may keep.
 // Explicit allowlists prevent a later call site from accidentally auditing a credential.
 const ACTIONS = {
@@ -30,6 +31,11 @@ const ACTIONS = {
   'key.deleted': [FINGERPRINT, d => ({ grantCount: d.grantCount })],
   'user.updated': [ORGANIZATION, () => ({})],
   'user.deleted': [ORGANIZATION, d => ({ grantCount: d.grantCount })],
+  // Session logs are not redacted, so reading one is recorded as well as changing them.
+  'session-log.viewed': [SESSION_LOG, () => ({})],
+  'session-log.deleted': [/^(?:range|[A-Za-z0-9._-]{1,128}:[0-9]{1,6})$/u, d => ({ count: d.count })],
+  'session-log.settings': [/^retention$/u, d => ({ retentionDays: Number.isSafeInteger(d.retentionDays) ? d.retentionDays : null })],
+  'session-log.purged': [/^retention$/u, d => ({ count: d.count, retentionDays: d.retentionDays })],
 }
 // The platform administrator is the default for call sites with no principal to hand.
 export const ROOT_ACTOR = Object.freeze({ kind: 'root', id: 'token', organizationId: null })

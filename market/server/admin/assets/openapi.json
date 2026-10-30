@@ -38,6 +38,10 @@
       "description": "单独授权用的 TokensAPI 用户名录。平台管理员专用。"
     },
     {
+      "name": "会话日志",
+      "description": "客户端插件上传的会话日志：列表、回放、删除和保留期。平台管理员专用；日志不脱敏，每次读取会话详情都写一条操作记录。上传接口 `POST /v1/session-logs` 不在本文档内，见 SERVICE-API.md。"
+    },
+    {
       "name": "诊断",
       "description": "操作记录与 npm 查询。平台管理员专用。"
     }
@@ -2144,6 +2148,373 @@
           "example": "latest"
         }
       ]
+    },
+    "/session-logs": {
+      "get": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "会话列表",
+        "description": "只查索引，不读原文。按最近上传时间倒序，每页 50 条。时间条件按会话创建时间（缺失时用首次上传时间）。",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "description": "客户端上报的账号 id（未核验），精确匹配。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "description": "Key 指纹，十六进制，可只给前缀（至少 4 位）。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientVersion",
+            "in": "query",
+            "required": false,
+            "description": "客户端版本，精确匹配。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "description": "用到的模型，精确匹配。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "required": false,
+            "description": "会话 id，精确匹配（子代理跳父会话用）。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "anonymous",
+            "in": "query",
+            "required": false,
+            "description": "为 true 时只列未带 Key 的上传。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "起始时间（毫秒时间戳，含）。",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "结束时间（毫秒时间戳，不含）。",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "页码，从 1 开始。",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "按时间范围批量删除",
+        "description": "删除创建时间落在 [from, to) 的全部会话：先删原文对象，再删索引。写一条操作记录。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to"
+                ],
+                "properties": {
+                  "from": {
+                    "type": "integer",
+                    "description": "毫秒时间戳，缺省为 0。"
+                  },
+                  "to": {
+                    "type": "integer",
+                    "description": "毫秒时间戳，不含。"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "from": 1790000000000,
+                    "to": 1793000000000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/session-logs/settings": {
+      "get": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "读取保留期",
+        "description": "`retentionDays` 为 `null` 表示永久保留（默认）。",
+        "responses": {
+          "200": {
+            "description": "保留期",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "设置保留期",
+        "description": "1-36500 天，或 `null` 永久保留。服务每小时清理一次最近上传早于 N 天的会话（索引与原文一起删），清理会写操作记录。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionLogSettings"
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "retentionDays": 180
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/session-logs/{sessionId}/{formatVersion}": {
+      "parameters": [
+        {
+          "name": "sessionId",
+          "in": "path",
+          "required": true,
+          "description": "会话 id。",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,128}$"
+          }
+        },
+        {
+          "name": "formatVersion",
+          "in": "path",
+          "required": true,
+          "description": "会话事件格式版本（sessionFormatVersion）。",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "会话详情（回放）",
+        "description": "按 seq 顺序返回 `after` 之后的最多 `limit` 条事件，从原文对象读出并按 seq 去重合并。事件原样返回，不脱敏。**每次调用都写一条 `session-log.viewed` 操作记录。**",
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "只返回 seq 大于它的事件，缺省 -1（从头）。",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "每次最多返回多少条，1-1000，缺省 200。",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话与事件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "删除一个会话",
+        "description": "删除该会话的原文对象与索引。写一条操作记录。",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2922,6 +3293,247 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "SessionLog": {
+        "type": "object",
+        "required": [
+          "id",
+          "formatVersion",
+          "keyFingerprint",
+          "keyLabel",
+          "accountId",
+          "client",
+          "cwd",
+          "parentSession",
+          "origin",
+          "title",
+          "createdAt",
+          "firstReceivedAt",
+          "lastReceivedAt",
+          "eventCount",
+          "maxSeq",
+          "missingEvents",
+          "storedBytes",
+          "models",
+          "tokens"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "formatVersion": {
+            "type": "integer"
+          },
+          "keyFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "上传所带 Key 的 HMAC 指纹（与 Key 名录同一算法）；未带 Key 时为 null。Key 原文从不保存。"
+          },
+          "keyLabel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "指纹在 Key 名录里登记过时的备注。"
+          },
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "客户端上报的账号 id，未核验。"
+          },
+          "client": {
+            "type": "object",
+            "required": [
+              "product",
+              "version",
+              "platform"
+            ],
+            "properties": {
+              "product": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "platform": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parentSession": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "子代理会话的父会话 id。"
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "会话创建时间（毫秒），来自会话头。"
+          },
+          "firstReceivedAt": {
+            "type": "integer"
+          },
+          "lastReceivedAt": {
+            "type": "integer"
+          },
+          "eventCount": {
+            "type": "integer"
+          },
+          "maxSeq": {
+            "type": "integer"
+          },
+          "missingEvents": {
+            "type": "integer",
+            "description": "0 到 maxSeq 之间没收到的事件数（缺口）。"
+          },
+          "storedBytes": {
+            "type": "integer",
+            "description": "原文对象累计字节（gzip 后）。"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokens": {
+            "type": "object",
+            "required": [
+              "input",
+              "output",
+              "total"
+            ],
+            "properties": {
+              "input": {
+                "type": "integer"
+              },
+              "output": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "SessionLogList": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionLog"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        }
+      },
+      "SessionLogDetail": {
+        "type": "object",
+        "required": [
+          "session",
+          "events",
+          "next"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/SessionLog"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "上传的事件原样（seq、time、type、data 等）；原文对象缺失时只有 seq、time、type 和 `unavailable: true`。"
+            }
+          },
+          "next": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "还有更多时，下一页传给 `after` 的值。"
+          }
+        }
+      },
+      "SessionLogSettings": {
+        "type": "object",
+        "required": [
+          "retentionDays"
+        ],
+        "properties": {
+          "retentionDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "保留天数；null 表示永久保留。"
+          }
+        }
+      },
+      "SessionLogDeleted": {
+        "type": "object",
+        "required": [
+          "ok",
+          "count"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "count": {
+            "type": "integer"
           }
         }
       }

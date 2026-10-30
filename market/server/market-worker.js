@@ -6,6 +6,7 @@ import { reply } from './http/response.js'
 import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
 import { localizeCatalog } from './services/catalog-locale-service.js'
+import { sessionLogUpload } from './services/session-logs.js'
 
 const publicHeaders = {
   'access-control-allow-origin': '*',
@@ -22,6 +23,7 @@ export default {
       if (api.ok && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) invalidateVersionHints(env)
       return api
     }
+    if (url.pathname === '/v1/session-logs') return sessionLogUpload(request, env)
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
@@ -101,6 +103,7 @@ export default {
       '/admin/assets/market-keys.js',
       '/admin/assets/market-users.js',
       '/admin/assets/market-grants.js',
+      '/admin/assets/market-session-logs.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')

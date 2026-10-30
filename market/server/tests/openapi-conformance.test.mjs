@@ -6,7 +6,11 @@ import { readdirSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import worker from '../_worker.js'
-import { createAssets } from '../runtime/adapters.mjs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { gzipSync } from 'node:zlib'
+import { createAssets, createD1Database } from '../runtime/adapters.mjs'
+import { createLocalObjectStore } from '../runtime/session-log-storage.mjs'
 import { fingerprint } from '../security/key-fingerprint.js'
 
 // The published OpenAPI document is a second description of the management API, so it can drift away
@@ -83,6 +87,10 @@ async function fixture(t) {
   db.prepare("INSERT INTO market_organizations(id,name,enabled) VALUES(7,'Seven',1),(9,'Nine',1)").run()
   db.prepare("INSERT INTO market_grants(plugin_id,kind,subject) VALUES('beta','org','7')").run()
   db.prepare("INSERT INTO market_users(id,name) VALUES(102,'Alice')").run()
+  // One uploaded session log, so its console routes have something real to answer with.
+  const objects = await mkdtemp(resolvePath(tmpdir(), 'market-openapi-session-logs-'))
+  const sessionLogs = createD1Database(':memory:', resolvePath(fileURLToPath(new URL('../database/session-log-migrations', import.meta.url))))
+  t.after(async () => { sessionLogs.close(); await rm(objects, { recursive: true, force: true }) })
   const wrap = (sql, values = []) => ({
     bind: (...next) => wrap(sql, next),
     first: async () => db.prepare(sql).get(...values),
@@ -97,6 +105,8 @@ async function fixture(t) {
       catch (error) { db.exec('ROLLBACK'); throw error }
     } },
     ASSETS: createAssets(resolvePath(fileURLToPath(new URL('..', import.meta.url)))),
+    MARKET_SESSION_LOG_DB: sessionLogs,
+    MARKET_SESSION_LOG_STORE: createLocalObjectStore(resolvePath(objects, 'objects')),
     MARKET_ORGANIZATIONS: {
       listOrganizations: async () => [{ id: 7, name: 'Seven' }, { id: 9, name: 'Nine' }],
       resolveOrganization: async key => key === 'sk-seven' ? { id: 7, name: 'Seven' } : null,
@@ -120,6 +130,12 @@ async function fixture(t) {
     .headers.get('set-cookie').split(';')[0]
   const { json: { fingerprint: key } } = await call('POST', '/api/v1/keys', { data: { key: 'sk-direct', label: 'Direct' } })
   assert.equal(key, await fingerprint('sk-direct', 'fixture-hmac'))
+  const upload = await worker.fetch(new Request('https://market.test/v1/session-logs', { method: 'POST',
+    headers: { 'content-encoding': 'gzip', authorization: 'Bearer sk-direct' },
+    body: gzipSync(JSON.stringify({ version: 1, sessionFormatVersion: 4, session: { id: 'session-fixture', createdAt: 1793318400000 },
+      afterSeq: -1, throughSeq: 0, events: [{ seq: 0, time: 1793318400000, type: 'user/message', data: { text: 'hello' } }],
+      client: { product: 'TokensCowork', version: '0.7.8', platform: 'win32' } })) }), env, {})
+  assert.equal(upload.status, 200)
   return { db, call, tenant, key }
 }
 
@@ -127,10 +143,11 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 25)
+  assert.equal(paths.length, 28)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
+      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4')
     for (const method of Object.keys(item).filter(name => name !== 'parameters')) {
       // Deleting the fixture Key or the session is a real change rather than a probe. Every plugin
       // write carries a stale revision, so the optimistic lock rejects it without changing anything.
@@ -140,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 35)
+  assert.equal(checked, 39)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -217,6 +234,17 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/users/999/grants', '/users/{userId}/grants', 404],
     ['GET', '/plugins/beta', '/plugins/{pluginId}', 200],
     ['DELETE', '/users/103', '/users/{userId}', 200],
+    ['GET', '/session-logs', '/session-logs', 200],
+    ['GET', '/session-logs?key=zz', '/session-logs', 400],
+    ['GET', '/session-logs/settings', '/session-logs/settings', 200],
+    ['PUT', '/session-logs/settings', '/session-logs/settings', 200, { retentionDays: 30 }],
+    ['PUT', '/session-logs/settings', '/session-logs/settings', 400, { retentionDays: -1 }],
+    ['GET', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],
+    ['GET', '/session-logs/session-none/4', '/session-logs/{sessionId}/{formatVersion}', 404],
+    ['GET', '/session-logs', '/session-logs', 403, undefined, tenant],
+    ['DELETE', '/session-logs', '/session-logs', 400, {}],
+    ['DELETE', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],
+    ['DELETE', '/session-logs', '/session-logs', 200, { to: Date.now() }],
     ['GET', '/audit', '/audit', 200],
     // An organization administrator's session is how 403 is reached at all.
     ['GET', '/plugins', '/plugins', 403, undefined, tenant],

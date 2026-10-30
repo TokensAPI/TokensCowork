@@ -35,6 +35,9 @@
         <a href="#keys" data-view="keys"
           ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20 3M16 7l3 3M14 9l2 2"/></svg><span class="nav-text">Key</span><b id="nav-keys">—</b></a
         >
+        <a href="#session-logs" data-view="session-logs" hidden
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg><span class="nav-text">会话日志</span></a
+        >
         <a href="#activity" data-view="activity"
           ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span class="nav-text">操作记录</span></a
         >
@@ -325,6 +328,82 @@
             <p id="user-empty" class="empty" hidden>
               暂无用户。添加后可单独给该用户授权插件，对其名下所有 Key 生效。
             </p>
+          </div>
+        </section>
+
+        <section id="session-logs-panel" data-panel="session-logs" hidden>
+          <div id="session-log-browser" class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>会话列表</h2>
+                <p id="session-logs-note" class="muted"></p>
+              </div>
+              <form id="session-log-settings" class="filter-controls">
+                <label for="session-log-retention" class="muted">保留天数</label
+                ><input id="session-log-retention" type="number" min="1" max="36500" step="1" placeholder="永久" aria-describedby="session-log-retention-note"
+                /><button type="submit" class="secondary">保存</button>
+              </form>
+            </div>
+            <p class="notice">
+              日志<b>不脱敏</b>，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情都会写一条操作记录。
+              「上报账号」是客户端自己报的，<b>未核验</b>；Key 只存指纹，不存原文。
+              <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
+            </p>
+            <form id="session-log-filters" class="toolbar">
+              <input id="session-log-account" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" />
+              <input id="session-log-key" type="search" placeholder="Key 指纹（可只填前缀）" aria-label="按 Key 指纹筛选" />
+              <input id="session-log-version" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" />
+              <input id="session-log-model" type="search" placeholder="模型" aria-label="按模型筛选" />
+              <input id="session-log-from" type="date" aria-label="会话创建时间起（含）" />
+              <input id="session-log-to" type="date" aria-label="会话创建时间止（含）" />
+              <div class="filter-controls">
+                <button type="submit">筛选</button
+                ><button id="session-log-reset" type="button" class="quiet">重置</button
+                ><button id="session-log-range-delete" type="button" class="quiet danger">删除所选日期内的会话</button>
+              </div>
+            </form>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="会话日志表格">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">会话</th>
+                    <th scope="col">上报账号（未核验）</th>
+                    <th scope="col">Key</th>
+                    <th scope="col">模型 · token</th>
+                    <th scope="col">事件</th>
+                    <th scope="col">最近上传</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="session-log-list"></tbody>
+              </table>
+            </div>
+            <p id="session-log-empty" class="empty" hidden>暂无会话日志。</p>
+            <div class="toolbar">
+              <span id="session-log-page" class="muted"></span>
+              <div class="filter-controls">
+                <button id="session-log-prev" type="button" class="secondary">上一页</button
+                ><button id="session-log-next" type="button" class="secondary">下一页</button>
+              </div>
+            </div>
+          </div>
+          <div id="session-log-detail" class="panel" hidden>
+            <div class="section-heading">
+              <div>
+                <h2 id="session-log-title">会话</h2>
+                <p id="session-log-meta" class="muted"></p>
+              </div>
+              <div class="row-actions">
+                <button id="session-log-parent" type="button" class="secondary" hidden>打开父会话</button
+                ><button id="session-log-back" type="button" class="quiet">返回列表</button>
+              </div>
+            </div>
+            <ol id="session-log-timeline" class="log-timeline"></ol>
+            <p id="session-log-timeline-empty" class="empty" hidden>这个会话没有可显示的事件。</p>
+            <div class="toolbar">
+              <span id="session-log-loaded" class="muted"></span>
+              <button id="session-log-more" type="button" class="secondary" hidden>加载更多</button>
+            </div>
           </div>
         </section>
 

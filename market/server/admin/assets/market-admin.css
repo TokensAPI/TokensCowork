@@ -1148,3 +1148,38 @@ nav a[aria-current='page'] {
   margin-top: 10px;
   flex-wrap: wrap;
 }
+.log-timeline {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.log-event {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+}
+.log-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+}
+.log-text {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  font: inherit;
+  line-height: 1.7;
+  max-height: 480px;
+  overflow: auto;
+}
+.log-code {
+  font: 0.85rem/1.6 Consolas, monospace;
+}
+.log-event summary {
+  cursor: pointer;
+  color: var(--muted);
+}

@@ -8,6 +8,7 @@ import { organizationPlugins, setOrganizationPlugin } from '../services/access.j
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
 import { listUsers, getUser, saveUser, deleteUser } from '../services/users.js'
 import { auditLog, environment } from '../services/audit.js'
+import { listSessionLogs, sessionLogDetail, deleteSessionLog, deleteSessionLogRange, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
@@ -205,6 +206,23 @@ async function dispatch(request, env, url, principal) {
       return deleteUser(env, id, actor)
     }
     if (third === 'grants' && !fourth) return grants(request, env, method, 'user', id, actor)
+  }
+
+  // Raw, unredacted session logs: the platform administrator only, and every read is audited.
+  if (head === 'session-logs') {
+    onlyPlatform(principal)
+    if (!second) {
+      methods(method, ['GET', 'DELETE'])
+      return method === 'GET' ? listSessionLogs(env, url) : deleteSessionLogRange(env, await payload(request), actor)
+    }
+    if (second === 'settings' && !third) {
+      methods(method, ['GET', 'PUT'])
+      return method === 'GET' ? sessionLogSettings(env) : saveSessionLogSettings(env, await payload(request), actor)
+    }
+    if (third && !fourth) {
+      methods(method, ['GET', 'DELETE'])
+      return method === 'GET' ? sessionLogDetail(env, [second, third], url, actor) : deleteSessionLog(env, [second, third], actor)
+    }
   }
 
   if (head === 'audit' && !second) {

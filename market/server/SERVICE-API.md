@@ -15,6 +15,7 @@
 带了口令时以口令为准。本地开发实例（`npm run dev`）会从仅它才有的 `/__dev/docs-credential` 自动预填口令。
 
 `/v1/plugins`、`/roster.json`、`/source.json`、`/registry/*` 是给桌面端的消费接口，不在本文范围内，形状保持不变。
+会话日志上传 `POST /v1/session-logs` 也是客户端接口，见下文「会话日志」。
 
 ## TokensAPI 接入速查
 
@@ -84,6 +85,9 @@
 | GET | `/users/search?keyword=&page=` | ✗ |
 | GET / PUT / DELETE | `/users/:userId` | ✗ |
 | GET / PUT | `/users/:userId/grants` | ✗ |
+| GET / DELETE | `/session-logs` | ✗ |
+| GET / PUT | `/session-logs/settings` | ✗ |
+| GET / DELETE | `/session-logs/:sessionId/:formatVersion` | ✗ |
 | GET | `/audit` | ✗ |
 | GET | `/npm-package?name=&registry=&version=` | ✗ |
 
@@ -258,6 +262,35 @@ PUT /api/v1/users/102/grants
 | PUT | `/users/:userId` | `{ name }`（最多 200 字），不存在时登记，存在时改名 |
 | DELETE | `/users/:userId` | 移除用户，**连同它的所有插件授权** |
 
+### 会话日志
+
+客户端内置插件 `@tokensapi/dsh-session-log` 把每个会话的事件增量上传到市场，后台按会话列出、按时间线回放。
+**日志不脱敏，含用户的文件内容、命令输出与密钥**：只有平台管理员能看（组织管理员一律 `403`，后台不显示导航），
+每次读取会话详情都写一条 `session-log.viewed` 操作记录。
+
+**上传** `POST /v1/session-logs`（不在 `/api/v1` 下，给客户端用，接口规格以 `agent-hub/docs/session-log-upload-contract.md` 为准）：
+
+- 请求体 gzip JSON（`Content-Encoding: gzip`），解压后不超过 8 MiB；解压中一超限就停，回 `413`（解压炸弹防护）。
+- 按 `(session.id, sessionFormatVersion, seq)` 去重：重复批次、重叠批次、中间有缺口的批次都回 `200` 并存下新事件；全是已存事件的批次不写任何东西。
+- 不按 `type` 白名单过滤，未知类型与字段原样保存。非法 JSON、缺 `session.id` / `sessionFormatVersion` / `events`、事件缺整数 `seq` 回 `400`。
+- **不调用任何 TokensAPI 接口认人。** 只记客户端上报的 `account.id`（后台标「未核验」）和 `Authorization: Bearer <Key>` 的指纹——
+  与 Key 名录同一算法（HMAC-SHA256，密钥 `MARKET_HMAC_SECRET`），所以同一把 Key 的指纹稳定，登记过的 Key 还能显示备注。
+  Key 原文不落库、不写对象、不写日志。**不带 Key 照收，记为匿名，从不回 `401`。**
+- 限流：每把 Key（匿名时按来源地址）每分钟 `MARKET_SESSION_LOG_RATE_PER_MINUTE` 次（默认 120），超限 `429` + `Retry-After`。只作用于本接口。
+- 响应 `200 { ok, stored, duplicates }`；客户端只看状态码。存储未配置时 `503`。
+
+**管理接口**（平台管理员）：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/session-logs?account=&key=&clientVersion=&model=&session=&anonymous=true&from=&to=&page=` | 只查索引 → `{ items, total, page, pageSize }`，每页 50，按最近上传倒序。`key` 可只给指纹前缀；`from`/`to` 为毫秒时间戳，按会话创建时间筛选 |
+| GET | `/session-logs/:sessionId/:formatVersion?after=-1&limit=200` | `{ session, events, next }`：从原文对象读出 `after` 之后的事件，按 seq 合并去重；`next` 非空时还有下一页。**每次调用写一条操作记录** |
+| DELETE | `/session-logs/:sessionId/:formatVersion` | 删除一个会话（先删原文对象，再删索引），写操作记录 |
+| DELETE | `/session-logs` | `{ from?, to }`：删除创建时间落在 `[from, to)` 的全部会话，写操作记录 |
+| GET / PUT | `/session-logs/settings` | `{ retentionDays }`：`null` 为永久保留（默认），或 1-36500 天；服务每小时删除最近上传早于该天数的会话，并写 `session-log.purged` 记录 |
+
+会话摘要里 `missingEvents` = `maxSeq + 1 - eventCount`，即中间没收到的事件数（客户端不会回补缺口）。
+
 ### 操作记录
 
 `GET /audit` → 最近 100 条，新的在前：`{ items: [{ id, action, target, actor: { kind, id, organizationId }, details, createdAt }] }`。
@@ -272,12 +305,12 @@ PUT /api/v1/users/102/grants
 | `400` | 请求体或字段无效（包括不是 JSON 对象的请求体） |
 | `401` | 未登录或口令无效 |
 | `403` | 组织管理员越权，或 Cookie 写请求不同源 |
-| `404` | 插件、组织、Key、用户或路径不存在 |
+| `404` | 插件、组织、Key、用户、会话或路径不存在 |
 | `405` | 该路径不支持此方法 |
 | `409` | 修订号冲突、状态机顺序不对、重复登记、或缺少明确确认 |
 | `429` | 失败限流，见 `Retry-After` |
 | `502` | npm 资料读取失败 |
-| `503` | 数据库或上游组织服务未配置/不可用 |
+| `503` | 数据库、会话日志存储或上游组织服务未配置/不可用 |
 
 响应体统一为 `{ "error": "中文说明" }`。错误消息面向运维排障，不要用它做程序分支——请用状态码。
 

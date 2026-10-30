@@ -12,6 +12,8 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import worker from '../_worker.js'
 import { createAssets, createD1Database, createTarballCache } from './adapters.mjs'
+import { createSessionLogBindings } from './session-log-storage.mjs'
+import { SESSION_LOG_BODY_LIMIT, purgeExpiredSessionLogs } from '../services/session-logs.js'
 
 const serverRoot = resolve(import.meta.dirname, '..')
 const dataDir = process.env.MARKET_HOST_DATA_DIR || '/data'
@@ -41,7 +43,15 @@ const env = {
   ...(cacheBudget === 0
     ? {}
     : { MARKET_TARBALL_CACHE: createTarballCache(resolve(dataDir, 'tarball-cache'), { maxBytes: cacheBudget }) }),
+  // Session logs keep their own directory on the data volume (index.sqlite + objects/), apart
+  // from market.sqlite. MARKET_SESSION_LOG_STORAGE picks the object store.
+  ...createSessionLogBindings(process.env, dataDir, resolve(serverRoot, 'database/session-log-migrations')),
 }
+
+// The retention job. Nothing is removed while no retention is set (keep forever, the default).
+const purgeSessionLogs = () => purgeExpiredSessionLogs(env).catch(error => console.error('session-log retention failed:', error?.code ?? error?.name))
+setInterval(purgeSessionLogs, 60 * 60 * 1000).unref()
+void purgeSessionLogs()
 
 const server = createServer(async (incoming, outgoing) => {
   try {
@@ -54,9 +64,11 @@ const server = createServer(async (incoming, outgoing) => {
     }
     const chunks = []
     let size = 0
+    // Session-log batches carry up to 8 MiB of JSON; every other request stays at 1 MiB.
+    const limit = incoming.url === '/v1/session-logs' ? SESSION_LOG_BODY_LIMIT : 1024 * 1024
     for await (const chunk of incoming) {
       size += chunk.length
-      if (size > 1024 * 1024) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
+      if (size > limit) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
       chunks.push(chunk)
     }
     const headers = new Headers()

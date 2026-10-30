@@ -13,15 +13,18 @@
  */
 import { createServer } from 'node:http'
 import { existsSync, readdirSync } from 'node:fs'
-import { readFile, copyFile, mkdtemp } from 'node:fs/promises'
+import { readFile, copyFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import assert from 'node:assert/strict'
 import worker from '../_worker.js'
 import { fingerprint } from '../security/key-fingerprint.js'
 import { sealKey } from '../security/key-vault.js'
 import { createTokensApiOrganizations } from '../integrations/tokensapi-organizations.js'
 import { createAssets, createD1Database } from '../runtime/adapters.mjs'
+import { createSessionLogBindings } from '../runtime/session-log-storage.mjs'
+import { SESSION_LOG_BODY_LIMIT } from '../services/session-logs.js'
 import { migrate } from '../database/migrate.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -119,6 +122,11 @@ async function fixtureEnvironment() {
     MARKET_DB: store,
     ASSETS: createAssets(root),
   }
+  // Session logs: the deployed local-disk store and index, under the data directory when one is
+  // named and in a throwaway folder otherwise. Throwaway runs get two fictional sessions.
+  const sessionLogDir = persistent ? resolve(process.env.MARKET_DEV_DATA_DIR) : await mkdtemp(resolve(tmpdir(), 'market-dev-session-logs-'))
+  Object.assign(env, createSessionLogBindings({ MARKET_SESSION_LOG_STORAGE: 'local' }, sessionLogDir, resolve(root, 'database/session-log-migrations')))
+  if (!persistent) await seedSessionLogs(env)
   const roster = { items: db.prepare('SELECT metadata FROM market_plugins').all().map(row => JSON.parse(row.metadata)) }
   let restricted = null
   if (snapshotPath) {
@@ -229,7 +237,43 @@ async function fixtureEnvironment() {
       },
     }
   }
-  return { env, db, restricted }
+  return { env, db, restricted, sessionLogDir: persistent ? '' : sessionLogDir }
+}
+
+// A made-up session and the sub-agent it started, uploaded through the real endpoint so the
+// console has something to list and replay. No real conversation, path or Key is in here.
+async function seedSessionLogs(env) {
+  const created = Date.now() - 2 * 60 * 60 * 1000
+  const at = seq => created + seq * 4000
+  const parent = 'session-00000000-0000-4000-8000-000000000001'
+  const child = 'session-00000000-0000-4000-8000-000000000002'
+  const text = value => [{ type: 'text', text: value }]
+  const upload = (key, body) => worker.fetch(new Request('http://127.0.0.1/v1/session-logs', { method: 'POST', body: gzipSync(JSON.stringify(body)),
+    headers: { 'content-encoding': 'gzip', 'content-type': 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}) } }), env, {})
+  const envelope = (session, events) => ({ version: 1, sessionFormatVersion: 4, session, afterSeq: events[0].seq - 1, throughSeq: events.at(-1).seq,
+    events, client: { product: 'TokensCowork', version: '0.7.8', platform: 'win32' }, account: { id: '5001' } })
+  const events = [
+    ['turn/start', { turn: 1 }],
+    ['user/message', { content: text('帮我看看 demo 项目的 README，总结一下（测试数据）') }],
+    ['request/context', { provider: 'tokensapi', model: 'demo-model', contextWindow: 128000 }],
+    ['assistant/message', { turn: 1, message: { role: 'assistant', content: [{ type: 'reasoning', text: '先读 README.md。' },
+      { type: 'tool-call', id: 'call-1', name: 'read_file', arguments: '{"path":"README.md"}' }], source: { kind: 'llm', provider: 'tokensapi', model: 'demo-model' } },
+    usage: { inputTokens: 1200, outputTokens: 80, totalTokens: 1280 } }],
+    ['tool/call', { turn: 1, callId: 'call-1', name: 'read_file', arguments: '{"path":"README.md"}' }],
+    ['tool/result', { turn: 1, message: { role: 'tool', toolCallId: 'call-1', isError: false,
+      content: text('# Demo\n\n' + '这是一段很长的测试 README 内容，用来展示折叠。\n'.repeat(40)) } }],
+    ['approval/asked', { id: 'ap-1', toolName: 'run_command', callId: 'call-2', reason: '运行测试' }],
+    ['approval/decided', { id: 'ap-1', outcome: 'approved' }],
+    ['assistant/message', { turn: 1, message: { role: 'assistant', content: text('README 介绍了一个演示项目，共三个模块。'),
+      source: { kind: 'llm', provider: 'tokensapi', model: 'demo-model' } }, usage: { inputTokens: 2400, outputTokens: 60, totalTokens: 2460 } }],
+    ['session/title', { title: '总结 demo README（测试）' }],
+    ['future/unknown-kind', { anything: true }],
+  ].map(([type, data], seq) => ({ seq, time: at(seq), type, data }))
+  const session = { id: parent, createdAt: created, cwd: 'C:\\demo\\project' }
+  await upload('sk-test-direct', envelope(session, events.slice(0, 6)))
+  await upload('sk-test-direct', envelope(session, events.slice(6)))
+  await upload(null, envelope({ id: child, createdAt: at(5), parentSession: parent, delegationDepth: 1 },
+    [{ seq: 0, time: at(5), type: 'user/message', data: { content: text('子代理：列出 demo 目录（测试）') } }]))
 }
 
 async function start(port) {
@@ -253,7 +297,7 @@ async function start(port) {
       let size = 0
       for await (const chunk of incoming) {
         size += chunk.length
-        if (size > 65536) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
+        if (size > (incoming.url === '/v1/session-logs' ? SESSION_LOG_BODY_LIMIT : 65536)) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
         chunks.push(chunk)
       }
       const headers = new Headers()
@@ -279,7 +323,12 @@ async function start(port) {
   const origin = `http://${HOST}:${server.address().port}`
   return {
     ...fixture, origin,
-    close: async () => { await new Promise(resolveClosed => server.close(resolveClosed)); fixture.db.close() },
+    close: async () => {
+      await new Promise(resolveClosed => server.close(resolveClosed))
+      fixture.db.close()
+      fixture.env.MARKET_SESSION_LOG_DB.close()
+      if (fixture.sessionLogDir) await rm(fixture.sessionLogDir, { recursive: true, force: true })
+    },
   }
 }
 
@@ -370,8 +419,13 @@ async function smoke() {
     assert.deepEqual([await visible('sk-test-org'), await visible('sk-test-org-2')], [true, true])
     await read(`/api/v1/organizations/101/plugins/${id}`, { enabled: false }, tenantCookie)
     assert.equal(await visible('sk-test-org'), false)
-    for (const path of ['/api/v1/organizations/102', '/api/v1/organizations', '/api/v1/plugins', '/api/v1/keys'])
+    for (const path of ['/api/v1/organizations/102', '/api/v1/organizations', '/api/v1/plugins', '/api/v1/keys', '/api/v1/session-logs'])
       assert.equal((await call(path, undefined, tenantCookie)).status, 403, path)
+    // The seeded session logs list and replay for the platform administrator only.
+    const logs = await read('/api/v1/session-logs', undefined, cookie)
+    assert.equal(logs.total, 2)
+    const replay = await read(`/api/v1/session-logs/${logs.items.find(item => !item.parentSession).id}/4`, undefined, cookie)
+    assert.equal(replay.events.length, 11)
     assert.equal((await call('/v1/plugins')).status, 200)
     assert.equal((await call('/server/services/auth.js')).status, 404)
     await assert.rejects(globalThis.fetch('https://tokensapi.ai/api/organizations/all'), /External network/u)
