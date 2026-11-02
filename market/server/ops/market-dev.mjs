@@ -323,7 +323,7 @@ async function smoke() {
     }
     assert.equal((await call('/admin/')).status, 200)
     for (const asset of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-session-logs.js',
-      'market-session-log-detail.js', 'market-session-log-replay.js', 'market-admin.css']) {
+      'market-session-log-detail.js', 'market-session-log-replay.js', 'market-markdown.js', 'market-admin.css']) {
       assert.equal((await call('/admin/assets/' + asset)).status, 200, asset)
     }
     assert.equal((await call('/api/v1/audit')).status, 401)

@@ -1,11 +1,14 @@
-import { groupConversation, contextLabel, turnEnding, rawDocument, argumentSummary } from './market-session-log-replay.js'
+import { groupConversation, contextLabel, turnEnding, rawDocument, argumentSummary, splitTurn, processSummary, durationText } from './market-session-log-replay.js'
+import { renderMarkdown } from './market-markdown.js'
 
 /**
- * One session's detail page: an overview, then two tabs — 「对话」 (turns of user messages, model
- * steps, tool call/result pairs and notes, grouped by market-session-log-replay.js) and 「原始 JSON」
- * (the whole session in the upload format, rendered in pieces, with downloads and copy). Every
- * byte here is user content, so it is only ever placed with textContent; long content is built
- * only when unfolded, so a large session stays responsive.
+ * One session's detail page: an overview, then two tabs — 「对话」 (each turn shows what the user
+ * typed and the model's final answer; model steps, tool call/result pairs and notes in between fold
+ * into one block per turn; grouping lives in market-session-log-replay.js) and 「原始 JSON」 (the
+ * whole session in the upload format, rendered in pieces, with downloads and copy). Every byte here
+ * is user content, so it is only ever placed with textContent — final answers go through
+ * market-markdown.js, which builds elements and text nodes only; long content is built only when
+ * unfolded, so a large session stays responsive.
  */
 export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, onBack }) {
   const PAGE = 1000
@@ -14,15 +17,13 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
   const time = (value) => (value ? formatTime(value) : '—')
   const number = (value) => Number(value || 0).toLocaleString('zh-CN')
   const size = (length) => (length >= 1024 * 1024 ? `${(length / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(length / 1024))} KB`)
-  const duration = (ms) => {
-    if (!Number.isFinite(ms) || ms < 0) return ''
-    const seconds = Math.round(ms / 1000)
-    return seconds < 60 ? `${seconds} 秒` : seconds < 3600 ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒` : `${Math.floor(seconds / 3600)} 小时 ${Math.floor((seconds % 3600) / 60)} 分`
-  }
   const pretty = (value) => {
     if (typeof value !== 'string') return JSON.stringify(value, null, 2) ?? ''
     try { return JSON.stringify(JSON.parse(value), null, 2) } catch { return value }
   }
+  // Which turns' process folds are open ('opening' for before the first turn); kept across
+  // re-renders (the internal-events switch) and cleared when another session opens.
+  const openTurns = new Set()
   let current = null, header = null, events = [], showInternal = false, tab = 'conversation'
   let raw = null, rawShown = 0, observer = null
 
@@ -60,7 +61,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
   }
 
   // ── Conversation ───────────────────────────────────────────────────────────
-  function renderItem(item) {
+  function renderItem(item, answer = null) {
     switch (item.kind) {
       case 'user': {
         const box = block('user', current.parentSession ? '委派任务' : '用户', item)
@@ -88,7 +89,9 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       case 'model': {
         const box = block('model', '模型', item, item.model, item.step !== null ? `第 ${item.step} 步` : '')
         if (item.reasoning) box.append(foldText(item.reasoning, { lines: 2, label: '思考', className: 'log-reasoning' }))
-        if (item.text) box.append(item.text.length > 6000 ? foldText(item.text, { lines: 30 }) : node('pre', item.text, 'log-text'))
+        // The final answer's text is shown below the fold; its step keeps reasoning and usage here.
+        if (item === answer) box.append(node('p', '（这一步的回答就是下方的最终回答）', 'muted'))
+        else if (item.text) box.append(item.text.length > 6000 ? foldText(item.text, { lines: 30 }) : node('pre', item.text, 'log-text'))
         if (!item.reasoning && !item.text) box.append(node('p', '（这一步只调用了工具）', 'muted'))
         const usage = item.usage
         const facts = [
@@ -135,20 +138,60 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     }
     return node('div')
   }
+  // A turn reads as: what the person typed → one fold holding everything in between (closed by
+  // default, built only when opened) → the final answer as Markdown, or a grey line saying why
+  // there is none. The internal-events switch only changes what is inside the fold.
   function renderGroup(group) {
-    const items = group.items.filter((item) => showInternal || item.kind !== 'internal')
-    if (group.turn === null && !items.length) return null
+    const { users, answer, process, partial } = splitTurn(group)
+    const visible = process.filter((item) => showInternal || item.kind !== 'internal')
+    if (group.turn === null && !users.length && !visible.length) return null
+    const key = group.turn ?? 'opening'
     const section = node('section', '', 'log-turn')
     const head = node('div', '', 'log-turn-head')
     if (group.turn === null) head.append(node('h3', '会话开始'))
     else {
       head.append(node('h3', `第 ${group.turn} 轮`), node('span', time(group.startedAt), 'muted'))
-      if (group.endedAt && group.startedAt) head.append(node('span', `用时 ${duration(group.endedAt - group.startedAt)}`, 'muted'))
+      if (group.endedAt && group.startedAt) head.append(node('span', `用时 ${durationText(group.endedAt - group.startedAt)}`, 'muted'))
       const ending = turnEnding(group.reason)
       head.append(node('span', ending, 'chip' + (group.reason?.kind === 'completed' ? '' : ' disabled')))
     }
-    section.append(head, ...items.map(renderItem))
+    section.append(head, ...users.map((item) => renderItem(item)))
+    if (process.length) {
+      const fold = document.createElement('details')
+      fold.className = 'log-process'
+      fold.dataset.turn = String(key)
+      const summary = document.createElement('summary')
+      summary.textContent = processSummary(group, process)
+      const body = node('div', '', 'log-process-body')
+      fold.append(summary, body)
+      const build = () => {
+        if (body.childElementCount) return
+        body.append(...(visible.length ? visible.map((item) => renderItem(item, answer))
+          : [node('p', '这里只有内部事件，打开「显示内部事件」可以查看。', 'muted')]))
+      }
+      fold.addEventListener('toggle', () => {
+        if (fold.open) { openTurns.add(key); build() } else openTurns.delete(key)
+      })
+      if (openTurns.has(key)) { build(); fold.open = true }
+      section.append(fold)
+    }
+    if (answer) {
+      const box = block('model log-answer', '回答', answer, answer.model)
+      const body = node('div', '', 'log-md')
+      body.append(renderMarkdown(answer.text))
+      box.append(body)
+      section.append(box)
+    } else if (group.turn !== null) {
+      const reason = group.reason?.kind === 'completed' ? '完成 · 这一轮没有文字回答'
+        : !group.reason ? '未结束 · 还没有最终回答'
+          : turnEnding(group.reason) + (partial ? ' · 没有最终回答，中断前的部分输出在上面的过程里' : ' · 没有最终回答')
+      section.append(node('p', reason, 'log-no-answer'))
+    }
     return section
+  }
+  // 「全部展开 / 全部收起」 act on every turn's process fold at once.
+  function setAllFolds(open) {
+    for (const fold of $('session-log-turns').querySelectorAll('details.log-process')) fold.open = open
   }
   function renderConversation() {
     const grouped = groupConversation(events)
@@ -274,6 +317,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     $('session-log-conversation').hidden = name !== 'conversation'
     $('session-log-raw').hidden = name !== 'raw'
     $('session-log-internal-row').hidden = name !== 'conversation'
+    $('session-log-fold-row').hidden = name !== 'conversation'
     if (name === 'raw') renderRaw()
   }
   // Every page of the session, in order; only the first one is recorded as a read.
@@ -295,6 +339,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     current = { ...result.session, keys: result.keys }
     header = result.header ?? null
     events = result.events
+    openTurns.clear()
     raw = null
     rawShown = 0
     $('session-log-raw-text').replaceChildren()
@@ -325,6 +370,8 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
   $('session-log-tab-conversation').onclick = () => selectTab('conversation')
   $('session-log-tab-raw').onclick = () => selectTab('raw')
   $('session-log-internal').onchange = () => { showInternal = $('session-log-internal').checked; renderConversation() }
+  $('session-log-expand-all').onclick = () => setAllFolds(true)
+  $('session-log-collapse-all').onclick = () => setAllFolds(false)
   $('session-log-raw-more').onclick = showMoreRaw
   $('session-log-download-json').onclick = () => action(() => download('json'), { success: 'JSON 已下载，已写入操作记录。' })
   $('session-log-download-jsonl').onclick = () => action(() => download('jsonl'), { success: 'JSONL 已下载，已写入操作记录。' })

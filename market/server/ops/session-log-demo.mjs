@@ -13,6 +13,31 @@ export const DEMO_KEY = 'sk-test-direct'
 const text = value => [{ type: 'text', text: value }]
 const model = { provider: 'tokensapi', model: 'demo-model' }
 const other = { provider: 'tokensapi', model: 'demo-model-large' }
+// A final answer that uses the Markdown the console renders, plus raw HTML it must show as text.
+const REPORT = [
+  '## 检查结果（测试）',
+  '',
+  '子代理检查完毕：**12 个用例全部通过**，耗时 _3.2 秒_。',
+  '',
+  '| 目录 | 用例 | 结果 |',
+  '| --- | ---: | :---: |',
+  '| `tests/api` | 7 | 通过 |',
+  '| `tests/web` | 5 | 通过 |',
+  '',
+  '后续建议：',
+  '',
+  '1. 给 `worker` 补用例',
+  '   - 至少覆盖重试逻辑',
+  '2. 在 CI 里跑：',
+  '',
+  '   ```bash',
+  '   npm test -- --coverage',
+  '   ```',
+  '',
+  '> 报告已写入 REPORT.md，详见 [测试说明](https://example.com/demo-tests)。',
+  '',
+  '<script>alert("不会执行")</script> 这一段 HTML 原样显示。',
+].join('\n')
 
 /** A tool result of `lines` numbered lines, about 60 bytes each. */
 export function longOutput(lines) {
@@ -106,7 +131,7 @@ function parentEvents({ longLines }) {
         ['todo/write', { todos: [{ content: '检查 tests（测试）', status: 'completed' }, { content: '补文档（测试）', status: 'pending' }] }],
       ]),
       ...steps(3, 2, [
-        step(3, 2, [{ type: 'text', text: '子代理检查完毕：12 个用例全部通过。' }], [9800, 30, 9000], other),
+        step(3, 2, [{ type: 'text', text: REPORT }], [9800, 30, 9000], other),
       ]),
     ]),
     ['command/run', { commandId: 'cmd-1', name: 'compact', args: '', source: { kind: 'user' } }],

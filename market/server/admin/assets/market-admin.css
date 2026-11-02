@@ -1327,6 +1327,137 @@ nav a[aria-current='page'] {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* One fold per turn holding everything between the user's words and the final answer. */
+.log-process {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.log-process > summary {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.log-process > summary:hover {
+  color: inherit;
+}
+.log-process[open] > summary {
+  border-bottom: 1px dashed var(--line);
+}
+.log-process-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.log-block.log-answer {
+  border-left-color: #6b8fbf;
+}
+.log-no-answer {
+  margin: 0;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+/* Markdown in final answers. */
+.log-md {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.log-md > :first-child {
+  margin-top: 4px;
+}
+.log-md > :last-child {
+  margin-bottom: 4px;
+}
+.log-md p,
+.log-md ul,
+.log-md ol,
+.log-md blockquote,
+.log-md pre,
+.log-md .md-table {
+  margin: 8px 0;
+}
+.log-md h1,
+.log-md h2,
+.log-md h3,
+.log-md h4,
+.log-md h5,
+.log-md h6 {
+  margin: 14px 0 6px;
+  line-height: 1.4;
+}
+.log-md h1 { font-size: 1.3rem; }
+.log-md h2 { font-size: 1.15rem; }
+.log-md h3 { font-size: 1.05rem; }
+.log-md h4,
+.log-md h5,
+.log-md h6 { font-size: 0.95rem; }
+.log-md ul,
+.log-md ol {
+  padding-left: 1.6em;
+}
+.log-md li > p,
+.log-md li > ul,
+.log-md li > ol {
+  margin: 2px 0;
+}
+.log-md code {
+  font: 0.85em Consolas, monospace;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--soft);
+}
+.log-md pre {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  overflow: auto;
+  max-height: 480px;
+}
+.log-md pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre;
+}
+.log-md blockquote {
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.log-md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 12px 0;
+}
+.log-md a {
+  color: var(--brand);
+  text-decoration: underline;
+}
+.log-md .md-table {
+  overflow-x: auto;
+}
+.log-md table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.log-md th,
+.log-md td {
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  text-align: left;
+}
+.log-md th {
+  background: var(--soft);
+}
+.log-md .md-align-center { text-align: center; }
+.log-md .md-align-right { text-align: right; }
 #session-log-raw-sentinel {
   height: 1px;
 }

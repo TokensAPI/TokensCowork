@@ -238,6 +238,56 @@ export function turnEnding(reason) {
   return reason.kind ?? '—'
 }
 
+/** "12 秒" / "1 分 32 秒" / "2 小时 5 分"; empty for an unknown or negative span. */
+export function durationText(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return ''
+  const seconds = Math.round(ms / 1000)
+  return seconds < 60 ? `${seconds} 秒` : seconds < 3600 ? `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
+    : `${Math.floor(seconds / 3600)} 小时 ${Math.floor((seconds % 3600) / 60)} 分`
+}
+
+/**
+ * What a turn shows by default and what it folds away: `users` (what the person typed), `answer`
+ * (the last model step with text — the turn's final answer — or null), and `process` (every other
+ * item, in order, the answer's own step included so its reasoning and usage stay reachable).
+ * A turn that was interrupted or failed has no final answer: whatever text it got is partial and
+ * stays in the process, and the view says how the turn ended instead.
+ */
+export function splitTurn(group) {
+  const users = group.items.filter(item => item.kind === 'user')
+  const failed = group.reason?.kind === 'error' || group.reason?.kind === 'aborted'
+  const answer = failed ? null : group.items.findLast(item => item.kind === 'model' && item.text && !item.interrupted) ?? null
+  const process = group.items.filter(item => item.kind !== 'user')
+  const partial = failed && process.some(item => item.kind === 'model' && item.text)
+  return { users, answer, process, partial }
+}
+
+/** The fold's one-line title, e.g. 「过程 · 3 步 · 工具 5 次（read_file ×2、run_command ×3） · 用时 1 分 32 秒 · 1 次重试」. */
+export function processSummary(group, process = splitTurn(group).process) {
+  const parts = ['过程']
+  const steps = process.filter(item => item.kind === 'model').length
+  if (steps) parts.push(`${steps} 步`)
+  const tools = process.filter(item => item.kind === 'tool')
+  if (tools.length) {
+    const counts = new Map()
+    for (const item of tools) counts.set(item.name, (counts.get(item.name) ?? 0) + 1)
+    const names = [...counts].map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))
+    parts.push(`工具 ${tools.length} 次（${names.slice(0, 4).join('、')}${names.length > 4 ? ` 等 ${names.length} 种` : ''}）`)
+  }
+  const failedTools = tools.filter(item => item.result?.error).length
+  if (failedTools) parts.push(`${failedTools} 次工具出错`)
+  if (Number.isFinite(group.startedAt) && Number.isFinite(group.endedAt)) {
+    const spent = durationText(group.endedAt - group.startedAt)
+    if (spent) parts.push(`用时 ${spent}`)
+  }
+  const count = (test, label) => { const total = process.filter(item => item.kind === 'note' && test(item.events[0]?.type)).length; if (total) parts.push(`${total} 次${label}`) }
+  count(type => type === 'llm/retry', '重试')
+  count(type => type === 'approval/asked', '审批')
+  count(type => type === 'compaction/summary', '上下文压缩')
+  if (parts.length === 1) parts.push(process.some(item => item.kind !== 'internal') ? '没有模型步骤' : '只有内部事件')
+  return parts.join(' · ')
+}
+
 /** The whole session in the upload format, exactly as the server's raw download writes it. */
 export function rawDocument(header, events, formatVersion, id) {
   return JSON.stringify({ ...(header ?? { version: null, sessionFormatVersion: formatVersion, session: { id } }), events }, null, 2) + '\n'

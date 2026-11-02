@@ -106,6 +106,7 @@ export default {
       '/admin/assets/market-session-logs.js',
       '/admin/assets/market-session-log-detail.js',
       '/admin/assets/market-session-log-replay.js',
+      '/admin/assets/market-markdown.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')
