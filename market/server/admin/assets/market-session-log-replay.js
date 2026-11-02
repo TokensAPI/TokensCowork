@@ -248,18 +248,19 @@ export function durationText(ms) {
 
 /**
  * What a turn shows by default and what it folds away: `users` (what the person typed), `answer`
- * (the last model step with text — the turn's final answer — or null), and `process` (every other
- * item, in order, the answer's own step included so its reasoning and usage stay reachable).
- * A turn that was interrupted or failed has no final answer: whatever text it got is partial and
- * stays in the process, and the view says how the turn ended instead.
+ * (the last model step with text, as it is, however the turn ended — or null), `process` (every
+ * other item, in order, the answer's own step included so its reasoning and usage stay reachable),
+ * and `ending`: the grey line under the answer. A turn that completed with an answer needs none;
+ * an interrupted, failed or unfinished one says how it ended, and one without any text says
+ * 「没有回答」 plus how it ended.
  */
 export function splitTurn(group) {
   const users = group.items.filter(item => item.kind === 'user')
-  const failed = group.reason?.kind === 'error' || group.reason?.kind === 'aborted'
-  const answer = failed ? null : group.items.findLast(item => item.kind === 'model' && item.text && !item.interrupted) ?? null
+  const answer = group.items.findLast(item => item.kind === 'model' && item.text) ?? null
   const process = group.items.filter(item => item.kind !== 'user')
-  const partial = failed && process.some(item => item.kind === 'model' && item.text)
-  return { users, answer, process, partial }
+  const ending = !answer ? `没有回答 · ${turnEnding(group.reason)}`
+    : group.reason?.kind === 'completed' ? null : turnEnding(group.reason)
+  return { users, answer, process, ending }
 }
 
 /** The fold's one-line title, e.g. 「过程 · 3 步 · 工具 5 次（read_file ×2、run_command ×3） · 用时 1 分 32 秒 · 1 次重试」. */

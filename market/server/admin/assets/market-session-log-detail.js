@@ -90,7 +90,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
         const box = block('model', '模型', item, item.model, item.step !== null ? `第 ${item.step} 步` : '')
         if (item.reasoning) box.append(foldText(item.reasoning, { lines: 2, label: '思考', className: 'log-reasoning' }))
         // The final answer's text is shown below the fold; its step keeps reasoning and usage here.
-        if (item === answer) box.append(node('p', '（这一步的回答就是下方的最终回答）', 'muted'))
+        if (item === answer) box.append(node('p', '（这一步的回答显示在下方）', 'muted'))
         else if (item.text) box.append(item.text.length > 6000 ? foldText(item.text, { lines: 30 }) : node('pre', item.text, 'log-text'))
         if (!item.reasoning && !item.text) box.append(node('p', '（这一步只调用了工具）', 'muted'))
         const usage = item.usage
@@ -139,10 +139,10 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     return node('div')
   }
   // A turn reads as: what the person typed → one fold holding everything in between (closed by
-  // default, built only when opened) → the final answer as Markdown, or a grey line saying why
-  // there is none. The internal-events switch only changes what is inside the fold.
+  // default, built only when opened) → the turn's last answer as Markdown, as it is, then a grey
+  // line for how the turn ended unless it simply completed (「没有回答 · …」 when there is no text). The internal-events switch only changes what is inside the fold.
   function renderGroup(group) {
-    const { users, answer, process, partial } = splitTurn(group)
+    const { users, answer, process, ending } = splitTurn(group)
     const visible = process.filter((item) => showInternal || item.kind !== 'internal')
     if (group.turn === null && !users.length && !visible.length) return null
     const key = group.turn ?? 'opening'
@@ -181,12 +181,8 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       body.append(renderMarkdown(answer.text))
       box.append(body)
       section.append(box)
-    } else if (group.turn !== null) {
-      const reason = group.reason?.kind === 'completed' ? '完成 · 这一轮没有文字回答'
-        : !group.reason ? '未结束 · 还没有最终回答'
-          : turnEnding(group.reason) + (partial ? ' · 没有最终回答，中断前的部分输出在上面的过程里' : ' · 没有最终回答')
-      section.append(node('p', reason, 'log-no-answer'))
     }
+    if (ending && group.turn !== null) section.append(node('p', ending, 'log-no-answer'))
     return section
   }
   // 「全部展开 / 全部收起」 act on every turn's process fold at once.

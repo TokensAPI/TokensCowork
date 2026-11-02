@@ -106,7 +106,7 @@ test('a turn shows the user and the final answer; everything in between folds in
   // The process is every other item in order — the answer's own step included, for its reasoning and usage.
   assert.deepEqual(first.process, turns[0].items.filter(item => item.kind !== 'user'))
   assert.ok(first.process.includes(first.answer))
-  assert.equal(first.partial, false)
+  assert.equal(first.ending, null)
   assert.equal(processSummary(turns[0]), `过程 · 3 步 · 工具 3 次（list_dir、read_file ×2） · 用时 ${durationText(turns[0].endedAt - turns[0].startedAt)}`)
   assert.match(processSummary(turns[1]), /^过程 · 2 步 · 工具 1 次（run_command） · 用时 .+ · 1 次重试 · 1 次审批$/u)
   // Turn 3's answer is the last step's text, even with notes and a compaction after it.
@@ -114,16 +114,26 @@ test('a turn shows the user and the final answer; everything in between folds in
   assert.match(processSummary(turns[2]), / · 1 次上下文压缩$/u)
 })
 
-test('a failed or interrupted turn has no final answer; partial text stays in the process', () => {
+test('a turn shows its last text as it is, and says how it ended unless it simply completed', () => {
   const { turns } = groupConversation(demo(DEMO_PARENT))
+  // Turn 4 failed before the model said anything.
   const failed = splitTurn(turns[3])
   assert.equal(failed.answer, null)
-  assert.equal(failed.partial, false)
+  assert.match(failed.ending, /^没有回答 · 出错：HTTP_500 /u)
   assert.match(processSummary(turns[3]), /^过程 · 用时 /u)
+  // Turn 5 was interrupted after 「好的，」: that text is the answer, the interruption a line under it.
   const stopped = splitTurn(turns[4])
-  assert.equal(stopped.answer, null)
-  assert.equal(stopped.partial, true)
-  assert.equal(stopped.process.find(item => item.kind === 'model').text, '好的，')
+  assert.equal(stopped.answer.text, '好的，')
+  assert.equal(stopped.answer.events[0].seq, 84)
+  assert.ok(stopped.process.includes(stopped.answer))
+  assert.equal(stopped.ending, '用户中断')
+  // A turn still running shows what it has so far.
+  const running = groupConversation([
+    { seq: 0, time: 0, type: 'turn/start', data: { turn: 1 } },
+    { seq: 1, time: 1, type: 'assistant/message', data: { step: 1, message: { content: [{ type: 'text', text: '正在看' }] } } },
+  ]).turns[0]
+  assert.equal(splitTurn(running).answer?.text, '正在看')
+  assert.equal(splitTurn(running).ending, '未结束')
   // A completed turn that only called tools has no answer either, and says what it did.
   const toolsOnly = groupConversation([
     { seq: 0, time: 0, type: 'turn/start', data: { turn: 1 } },
@@ -133,6 +143,7 @@ test('a failed or interrupted turn has no final answer; partial text stays in th
     { seq: 4, time: 92_000, type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
   ]).turns[0]
   assert.equal(splitTurn(toolsOnly).answer, null)
+  assert.equal(splitTurn(toolsOnly).ending, '没有回答 · 完成')
   assert.equal(processSummary(toolsOnly), '过程 · 工具 1 次（list_dir） · 1 次工具出错 · 用时 1 分 32 秒')
   // Only bookkeeping in between.
   const bare = groupConversation([{ seq: 0, type: 'turn/start', data: { turn: 1 } }]).turns[0]
