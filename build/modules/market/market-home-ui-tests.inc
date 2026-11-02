@@ -12,13 +12,21 @@ describe('product Discover home and installed details', () => {
   const homeProps = { t, readLocale: () => 'en' } as MarketSettingsTabProps
   const installedItem = makeInstallableItem(firstSource, 'installed-card', 'Installed Card', localPlugin.packageName)
   const freshItem = makeInstallableItem(firstSource, 'fresh-card', 'Fresh Card', '@tokensapi/fresh-card')
+  const freshPackage = freshItem.package!.name
 
   function browse() {
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
     vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [installedItem, freshItem]))
   }
 
-  it.each(['en', 'zh-CN'])('opens on native Discover with installed badges and no Installable tab in %s', async locale => {
+  /** 卡片按钮外面那一层定位框：「+ / −」是卡片按钮的兄弟节点。 */
+  const frameOf = (card: HTMLElement): HTMLElement => {
+    const frame = card.parentElement!
+    expect(frame.className).toBe('dshMarketCardFrame')
+    return frame
+  }
+
+  it.each(['en', 'zh-CN'])('opens on native Discover with one card style and a + / − icon per card in %s', async locale => {
     const { en, zh } = await import('../src/client/locales.js')
     const messages = locale === 'en' ? en : zh
     const translate = ((key: MarketLocaleKey) => messages[key]) as MarketSettingsTabProps['t']
@@ -29,36 +37,124 @@ describe('product Discover home and installed details', () => {
     const fresh = screen.getByRole('button', { name: /Fresh Card/ })
     expect(screen.getByRole('button', { name: messages.discover }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.queryByRole('button', { name: messages.installable })).toBeNull()
-    expect(installed.className).toBe('dshMarketCard')
-    expect(installed.parentElement?.className).toBe('dshMarketGrid')
-    expect(installed.getAttribute('data-installed')).toBe('true')
-    expect(within(installed).getByText(messages.installed).className).toContain('dshMarketInstalledBadge')
-    expect(installed.hasAttribute('disabled')).toBe(false)
-    expect(fresh.hasAttribute('data-installed')).toBe(false)
-    expect(within(fresh).queryByText(messages.installed)).toBeNull()
+    // Installed and uninstalled cards are the same upstream card: same class, same attributes, no badge.
+    for (const card of [installed, fresh]) {
+      expect(card.className).toBe('dshMarketCard')
+      expect(card.hasAttribute('disabled')).toBe(false)
+      expect(frameOf(card).parentElement?.className).toBe('dshMarketGrid')
+    }
+    expect([...installed.attributes].map(attribute => attribute.name)).toEqual([...fresh.attributes].map(attribute => attribute.name))
+    expect(within(installed).queryByText(messages.installed)).toBeNull()
+    expect(await within(frameOf(fresh)).findByRole('button', { name: `${messages.install}: ${freshPackage}` })).toBeTruthy()
+    expect(within(frameOf(installed)).getByRole('button', { name: `${messages.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
+    expect(within(frameOf(installed)).queryByRole('button', { name: new RegExp(`^${messages.install}:`) })).toBeNull()
     expect(screen.getByRole('textbox')).toBeTruthy()
     expect(readMarketInstallable).not.toHaveBeenCalled()
-    // Badges read the local inventory only; no update lookup leaves Discover.
+    // The icons read the local inventory only; no update lookup leaves Discover.
     expect(readMarketInstallations).toHaveBeenCalledWith(expect.any(AbortSignal))
     expect(vi.mocked(readMarketInstallations).mock.calls.some(call => call[1] === true)).toBe(false)
   })
 
-  it('shows Discover cards while local inventory is pending, then marks installed cards', async () => {
+  it('shows Discover cards while local inventory is pending, then gives them their icon', async () => {
     browse()
     let resolveInventory!: (value: { installations: [typeof localPlugin] }) => void
     vi.mocked(readMarketInstallations).mockImplementationOnce(() => new Promise(resolve => { resolveInventory = resolve }))
     render(<MarketSettingsTab {...homeProps} />)
     const installed = await screen.findByRole('button', { name: /Installed Card/ })
-    expect(installed.hasAttribute('data-installed')).toBe(false)
     expect(screen.getByRole('button', { name: /Fresh Card/ })).toBeTruthy()
+    // Until the inventory says which is which, no card offers + or −.
+    expect(within(frameOf(installed)).queryAllByRole('button')).toEqual([installed])
     await act(async () => { resolveInventory({ installations: [localPlugin] }) })
-    expect(installed.getAttribute('data-installed')).toBe('true')
+    expect(within(frameOf(installed)).getByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
   })
 
-  it('keeps the native install confirmation and synchronizes the installed badge after success', async () => {
+  it('installs directly from + through the market preview, spins while installing, then shows −', async () => {
     browse()
     let inventory: readonly import('../src/api-types.js').MarketInstallationView[] = []
-    const installed = { ...localPlugin, packageName: freshItem.package!.name }
+    const installed = { ...localPlugin, packageName: freshPackage }
+    let finish!: () => void
+    vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install', previewId: 'card-install', ...makeOperationTarget({ packageName: freshPackage }), expiresAt: '2099-01-01',
+    })
+    vi.mocked(executeMarketOperation).mockImplementation(() => new Promise(resolve => {
+      finish = () => {
+        inventory = [installed]
+        resolve({ action: 'install', packageName: freshPackage, version: '2.3.4', application: 'applied' })
+      }
+    }))
+    render(<MarketSettingsTab {...homeProps} />)
+    const frame = frameOf(await screen.findByRole('button', { name: /Fresh Card/ }))
+    fireEvent.click(await within(frame).findByRole('button', { name: `${en.install}: ${freshPackage}` }))
+    // The click neither opens the details nor asks again; the Host's checks still run in the preview.
+    const progress = await within(frame).findByRole('button', { name: `${en.installing}: ${freshPackage}` })
+    expect(progress.hasAttribute('disabled')).toBe(true)
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'install', sourceRecordId: firstSource.sourceRecordId, itemId: freshItem.id }, expect.any(AbortSignal))
+    await waitFor(() => expect(executeMarketOperation).toHaveBeenCalledWith('card-install', expect.any(AbortSignal)))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await act(async () => { finish() })
+    expect(await screen.findByText(en.installComplete)).toBeTruthy()
+    expect(await within(frame).findByRole('button', { name: `${en.uninstall}: ${freshPackage}` })).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(previewMarketOperation).toHaveBeenCalledTimes(1)
+    expect(executeMarketOperation).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows why + was refused on Discover and installs nothing', async () => {
+    browse()
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
+    vi.mocked(previewMarketOperation).mockRejectedValue(new Error('Plugin is not authorized for this key'))
+    render(<MarketSettingsTab {...homeProps} />)
+    const frame = frameOf(await screen.findByRole('button', { name: /Fresh Card/ }))
+    fireEvent.click(await within(frame).findByRole('button', { name: `${en.install}: ${freshPackage}` }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Plugin is not authorized for this key')
+    expect(executeMarketOperation).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(within(frame).getByRole('button', { name: `${en.install}: ${freshPackage}` }).hasAttribute('disabled')).toBe(false)
+  })
+
+  it('shows a failed + install in the native confirmation with its reason', async () => {
+    browse()
+    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install', previewId: 'card-install-failed', ...makeOperationTarget({ packageName: freshPackage }), expiresAt: '2099-01-01',
+    })
+    vi.mocked(executeMarketOperation).mockRejectedValue(new Error('The package manager did not finish'))
+    render(<MarketSettingsTab {...homeProps} />)
+    const frame = frameOf(await screen.findByRole('button', { name: /Fresh Card/ }))
+    fireEvent.click(await within(frame).findByRole('button', { name: `${en.install}: ${freshPackage}` }))
+    const confirmation = await screen.findByRole('dialog', { name: en.confirmInstallTitle })
+    expect(await within(confirmation).findByText('The package manager did not finish')).toBeTruthy()
+    fireEvent.click(within(confirmation).getByRole('button', { name: en.cancel }))
+    expect(await within(frame).findByRole('button', { name: `${en.install}: ${freshPackage}` })).toBeTruthy()
+  })
+
+  it('asks for the native confirmation before − uninstalls, then gives the card + back', async () => {
+    browse()
+    let inventory: readonly typeof localPlugin[] = [localPlugin]
+    vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
+    vi.mocked(previewMarketOperation).mockResolvedValue({ action: 'uninstall', previewId: 'card-uninstall', ...makeOperationTarget({ packageName: localPlugin.packageName }), expiresAt: '2099-01-01' })
+    vi.mocked(executeMarketOperation).mockImplementation(async () => {
+      inventory = []
+      return { action: 'uninstall', packageName: localPlugin.packageName, application: 'applied' }
+    })
+    render(<MarketSettingsTab {...homeProps} />)
+    const frame = frameOf(await screen.findByRole('button', { name: /Installed Card/ }))
+    fireEvent.click(await within(frame).findByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` }))
+    const confirmation = await screen.findByRole('dialog', { name: en.confirmUninstallTitle })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', packageName: localPlugin.packageName }, expect.any(AbortSignal))
+    expect(executeMarketOperation).not.toHaveBeenCalled()
+    fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmUninstall }))
+    expect(await screen.findByText(en.uninstallComplete)).toBeTruthy()
+    expect(await within(frame).findByRole('button', { name: `${en.install}: ${localPlugin.packageName}` })).toBeTruthy()
+    expect(executeMarketOperation).toHaveBeenCalledWith('card-uninstall', expect.any(AbortSignal))
+  })
+
+  it('keeps the native install confirmation when the card itself is clicked', async () => {
+    browse()
+    let inventory: readonly import('../src/api-types.js').MarketInstallationView[] = []
+    const installed = { ...localPlugin, packageName: freshPackage }
     vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
     vi.mocked(previewMarketOperation).mockResolvedValue({
       action: 'install', previewId: 'discover-install', ...makeOperationTarget({ packageName: installed.packageName }), expiresAt: '2099-01-01',
@@ -76,7 +172,7 @@ describe('product Discover home and installed details', () => {
     expect(executeMarketOperation).not.toHaveBeenCalled()
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
     expect(await screen.findByText(en.installComplete)).toBeTruthy()
-    await waitFor(() => expect(card.getAttribute('data-installed')).toBe('true'))
+    expect(await within(frameOf(card)).findByRole('button', { name: `${en.uninstall}: ${installed.packageName}` })).toBeTruthy()
     fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: freshItem.displayName })
     expect(await within(details).findByRole('heading', { name: installed.packageName })).toBeTruthy()
@@ -135,7 +231,7 @@ describe('product Discover home and installed details', () => {
     expect(within(current).getByText(`${messages.pluginVersion}: 1.1.0`)).toBeTruthy()
     expect(within(current).queryByRole('button', { name: `${messages.updatePlugin}: ${localPlugin.packageName}` })).toBeNull()
     expect(executeMarketOperation).toHaveBeenCalledWith('discover-update', expect.any(AbortSignal))
-    expect(card.getAttribute('data-installed')).toBe('true')
+    expect(within(frameOf(card)).getByRole('button', { name: `${messages.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
   })
 
   it('renders the local receipt while updates are pending, then offers retry after an update read fails', async () => {
@@ -193,7 +289,8 @@ describe('product Discover home and installed details', () => {
     vi.mocked(previewMarketOperation).mockResolvedValue({ action: 'update', previewId: 'failed-update', ...makeOperationTarget({ packageName: localPlugin.packageName }), expiresAt: '2099-01-01' })
     vi.mocked(executeMarketOperation).mockRejectedValue(new Error('Update failed'))
     render(<MarketSettingsTab {...homeProps} />)
-    fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
+    const card = await screen.findByRole('button', { name: /Installed Card/ })
+    fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
     fireEvent.click(await within(details).findByRole('button', { name: `${en.updatePlugin}: ${localPlugin.packageName}` }))
     const confirmation = await screen.findByRole('dialog', { name: en.confirmUpdateTitle })
@@ -201,10 +298,10 @@ describe('product Discover home and installed details', () => {
     expect(await within(confirmation).findByText('Update failed')).toBeTruthy()
     fireEvent.click(within(confirmation).getByRole('button', { name: en.cancel }))
     expect(await screen.findByRole('dialog', { name: installedItem.displayName })).toBeTruthy()
-    expect((await screen.findByRole('button', { name: /Installed Card/ })).getAttribute('data-installed')).toBe('true')
+    expect(within(frameOf(card)).getByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
   })
 
-  it('uses native uninstall confirmation from Discover details and removes the installed badge', async () => {
+  it('uses native uninstall confirmation from Discover details and gives the card + back', async () => {
     browse()
     let inventory: readonly typeof localPlugin[] = [localPlugin]
     vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
@@ -222,8 +319,7 @@ describe('product Discover home and installed details', () => {
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmUninstall }))
     expect(await screen.findByText(en.uninstallComplete)).toBeTruthy()
-    await waitFor(() => expect(card.hasAttribute('data-installed')).toBe(false))
-    expect(within(card).queryByText(en.installed)).toBeNull()
+    expect(await within(frameOf(card)).findByRole('button', { name: `${en.install}: ${localPlugin.packageName}` })).toBeTruthy()
     expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', packageName: localPlugin.packageName }, expect.any(AbortSignal))
   })
 
@@ -233,7 +329,11 @@ describe('product Discover home and installed details', () => {
       ...localPlugin, toggleable: false, removable: false, updateStatus: 'available', updateVersion: '2.0.0',
     }] })
     render(<MarketSettingsTab {...homeProps} />)
-    fireEvent.click(await screen.findByRole('button', { name: /Installed Card/ }))
+    const card = await screen.findByRole('button', { name: /Installed Card/ })
+    // A built-in component shows no − on its card, and no + either: it is installed.
+    await waitFor(() => expect(within(frameOf(screen.getByRole('button', { name: /Fresh Card/ }))).getAllByRole('button')).toHaveLength(2))
+    expect(within(frameOf(card)).getAllByRole('button')).toEqual([card])
+    fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
     expect(await within(details).findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
     expect(within(details).getByText(en.immutablePlugin)).toBeTruthy()
@@ -258,7 +358,7 @@ describe('product Discover home and installed details', () => {
     expect(await screen.findByText(message)).toBeTruthy()
     expect(screen.queryByText('private transport')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.retry }))
-    await waitFor(() => expect(card.getAttribute('data-installed')).toBe('true'))
+    expect(await within(frameOf(card)).findByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
     expect(screen.queryByText(message)).toBeNull()
   })
 
@@ -277,17 +377,18 @@ describe('product Discover home and installed details', () => {
     expect(await screen.findByRole('dialog', { name: en.confirmInstallTitle })).toBeTruthy()
   })
 
-  it('refreshes badges after switching from Installed and keeps local management usable offline', async () => {
+  it('refreshes the icons after switching from Installed and keeps local management usable offline', async () => {
     browse()
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [localPlugin] })
     render(<MarketSettingsTab {...homeProps} />)
     const card = await screen.findByRole('button', { name: /Installed Card/ })
-    expect(card.getAttribute('data-installed')).toBe('true')
+    expect(await within(frameOf(card)).findByRole('button', { name: `${en.uninstall}: ${localPlugin.packageName}` })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
     expect(await screen.findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
     fireEvent.click(screen.getByRole('button', { name: en.discover }))
-    await waitFor(() => expect((screen.getByRole('button', { name: /Installed Card/ })).hasAttribute('data-installed')).toBe(false))
+    const refreshed = await screen.findByRole('button', { name: /Installed Card/ })
+    expect(await within(frameOf(refreshed)).findByRole('button', { name: `${en.install}: ${localPlugin.packageName}` })).toBeTruthy()
     vi.mocked(readMarketState).mockRejectedValue(new Error('market offline'))
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [localPlugin] })
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
@@ -349,7 +450,7 @@ describe('product Discover tab contributed to the Plugins page', () => {
     expect(readMarketInstallable).not.toHaveBeenCalled()
   })
 
-  it('installs through the market confirmation instead of the Plugins page install dialog', async () => {
+  it('installs through the market preview instead of the Plugins page install dialog', async () => {
     browseTab()
     vi.mocked(previewMarketOperation).mockResolvedValue({
       action: 'install', previewId: 'tab-install', ...makeOperationTarget({ packageName: '@tokensapi/tab-card' }), expiresAt: '2099-01-01',
@@ -359,11 +460,9 @@ describe('product Discover tab contributed to the Plugins page', () => {
     })
     const install = vi.fn()
     render(<MarketPluginsTab {...tabProps} install={install} openPackage={vi.fn()} />)
-    fireEvent.click(await screen.findByRole('button', { name: /Tab Card/ }))
-    const confirmation = await screen.findByRole('dialog', { name: en.confirmInstallTitle })
-    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'install', sourceRecordId: firstSource.sourceRecordId, itemId: tabItem.id }, expect.any(AbortSignal))
-    fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
+    fireEvent.click(await screen.findByRole('button', { name: `${en.install}: @tokensapi/tab-card` }))
     expect(await screen.findByText(en.installComplete)).toBeTruthy()
+    expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'install', sourceRecordId: firstSource.sourceRecordId, itemId: tabItem.id }, expect.any(AbortSignal))
     expect(executeMarketOperation).toHaveBeenCalledWith('tab-install', expect.any(AbortSignal))
     // The page's own install dialog takes a spec and skips the product's private
     // Registry authorization and compatibility checks; the tab never calls it.

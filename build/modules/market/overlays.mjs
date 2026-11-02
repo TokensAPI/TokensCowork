@@ -25,7 +25,6 @@ import {
 import {
   adaptMarketHomeOverlayTests,
   adaptMarketHomeTests,
-  adaptMarketHomeTestSetup,
   addMarketHome,
   addMarketHomeStyles,
   addMarketPluginsTab,
@@ -158,14 +157,14 @@ export default [
     kind: 'customization',
     files: { settingsTab: f.settingsTab, locales: f.locales },
     apply: input => addMarketHome(input),
-    why: '默认进入原生发现页，按本地安装清单把已安装卡片整体置灰；详情自动检查更新，失败才显示重试。',
-    retireWhen: '上游提供相同发现入口、安装标识和详情更新操作，并通过产品回归时移除。',
+    why: '默认进入原生发现页；上游发现页卡片整张只是打开详情的按钮，看不出能不能装，所以卡片右侧按本地安装清单加一个图标：未安装「+」直接安装（同一个预览校验通过就执行，安装中转圈），已安装「−」先走原生确认再卸载，不可卸载的内置插件不显示；点图标不打开详情，卡片其余照上游。详情自动检查更新，失败才显示重试。',
+    retireWhen: '上游提供相同发现入口、卡片上的安装/卸载入口和详情更新操作，并通过产品回归时移除。',
   }),
   sourceEntry('discover-home-styles', {
     kind: 'customization',
     files: { styles: f.styles },
     apply: ({ styles }) => ({ styles: addMarketHomeStyles(styles) }),
-    why: '已安装卡片的灰色样式；不改原生布局。',
+    why: '卡片右上角「+ / −」图标的定位；已装与未装同一种上游卡片样式，不再整卡置灰。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
   sourceEntry('plugins-page-discover-tab', {
@@ -278,13 +277,6 @@ export default [
     why: '上游注册用例按次序断言市场客户端的三条 Slot 注册；产品多注册一条插件页「发现」标签，追加第四条断言。',
     retireWhen: '随 market.plugins-page-discover-tab 一起移除。',
   }),
-  sourceEntry('test-setup', {
-    kind: 'customization',
-    files: { setup: m('tests/setup.tsx') },
-    apply: ({ setup }) => ({ setup: adaptMarketHomeTestSetup(setup) }),
-    why: '测试环境补充发现页依赖的本地安装清单桩。',
-    retireWhen: '随 market.discover-home 一起移除。',
-  }),
   sourceEntry('test-source-description', {
     kind: 'customization',
     files: { tests: m('tests/market-settings-tab.spec.tsx') },
@@ -305,7 +297,7 @@ export default [
     apply: ({ tests }) => ({
       tests: adaptMarketHomeTests(tests) + readFileSync(template('market-home-ui-tests.inc'), 'utf8'),
     }),
-    why: '调整上游设置页用例的默认视图，并追加发现页、灰色卡片、自动检查与重试的产品回归（market-home-ui-tests.inc）。',
+    why: '调整上游设置页用例的默认视图，并追加发现页、卡片「+ / −」、自动检查与重试的产品回归（market-home-ui-tests.inc）。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
   sourceEntry('test-restart-ui', {

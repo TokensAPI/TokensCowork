@@ -1,4 +1,4 @@
-// Product navigation and inventory badges; native layouts stay intact.
+// Product navigation and the card's install / uninstall icon; native layouts stay intact.
 function replace(source, anchor, value) {
   if (source.split(anchor).length !== 2) throw new Error('market-home: upstream anchor changed: ' + anchor)
   return source.replace(anchor, value)
@@ -6,6 +6,118 @@ function replace(source, anchor, value) {
 
 /** 多行锚点按测试文本里的 LF 拼，不受本文件换行风格影响。 */
 const lines = (...parts) => parts.join('\n')
+
+/** 从 `function <name>(` 切到下一个顶层函数，交给 edit 改写后拼回。 */
+function editFunction(source, name, edit) {
+  const start = source.indexOf(`function ${name}(`)
+  const end = source.indexOf('\nfunction ', start + 1)
+  if (start < 0 || end < 0) throw new Error(`market-home: ${name} boundary changed`)
+  return source.slice(0, start) + edit(source.slice(start, end)) + source.slice(end)
+}
+
+/**
+ * 卡片右侧的「+ / −」（T0063）。宿主没有减号图标，照 IconPlusOutlineRegular 的画法
+ * （16×16、常规描边 1）只留横线，和加号放在一起粗细一致。
+ */
+const cardActionComponent = `
+/** 产品覆盖：宿主图标集里没有减号，照加号的画法只留横线。 */
+function MarketMinusIcon() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true" strokeWidth={1}>
+      <path d="M2 8H14" stroke="currentColor" />
+    </svg>
+  )
+}
+
+/** 产品覆盖：卡片右侧的安装 / 卸载图标要用到的面板状态与动作。 */
+interface MarketCardAction {
+  readonly inventoryReady: boolean
+  readonly pending: boolean
+  readonly busyPackage?: string | undefined
+  readonly onInstall: (value: VisibleItem) => void
+  readonly onUninstall: (packageName: string) => void
+}
+
+/** 产品覆盖：未安装显示「+」，已安装显示「−」，进行中转圈；不可卸载的内置插件不显示。 */
+function MarketCardAction({ value, installation, action, t }: {
+  value: VisibleItem
+  installation?: MarketInstallationView | undefined
+  action: MarketCardAction
+  t: MarketSettingsTabProps['t']
+}) {
+  const packageName = installation?.packageName ?? value.item.package?.name
+  if (!action.inventoryReady || packageName === undefined) return null
+  if (action.busyPackage === packageName) return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      disabled
+      aria-label={\`\${t(installation === undefined ? 'installing' : 'uninstalling')}: \${packageName}\`}
+      icon={<StateDot state="ongoing" size={12} />}
+    />
+  )
+  if (installation === undefined) return (
+    <Tooltip label={t('install')}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-label={\`\${t('install')}: \${packageName}\`}
+        disabled={action.pending}
+        icon={<IconPlusOutlineRegular />}
+        onClick={() => action.onInstall(value)}
+      />
+    </Tooltip>
+  )
+  if (!installation.removable) return null
+  return (
+    <Tooltip label={t('uninstall')}>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        aria-label={\`\${t('uninstall')}: \${packageName}\`}
+        disabled={action.pending}
+        icon={<MarketMinusIcon />}
+        onClick={() => action.onUninstall(packageName)}
+      />
+    </Tooltip>
+  )
+}
+`
+
+/**
+ * 卡片上的「+」直接安装：走同一个预览（私有 Registry 授权、版本校验、兼容性检查都在
+ * 预览里），预览通过就执行，不再弹确认框；预览被拒或执行失败照常显示原因。「−」走
+ * 上游「已安装」列表同一条卸载路径：先弹原生确认框，再执行。
+ */
+const cardInstallFlow = `  // 产品覆盖：卡片「+」发起的安装。预览通过就执行；执行失败时清掉标记，确认框照常显示失败原因。
+  const [cardInstall, setCardInstall] = useState<string>()
+  const installFromCard = (value: VisibleItem) => {
+    const packageName = value.item.package?.name
+    if (packageName === undefined || operationRequest.current !== undefined) return
+    setCardInstall(packageName)
+    void beginOperationPreview({ action: 'install', sourceRecordId: value.source.sourceRecordId, itemId: value.item.id })
+  }
+  useEffect(() => {
+    if (cardInstall === undefined || operationPending) return
+    if (operationPreview?.action === 'install' && operationPreview.packageName === cardInstall
+      && !operationExecutionFailed && operationError === undefined) {
+      void executePreview()
+      return
+    }
+    setCardInstall(undefined)
+  }, [cardInstall, operationPending, operationPreview, operationExecutionFailed, operationError])
+  const cardAction: MarketCardAction = {
+    inventoryReady: installationsLoaded,
+    pending: operationPending,
+    busyPackage: cardInstall ?? (operationPending && operationPreview !== undefined ? operationPreview.packageName : undefined),
+    onInstall: installFromCard,
+    onUninstall: packageName => { void beginOperationPreview({ action: 'uninstall', packageName }) },
+  }
+
+`
 
 export function addMarketHome({ settingsTab, locales }) {
   settingsTab = settingsTab.replaceAll('\r\n', '\n')
@@ -35,32 +147,53 @@ export function addMarketHome({ settingsTab, locales }) {
             installations={installations}
             inventoryError={installationsError}
             onRetryInventory={() => { void loadInstallations() }}`)
-  const discoverStart = settingsTab.indexOf('function DiscoverView(')
-  const discoverEnd = settingsTab.indexOf('\nfunction InstallableView(', discoverStart)
-  let discover = settingsTab.slice(discoverStart, discoverEnd)
-  discover = replace(discover, '  items: readonly VisibleItem[]', `  items: readonly VisibleItem[]
+  settingsTab = replace(settingsTab, '  const announce = (text: string) => {', `${cardInstallFlow}  const announce = (text: string) => {`)
+  settingsTab = replace(settingsTab, '            onSelect={openItem}\n', `            onSelect={openItem}
+            cardAction={cardAction}
+            operationError={selected === undefined && operationPreview === undefined ? operationError : undefined}
+`)
+  // 卡片直接安装时不弹确认框；执行失败后标记已清，确认框照常出现并显示原因。
+  settingsTab = replace(settingsTab, "      {operationPreview !== undefined && (selected === undefined || operationPreview.action !== 'install') && (",
+    "      {operationPreview !== undefined && cardInstall === undefined && (selected === undefined || operationPreview.action !== 'install') && (")
+  settingsTab = replace(settingsTab, '\nfunction DiscoverView(', `${cardActionComponent}\nfunction DiscoverView(`)
+  settingsTab = editFunction(settingsTab, 'DiscoverView', discover => {
+    discover = replace(discover, '  items: readonly VisibleItem[]', `  items: readonly VisibleItem[]
   installations: readonly MarketInstallationView[]
   inventoryError?: string | undefined
   onRetryInventory: () => void`)
-  discover = replace(discover, '      {props.partialFailure &&', `      {props.inventoryError !== undefined && <div className="dshMarketBanner" role="alert">
+    discover = replace(discover, '  onSelect: (value: VisibleItem) => void\n',
+      '  onSelect: (value: VisibleItem) => void\n  cardAction: MarketCardAction\n  operationError?: string | undefined\n')
+    // 卡片「+ / −」的预览被拒时没有对话框可以显示原因，放在发现页的横幅里。
+    discover = replace(discover, '      {props.partialFailure &&', `      {props.inventoryError !== undefined && <div className="dshMarketBanner" role="alert">
         <StateDot state="warning" /><span>{props.inventoryError}</span>
         <Button variant="outline" size="sm" onClick={props.onRetryInventory}>{props.t('retry')}</Button>
       </div>}
+      {props.operationError !== undefined && <div className="dshMarketBanner" role="alert">
+        <StateDot state="error" /><span>{props.operationError}</span>
+      </div>}
       {props.partialFailure &&`)
-  discover = replace(discover, 'value={value} onClick={() => props.onSelect(value)}',
-    'value={value} installation={matchingInstallation(value, props.installations)} onClick={() => props.onSelect(value)}')
-  settingsTab = settingsTab.slice(0, discoverStart) + discover + settingsTab.slice(discoverEnd)
-  const cardStart = settingsTab.indexOf('function PluginCard(')
-  const cardEnd = settingsTab.indexOf('\nfunction SourceAttribution(', cardStart)
-  let card = settingsTab.slice(cardStart, cardEnd)
-  card = replace(card, 'value, actionLabel, disabled', 'value, installation, actionLabel, disabled')
-  card = replace(card, '  value: VisibleItem', '  value: VisibleItem\n  installation?: MarketInstallationView | undefined')
-  card = replace(card, '      className="dshMarketCard"',
-    '      className="dshMarketCard"\n      data-installed={installation !== undefined ? "true" : undefined}')
-  card = replace(card, '        {actionLabel !== undefined &&',
-    `        {installation !== undefined && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
-        {actionLabel !== undefined &&`)
-  settingsTab = settingsTab.slice(0, cardStart) + card + settingsTab.slice(cardEnd)
+    return replace(discover, 'value={value} onClick={() => props.onSelect(value)}',
+      'value={value} installation={matchingInstallation(value, props.installations)} action={props.cardAction} onClick={() => props.onSelect(value)}')
+  })
+  // 卡片本身不变；外面套一层定位框，图标按钮是卡片按钮的兄弟节点（按钮里不能嵌按钮），
+  // 所以点图标不会打开详情。只有显式的可安装视图不传 action，保持上游原样。
+  settingsTab = editFunction(settingsTab, 'PluginCard', card => {
+    card = replace(card, 'value, actionLabel, disabled', 'value, installation, action, actionLabel, disabled')
+    card = replace(card, '  value: VisibleItem', `  value: VisibleItem
+  installation?: MarketInstallationView | undefined
+  action?: MarketCardAction | undefined`)
+    card = replace(card, '  return (\n    <button\n', '  const button = (\n    <button\n')
+    return replace(card, '    </button>\n  )\n}', `    </button>
+  )
+  if (action === undefined) return button
+  return (
+    <div className="dshMarketCardFrame">
+      {button}
+      <div className="dshMarketCardAction"><MarketCardAction value={value} installation={installation} action={action} t={t} /></div>
+    </div>
+  )
+}`)
+  })
   // 「已安装」的说明文案 2.0.18 起由上游自己写清了启用/停用/卸载与官方插件页的分工，
   // 产品不再改写；只补一句把空列表指回默认的发现页。
   for (const [old, next] of [
@@ -71,19 +204,25 @@ export function addMarketHome({ settingsTab, locales }) {
 }
 
 export function addMarketHomeStyles(styles) {
-  // Gray the whole installed card without changing layout or disabling it.
-  return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCard[data-installed="true"] {
-  filter: grayscale(1);
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 12%, var(--dsw-alias-bg-layer-3));
+  // 只做定位：定位框撑满格子，图标放在卡片右上角，名字一栏给它让出位置。
+  return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCardFrame {
+  position: relative;
+  display: flex;
+  min-width: 0;
 }
 
-.dshMarketCard[data-installed="true"]:hover {
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 18%, var(--dsw-alias-bg-layer-3));
+.dshMarketCardFrame > .dshMarketCard {
+  flex: 1;
 }
 
-.dshMarketInstalledBadge {
-  color: var(--dsw-alias-label-tertiary);
-  background: var(--dsw-alias-bg-layer-2);
+.dshMarketCardFrame .dshMarketCardName {
+  padding-right: 28px;
+}
+
+.dshMarketCardAction {
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .dshMarketCard:hover {`)
@@ -229,13 +368,6 @@ export function expectPluginsTabInClientTest(tests) {
     ])`)
 }
 
-export function adaptMarketHomeTestSetup(setup) {
-  // The real static Pill forwards className; preserve that contract in its mock.
-  return replace(setup.replaceAll('\r\n', '\n'),
-    'props.onClick === undefined ? <span>{children}</span>',
-    'props.onClick === undefined ? <span className={props.className}>{children}</span>')
-}
-
 export function adaptMarketHomeOverlayTests(tests) {
   tests = replace(tests.replaceAll('\r\n', '\n'), "describe('community market overlay',", `// These regressions exercise catalog requests; inventory has its own endpoint.
 function withLocalInventory(request: typeof fetch): typeof fetch {
@@ -306,7 +438,7 @@ const t = ((key:`)
   let race = tests.slice(raceStart, raceEnd)
   race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
-  // 发现页挂载会先读一次清单给卡片置灰，进入 Installed 还会再做一次更新检查，
+  // 发现页挂载会先读一次清单给卡片的「+ / −」，进入 Installed 还会再做一次更新检查，
   // 上游这两个按调用次序排夹具的用例因此错位。改成跟着 Host 的当前清单走，断言
   // 只问"重新读过了"，不再钉死次数；产品里的刷新按钮现在叫"检查更新"。
   const bounds = (start, label) => {

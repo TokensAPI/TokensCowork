@@ -443,7 +443,7 @@ describe('product market update UI', () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
     let rejectUpdates!: (error: Error) => void
     // 更新检查就是带 updates 标记的那一次读取。发现页挂载也会先读一次清单给
-    // 卡片置灰，所以按参数作答，不按调用次序排夹具。
+    // 卡片的「+ / −」，所以按参数作答，不按调用次序排夹具。
     vi.mocked(readMarketInstallations).mockImplementation(async (_signal, updates) => {
       if (updates !== true) return { installations: [managed] }
       return await new Promise<never>((_resolve, reject) => { rejectUpdates = reject })

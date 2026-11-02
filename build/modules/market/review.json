@@ -95,7 +95,6 @@
         "market.discover-home",
         "market.discover-home-styles",
         "market.test-discover-overlay",
-        "market.test-setup",
         "market.test-discover-home"
       ],
       "verified": "2026-10-10：隔离 staging Market check 的 24 个测试文件通过（317 passed、9 策略 skipped），覆盖发现入口、安装标识、详情自动检查/失败重试、更新/卸载确认、离线与操作同步。真实宿主视觉未验收。"
@@ -160,7 +159,6 @@
         "market.discover-home",
         "market.discover-home-styles",
         "market.test-discover-overlay",
-        "market.test-setup",
         "market.test-discover-home"
       ],
       "verified": "2026-10-20（T0018）：上游 2.0.18 自己在安装/卸载后按「installed 视图或已缓存清单」重读清单，发现页因为挂载时读过一次清单正好落在这个条件里，所以产品那条刷新改写退役；上游也已原生把官方插件与 Desktop 内置 bundle 从已安装清单里过滤掉（marketInstallationView/marketListedBundle），产品那层 action==='uninstall' 过滤同样退役。上游新的「已安装」说明文案已写清启用/停用/卸载与官方插件页的分工，不再改写，只保留把空列表指回发现页那一句。market-home-ui-tests.inc 跟随新的安装视图字段（packageName/enabled/installed/toggleable/removable）与替代重启弹窗的提示条。真实宿主视觉未验收。"
@@ -214,6 +212,14 @@
         "market.plugin-page-sidebar-entry"
       ],
       "verified": "2026-10-29：用户要求收掉侧栏「插件」导航（插件统一从侧栏底部的「插件市场」管理）。只去掉 dsh-client-ui-plugin-manager 在 sidebar.panellist 的注册；插件页本身、设置页「前往插件页」与 pluginNavigation 详情跳转仍可达，因此本页其余四条覆盖（去「添加插件」、收敛市场卡、藏远程控制、藏官方市场）保留不删——另一份审查清单建议一并删除，核实后否决：删了「添加插件」会从设置入口回来，可绕过私有源按 npm/Git/本地目录直装。用例对 0.2.1-rc.2 的逐字片段断言导航项消失、页面导出与详情跳转保留、幂等、半删报错、锚点漂移报错，并断言与 market.plugin-page-install 同文件同条件；另在真实 staging 文件上叠加两条覆盖确认共存（仅少 6 行）。test:build、overlay-doctor --check 通过；真机侧栏观感随下一版验收。"
+    },
+    {
+      "overlays": [
+        "market.discover-home",
+        "market.discover-home-styles",
+        "market.test-discover-home"
+      ],
+      "verified": "2026-11-02（T0063）：用户要求卡片直接能装、已装未装同一种样式（参考 ChatGPT 应用目录每行右侧一个 +）。先查固定上游：发现页 PluginCard 整张是打开详情的 <button>，卡片上没有任何操作；「可安装」视图把整卡当安装按钮（产品已隐藏）；「已安装」列表的 InstallationCard 有开关与卸载按钮。上游没有卡片级的安装/卸载入口可复用，所以只补最小一层：卡片外套一个定位框，右上角放宿主 Button（ghost、sm、仅图标，悬停 Tooltip「安装 / 卸载」）——未安装 IconPlusOutlineRegular，已安装用照加号画法只留横线的减号（宿主图标集没有减号），进行中换成宿主 StateDot ongoing；按钮是卡片按钮的兄弟节点，点它不会打开详情；不可卸载的内置组件不显示。「+」走同一个 previewMarketOperation（私有 Registry 授权、版本与兼容性校验都在预览里），预览通过就 executePreview、不再弹确认框；预览被拒在发现页横幅显示原因，执行失败照常打开原生确认框显示原因。「−」走上游「已安装」列表同一条卸载路径（预览 → 原生确认 → 执行）。删除整卡置灰的 CSS 与「已安装」角标，以及只为角标存在的 market.test-setup（Pill className 桩）及其登记。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0（38 条，0 条 pin 变化）；market/server verify 166 项通过 1 跳过；临时 staging 上 dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 全量 16 个文件 358 项通过 9 跳过（产品回归改写：同一种卡片且无角标、清单未到不出图标、+ 直接安装不弹框且执行中转圈、预览被拒显示原因、执行失败进确认框、− 先确认再卸载、内置组件无图标、点卡片仍走原生详情与确认）。截图：用 staging 装配结果 + 宿主真实 primitives 与主题 token 无头渲染（Edge headless），发现页 / 安装中 / 已安装页各深浅两张，见主检出 .build/t0063-market-card-actions/。遗留：真机未验收。"
     }
   ],
   "notes": [
