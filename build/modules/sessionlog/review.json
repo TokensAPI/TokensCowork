@@ -1,17 +1,24 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-30",
+  "reviewedAt": "2026-11-02",
   "reviewNote": "会话日志覆盖的登记基线。锚点守护在装配期生效:补丁层出现重复行即中断打包;行为验收见 evidence。升级后不要机械更新基线。",
   "baseline": {
     "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": null,
     "plugins": {
       "tokens-session-log": {
-        "commit": "18cc986e563d582d57beabf974f407afdb3be318",
-        "version": "0.1.0",
+        "commit": "96560f384cf22d4d012d327d101c89ec3aa964e9",
+        "version": "0.1.1",
         "artifact": null
       }
     }
   },
-  "evidence": []
+  "evidence": [
+    {
+      "overlays": [
+        "sessionlog.disable-upstream-setting"
+      ],
+      "verified": "2026-10-30 至 11-02：随插件 0.1.0 → 0.1.1 复查。覆盖只停用上游 ui-settings-session-log 行，插件改动（文案、内置地址、按地址记水位、上传时机照上游）未涉及上游这一行；用户本机用 dev-desktop 启动（插件 b2b1822 至 d10ff94），设置 → 通用设置只出现插件自己的「在使用 TokensAPI 时上传 Session Log」一行，上游那行不再出现；插件自身 npm test 42/42、check:host 对 staging 宿主 9/9。未执行完整打包与真机安装验收。"
+    }
+  ]
 }

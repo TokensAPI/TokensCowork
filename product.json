@@ -8,7 +8,7 @@
     "legacyNames": [
       "TokensHarness"
     ],
-    "version": "0.7.7"
+    "version": "0.7.8"
   },
   "desktop": {
     "path": "desktop",
@@ -112,9 +112,9 @@
       "description": "在后台把会话日志增量上传到产品配置的地址，与模型请求和其他插件解耦；地址为空时不上传。",
       "path": "plugins/tokens_DshSessionLog_code",
       "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
-      "commit": "18cc986e563d582d57beabf974f407afdb3be318",
+      "commit": "96560f384cf22d4d012d327d101c89ec3aa964e9",
       "package": "@tokensapi/dsh-session-log",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {

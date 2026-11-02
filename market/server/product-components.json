@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.7.7",
+  "productVersion": "0.7.8",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -67,8 +67,8 @@
       "displayName": "会话日志上传",
       "summary": "在后台把会话日志增量上传到产品配置的地址，与模型请求和其他插件解耦；地址为空时不上传。",
       "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
-      "version": "0.1.0",
-      "commit": "18cc986e563d582d57beabf974f407afdb3be318",
+      "version": "0.1.1",
+      "commit": "96560f384cf22d4d012d327d101c89ec3aa964e9",
       "category": "builtin"
     }
   ]
