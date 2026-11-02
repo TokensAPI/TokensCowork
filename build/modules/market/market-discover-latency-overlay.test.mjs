@@ -17,7 +17,6 @@ import {
   serveStaleCatalogScans,
 } from './market-discover-latency-overlay.mjs'
 import { allowMarketSourceSyntheticProxy } from './market-source-overlay.mjs'
-import { addMarketUpdates } from './market-update-overlay.mjs'
 
 const root = resolve(import.meta.dirname, '../../..')
 const upstream = path =>
@@ -37,20 +36,12 @@ function productHttp() {
   }, origin).http
 }
 
-/**
- * 客户端覆盖排在 market.discover-home 之后：两处锚点是它切出发现页时的产物；
- * 发现页本身又排在插件更新之后（卡片「+ / −」接的是更新覆盖改过的确认框条件），
- * 所以按装配顺序叠出来。
- */
+/** 客户端覆盖排在 market.discover-home 之后：两处锚点是它切出发现页时的产物。 */
 function discoverClient() {
-  const updated = addMarketUpdates({
-    service: upstream('src/install/service.ts'),
-    routes: upstream('src/host/routes.ts'),
-    types: upstream('src/api-types.ts'),
+  return addMarketHome({
     settingsTab: upstream('src/client/MarketSettingsTab.tsx'),
     locales: upstream('src/client/locales.ts'),
   })
-  return addMarketHome({ settingsTab: updated.settingsTab, locales: updated.locales })
 }
 
 test('only the product catalog client gives up early; the other clients keep the upstream budget', () => {
