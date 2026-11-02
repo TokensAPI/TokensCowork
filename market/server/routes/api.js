@@ -8,7 +8,7 @@ import { organizationPlugins, setOrganizationPlugin } from '../services/access.j
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
 import { listUsers, getUser, saveUser, deleteUser } from '../services/users.js'
 import { auditLog, environment } from '../services/audit.js'
-import { listSessionLogs, sessionLogDetail, deleteSessionLog, deleteSessionLogRange, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
+import { listSessionLogs, sessionLogDetail, sessionLogRaw, deleteSessionLog, deleteSessionLogRange, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
@@ -223,6 +223,11 @@ async function dispatch(request, env, url, principal) {
       methods(method, ['GET', 'DELETE'])
       return method === 'GET' ? sessionLogDetail(env, [second, third], url, actor) : deleteSessionLog(env, [second, third], actor)
     }
+    // The whole session as a file (a Response of its own, not the JSON envelope); audited.
+    if (third && fourth === 'raw') {
+      methods(method, ['GET'])
+      return sessionLogRaw(env, [second, third], url, actor)
+    }
   }
 
   if (head === 'audit' && !second) {
@@ -276,7 +281,9 @@ export async function apiRoute(request, env) {
     }
     if (principal.via === 'bearer') await clearAdminLoginFailures(request, env, API_SCOPE)
     else if (writing && !sameOrigin(request, url)) return reply({ error: '跨站请求被拒绝' }, 403)
-    return reply(await dispatch(request, env, url, principal))
+    const result = await dispatch(request, env, url, principal)
+    // A download builds its own Response; everything else is wrapped in the JSON envelope.
+    return result instanceof Response ? result : reply(result)
   } catch (error) {
     if ([400, 403, 404, 405, 409, 502, 503].includes(error?.status)) return reply({ error: error.message }, error.status)
     if (/revision conflict|UNIQUE constraint failed: market_plugins/u.test(error?.message ?? '')) return reply({ error: '此插件已被其他操作修改或 ID 已存在，请刷新后重试' }, 409)

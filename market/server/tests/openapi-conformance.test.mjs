@@ -143,7 +143,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 28)
+  assert.equal(paths.length, 29)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 39)
+  assert.equal(checked, 40)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -166,7 +166,7 @@ test('every resource the router matches on is documented', () => {
   const segments = new Set(Object.keys(document().paths).flatMap(path => path.split('/').filter(Boolean)))
   // The dispatch chain compares path segments against string literals, and the lifecycle verbs live
   // in one allowlist. Both are the router's public surface, so both must appear in the document.
-  const matched = [...source.matchAll(/(?:head|second|third) === '([\w-]+)'/gu)].map(match => match[1])
+  const matched = [...source.matchAll(/(?:head|second|third|fourth) === '([\w-]+)'/gu)].map(match => match[1])
   const lifecycle = source.match(/\['publish',[^\]]*\]/u)[0].match(/'([\w-]+)'/gu).map(quoted => quoted.slice(1, -1))
   assert.equal(lifecycle.length, 5)
   // The session resource is matched on its full path before dispatch.
@@ -241,6 +241,10 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['PUT', '/session-logs/settings', '/session-logs/settings', 400, { retentionDays: -1 }],
     ['GET', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],
     ['GET', '/session-logs/session-none/4', '/session-logs/{sessionId}/{formatVersion}', 404],
+    ['GET', '/session-logs/session-fixture/4/raw', '/session-logs/{sessionId}/{formatVersion}/raw', 200],
+    ['GET', '/session-logs/session-fixture/4/raw?format=xml', '/session-logs/{sessionId}/{formatVersion}/raw', 400],
+    ['GET', '/session-logs/session-none/4/raw', '/session-logs/{sessionId}/{formatVersion}/raw', 404],
+    ['GET', '/session-logs/session-fixture/4/raw', '/session-logs/{sessionId}/{formatVersion}/raw', 403, undefined, tenant],
     ['GET', '/session-logs', '/session-logs', 403, undefined, tenant],
     ['DELETE', '/session-logs', '/session-logs', 400, {}],
     ['DELETE', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],

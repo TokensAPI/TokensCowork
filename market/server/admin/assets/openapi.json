@@ -2432,7 +2432,7 @@
           "会话日志"
         ],
         "summary": "会话详情（回放）",
-        "description": "按 seq 顺序返回 `after` 之后的最多 `limit` 条事件，从原文对象读出并按 seq 去重合并。事件原样返回，不脱敏。**每次调用都写一条 `session-log.viewed` 操作记录。**",
+        "description": "按 seq 顺序返回 `after` 之后的最多 `limit` 条事件，从原文对象读出并按 seq 去重合并。事件原样返回，不脱敏。第一页（不带 `after`）另外返回 `header`，并写一条 `session-log.viewed` 操作记录；之后翻页不再重复记录。",
         "parameters": [
           {
             "name": "after",
@@ -2494,6 +2494,84 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SessionLogDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/session-logs/{sessionId}/{formatVersion}/raw": {
+      "parameters": [
+        {
+          "name": "sessionId",
+          "in": "path",
+          "required": true,
+          "description": "会话 id。",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,128}$"
+          }
+        },
+        {
+          "name": "formatVersion",
+          "in": "path",
+          "required": true,
+          "description": "会话事件格式版本（sessionFormatVersion）。",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "下载整个会话（原始 JSON）",
+        "description": "整个会话合并、去重后的原始数据，作为附件下载（`Content-Disposition: attachment; filename=\"<sessionId>.json\"` 或 `.jsonl`）。`format=json`（缺省）为 `{ version, sessionFormatVersion, session, client, account, events }`，缩进 2 格；`format=jsonl` 为一行一条事件。不脱敏。**每次下载写一条 `session-log.downloaded` 操作记录（含格式）。**只有平台管理员可用。",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "`json`（缺省）或 `jsonl`。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "jsonl"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话文件",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogRaw"
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string",
+                  "description": "一行一条事件（JSON Lines）。"
                 }
               }
             }
@@ -3550,6 +3628,9 @@
             "type": "boolean",
             "description": "服务端是否配置了 Key 加密（`MARKET_KEY_ENCRYPTION_SECRET`）。为 false 时不保存 Key 原文，只有指纹。"
           },
+          "header": {
+            "$ref": "#/components/schemas/SessionLogHeader"
+          },
           "events": {
             "type": "array",
             "items": {
@@ -3593,6 +3674,77 @@
           },
           "count": {
             "type": "integer"
+          }
+        }
+      },
+      "SessionLogHeader": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "最新一批上传（含最大 seq 的那批）的头部：与原始 JSON 下载的头部相同。原文对象缺失时为 null。",
+        "properties": {
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "上传格式版本。"
+          },
+          "sessionFormatVersion": {
+            "type": "integer"
+          },
+          "session": {
+            "type": "object",
+            "description": "插件上传的会话对象原样（id、createdAt、cwd、parentSession 等）。"
+          },
+          "client": {
+            "type": "object",
+            "description": "插件上传的客户端信息原样（product、version、platform）。"
+          },
+          "account": {
+            "type": "object",
+            "description": "插件上报的账号原样（未核验）；没上报时不出现。"
+          }
+        }
+      },
+      "SessionLogRaw": {
+        "type": "object",
+        "description": "整个会话，与上传格式一致：头部取最新一批上传，`events` 按 seq 排好、去重；原文对象缺失的事件只有 seq、time、type 和 `unavailable: true`。",
+        "required": [
+          "sessionFormatVersion",
+          "session",
+          "events"
+        ],
+        "properties": {
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "上传格式版本。"
+          },
+          "sessionFormatVersion": {
+            "type": "integer"
+          },
+          "session": {
+            "type": "object",
+            "description": "插件上传的会话对象原样（id、createdAt、cwd、parentSession 等）。"
+          },
+          "client": {
+            "type": "object",
+            "description": "插件上传的客户端信息原样（product、version、platform）。"
+          },
+          "account": {
+            "type": "object",
+            "description": "插件上报的账号原样（未核验）；没上报时不出现。"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "上传的事件原样。"
+            }
           }
         }
       }

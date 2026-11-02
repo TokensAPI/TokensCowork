@@ -1151,25 +1151,109 @@ nav a[aria-current='page'] {
   margin-top: 10px;
   flex-wrap: wrap;
 }
-.log-timeline {
-  list-style: none;
-  margin: 18px 0 0;
-  padding: 0;
+/* Session-log detail: overview, the 对话 / 原始 JSON tabs, turns and their blocks. */
+.log-overview {
+  margin-top: 14px;
   display: grid;
   gap: 10px;
 }
-.log-event {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 14px;
+.log-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 20px;
+}
+.log-facts dt {
+  font-size: 0.75rem;
+}
+.log-facts dd {
+  margin: 0;
   overflow-wrap: anywhere;
 }
-.log-head {
+.log-chips {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.log-view-bar {
+  margin-top: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.log-view-bar #session-log-loaded {
+  flex: 1;
   font-size: 0.8rem;
+}
+.log-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.log-turns {
+  display: grid;
+  gap: 18px;
+  margin-top: 14px;
+}
+.log-turn {
+  display: grid;
+  gap: 8px;
+}
+.log-turn-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8rem;
+}
+.log-turn-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.log-block {
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.log-block.log-user {
+  border-left-color: var(--brand);
+  background: var(--soft);
+}
+.log-block.log-model {
+  border-left-color: #6b8fbf;
+}
+.log-block.log-tool {
+  border-left-color: #b08a4a;
+}
+.log-block.log-context {
+  border-left-color: var(--line);
+  color: var(--muted);
+}
+.log-block-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.log-role {
+  font-weight: 600;
+}
+.log-time {
+  margin-left: auto;
+}
+.log-block-head .log-json,
+.log-note .log-json,
+.log-toggle {
+  padding: 2px 8px;
+  font-size: 0.75rem;
 }
 .log-text {
   margin: 4px 0;
@@ -1179,10 +1263,84 @@ nav a[aria-current='page'] {
   max-height: 480px;
   overflow: auto;
 }
-.log-code {
-  font: 0.85rem/1.6 Consolas, monospace;
+.log-code,
+.log-raw {
+  font: 0.82rem/1.6 Consolas, monospace;
 }
-.log-event summary {
-  cursor: pointer;
+.log-preview {
   color: var(--muted);
+  max-height: none;
+}
+.log-reasoning .log-text {
+  color: var(--muted);
+  font-style: italic;
+}
+.log-args {
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-result-label {
+  margin-top: 6px;
+  font-size: 0.75rem;
+}
+.log-usage {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+}
+.log-fold {
+  min-width: 0;
+}
+.log-note-box {
+  display: grid;
+  gap: 2px;
+}
+.log-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.log-note-text {
+  overflow-wrap: anywhere;
+}
+.log-note.warn .log-note-text {
+  color: var(--warn);
+}
+.log-note.error .log-note-text {
+  color: var(--danger);
+}
+.log-note.log-internal {
+  opacity: 0.75;
+  font-family: Consolas, monospace;
+}
+.log-raw {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#session-log-raw-sentinel {
+  height: 1px;
+}
+.log-json-dialog {
+  width: 900px;
+}
+.log-json-dialog .log-raw {
+  max-height: 70vh;
+}
+@media (max-width: 620px) {
+  .log-time {
+    margin-left: 0;
+  }
+  .log-facts {
+    grid-template-columns: 1fr;
+  }
 }

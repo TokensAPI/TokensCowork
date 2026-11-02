@@ -348,7 +348,38 @@ async function sessionRow(env, id, formatVersion) {
   return row
 }
 
-/** One page of a session's events, read from the raw objects and merged by seq. Every read is audited. */
+// One stored batch, parsed; null when the object is gone or unreadable.
+async function readObject(env, key) {
+  const bytes = await env.MARKET_SESSION_LOG_STORE.get(key)
+  if (!bytes) return null
+  try { return JSON.parse(new TextDecoder().decode(await gunzip(bytes, 64 * MiB))) } catch { return null }
+}
+// The index says which object holds each seq; an overlapping batch never stored a copy twice, so
+// taking each seq from its indexed object is the merge. Returns the events in seq order and the
+// header (version, session, client, account) of the object that holds the newest seq.
+async function readEvents(env, rows, headerKey) {
+  const objects = new Map()
+  let header = null
+  for (const key of new Set([...rows.map(item => item.object_key), ...(headerKey ? [headerKey] : [])])) {
+    const object = await readObject(env, key)
+    objects.set(key, new Map((Array.isArray(object?.events) ? object.events : []).map(event => [event.seq, event])))
+    if (key === headerKey && object) header = { version: object.version, sessionFormatVersion: object.sessionFormatVersion,
+      session: object.session, client: object.client, account: object.account }
+  }
+  return {
+    header,
+    events: rows.map(item => objects.get(item.object_key).get(item.seq) ?? { seq: item.seq, time: item.time, type: item.type, unavailable: true }),
+  }
+}
+const newestObject = async (env, id, formatVersion) => (await env.MARKET_SESSION_LOG_DB.prepare(
+  'SELECT object_key FROM session_log_events WHERE session_id=? AND format_version=? ORDER BY seq DESC LIMIT 1',
+).bind(id, formatVersion).first())?.object_key ?? null
+
+/**
+ * One page of a session's events, read from the raw objects and merged by seq. The first page
+ * (no `after`) also carries the upload header and is the one that is audited: opening a session
+ * is one read, however many pages it then takes to load.
+ */
 export async function sessionLogDetail(env, segments, url, actor) {
   ready(env)
   const { id, formatVersion } = address(...segments)
@@ -357,22 +388,12 @@ export async function sessionLogDetail(env, segments, url, actor) {
   const limit = url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : 200
   if (!Number.isSafeInteger(after) || after < -1) throw invalid('after 无效')
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw invalid('limit 应为 1-1000')
+  const opening = after === -1
   const { results } = await env.MARKET_SESSION_LOG_DB.prepare(
     'SELECT seq,object_key,time,type FROM session_log_events WHERE session_id=? AND format_version=? AND seq>? ORDER BY seq LIMIT ?',
   ).bind(id, formatVersion, after, limit).all()
-  // The index says which object holds each seq; an overlapping batch never stored a copy twice.
-  const objects = new Map()
-  for (const key of new Set(results.map(item => item.object_key))) {
-    const bytes = await env.MARKET_SESSION_LOG_STORE.get(key)
-    const events = new Map()
-    if (bytes) {
-      try {
-        for (const event of JSON.parse(new TextDecoder().decode(await gunzip(bytes, 64 * MiB))).events ?? []) events.set(event.seq, event)
-      } catch {}
-    }
-    objects.set(key, events)
-  }
-  await env.MARKET_DB.batch(auditStatements(env, 'session-log.viewed', target(id, formatVersion), {}, actor))
+  const { header, events } = await readEvents(env, results, opening ? await newestObject(env, id, formatVersion) : null)
+  if (opening) await env.MARKET_DB.batch(auditStatements(env, 'session-log.viewed', target(id, formatVersion), {}, actor))
   const used = (await env.MARKET_SESSION_LOG_DB.prepare(
     'SELECT key_fingerprint,first_used_at,last_used_at FROM session_log_keys WHERE session_id=? AND format_version=? ORDER BY first_used_at,key_fingerprint',
   ).bind(id, formatVersion).all()).results
@@ -382,10 +403,41 @@ export async function sessionLogDetail(env, segments, url, actor) {
     keys: used.map(item => ({ key: keys.text.get(item.key_fingerprint) ?? null, fingerprint: item.key_fingerprint,
       label: keys.labels.get(item.key_fingerprint) ?? null, firstUsedAt: item.first_used_at, lastUsedAt: item.last_used_at })),
     keyDisplayReady: keyDisplayReady(env),
-    events: results.map(item => objects.get(item.object_key).get(item.seq)
-      ?? { seq: item.seq, time: item.time, type: item.type, unavailable: true }),
+    ...(opening ? { header } : {}),
+    events,
     next: results.length === limit ? results.at(-1).seq : null,
   }
+}
+
+/**
+ * The whole session as one download: `{ version, sessionFormatVersion, session, client, account,
+ * events }` in the upload format, events merged and de-duplicated by seq, or the events alone as
+ * JSON Lines. The header is the newest upload's, the same one the detail's first page carries, so
+ * the console's raw view and this file are the same text. Every download is audited.
+ */
+export async function sessionLogRaw(env, segments, url, actor) {
+  ready(env)
+  const { id, formatVersion } = address(...segments)
+  const format = url.searchParams.get('format') ?? 'json'
+  if (!['json', 'jsonl'].includes(format)) throw invalid('format 应为 json 或 jsonl')
+  await sessionRow(env, id, formatVersion)
+  const { results } = await env.MARKET_SESSION_LOG_DB.prepare(
+    'SELECT seq,object_key,time,type FROM session_log_events WHERE session_id=? AND format_version=? ORDER BY seq',
+  ).bind(id, formatVersion).all()
+  const { header, events } = await readEvents(env, results, results.at(-1)?.object_key ?? null)
+  await env.MARKET_DB.batch(auditStatements(env, 'session-log.downloaded', target(id, formatVersion), { format }, actor))
+  const text = format === 'json'
+    ? JSON.stringify({ ...(header ?? { version: null, sessionFormatVersion: formatVersion, session: { id } }), events }, null, 2) + '\n'
+    : events.map(event => JSON.stringify(event) + '\n').join('')
+  return new Response(text, {
+    headers: {
+      'content-type': format === 'json' ? 'application/json; charset=utf-8' : 'application/x-ndjson; charset=utf-8',
+      // The session id is [A-Za-z0-9._-] only, so it is safe in the header as it is.
+      'content-disposition': `attachment; filename="${id}.${format}"`,
+      'cache-control': 'no-store',
+      'vary': 'Authorization, Cookie',
+    },
+  })
 }
 
 // Objects first: a failure then leaves an index row to retry the deletion from, never an orphan.

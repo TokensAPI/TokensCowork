@@ -230,6 +230,7 @@ test('only the platform administrator reads, deletes or configures session logs'
   const probes = [
     ['GET', '/session-logs'], ['DELETE', '/session-logs', { to: Date.now() }], ['GET', '/session-logs/settings'],
     ['PUT', '/session-logs/settings', { retentionDays: 1 }], ['GET', `/session-logs/${SESSION_ID}/4`], ['DELETE', `/session-logs/${SESSION_ID}/4`],
+    ['GET', `/session-logs/${SESSION_ID}/4/raw`], ['GET', `/session-logs/${SESSION_ID}/4/raw?format=jsonl`],
   ]
   for (const [method, path, data] of probes) assert.equal((await api(path, { method, data, cookie })).status, 403, `${method} ${path}`)
   assert.equal(market.database.prepare("SELECT COUNT(*) AS n FROM market_audit_events WHERE action LIKE 'session-log.%'").get().n, 0)
@@ -329,4 +330,59 @@ test('session logs answer 503 rather than guessing when no store is configured',
   assert.equal(response.status, 503)
   assert.equal((await api('/session-logs')).status, 503)
   assert.equal((await worker.fetch(new Request(ORIGIN + '/v1/session-logs'), env, {})).status, 405)
+})
+
+test('the whole session downloads as JSON and JSON Lines, merged by seq, and every download is recorded', async t => {
+  const { env, upload, api, market } = await fixture(t)
+  const download = async (path, cookie) => {
+    const response = await worker.fetch(new Request(ORIGIN + '/api/v1' + path, {
+      headers: { origin: ORIGIN, ...(cookie ? { cookie } : { authorization: 'Bearer fixture-admin' }) } }), env, {})
+    return { status: response.status, headers: response.headers, text: await response.text() }
+  }
+  // Two overlapping batches and a gap: seq 0-3, then 2-5, then 8.
+  await upload(batch([0, 1, 2, 3].map(seq => event(seq))))
+  await upload(batch([2, 3, 4, 5].map(seq => event(seq)), { account: { id: '9002' } }))
+  await upload(batch([event(8, 'future/unknown-kind', { anything: true })]))
+
+  const json = await download(`/session-logs/${SESSION_ID}/4/raw`)
+  assert.equal(json.status, 200)
+  assert.equal(json.headers.get('content-type'), 'application/json; charset=utf-8')
+  assert.equal(json.headers.get('content-disposition'), `attachment; filename="${SESSION_ID}.json"`)
+  const whole = JSON.parse(json.text)
+  assert.deepEqual(Object.keys(whole), ['version', 'sessionFormatVersion', 'session', 'client', 'account', 'events'])
+  assert.deepEqual(whole.events.map(item => item.seq), [0, 1, 2, 3, 4, 5, 8])
+  assert.deepEqual(whole.events[6], event(8, 'future/unknown-kind', { anything: true }))
+  assert.equal(whole.session.id, SESSION_ID)
+  // The header is the newest upload's, the same the detail's first page carries.
+  const first = (await api(`/session-logs/${SESSION_ID}/4?limit=2`)).json
+  assert.deepEqual(first.header, { version: 1, sessionFormatVersion: 4, session: whole.session, client: whole.client, account: whole.account })
+  const second = (await api(`/session-logs/${SESSION_ID}/4?after=${first.next}&limit=2`)).json
+  assert.equal('header' in second, false)
+  // The console builds its raw view from the detail pages; it must be byte-for-byte this file.
+  const { rawDocument } = await import('../admin/assets/market-session-log-replay.js')
+  const pages = [...first.events, ...second.events, ...(await api(`/session-logs/${SESSION_ID}/4?after=${second.next}`)).json.events]
+  assert.equal(rawDocument(first.header, pages, 4, SESSION_ID), json.text)
+
+  const lines = await download(`/session-logs/${SESSION_ID}/4/raw?format=jsonl`)
+  assert.equal(lines.status, 200)
+  assert.equal(lines.headers.get('content-type'), 'application/x-ndjson; charset=utf-8')
+  assert.equal(lines.headers.get('content-disposition'), `attachment; filename="${SESSION_ID}.jsonl"`)
+  assert.deepEqual(lines.text.trimEnd().split('\n').map(line => JSON.parse(line)), whole.events)
+
+  assert.equal((await download(`/session-logs/${SESSION_ID}/4/raw?format=xml`)).status, 400)
+  assert.equal((await download('/session-logs/session-none/4/raw')).status, 404)
+  assert.equal((await download(`/session-logs/${SESSION_ID}/4/raw/extra`)).status, 404)
+
+  // Opening the session is one read however many pages it takes; each download is its own record.
+  const audit = market.database.prepare("SELECT action,target,details FROM market_audit_events WHERE action LIKE 'session-log.%' ORDER BY id").all()
+    .map(row => [row.action, row.target, JSON.parse(row.details)])
+  assert.deepEqual(audit, [
+    ['session-log.downloaded', `${SESSION_ID}:4`, { format: 'json' }],
+    ['session-log.viewed', `${SESSION_ID}:4`, {}],
+    ['session-log.downloaded', `${SESSION_ID}:4`, { format: 'jsonl' }],
+  ])
+  // A missing raw object leaves the index's placeholder in the download, as in the detail.
+  for (const key of await env.MARKET_SESSION_LOG_STORE.list('session-logs/')) if (key.endsWith('/7-8.json.gz')) await env.MARKET_SESSION_LOG_STORE.delete(key)
+  const after = JSON.parse((await download(`/session-logs/${SESSION_ID}/4/raw`)).text)
+  assert.deepEqual(after.events.at(-1), { seq: 8, time: CREATED + 8000, type: 'future/unknown-kind', unavailable: true })
 })

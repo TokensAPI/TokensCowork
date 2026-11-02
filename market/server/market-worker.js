@@ -104,6 +104,8 @@ export default {
       '/admin/assets/market-users.js',
       '/admin/assets/market-grants.js',
       '/admin/assets/market-session-logs.js',
+      '/admin/assets/market-session-log-detail.js',
+      '/admin/assets/market-session-log-replay.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')

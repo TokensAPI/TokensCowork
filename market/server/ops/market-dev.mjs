@@ -25,6 +25,7 @@ import { createTokensApiOrganizations } from '../integrations/tokensapi-organiza
 import { createAssets, createD1Database } from '../runtime/adapters.mjs'
 import { createSessionLogBindings } from '../runtime/session-log-storage.mjs'
 import { SESSION_LOG_BODY_LIMIT } from '../services/session-logs.js'
+import { demoSessionBatches, DEMO_PARENT } from './session-log-demo.mjs'
 import { migrate } from '../database/migrate.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -240,40 +241,14 @@ async function fixtureEnvironment() {
   return { env, db, restricted, sessionLogDir: persistent ? '' : sessionLogDir }
 }
 
-// A made-up session and the sub-agent it started, uploaded through the real endpoint so the
+// The made-up demo sessions (ops/session-log-demo.mjs), uploaded through the real endpoint so the
 // console has something to list and replay. No real conversation, path or Key is in here.
 async function seedSessionLogs(env) {
-  const created = Date.now() - 2 * 60 * 60 * 1000
-  const at = seq => created + seq * 4000
-  const parent = 'session-00000000-0000-4000-8000-000000000001'
-  const child = 'session-00000000-0000-4000-8000-000000000002'
-  const text = value => [{ type: 'text', text: value }]
-  const upload = (key, body) => worker.fetch(new Request('http://127.0.0.1/v1/session-logs', { method: 'POST', body: gzipSync(JSON.stringify(body)),
-    headers: { 'content-encoding': 'gzip', 'content-type': 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}) } }), env, {})
-  const envelope = (session, events) => ({ version: 1, sessionFormatVersion: 4, session, afterSeq: events[0].seq - 1, throughSeq: events.at(-1).seq,
-    events, client: { product: 'TokensCowork', version: '0.7.8', platform: 'win32' }, account: { id: '5001' } })
-  const events = [
-    ['turn/start', { turn: 1 }],
-    ['user/message', { content: text('帮我看看 demo 项目的 README，总结一下（测试数据）') }],
-    ['request/context', { provider: 'tokensapi', model: 'demo-model', contextWindow: 128000 }],
-    ['assistant/message', { turn: 1, message: { role: 'assistant', content: [{ type: 'reasoning', text: '先读 README.md。' },
-      { type: 'tool-call', id: 'call-1', name: 'read_file', arguments: '{"path":"README.md"}' }], source: { kind: 'llm', provider: 'tokensapi', model: 'demo-model' } },
-    usage: { inputTokens: 1200, outputTokens: 80, totalTokens: 1280 } }],
-    ['tool/call', { turn: 1, callId: 'call-1', name: 'read_file', arguments: '{"path":"README.md"}' }],
-    ['tool/result', { turn: 1, message: { role: 'tool', toolCallId: 'call-1', isError: false,
-      content: text('# Demo\n\n' + '这是一段很长的测试 README 内容，用来展示折叠。\n'.repeat(40)) } }],
-    ['approval/asked', { id: 'ap-1', toolName: 'run_command', callId: 'call-2', reason: '运行测试' }],
-    ['approval/decided', { id: 'ap-1', outcome: 'approved' }],
-    ['assistant/message', { turn: 1, message: { role: 'assistant', content: text('README 介绍了一个演示项目，共三个模块。'),
-      source: { kind: 'llm', provider: 'tokensapi', model: 'demo-model' } }, usage: { inputTokens: 2400, outputTokens: 60, totalTokens: 2460 } }],
-    ['session/title', { title: '总结 demo README（测试）' }],
-    ['future/unknown-kind', { anything: true }],
-  ].map(([type, data], seq) => ({ seq, time: at(seq), type, data }))
-  const session = { id: parent, createdAt: created, cwd: 'C:\\demo\\project' }
-  await upload('sk-test-direct', envelope(session, events.slice(0, 6)))
-  await upload('sk-test-direct', envelope(session, events.slice(6)))
-  await upload(null, envelope({ id: child, createdAt: at(5), parentSession: parent, delegationDepth: 1 },
-    [{ seq: 0, time: at(5), type: 'user/message', data: { content: text('子代理：列出 demo 目录（测试）') } }]))
+  for (const { key, body } of demoSessionBatches()) {
+    const response = await worker.fetch(new Request('http://127.0.0.1/v1/session-logs', { method: 'POST', body: gzipSync(JSON.stringify(body)),
+      headers: { 'content-encoding': 'gzip', 'content-type': 'application/json', ...(key ? { authorization: 'Bearer ' + key } : {}) } }), env, {})
+    if (!response.ok) throw new Error(`seeding a demo session log failed: ${response.status}`)
+  }
 }
 
 async function start(port) {
@@ -347,7 +322,8 @@ async function smoke() {
       return response.json()
     }
     assert.equal((await call('/admin/')).status, 200)
-    for (const asset of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-admin.css']) {
+    for (const asset of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-session-logs.js',
+      'market-session-log-detail.js', 'market-session-log-replay.js', 'market-admin.css']) {
       assert.equal((await call('/admin/assets/' + asset)).status, 200, asset)
     }
     assert.equal((await call('/api/v1/audit')).status, 401)
@@ -424,10 +400,17 @@ async function smoke() {
     // The seeded session logs list and replay for the platform administrator only.
     const logs = await read('/api/v1/session-logs', undefined, cookie)
     assert.equal(logs.total, 2)
-    const replay = await read(`/api/v1/session-logs/${logs.items.find(item => !item.parentSession).id}/4`, undefined, cookie)
-    assert.equal(replay.events.length, 11)
+    const replay = await read(`/api/v1/session-logs/${DEMO_PARENT}/4?limit=1000`, undefined, cookie)
+    assert.equal(replay.events.length, replay.session.eventCount)
+    assert.equal(replay.header.session.id, DEMO_PARENT)
     // The fixture encryption secret is set, so the seeded Key is kept sealed and shown in full.
     assert.deepEqual([replay.session.key, replay.keys.map(item => item.key)], ['sk-test-direct', ['sk-test-direct']])
+    // The whole session downloads as JSON and as JSON Lines, for the platform administrator only.
+    const raw = await call(`/api/v1/session-logs/${DEMO_PARENT}/4/raw?format=jsonl`, undefined, cookie)
+    assert.equal(raw.status, 200)
+    assert.match(raw.headers.get('content-disposition'), /attachment; filename="session-[0-9a-f-]+\.jsonl"/u)
+    assert.equal((await raw.text()).trim().split('\n').length, replay.session.eventCount)
+    assert.equal((await call(`/api/v1/session-logs/${DEMO_PARENT}/4/raw`, undefined, tenantCookie)).status, 403)
     assert.equal((await call('/v1/plugins')).status, 200)
     assert.equal((await call('/server/services/auth.js')).status, 404)
     await assert.rejects(globalThis.fetch('https://tokensapi.ai/api/organizations/all'), /External network/u)

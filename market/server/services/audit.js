@@ -33,6 +33,7 @@ const ACTIONS = {
   'user.deleted': [ORGANIZATION, d => ({ grantCount: d.grantCount })],
   // Session logs are not redacted, so reading one is recorded as well as changing them.
   'session-log.viewed': [SESSION_LOG, () => ({})],
+  'session-log.downloaded': [SESSION_LOG, d => ({ format: d.format === 'jsonl' ? 'jsonl' : 'json' })],
   'session-log.deleted': [/^(?:range|[A-Za-z0-9._-]{1,128}:[0-9]{1,6})$/u, d => ({ count: d.count })],
   'session-log.settings': [/^retention$/u, d => ({ retentionDays: Number.isSafeInteger(d.retentionDays) ? d.retentionDays : null })],
   'session-log.purged': [/^retention$/u, d => ({ count: d.count, retentionDays: d.retentionDays })],

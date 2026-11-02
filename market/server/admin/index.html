@@ -392,19 +392,38 @@
             <div class="section-heading">
               <div>
                 <h2 id="session-log-title">会话</h2>
-                <p id="session-log-meta" class="muted"></p>
-                <div id="session-log-keys"></div>
+                <p id="session-log-meta" class="muted fingerprint"></p>
               </div>
               <div class="row-actions">
                 <button id="session-log-parent" type="button" class="secondary" hidden>打开父会话</button
                 ><button id="session-log-back" type="button" class="quiet">返回列表</button>
               </div>
             </div>
-            <ol id="session-log-timeline" class="log-timeline"></ol>
-            <p id="session-log-timeline-empty" class="empty" hidden>这个会话没有可显示的事件。</p>
-            <div class="toolbar">
+            <div id="session-log-overview" class="log-overview"></div>
+            <div class="toolbar log-view-bar">
+              <div class="tabs" role="tablist" aria-label="会话视图">
+                <button id="session-log-tab-conversation" type="button" role="tab" aria-controls="session-log-conversation" aria-pressed="true" aria-selected="true">对话</button
+                ><button id="session-log-tab-raw" type="button" role="tab" aria-controls="session-log-raw" aria-pressed="false" aria-selected="false">原始 JSON</button>
+              </div>
               <span id="session-log-loaded" class="muted"></span>
-              <button id="session-log-more" type="button" class="secondary" hidden>加载更多</button>
+              <label id="session-log-internal-row" class="log-switch"><input id="session-log-internal" type="checkbox" /> 显示内部事件</label>
+            </div>
+            <div id="session-log-conversation" role="tabpanel" aria-labelledby="session-log-tab-conversation">
+              <div id="session-log-turns" class="log-turns"></div>
+              <p id="session-log-timeline-empty" class="empty" hidden>这个会话没有可显示的事件。</p>
+            </div>
+            <div id="session-log-raw" role="tabpanel" aria-labelledby="session-log-tab-raw" hidden>
+              <div class="toolbar">
+                <span id="session-log-raw-size" class="muted"></span>
+                <div class="row-actions">
+                  <button id="session-log-download-json" type="button" class="secondary">下载 JSON</button
+                  ><button id="session-log-download-jsonl" type="button" class="secondary">下载 JSONL</button
+                  ><button id="session-log-copy" type="button" class="secondary">复制</button>
+                </div>
+              </div>
+              <pre id="session-log-raw-text" class="log-raw"></pre>
+              <div id="session-log-raw-sentinel" aria-hidden="true"></div>
+              <button id="session-log-raw-more" type="button" class="secondary" hidden>显示更多</button>
             </div>
           </div>
         </section>
@@ -617,6 +636,16 @@
           <span id="member-count" class="muted"></span><button type="submit">保存</button>
         </div>
       </form>
+    </dialog>
+    <dialog id="session-log-json-dialog" class="log-json-dialog" aria-labelledby="session-log-json-title">
+      <div class="dialog-heading">
+        <h2 id="session-log-json-title">原始 JSON</h2>
+        <div class="row-actions">
+          <button id="session-log-json-copy" type="button" class="secondary">复制</button
+          ><button id="session-log-json-close" type="button" class="quiet">关闭</button>
+        </div>
+      </div>
+      <pre id="session-log-json-text" class="log-raw"></pre>
     </dialog>
     <dialog id="discard-dialog" aria-labelledby="discard-title">
       <h2 id="discard-title">放弃未保存的修改？</h2>
