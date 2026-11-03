@@ -220,6 +220,15 @@
         "market.test-discover-home"
       ],
       "verified": "2026-11-03（T0063 追加 1）：用户要求卡片上直观看出装没装，已装未装同一种卡片骨架，+ / ✓ 只是标记、点它和点卡片一样打开原来的弹窗；首版的 + / − 用户嫌对比不够。先查固定上游：发现页 PluginCard 整张是打开详情的 <button>，卡片上没有任何安装标识，所以只补最小一层：卡片按钮带 data-state=install|installed（清单没读到不带），名字右侧画一个 aria-hidden 的标记。未安装：宿主 IconPlusOutlineRegular，CSS 把描边加粗到 2，外加一圈 1.5px 圆形描边，颜色用宿主唯一的绿色 --dsw-alias-state-success-primary（宿主 business 强调色是蓝 #4176e6，没有绿色主题色）；宿主主题对所有元素设了 corner-shape: superellipse，会把 50% 圆角画成方圆，所以标记写 corner-shape: round（宿主滚动条同样这么做）。已安装：宿主 IconCheckOutlineRegular，颜色 --dsw-alias-label-tertiary，无描边；不可卸载的内置组件不画标记。已安装卡片（含内置组件）在上游 bg-layer-3 上叠一层 --dsw-alias-interactive-bg-hover，悬停叠 --dsw-alias-interactive-bg-active；浅色主题 bg-layer-1/2/3 都是白色，没有更深一档的表面 token，所以用宿主交互淡色，深浅主题都比普通卡片多一档填充；不改透明度和光标，不像禁用。安装、卸载、确认框与风险提示全部照上游留在详情里；已删除整卡置灰 CSS、「已安装」角标与只为角标存在的 market.test-setup。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0；临时 staging 上 dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 355 过 9 跳过（产品回归：同一骨架只差 data-state 取值、未装 + 已装 ✓、清单未到不带状态不画标记、内置组件只上底色、点标记与点卡片打开同一个弹窗且不直接执行、装/卸后标记与状态随清单翻转）。截图：staging 装配结果 + 宿主真实 primitives 与主题 token，Edge headless 经 CDP 真实指针悬停，见主检出 .build/t0063-state-contrast/。遗留：真机未验收。"
+    },
+    {
+      "overlays": [
+        "market.discover-home",
+        "market.discover-home-styles",
+        "market.test-setup",
+        "market.test-discover-home"
+      ],
+      "verified": "2026-11-03（T0063 追加 2 更正）：用户要求在卡片最底部那行标签里写明状态，「跟之前那个一样」；右上角 + / ✓ 不变、下面不加字。恢复 c00b11c 删掉的「已安装」角标：PluginCard 底部 .dshMarketTags 最后追加一枚上游 Pill（className dshMarketInstalledBadge，文案用上游已有的 installed，颜色 --dsw-alias-label-tertiary、底 --dsw-alias-bg-layer-2，与原角标相同），再补一枚 dshMarketInstallableBadge（上游已有文案 installable：「可安装」/ Installable，--dsw-alias-state-success-primary 文字 + --dsw-alias-state-success-tertiary 淡底）。显示条件与右上角标记一致：清单未到不显示，不可卸载的内置组件不显示。两枚标签 flex: none + white-space: nowrap，窄卡片时整枚换到下一行、不拆字。真实静态 Pill 透传 className，测试桩不透传，所以恢复 market.test-setup（只给桩里的静态 Pill 补 className）。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0（39 条）；临时 staging 37 条 market prepare 覆盖全部生效，dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 355 过 9 跳过（产品回归加断言：标签是标签行最后一格、未装「可安装」已装「已安装」、清单未到与内置组件无标签、装卸后标签随清单翻转）。截图：staging 装配结果 + 宿主真实 primitives 与主题 token，Edge headless，发现页浅/深与 700px 窄宽（两列最窄）各一张，见主检出 .build/t0063-state-label/；自检脚本确认每张卡状态标签都在标签行最后、不与标题重叠、标题未被截断。遗留：真机未验收。"
     }
   ],
   "notes": [

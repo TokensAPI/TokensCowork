@@ -68,11 +68,18 @@ export function addMarketHome({ settingsTab, locales }) {
     card = replace(card, '      className="dshMarketCard"\n', `      className="dshMarketCard"
       data-state={installed === undefined ? undefined : installed === false ? 'install' : 'installed'}
 `)
-    return replace(card, '<span>{publisher}</span></div>\n', `<span>{publisher}</span></div>
+    card = replace(card, '<span>{publisher}</span></div>\n', `<span>{publisher}</span></div>
         {installed === false && <span className="dshMarketCardMark" aria-hidden="true" data-mark="install"><IconPlusOutlineRegular /></span>}
         {installed !== undefined && installed !== false && installed.removable && (
           <span className="dshMarketCardMark" aria-hidden="true" data-mark="installed"><IconCheckOutlineRegular /></span>
         )}
+`)
+    // 底部标签行最后一格写明状态（T0063 追加 2）：恢复原来的「已安装」角标（同一种
+    // 上游 Pill，灰色），再补一个绿色的「可安装」；文案用上游已有的 installed / installable。
+    // 显示条件与右上角标记相同：清单未到、不可卸载的内置组件都不显示。
+    return replace(card, '        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}\n', `        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}
+        {installed === false && <Pill className="dshMarketInstallableBadge">{t('installable')}</Pill>}
+        {installed !== undefined && installed !== false && installed.removable && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
 `)
   })
   // 「已安装」的说明文案 2.0.18 起由上游自己写清了启用/停用/卸载与官方插件页的分工，
@@ -88,7 +95,8 @@ export function addMarketHomeStyles(styles) {
   // 全部用宿主 token，深浅主题随之切换：「+」用宿主唯一的绿色（state-success，宿主的
   // business 强调色是蓝），加粗并套一圈圆形描边；「✓」用三级文字色、无描边。已安装卡片
   // 在原卡片底色上叠一层宿主的 hover 淡色，悬停再叠深一档的 active 色；不改透明度、
-  // 不改光标，所以不会像禁用。
+  // 不改光标，所以不会像禁用。底部状态标签：「已安装」恢复原角标的灰色，「可安装」用
+  // 宿主成功色文字 + 成功色淡底。
   return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCardMark {
   display: inline-flex;
   flex: none;
@@ -113,6 +121,22 @@ export function addMarketHomeStyles(styles) {
 
 .dshMarketCardMark[data-mark='installed'] {
   color: var(--dsw-alias-label-tertiary);
+}
+
+.dshMarketTags > .dshMarketInstalledBadge,
+.dshMarketTags > .dshMarketInstallableBadge {
+  flex: none;
+  white-space: nowrap;
+}
+
+.dshMarketTags > .dshMarketInstalledBadge {
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.dshMarketTags > .dshMarketInstallableBadge {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-tertiary);
 }
 
 .dshMarketCard[data-state='installed'] {
@@ -264,6 +288,13 @@ export function expectPluginsTabInClientTest(tests) {
         locale: NS,
       }),
     ])`)
+}
+
+export function adaptMarketHomeTestSetup(setup) {
+  // 真实的静态 Pill 会透传 className（底部状态标签靠它）；测试桩照这个契约补上。
+  return replace(setup.replaceAll('\r\n', '\n'),
+    'props.onClick === undefined ? <span>{children}</span>',
+    'props.onClick === undefined ? <span className={props.className}>{children}</span>')
 }
 
 export function adaptMarketHomeOverlayTests(tests) {

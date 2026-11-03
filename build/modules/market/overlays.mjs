@@ -24,6 +24,7 @@ import {
 } from './market-discover-latency-overlay.mjs'
 import {
   adaptMarketHomeOverlayTests,
+  adaptMarketHomeTestSetup,
   adaptMarketHomeTests,
   addMarketHome,
   addMarketHomeStyles,
@@ -157,14 +158,14 @@ export default [
     kind: 'customization',
     files: { settingsTab: f.settingsTab, locales: f.locales },
     apply: input => addMarketHome(input),
-    why: '默认进入原生发现页；上游发现页卡片整张只是打开详情的按钮，看不出能不能装，所以卡片右上角按本地安装清单画一个状态标记：未安装是加粗、带圆形描边的绿色「+」，已安装是灰色「✓」且整卡底色略深一档，不可卸载的内置插件只上底色不画标记。标记只是卡片按钮里的图形，点它和点卡片一样打开原来的详情，安装、卸载与确认都留在详情里；卡片其余照上游。详情自动检查更新，失败才显示重试。',
+    why: '默认进入原生发现页；上游发现页卡片整张只是打开详情的按钮，看不出能不能装，所以卡片右上角按本地安装清单画一个状态标记：未安装是加粗、带圆形描边的绿色「+」，已安装是灰色「✓」且整卡底色略深一档，不可卸载的内置插件只上底色不画标记；卡片底部标签行最后再加一枚上游 Pill 写明状态（绿色「可安装」/ 灰色「已安装」，内置插件不加）。标记只是卡片按钮里的图形，点它和点卡片一样打开原来的详情，安装、卸载与确认都留在详情里；卡片其余照上游。详情自动检查更新，失败才显示重试。',
     retireWhen: '上游提供相同发现入口、卡片上的安装状态标记和详情更新操作，并通过产品回归时移除。',
   }),
   sourceEntry('discover-home-styles', {
     kind: 'customization',
     files: { styles: f.styles },
     apply: ({ styles }) => ({ styles: addMarketHomeStyles(styles) }),
-    why: '卡片右上角状态标记与已安装卡片底色：「+」用宿主绿色 state-success 加粗并带圆形描边，「✓」用三级文字色；已安装卡片在上游底色上叠宿主 hover 淡色、悬停叠 active 色，全部是宿主 token，不改透明度、不像禁用。',
+    why: '卡片右上角状态标记与已安装卡片底色：「+」用宿主绿色 state-success 加粗并带圆形描边，「✓」用三级文字色；底部状态标签「可安装」用 state-success 文字与淡底、「已安装」用三级文字色（原「已安装」角标样式）；已安装卡片在上游底色上叠宿主 hover 淡色、悬停叠 active 色，全部是宿主 token，不改透明度、不像禁用。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
   sourceEntry('plugins-page-discover-tab', {
@@ -277,6 +278,13 @@ export default [
     why: '上游注册用例按次序断言市场客户端的三条 Slot 注册；产品多注册一条插件页「发现」标签，追加第四条断言。',
     retireWhen: '随 market.plugins-page-discover-tab 一起移除。',
   }),
+  sourceEntry('test-setup', {
+    kind: 'customization',
+    files: { setup: m('tests/setup.tsx') },
+    apply: ({ setup }) => ({ setup: adaptMarketHomeTestSetup(setup) }),
+    why: '测试桩里的静态 Pill 补上 className 透传（真实 Pill 本来就透传），发现页卡片底部的「可安装 / 已安装」状态标签靠它区分。',
+    retireWhen: '随 market.discover-home 一起移除。',
+  }),
   sourceEntry('test-source-description', {
     kind: 'customization',
     files: { tests: m('tests/market-settings-tab.spec.tsx') },
@@ -297,7 +305,7 @@ export default [
     apply: ({ tests }) => ({
       tests: adaptMarketHomeTests(tests) + readFileSync(template('market-home-ui-tests.inc'), 'utf8'),
     }),
-    why: '调整上游设置页用例的默认视图，并追加发现页、卡片「+ / ✓」标记与状态底色、自动检查与重试的产品回归（market-home-ui-tests.inc）。',
+    why: '调整上游设置页用例的默认视图，并追加发现页、卡片「+ / ✓」标记、底部状态标签与状态底色、自动检查与重试的产品回归（market-home-ui-tests.inc）。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
   sourceEntry('test-restart-ui', {

@@ -17,6 +17,14 @@ describe('product Discover home and installed details', () => {
   const markOf = (card: HTMLElement) => card.querySelector('.dshMarketCardMark')?.getAttribute('data-mark')
   /** 卡片自身的状态（决定已安装的略深底色）：install / installed，清单未到为 null。 */
   const stateOf = (card: HTMLElement) => card.getAttribute('data-state')
+  /** 卡片底部标签行里的状态标签：[类名, 文字]，没有则 undefined；断言它是这一行的最后一格。 */
+  const badgeOf = (card: HTMLElement) => {
+    const badge = card.querySelector('.dshMarketInstallableBadge, .dshMarketInstalledBadge')
+    if (badge === null) return undefined
+    expect(badge.parentElement?.className).toBe('dshMarketTags')
+    expect(badge.parentElement?.lastElementChild).toBe(badge)
+    return [badge.className, badge.textContent]
+  }
 
   function browse() {
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
@@ -38,11 +46,13 @@ describe('product Discover home and installed details', () => {
     expect(installed.parentElement?.className).toBe('dshMarketGrid')
     expect(markOf(installed)).toBe('installed')
     expect(markOf(fresh)).toBe('install')
-    // Same upstream card for both: same class and attributes; only data-state differs, no badge, not disabled.
+    // Same upstream card for both: same class and attributes; only data-state differs, not disabled.
     expect([...installed.attributes].map(attribute => attribute.name)).toEqual([...fresh.attributes].map(attribute => attribute.name))
     expect(stateOf(installed)).toBe('installed')
     expect(stateOf(fresh)).toBe('install')
-    expect(within(installed).queryByText(messages.installed)).toBeNull()
+    // The state is also spelled out as the last upstream Pill on the card's bottom tag row.
+    expect(badgeOf(installed)).toEqual(['dshMarketInstalledBadge', messages.installed])
+    expect(badgeOf(fresh)).toEqual(['dshMarketInstallableBadge', messages.installable])
     expect(installed.hasAttribute('disabled')).toBe(false)
     // The marks are drawn inside the card button: no extra control on the page.
     expect(installed.querySelector('.dshMarketCardMark')?.getAttribute('aria-hidden')).toBe('true')
@@ -62,10 +72,13 @@ describe('product Discover home and installed details', () => {
     const installed = await screen.findByRole('button', { name: /Installed Card/ })
     expect(markOf(installed)).toBeUndefined()
     expect(stateOf(installed)).toBeNull()
+    expect(badgeOf(installed)).toBeUndefined()
     expect(markOf(screen.getByRole('button', { name: /Fresh Card/ }))).toBeUndefined()
+    expect(badgeOf(screen.getByRole('button', { name: /Fresh Card/ }))).toBeUndefined()
     await act(async () => { resolveInventory({ installations: [localPlugin] }) })
     expect(markOf(installed)).toBe('installed')
     expect(stateOf(installed)).toBe('installed')
+    expect(badgeOf(installed)).toEqual(['dshMarketInstalledBadge', en.installed])
   })
 
   it('keeps the native install confirmation and turns + into ✓ after success', async () => {
@@ -90,6 +103,7 @@ describe('product Discover home and installed details', () => {
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
     expect(await screen.findByText(en.installComplete)).toBeTruthy()
     await waitFor(() => expect(markOf(card)).toBe('installed'))
+    expect(badgeOf(card)).toEqual(['dshMarketInstalledBadge', en.installed])
     fireEvent.click(card)
     const details = await screen.findByRole('dialog', { name: freshItem.displayName })
     expect(await within(details).findByRole('heading', { name: installed.packageName })).toBeTruthy()
@@ -237,6 +251,7 @@ describe('product Discover home and installed details', () => {
     expect(await screen.findByText(en.uninstallComplete)).toBeTruthy()
     await waitFor(() => expect(markOf(card)).toBe('install'))
     expect(stateOf(card)).toBe('install')
+    expect(badgeOf(card)).toEqual(['dshMarketInstallableBadge', en.installable])
     expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', packageName: localPlugin.packageName }, expect.any(AbortSignal))
   })
 
@@ -250,6 +265,7 @@ describe('product Discover home and installed details', () => {
     // A built-in component is installed but cannot be removed: installed tint, but no + and no ✓.
     await waitFor(() => expect(markOf(screen.getByRole('button', { name: /Fresh Card/ }))).toBe('install'))
     expect(markOf(readOnly)).toBeUndefined()
+    expect(badgeOf(readOnly)).toBeUndefined()
     expect(stateOf(readOnly)).toBe('installed')
     fireEvent.click(readOnly)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
