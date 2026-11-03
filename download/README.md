@@ -26,6 +26,8 @@
 
 发布列表按版本号排序，旧版本变更发布时间不会成为最新推荐版本。双语发布说明按页面语言显示，旧单语说明保持可读。正式版升级摘要汇集上一正式版至所选版本之间的版本摘要。
 
+内置插件区块读取各 Release 的插件清单（`plugins/<tag>.json`），清单里的名称和介绍是中文。英文界面按插件 id 从 [`bundled-plugins.js`](./bundled-plugins.js) 取英文；取值顺序为清单自带的 `nameEn` / `descriptionEn`、页面英文表、原中文。新增内置插件时在该文件补一行英文。
+
 如需临时使用固定下载链接，可在 `site-config.js` 的 `downloadOverrides` 中覆盖某个平台。
 
 ## 本地预览

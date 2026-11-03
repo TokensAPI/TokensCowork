@@ -498,10 +498,11 @@
       if (!plugins.length) return;
       grid.innerHTML = "";
       plugins.forEach(function (plugin) {
+        var text = window.TokensBundledPlugins.pluginText(plugin, currentLanguage);
         var card = document.createElement("article");
         card.className = "plugin-card";
         var title = document.createElement("h3");
-        title.textContent = plugin.name || plugin.id;
+        title.textContent = text.name;
         var version = document.createElement("span");
         version.className = "plugin-card__version";
         version.textContent = "v" + (plugin.version || "");
@@ -510,7 +511,7 @@
         identifier.className = "plugin-card__id";
         identifier.textContent = plugin.id || "";
         var description = document.createElement("p");
-        description.textContent = plugin.description || "";
+        description.textContent = text.description;
         card.appendChild(title);
         if (plugin.id) card.appendChild(identifier);
         card.appendChild(description);
