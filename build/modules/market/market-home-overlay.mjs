@@ -15,22 +15,6 @@ function editFunction(source, name, edit) {
   return source.slice(0, start) + edit(source.slice(start, end)) + source.slice(end)
 }
 
-/**
- * 卡片右上角的「+ / −」状态标记（T0063）：只是标记，不是按钮。它画在卡片按钮里面，
- * 所以点它和点卡片完全一样，打开原来的详情；安装、卸载与确认都留在详情里。宿主
- * 图标集没有减号，照 IconPlusOutlineRegular 的画法（16×16、描边 1）只留横线。
- */
-const cardMarkComponent = `
-/** 产品覆盖：宿主图标集里没有减号，照加号的画法只留横线。 */
-function MarketMinusIcon() {
-  return (
-    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" aria-hidden="true" strokeWidth={1}>
-      <path d="M2 8H14" stroke="currentColor" />
-    </svg>
-  )
-}
-`
-
 export function addMarketHome({ settingsTab, locales }) {
   settingsTab = settingsTab.replaceAll('\r\n', '\n')
   locales = locales.replaceAll('\r\n', '\n')
@@ -60,7 +44,6 @@ export function addMarketHome({ settingsTab, locales }) {
             installations={installations}
             inventoryError={installationsError}
             onRetryInventory={() => { void loadInstallations() }}`)
-  settingsTab = replace(settingsTab, '\nfunction DiscoverView(', `${cardMarkComponent}\nfunction DiscoverView(`)
   settingsTab = editFunction(settingsTab, 'DiscoverView', discover => {
     discover = replace(discover, '  items: readonly VisibleItem[]', `  items: readonly VisibleItem[]
   inventoryReady: boolean
@@ -75,15 +58,20 @@ export function addMarketHome({ settingsTab, locales }) {
     return replace(discover, 'value={value} onClick={() => props.onSelect(value)}',
       'value={value} installed={props.inventoryReady ? matchingInstallation(value, props.installations) ?? false : undefined} onClick={() => props.onSelect(value)}')
   })
-  // 清单还没读到时 installed 为 undefined，不画标记；读到后未安装 false →「+」，
-  // 已安装 →「−」，不可卸载的内置组件不画。
+  // 卡片右上角的状态标记（T0063）：只是卡片按钮里的图形，点它和点卡片一样打开原来的
+  // 详情，安装、卸载与确认都留在详情里。清单还没读到时 installed 为 undefined，卡片
+  // 不带状态、不画标记；未安装 →「+」（强调），已安装 →「✓」（低调）并让整卡略深一档。
+  // 不可卸载的内置组件按已安装上底色，但不画标记。
   settingsTab = editFunction(settingsTab, 'PluginCard', card => {
     card = replace(card, 'value, actionLabel, disabled', 'value, installed, actionLabel, disabled')
     card = replace(card, '  value: VisibleItem', '  value: VisibleItem\n  installed?: MarketInstallationView | false | undefined')
+    card = replace(card, '      className="dshMarketCard"\n', `      className="dshMarketCard"
+      data-state={installed === undefined ? undefined : installed === false ? 'install' : 'installed'}
+`)
     return replace(card, '<span>{publisher}</span></div>\n', `<span>{publisher}</span></div>
         {installed === false && <span className="dshMarketCardMark" aria-hidden="true" data-mark="install"><IconPlusOutlineRegular /></span>}
         {installed !== undefined && installed !== false && installed.removable && (
-          <span className="dshMarketCardMark" aria-hidden="true" data-mark="installed"><MarketMinusIcon /></span>
+          <span className="dshMarketCardMark" aria-hidden="true" data-mark="installed"><IconCheckOutlineRegular /></span>
         )}
 `)
   })
@@ -97,15 +85,42 @@ export function addMarketHome({ settingsTab, locales }) {
 }
 
 export function addMarketHomeStyles(styles) {
-  // 标记跟卡片标题同色（都继承卡片的文字色），深浅主题随之切换；不另设底色。
+  // 全部用宿主 token，深浅主题随之切换：「+」用宿主唯一的绿色（state-success，宿主的
+  // business 强调色是蓝），加粗并套一圈圆形描边；「✓」用三级文字色、无描边。已安装卡片
+  // 在原卡片底色上叠一层宿主的 hover 淡色，悬停再叠深一档的 active 色；不改透明度、
+  // 不改光标，所以不会像禁用。
   return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCardMark {
   display: inline-flex;
   flex: none;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: inherit;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.dshMarketCardMark[data-mark='install'] {
+  border: 1.5px solid var(--dsw-alias-state-success-primary);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.dshMarketCardMark[data-mark='install'] svg {
+  stroke-width: 2;
+}
+
+.dshMarketCardMark[data-mark='installed'] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.dshMarketCard[data-state='installed'] {
+  background: linear-gradient(var(--dsw-alias-interactive-bg-hover), var(--dsw-alias-interactive-bg-hover)), var(--dsw-alias-bg-layer-3);
+}
+
+.dshMarketCard[data-state='installed']:hover {
+  background: linear-gradient(var(--dsw-alias-interactive-bg-active), var(--dsw-alias-interactive-bg-active)), var(--dsw-alias-bg-layer-3);
 }
 
 .dshMarketCard:hover {`)
@@ -321,7 +336,7 @@ const t = ((key:`)
   let race = tests.slice(raceStart, raceEnd)
   race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
-  // 发现页挂载会先读一次清单给卡片的「+ / −」，进入 Installed 还会再做一次更新检查，
+  // 发现页挂载会先读一次清单给卡片的「+ / ✓」，进入 Installed 还会再做一次更新检查，
   // 上游这两个按调用次序排夹具的用例因此错位。改成跟着 Host 的当前清单走，断言
   // 只问"重新读过了"，不再钉死次数；产品里的刷新按钮现在叫"检查更新"。
   const bounds = (start, label) => {

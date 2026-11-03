@@ -13,15 +13,17 @@ describe('product Discover home and installed details', () => {
   const installedItem = makeInstallableItem(firstSource, 'installed-card', 'Installed Card', localPlugin.packageName)
   const freshItem = makeInstallableItem(firstSource, 'fresh-card', 'Fresh Card', '@tokensapi/fresh-card')
 
-  /** 卡片右上角的「+ / −」状态标记：install =「+」，installed =「−」，没有则 undefined。 */
+  /** 卡片右上角的状态标记：install =「+」，installed =「✓」，没有则 undefined。 */
   const markOf = (card: HTMLElement) => card.querySelector('.dshMarketCardMark')?.getAttribute('data-mark')
+  /** 卡片自身的状态（决定已安装的略深底色）：install / installed，清单未到为 null。 */
+  const stateOf = (card: HTMLElement) => card.getAttribute('data-state')
 
   function browse() {
     vi.mocked(readMarketState).mockResolvedValue(enabledState)
     vi.mocked(readMarketCatalog).mockResolvedValue(catalogForSource(firstSource, [installedItem, freshItem]))
   }
 
-  it.each(['en', 'zh-CN'])('opens on native Discover with one card style, + / − marks and no Installable tab in %s', async locale => {
+  it.each(['en', 'zh-CN'])('opens on native Discover with one card skeleton, + / ✓ marks and no Installable tab in %s', async locale => {
     const { en, zh } = await import('../src/client/locales.js')
     const messages = locale === 'en' ? en : zh
     const translate = ((key: MarketLocaleKey) => messages[key]) as MarketSettingsTabProps['t']
@@ -36,8 +38,10 @@ describe('product Discover home and installed details', () => {
     expect(installed.parentElement?.className).toBe('dshMarketGrid')
     expect(markOf(installed)).toBe('installed')
     expect(markOf(fresh)).toBe('install')
-    // Same upstream card for both: same class and attributes, no installed badge, no gray.
+    // Same upstream card for both: same class and attributes; only data-state differs, no badge, not disabled.
     expect([...installed.attributes].map(attribute => attribute.name)).toEqual([...fresh.attributes].map(attribute => attribute.name))
+    expect(stateOf(installed)).toBe('installed')
+    expect(stateOf(fresh)).toBe('install')
     expect(within(installed).queryByText(messages.installed)).toBeNull()
     expect(installed.hasAttribute('disabled')).toBe(false)
     // The marks are drawn inside the card button: no extra control on the page.
@@ -57,12 +61,14 @@ describe('product Discover home and installed details', () => {
     render(<MarketSettingsTab {...homeProps} />)
     const installed = await screen.findByRole('button', { name: /Installed Card/ })
     expect(markOf(installed)).toBeUndefined()
+    expect(stateOf(installed)).toBeNull()
     expect(markOf(screen.getByRole('button', { name: /Fresh Card/ }))).toBeUndefined()
     await act(async () => { resolveInventory({ installations: [localPlugin] }) })
     expect(markOf(installed)).toBe('installed')
+    expect(stateOf(installed)).toBe('installed')
   })
 
-  it('keeps the native install confirmation and turns + into − after success', async () => {
+  it('keeps the native install confirmation and turns + into ✓ after success', async () => {
     browse()
     let inventory: readonly import('../src/api-types.js').MarketInstallationView[] = []
     const installed = { ...localPlugin, packageName: freshItem.package!.name }
@@ -211,7 +217,7 @@ describe('product Discover home and installed details', () => {
     expect(markOf(await screen.findByRole('button', { name: /Installed Card/ }))).toBe('installed')
   })
 
-  it('uses native uninstall confirmation from Discover details and turns − back into +', async () => {
+  it('uses native uninstall confirmation from Discover details and turns ✓ back into +', async () => {
     browse()
     let inventory: readonly typeof localPlugin[] = [localPlugin]
     vi.mocked(readMarketInstallations).mockImplementation(async () => ({ installations: inventory }))
@@ -230,6 +236,7 @@ describe('product Discover home and installed details', () => {
     fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmUninstall }))
     expect(await screen.findByText(en.uninstallComplete)).toBeTruthy()
     await waitFor(() => expect(markOf(card)).toBe('install'))
+    expect(stateOf(card)).toBe('install')
     expect(previewMarketOperation).toHaveBeenCalledWith({ action: 'uninstall', packageName: localPlugin.packageName }, expect.any(AbortSignal))
   })
 
@@ -240,9 +247,10 @@ describe('product Discover home and installed details', () => {
     }] })
     render(<MarketSettingsTab {...homeProps} />)
     const readOnly = await screen.findByRole('button', { name: /Installed Card/ })
-    // A built-in component is installed but cannot be removed: no + and no −.
+    // A built-in component is installed but cannot be removed: installed tint, but no + and no ✓.
     await waitFor(() => expect(markOf(screen.getByRole('button', { name: /Fresh Card/ }))).toBe('install'))
     expect(markOf(readOnly)).toBeUndefined()
+    expect(stateOf(readOnly)).toBe('installed')
     fireEvent.click(readOnly)
     const details = await screen.findByRole('dialog', { name: installedItem.displayName })
     expect(await within(details).findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()

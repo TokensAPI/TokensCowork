@@ -20,7 +20,7 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 | [market-restart-overlay.mjs](market-restart-overlay.mjs) | 把官方管理器的 `restart-required` / `restartReason` 记进安装服务、经状态端点交给界面，面板顶部的待重启横幅与「立即重启」端点 |
 | [market-registry-overlay.mjs](market-registry-overlay.mjs) | 私有包身份、schema、版本验证，以及「一次操作写一次」的临时 `.npmrc` 安装路由；服务端凭据留在服务端 |
 | [market-network-overlay.mjs](market-network-overlay.mjs) | 慢链路下的下载预算（写进同一份临时 `.npmrc`）与超时失败的用户文案 |
-| [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、卡片右上角的「+ / −」安装状态标记（点它同点卡片，已装未装同一种卡片样式）、详情自动检查更新和失败重试，以及把同一发现面板接到侧栏「插件」页的「发现」标签；复用原生布局与操作 |
+| [market-home-overlay.mjs](market-home-overlay.mjs) | 默认发现页、卡片右上角的安装状态标记（未装绿色描边「+」、已装灰色「✓」加略深底色；点它同点卡片）、详情自动检查更新和失败重试，以及把同一发现面板接到侧栏「插件」页的「发现」标签；复用原生布局与操作 |
 | [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好、固定关掉官方「自定义插件市场」bundle 并清掉它预置的索引源，保留 Safe Mode 例外 |
 | [market-plugin-controls-overlay.mjs](market-plugin-controls-overlay.mjs) | 侧栏「插件」页：市场区只留产品市场一张卡（去掉 dsh-market、来源配置弹窗与启用开关），隐藏官方「自定义插件市场」bundle 与远程控制卡 |
 | [market-plugin-page-overlay.mjs](market-plugin-page-overlay.mjs) | 侧栏「插件」页去掉「添加插件」入口，安装统一走插件市场 |
