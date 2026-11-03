@@ -25,8 +25,8 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "03cce6c08ff8816a636b1826b23db0595b53c18c",
-        "version": "0.2.28",
+        "commit": "258b5d25c391d8e10f2b1e2a9a00b91abb256e29",
+        "version": "0.2.29",
         "artifact": null
       },
       "tokens-dsh-web-search": {
@@ -229,6 +229,12 @@
         "market.test-discover-home"
       ],
       "verified": "2026-11-03（T0063 追加 2 更正）：用户要求在卡片最底部那行标签里写明状态，「跟之前那个一样」；右上角 + / ✓ 不变、下面不加字。恢复 c00b11c 删掉的「已安装」角标：PluginCard 底部 .dshMarketTags 最后追加一枚上游 Pill（className dshMarketInstalledBadge，文案用上游已有的 installed，颜色 --dsw-alias-label-tertiary、底 --dsw-alias-bg-layer-2，与原角标相同），再补一枚 dshMarketInstallableBadge（上游已有文案 installable：「可安装」/ Installable，--dsw-alias-state-success-primary 文字 + --dsw-alias-state-success-tertiary 淡底）。显示条件与右上角标记一致：清单未到不显示，不可卸载的内置组件不显示。两枚标签 flex: none + white-space: nowrap，窄卡片时整枚换到下一行、不拆字。真实静态 Pill 透传 className，测试桩不透传，所以恢复 market.test-setup（只给桩里的静态 Pill 补 className）。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0（39 条）；临时 staging 37 条 market prepare 覆盖全部生效，dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 355 过 9 跳过（产品回归加断言：标签是标签行最后一格、未装「可安装」已装「已安装」、清单未到与内置组件无标签、装卸后标签随清单翻转）。截图：staging 装配结果 + 宿主真实 primitives 与主题 token，Edge headless，发现页浅/深与 700px 窄宽（两列最窄）各一张，见主检出 .build/t0063-state-label/；自检脚本确认每张卡状态标签都在标签行最后、不与标题重叠、标题未被截断。遗留：真机未验收。"
+    },
+    {
+      "overlays": [
+        "market.auth"
+      ],
+      "verified": "2026-11-03：tokens-model-manager 升至 0.2.29（258b5d2）。03cce6c..258b5d2 为主模型下线自动换回、非对话模型过滤、模型列表排序与默认模型改为 deepseek-v4-flash-vision-exp；凭据方面只新增读取备用线路自己的 DEEPSEEK_OFFICIAL 凭据以拉取备用目录，没有增删 TOKENSAPI_API_KEY 的读写，src/config.ts 未改，market.auth 依赖的 credentials.resolve(TOKENSAPI_API_KEY) 契约不变，无需修改。插件自身 check:host 34/34、带真实宿主 test:cases 137/137；用户用测试脚本启动看过模型列表、排序与过滤。"
     }
   ],
   "notes": [
