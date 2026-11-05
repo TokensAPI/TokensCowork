@@ -1,5 +1,5 @@
 {
-  "productVersion": "0.7.10",
+  "productVersion": "0.7.11",
   "items": [
     {
       "id": "tokens-version-updates",
@@ -57,8 +57,8 @@
       "displayName": "循环护栏",
       "summary": "检测工具的精确重复与近似重复调用,先提醒后硬阻断,替代上游 repeat-tool-reminder。",
       "repository": "https://github.com/TokensAPI/tokens_DshLoopGuard_code.git",
-      "version": "0.1.0",
-      "commit": "a4abda43136185aaa8dabf0c15557a47fe717949",
+      "version": "0.1.1",
+      "commit": "fb98cf5f5a925c893f00b11c5035c03539e51967",
       "category": "builtin"
     },
     {
