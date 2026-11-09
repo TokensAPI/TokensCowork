@@ -120,6 +120,32 @@ function removeGeneratedDirectory(path) {
   })
 }
 
+/**
+ * 下载插件发布文件：GitHub Release 下载偶尔回 5xx 或连接中断（v0.7.12 构建两次在这里 HTTP 504，同一地址随后可下载）。
+ * 只对 5xx、429 与网络错误重试，等待 5、15、30 秒，最多 4 次；4xx（地址或权限错）立即失败。下载内容仍由调用方按 SHA-256 核对。
+ * @param {string} url
+ * @param {string} id 插件 id，用于报错
+ * @param {{ fetchImpl?: typeof fetch, delays?: number[], log?: (line: string) => void }} [options]
+ * @returns {Promise<Buffer>}
+ */
+export async function downloadWithRetry(url, id, { fetchImpl = fetch, delays = [5000, 15000, 30000], log = line => process.stdout.write(`${line}\n`) } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    let reason
+    try {
+      const response = await fetchImpl(url, { redirect: 'follow' })
+      if (response.ok) return Buffer.from(await response.arrayBuffer())
+      if (response.status < 500 && response.status !== 429) fail(`${id} artifact download returned HTTP ${response.status}`)
+      reason = `HTTP ${response.status}`
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('fetch-product-plugin-artifacts:')) throw error
+      reason = error?.cause?.code ?? error?.name ?? String(error)
+    }
+    if (attempt >= delays.length) fail(`${id} artifact download returned ${reason} after ${attempt + 1} attempts`)
+    log(`fetch-product-plugin-artifacts: ${id} download ${reason}; retrying in ${delays[attempt] / 1000}s (${attempt + 2}/${delays.length + 1})`)
+    await new Promise(resolve => setTimeout(resolve, delays[attempt]))
+  }
+}
+
 async function downloadArtifact(plugin) {
   const artifact = plugin.artifact
   if (artifact.type !== 'npm-tgz') fail(`${plugin.id} artifact type must be npm-tgz`)
@@ -132,9 +158,7 @@ async function downloadArtifact(plugin) {
   if (existsSync(archivePath)) {
     archive = readFileSync(archivePath)
   } else {
-    const response = await fetch(artifact.url, { redirect: 'follow' })
-    if (!response.ok) fail(`${plugin.id} artifact download returned HTTP ${response.status}`)
-    archive = Buffer.from(await response.arrayBuffer())
+    archive = await downloadWithRetry(artifact.url, plugin.id)
   }
   const actualSha256 = sha256(archive)
   if (actualSha256 !== artifact.sha256) {
@@ -177,6 +201,8 @@ async function downloadArtifact(plugin) {
   process.stdout.write(`fetch-product-plugin-artifacts: ${plugin.id}@${plugin.version} ${actualSha256}\n`)
 }
 
-for (const plugin of product.plugins.filter(item => item.enabledByDefault === true && item.artifact !== undefined)) {
-  await downloadArtifact(plugin)
+if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
+  for (const plugin of product.plugins.filter(item => item.enabledByDefault === true && item.artifact !== undefined)) {
+    await downloadArtifact(plugin)
+  }
 }
