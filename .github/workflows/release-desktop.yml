@@ -317,6 +317,37 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+      # Microsoft Store 商店包：build.mjs win 用同一份 win-unpacked 打出的 appx（MSIX 格式，未签名，商店收包后签）。
+      # 只给 Partner Center 上传用，不进 GitHub Release：制品名故意不以 desktop- 开头，发布任务按 desktop-* 收集附件时不会带上它。
+      - name: 报告 · 保存 Microsoft Store 商店包
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $version = "${{ needs.metadata.outputs.version }}"
+          $dist = ".build/desktop/dsh-plugin-desktop/dist"
+          $packages = @(Get-ChildItem -LiteralPath $dist -Filter "TokensCowork-*-x64-Store.appx" -File)
+          if ($packages.Count -ne 1) {
+            throw "Expected exactly one Microsoft Store package, found $($packages.Count)"
+          }
+          $storeName = "TokensCowork-$version-windows-amd64-store.msix"
+          $storePath = Join-Path $dist $storeName
+          Move-Item -LiteralPath $packages[0].FullName -Destination $storePath
+          node build/pipeline/store-package-verify.mjs $storePath
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $storePath).Hash.ToLowerInvariant()
+          "$hash  $storeName" | Set-Content -Encoding ascii "$dist/TokensCowork-$version-windows-amd64-store-SHA256SUMS.txt"
+
+      - name: 报告 · 上传 Microsoft Store 商店包
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: store-windows-amd64-${{ needs.metadata.outputs.version }}
+          path: |
+            .build/desktop/dsh-plugin-desktop/dist/*-windows-amd64-store.msix
+            .build/desktop/dsh-plugin-desktop/dist/*-windows-amd64-store-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       - name: 准备 · 选择 macOS 签名方式
         if: matrix.platform == 'macos'
         id: signing

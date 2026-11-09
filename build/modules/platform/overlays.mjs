@@ -16,6 +16,16 @@ import {
 import { bridgeDesktopSystemProxy, bridgeWebFetchSystemProxy } from './system-proxy-overlay.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse, alignWindowsAclConsoleSpec } from './windows-acl-overlay.mjs'
 import { addWindowsInstallerGuard, pinNsisResources } from './windows-installer-overlay.mjs'
+import { configureWindowsStorePackage, skipAppUserModelIdInStorePackage } from './windows-store-overlay.mjs'
+
+/** MSIX 商店包图标（assets/windows/store/generate.mjs 从品牌图标生成，入库）。 */
+const STORE_ASSETS = [
+  'StoreLogo.png', 'StoreLogo.scale-200.png', 'Square44x44Logo.png', 'Square44x44Logo.scale-200.png',
+  'Square44x44Logo.targetsize-16_altform-unplated.png', 'Square44x44Logo.targetsize-24_altform-unplated.png',
+  'Square44x44Logo.targetsize-32_altform-unplated.png', 'Square44x44Logo.targetsize-48_altform-unplated.png',
+  'Square44x44Logo.targetsize-256_altform-unplated.png', 'SmallTile.png', 'Square150x150Logo.png',
+  'Square150x150Logo.scale-200.png', 'Wide310x150Logo.png', 'Wide310x150Logo.scale-200.png', 'LargeTile.png',
+]
 
 const asset = (...parts) => resolve(import.meta.dirname, ...parts)
 
@@ -115,6 +125,16 @@ export default [
     retireWhen: '上游提供等效 ACL 失败恢复，并通过相同 Windows 真机回归后删除。',
   },
   {
+    id: 'platform.windows-store-app-id',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'compatibility',
+    files: { main: d.main },
+    apply: ({ main }) => ({ main: skipAppUserModelIdInStorePackage(main) }),
+    why: '商店包已有包标识分配的应用 ID；程序再设 com.tokensapi.tokenscowork 会让任务栏图标分成两个、通知不显示。商店包里跳过，EXE 版不变。',
+    retireWhen: '上游按 process.windowsStore 自行跳过，或产品不再上架 Microsoft Store 时删除。',
+  },
+  {
     id: 'platform.web-fetch-proxy-fallback',
     phase: 'installed',
     upstream: ['dsh'],
@@ -136,6 +156,28 @@ export default [
     },
     why: '产品版本、appId、安装器名称与 GUID、afterSign 公证回调；按打包目标剔除异架构原生依赖（Windows 剔 arm64/ia32，单架构 macOS 按上游 x64ArchFiles 清单剔另一个架构），否则安装包翻倍、签名公证时间翻倍。',
     retireWhen: '产品身份始终保留；上游支持配置化架构裁剪后缩减对应部分。',
+  },
+  {
+    id: 'platform.windows-store-package',
+    phase: 'configure',
+    upstream: ['desktop', 'product'],
+    kind: 'customization',
+    files: { desktopPackage: d.desktopPackage },
+    apply: ({ desktopPackage }, { product }) => {
+      configureWindowsStorePackage(desktopPackage, product.product)
+      return { desktopPackage }
+    },
+    why: 'Microsoft Store 商店包（MSIX）：和 EXE 同一份程序目录多打一个 appx 目标；包标识按 Partner Center 精确填写，不签名（商店收包后签）。',
+    retireWhen: '产品不再上架 Microsoft Store 时删除。',
+  },
+  {
+    id: 'platform.windows-store-assets',
+    phase: 'configure',
+    upstream: ['product'],
+    kind: 'customization',
+    copy: STORE_ASSETS.map(name => [asset('assets/windows/store', name), `dsh-plugin-desktop/build/appx/${name}`]),
+    why: 'electron-builder 的 appx 目标从 build/appx 读开始菜单、任务栏、商店图标；不给就用 Electron 默认图标。',
+    retireWhen: '随 platform.windows-store-package 一起删除。',
   },
   {
     id: 'platform.mac-packaged-uv-check',

@@ -258,6 +258,24 @@ if (mode === 'check') {
     '--config.npmRebuild=false',
   ], stage, unsignedEnvironment)
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'packaged-app-verify.mjs'), 'windows'], root)
+  // Microsoft Store 商店包（MSIX）：用刚验过的同一份 win-unpacked 再打一个 appx，不重新编译、不重新装配，
+  // 两个产物里是同一套程序。不签名（商店收包后签）；包标识与图标由 platform.windows-store-* 覆盖写好。
+  run('corepack', [
+    'yarn',
+    'workspace',
+    'dsh-plugin-desktop',
+    'exec',
+    'electron-builder',
+    '--win',
+    'appx',
+    '--x64',
+    '--prepackaged',
+    'dist/win-unpacked',
+    '--publish',
+    'never',
+    '--config.npmRebuild=false',
+  ], stage, unsignedEnvironment)
+  run(process.execPath, [resolve(root, 'build', 'pipeline', 'store-package-verify.mjs')], root)
 } else if (mode === 'win-check') {
   phase = 'windows-check'
   /* ----------------------- Windows 质量门禁 ------------------------ */
