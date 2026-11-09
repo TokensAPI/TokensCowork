@@ -66,7 +66,11 @@ export function readZip(buffer) {
   }
 }
 
-const attribute = (xml, element, name) => new RegExp(`<${element}\\b[^>]*\\s${name}="([^"]*)"`, 'u').exec(xml)?.[1]
+// electron-builder 的清单模板里 Publisher 用单引号（值里可能有双引号），其余用双引号：两种都认
+const attribute = (xml, element, name) => {
+  const match = new RegExp(`<${element}\\b[^>]*\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'u').exec(xml)
+  return match ? (match[1] ?? match[2]) : undefined
+}
 const decode = text => text?.replace(/&amp;/gu, '&').replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&quot;/gu, '"').replace(/&apos;/gu, "'")
 
 /**

@@ -40,7 +40,10 @@ const manifest = (overrides = {}) => {
   const values = { name: store.identityName, publisher: store.publisher, version: `${product.version}.0`, display: store.publisherDisplayName, ...overrides }
   return `<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="${values.name}" ProcessorArchitecture="x64" Publisher="${values.publisher}" Version="${values.version}" />
+  <Identity Name="${values.name}"
+    ProcessorArchitecture="x64"
+    Publisher='${values.publisher}'
+    Version="${values.version}" />
   <Properties><DisplayName>${product.name}</DisplayName><PublisherDisplayName>${values.display}</PublisherDisplayName><Logo>assets\\StoreLogo.png</Logo></Properties>
   <Applications><Application Id="${product.name}" Executable="app\\${product.name}.exe" EntryPoint="Windows.FullTrustApplication">
     <uap:VisualElements Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png" />
