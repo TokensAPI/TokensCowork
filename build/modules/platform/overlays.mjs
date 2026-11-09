@@ -2,7 +2,7 @@
  * platform 覆盖登记表
  * 系统代理回退、Windows ACL 启动链与安装器、打包身份与 macOS 单架构签名。
  * ==================================================================== */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { desktopFiles as d, installedOverlay } from '../../pipeline/stage-targets.mjs'
 import {
@@ -16,18 +16,12 @@ import {
 import { bridgeDesktopSystemProxy, bridgeWebFetchSystemProxy } from './system-proxy-overlay.mjs'
 import { addWindowsAclHostConsole, addWindowsAclInfrastructureFuse, alignWindowsAclConsoleSpec } from './windows-acl-overlay.mjs'
 import { addWindowsInstallerGuard, pinNsisResources } from './windows-installer-overlay.mjs'
-import { configureWindowsStorePackage, skipAppUserModelIdInStorePackage } from './windows-store-overlay.mjs'
-
-/** MSIX 商店包图标（assets/windows/store/generate.mjs 从品牌图标生成，入库）。 */
-const STORE_ASSETS = [
-  'StoreLogo.png', 'StoreLogo.scale-200.png', 'Square44x44Logo.png', 'Square44x44Logo.scale-200.png',
-  'Square44x44Logo.targetsize-16_altform-unplated.png', 'Square44x44Logo.targetsize-24_altform-unplated.png',
-  'Square44x44Logo.targetsize-32_altform-unplated.png', 'Square44x44Logo.targetsize-48_altform-unplated.png',
-  'Square44x44Logo.targetsize-256_altform-unplated.png', 'SmallTile.png', 'Square150x150Logo.png',
-  'Square150x150Logo.scale-200.png', 'Wide310x150Logo.png', 'Wide310x150Logo.scale-200.png', 'LargeTile.png',
-]
+import { configureWindowsStorePackage, skipAppUserModelIdInStorePackage, storeManifestTemplate } from './windows-store-overlay.mjs'
 
 const asset = (...parts) => resolve(import.meta.dirname, ...parts)
+
+/** MSIX 商店包图标：assets/windows/store/ 下全部 PNG（generate.mjs 从品牌图标生成，入库）。 */
+const STORE_ASSETS = readdirSync(asset('assets/windows/store')).filter(name => name.endsWith('.png')).sort()
 
 export default [
   {
@@ -176,8 +170,21 @@ export default [
     upstream: ['product'],
     kind: 'customization',
     copy: STORE_ASSETS.map(name => [asset('assets/windows/store', name), `dsh-plugin-desktop/build/appx/${name}`]),
-    why: 'electron-builder 的 appx 目标从 build/appx 读开始菜单、任务栏、商店图标；不给就用 Electron 默认图标。',
+    why: 'electron-builder 的 appx 目标从 build/appx 读开始菜单、任务栏、商店图标；不给就用 Electron 默认图标。浅色任务栏要 lightunplated 变体，否则显示带底板的图标。',
     retireWhen: '随 platform.windows-store-package 一起删除。',
+  },
+  {
+    id: 'platform.windows-store-manifest',
+    phase: 'configure',
+    upstream: ['desktop'],
+    kind: 'compatibility',
+    files: {
+      template: 'dsh-plugin-desktop/node_modules/app-builder-lib/templates/appx/appxmanifest.xml',
+      manifest: { path: 'dsh-plugin-desktop/build/appxmanifest.xml', optional: true },
+    },
+    apply: ({ template }) => ({ manifest: storeManifestTemplate(template) }),
+    why: 'MSIX 默认把 %APPDATA% 下新建的文件夹转到商店私有目录（本机实测）：没装过 EXE 版的电脑上数据外部看不到、和 EXE 版不互通。在 electron-builder 的清单模板上声明关闭文件与注册表写入重定向。',
+    retireWhen: 'electron-builder 的 appx 选项能直接声明关闭写入重定向，或产品不再上架 Microsoft Store 时删除。',
   },
   {
     id: 'platform.mac-packaged-uv-check',

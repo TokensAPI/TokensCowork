@@ -44,11 +44,14 @@ const manifest = (overrides = {}) => {
     ProcessorArchitecture="x64"
     Publisher='${values.publisher}'
     Version="${values.version}" />
-  <Properties><DisplayName>${product.name}</DisplayName><PublisherDisplayName>${values.display}</PublisherDisplayName><Logo>assets\\StoreLogo.png</Logo></Properties>
+  <Properties><DisplayName>${product.name}</DisplayName><PublisherDisplayName>${values.display}</PublisherDisplayName><Logo>assets\\StoreLogo.png</Logo>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+  </Properties>
   <Applications><Application Id="${product.name}" Executable="app\\${product.name}.exe" EntryPoint="Windows.FullTrustApplication">
     <uap:VisualElements Square150x150Logo="assets\\Square150x150Logo.png" Square44x44Logo="assets\\Square44x44Logo.png" />
   </Application></Applications>
-  <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+  <Capabilities><rescap:Capability Name="runFullTrust" /><rescap:Capability Name="unvirtualizedResources" /></Capabilities>
 </Package>`
 }
 const files = (extra = {}) => ({
@@ -88,6 +91,8 @@ test('wrong identity, version, signature, capability or missing files are reject
   broken(files({ 'AppxManifest.xml': manifest({ version: `${product.version}.1` }) }), /four parts ending in \.0/)
   broken(files({ 'AppxSignature.p7x': 'sig' }), /self-signed/)
   broken(files({ 'AppxManifest.xml': manifest().replace('<rescap:Capability Name="runFullTrust" />', '') }), /runFullTrust/)
+  broken(files({ 'AppxManifest.xml': manifest().replace(/<desktop6:FileSystemWriteVirtualization>disabled/u, '<desktop6:FileSystemWriteVirtualization>enabled') }), /FileSystemWriteVirtualization is not disabled/)
+  broken(files({ 'AppxManifest.xml': manifest().replace('<rescap:Capability Name="unvirtualizedResources" />', '') }), /unvirtualizedResources/)
   const noExe = files(); delete noExe[`app/${product.name}.exe`]
   broken(noExe, /executable/)
   const noLogo = files(); delete noLogo['assets/Square44x44Logo.png']

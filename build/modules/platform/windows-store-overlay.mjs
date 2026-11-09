@@ -37,10 +37,17 @@ export function configureWindowsStorePackage(desktopPackage, product) {
     publisherDisplayName: identity.publisherDisplayName,
     applicationId: product.name,
     displayName: product.name,
-    // 图标透明底：开始菜单、任务栏跟随系统主题，不画色块
-    backgroundColor: 'transparent',
+    // 需要底板的地方（开始菜单磁贴、浅色任务栏缺无底板图标时）用白底；transparent 会被系统填成强调色（蓝底）
+    backgroundColor: '#FFFFFF',
     showNameOnTiles: false,
     languages: ['zh-CN', 'en-US'],
+    // 关闭文件 / 注册表写入重定向（见 storeManifestTemplate）：和 EXE 版读写同一个 %APPDATA%\TokensCowork，
+    // 外部程序（资源管理器、编辑器、插件起的进程）看得到应用写的文件。unvirtualizedResources 是受限权限，提交商店时要写理由。
+    capabilities: ['runFullTrust', 'unvirtualizedResources'],
+    customManifestPath: 'appxmanifest.xml',
+    // desktop6 的关闭重定向从 Windows 10 1809（17763）起支持
+    minVersion: '10.0.17763.0',
+    maxVersionTested: '10.0.26100.0',
     // 开机自启由应用自己的设置决定，不在清单里加
     addAutoLaunchExtension: false,
     // 商店包的更新由 Microsoft Store 负责，不写 electron-updater 的更新信息
@@ -48,6 +55,28 @@ export function configureWindowsStorePackage(desktopPackage, product) {
     artifactName: `${product.name}-\${version}-\${arch}-Store.\${ext}`,
   }
   return desktopPackage
+}
+
+const RESCAP_NAMESPACE = 'xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"'
+const DESKTOP6_NAMESPACE = 'xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"'
+
+/**
+ * 商店包清单模板：在 electron-builder 自带的 appx 模板上加「关闭文件与注册表写入重定向」。
+ * MSIX 默认把应用在 %APPDATA% 下新建的文件夹转到商店私有目录（2026-11-09 在本机实测：已存在的 TokensCowork 目录写真实位置，
+ * 新建目录写 LocalCache）。没装过 EXE 版的电脑上数据目录就会建在私有区域：外部程序看不到，之后装 EXE 版也不互通。
+ * 只在模板上加两行、不另抄一份，electron-builder 升级时跟着它的模板走；锚点变了就失败。
+ * @param {string} template - staging 里 app-builder-lib/templates/appx/appxmanifest.xml 的内容。
+ * @returns {string}
+ */
+export function storeManifestTemplate(template) {
+  if (template.split(RESCAP_NAMESPACE).length !== 2) throw new Error('configure-product: appx template rescap namespace anchor changed')
+  if (template.split('</Properties>').length !== 2) throw new Error('configure-product: appx template Properties anchor changed')
+  if (!template.includes('${capabilities}')) throw new Error('configure-product: appx template no longer renders ${capabilities}')
+  if (template.includes('desktop6:')) throw new Error('configure-product: appx template already declares desktop6; review before overriding')
+  return template
+    .replace(RESCAP_NAMESPACE, `${DESKTOP6_NAMESPACE}\n   ${RESCAP_NAMESPACE}`)
+    .replace('</Properties>', '    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>\n'
+      + '    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>\n  </Properties>')
 }
 
 /** 上游启动时给 Windows 设应用 ID 的那一句（任务栏分组、通知用）。 */

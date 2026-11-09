@@ -103,6 +103,13 @@ export function verifyStorePackage(path, product) {
   if (identity.architecture !== 'x64') throw new Error(`store-package: ProcessorArchitecture ${identity.architecture} != x64`)
   if (identity.displayName !== product.name) throw new Error(`store-package: DisplayName ${identity.displayName} != ${product.name}`)
   if (!/<rescap:Capability\s+Name="runFullTrust"/u.test(manifest)) throw new Error('store-package: runFullTrust capability missing')
+  // 和 EXE 版读写同一份数据：关闭文件与注册表写入重定向，需要受限权限 unvirtualizedResources
+  for (const kind of ['FileSystemWriteVirtualization', 'RegistryWriteVirtualization']) {
+    if (!new RegExp(`<desktop6:${kind}>\\s*disabled\\s*</desktop6:${kind}>`, 'u').test(manifest)) {
+      throw new Error(`store-package: ${kind} is not disabled; data would be redirected away from %APPDATA%\\${product.name}`)
+    }
+  }
+  if (!/<rescap:Capability\s+Name="unvirtualizedResources"/u.test(manifest)) throw new Error('store-package: unvirtualizedResources capability missing')
   if (zip.names.includes('AppxSignature.p7x')) throw new Error('store-package: package is self-signed; upload it unsigned so the Store signs it')
   const executable = identity.executable?.replaceAll('\\', '/')
   if (!executable || !zip.names.includes(executable)) throw new Error(`store-package: executable ${identity.executable} not in package`)

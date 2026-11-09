@@ -18,11 +18,12 @@ const outputs = [
   ['StoreLogo.scale-200.png', 100, 100, 0.92],
   ['Square44x44Logo.png', 44, 44, 0.92],
   ['Square44x44Logo.scale-200.png', 88, 88, 0.92],
-  ['Square44x44Logo.targetsize-16_altform-unplated.png', 16, 16, 1],
-  ['Square44x44Logo.targetsize-24_altform-unplated.png', 24, 24, 1],
-  ['Square44x44Logo.targetsize-32_altform-unplated.png', 32, 32, 1],
-  ['Square44x44Logo.targetsize-48_altform-unplated.png', 48, 48, 1],
-  ['Square44x44Logo.targetsize-256_altform-unplated.png', 256, 256, 1],
+  // 任务栏、开始菜单列表、文件资源管理器用的无底板图标：unplated 给深色主题，lightunplated 给浅色主题。
+  // 浅色任务栏缺 lightunplated 时 Windows 11 会退回带底板的图标，底板填系统强调色（蓝底）。
+  ...[16, 20, 24, 30, 32, 36, 40, 48, 64, 256].flatMap(size => [
+    [`Square44x44Logo.targetsize-${size}_altform-unplated.png`, size, size, 1],
+    [`Square44x44Logo.targetsize-${size}_altform-lightunplated.png`, size, size, 1],
+  ]),
   ['SmallTile.png', 71, 71, 0.7],
   ['Square150x150Logo.png', 150, 150, 0.62],
   ['Square150x150Logo.scale-200.png', 300, 300, 0.62],
