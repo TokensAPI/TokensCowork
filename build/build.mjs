@@ -260,6 +260,15 @@ if (mode === 'check') {
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'packaged-app-verify.mjs'), 'windows'], root)
   // Microsoft Store 商店包（MSIX）：用刚验过的同一份 win-unpacked 再打一个 appx，不重新编译、不重新装配，
   // 两个产物里是同一套程序。不签名（商店收包后签）；包标识与图标由 platform.windows-store-* 覆盖写好。
+  // MSIX 对文件名比 NTFS 严：先复制一份给商店包，删掉已知用不到的不合规文件，还有不合规的直接失败并列出路径
+  // （否则 MakeAppx 只报 0x8007007B，不说是哪个文件）。EXE 用的 win-unpacked 不动。
+  const desktopDist = resolve(stage, 'dsh-plugin-desktop', 'dist')
+  run(process.execPath, [
+    resolve(root, 'build', 'pipeline', 'store-payload-scan.mjs'),
+    '--prepare',
+    resolve(desktopDist, 'win-unpacked'),
+    resolve(desktopDist, 'store-unpacked'),
+  ], root)
   run('corepack', [
     'yarn',
     'workspace',
@@ -270,7 +279,7 @@ if (mode === 'check') {
     'appx',
     '--x64',
     '--prepackaged',
-    'dist/win-unpacked',
+    'dist/store-unpacked',
     '--publish',
     'never',
     '--config.npmRebuild=false',
