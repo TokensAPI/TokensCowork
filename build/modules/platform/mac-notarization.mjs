@@ -86,7 +86,7 @@ export function inspectSource(runId, selection, env = process.env, run = runMac)
   const version = JSON.parse(Buffer.from(manifest.content, 'base64').toString('utf8')).product.version
   if (!/^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(version)) throw new Error('Invalid source version')
   const targets = [
-    { arch: 'arm64', electron_arch: 'arm64', runner: 'macos-14' },
+    { arch: 'arm64', electron_arch: 'arm64', runner: 'macos-15' },
     { arch: 'amd64', electron_arch: 'x64', runner: 'macos-15-intel' },
   ].filter(target => selection === 'both' || target.arch === selection)
   const artifacts = api(`actions/runs/${runId}/artifacts?per_page=100`).artifacts

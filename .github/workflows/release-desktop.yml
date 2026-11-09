@@ -95,7 +95,7 @@ jobs:
           - name: 构建 · macOS ARM64 安装包
             platform: macos
             arch: arm64
-            runner: macos-14
+            runner: macos-15
             electron_arch: arm64
             binary_arch: arm64
           # Intel 包也在 Apple Silicon runner 上打：macos-15-intel 的 CPU 慢 3–4 倍
@@ -104,7 +104,7 @@ jobs:
           - name: 构建 · macOS AMD64 安装包
             platform: macos
             arch: amd64
-            runner: macos-14
+            runner: macos-15
             electron_arch: x64
             binary_arch: x86_64
     steps:

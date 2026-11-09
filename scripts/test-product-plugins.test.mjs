@@ -157,7 +157,7 @@ test('prerelease builds only three installers with fail-fast publication gating'
   // 三个安装包 + 一个与 Windows 打包并行的质量门禁任务。
   assert.deepEqual([...parallel.matchAll(/^            platform: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-check', 'windows', 'macos', 'macos'])
   // Intel 包在 Apple Silicon 上交叉打包，x64 smoke 靠 Rosetta；Intel runner 慢 3–4 倍。
-  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'windows-2022', 'macos-14', 'macos-14'])
+  assert.deepEqual([...parallel.matchAll(/^            runner: (.+)\r?$/gm)].map(match => match[1].trim()), ['windows-2022', 'windows-2022', 'macos-15', 'macos-15'])
   // 构建代码回归（build/** 的 node --test）也在这里跑：它读 desktop/ 子模块源码，只有这个任务有完整检出。
   assert.match(parallel, /if: matrix.platform == 'windows-check'\n        env:\n(?:          .*\n)+        run: \|\n          corepack yarn test:uninstall\n          corepack yarn test:build\n          corepack yarn product:check:win/)
   assert.match(parallel, /if: matrix.platform == 'windows'\n        run: corepack yarn product:dist:win/)
@@ -259,6 +259,6 @@ test('the weekly cache warm-up reads exactly the cache the release build writes'
   assert.match(warm, /schedule:\n    - cron:/)
   // 预热不执行任何命令：没有 run 步骤，只有 checkout 与缓存读取。
   assert.doesNotMatch(warm, /\n\s+run:/)
-  for (const runner of ['windows-2022', 'macos-14']) assert.ok(warm.includes(runner), `预热缺少 ${runner}`)
+  for (const runner of ['windows-2022', 'macos-15']) assert.ok(warm.includes(runner), `预热缺少 ${runner}`)
   assert.ok(!warm.includes('macos-15-intel'), '发布已不用 Intel runner，不必预热它的缓存')
 })
