@@ -283,6 +283,9 @@ if (mode === 'check') {
     '--publish',
     'never',
     '--config.npmRebuild=false',
+    // 默认的 winCodeSign 2.6.0 里 MakeAppx 太旧，不认 desktop6（关闭写入重定向）报清单无效；
+    // 商店包改用 Windows SDK 10.0.26100 的工具包。只加在这条命令上，EXE 打包用的 rcedit 不变。
+    '--config.toolsets.winCodeSign=1.1.0',
   ], stage, unsignedEnvironment)
   run(process.execPath, [resolve(root, 'build', 'pipeline', 'store-package-verify.mjs')], root)
 } else if (mode === 'win-check') {
