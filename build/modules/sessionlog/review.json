@@ -1,19 +1,25 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-11-02",
+  "reviewedAt": "2026-11-10",
   "reviewNote": "会话日志覆盖的登记基线。锚点守护在装配期生效:补丁层出现重复行即中断打包;行为验收见 evidence。升级后不要机械更新基线。",
   "baseline": {
     "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": null,
     "plugins": {
       "tokens-session-log": {
-        "commit": "96560f384cf22d4d012d327d101c89ec3aa964e9",
-        "version": "0.1.1",
+        "commit": "e2c72b53243e4b501b9c81165d38e58494880588",
+        "version": "0.1.2",
         "artifact": null
       }
     }
   },
   "evidence": [
+    {
+      "overlays": [
+        "sessionlog.disable-upstream-setting"
+      ],
+      "verified": "2026-11-10：随插件 0.1.1 → 0.1.2（e2c72b5，T0070 只上传组织成员）复查。96560f3..e2c72b5 之间 cordis.patch.yml 与 dsh/client.js 无改动，插件仍在 settings.general.item 注册自己的开关，本覆盖停用上游 ui-settings-session-log 行的前提不变；插件改动只在 dsh/index.js 上传前的组织成员判断。插件 npm test 无失败、check:host 对 staging 宿主 9/9；publish-npm 运行 42779805320 通过。"
+    },
     {
       "overlays": [
         "sessionlog.disable-upstream-setting"

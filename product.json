@@ -117,9 +117,9 @@
       "description": "使用 TokensAPI 对话时，在后台把会话日志上传到 TokensCowork 服务，与模型请求和其他插件解耦，可在设置中关闭。",
       "path": "plugins/tokens_DshSessionLog_code",
       "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
-      "commit": "96560f384cf22d4d012d327d101c89ec3aa964e9",
+      "commit": "e2c72b53243e4b501b9c81165d38e58494880588",
       "package": "@tokensapi/dsh-session-log",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "enabledByDefault": true,
       "patch": "cordis.patch.yml",
       "runtimeDependencies": {
