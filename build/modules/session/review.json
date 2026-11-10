@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "reviewedAt": "2026-11-10",
+  "reviewNote": "永久删除会话（T0069）的登记基线：Desktop 6a63b973 / DSH 0.2.1-rc.2（harness 687f282e）。锚点在装配期守护；行为由真实宿主冒烟 staging-session-delete-smoke.mjs 验证。升级后不要机械更新基线，先重跑冒烟。",
+  "baseline": {
+    "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
+    "dsh": {
+      "commit": "687f282e8625c6b8d11ff58211a90524be2e4317",
+      "version": "0.2.1-rc.2"
+    },
+    "plugins": {}
+  },
+  "evidence": [
+    {
+      "overlays": [
+        "session.delete-sources",
+        "session.agent-handles"
+      ],
+      "verified": "2026-11-10：真实宿主冒烟（staging 宿主 DSH 0.2.1-rc.2、临时 DSH_HOME、假模型服务，Windows 11）全部通过。冷会话（置顶 + 工作区计入）、被 session-controller 像界面那样打开并持有 lease 的会话、正在跑回合的会话（156 ms 内停下并删完）都删掉了：目录、stat、list、sessions/agents、归档/置顶/工作区计入、session-controller 列表都不再出现，resolveAgent 返回 not-found；重复删除只清注册表。对照实验：不释放就删目录，在 Windows 上照样删得掉（lease 是命名信号量，不挡删除），活着的会话继续跑回合、事件悄悄丢失、拆除时 ENOENT——说明必须先释放。dsh-agent 片段与覆盖写入的是同一段代码；在 staging 副本上 tsc（tsconfig.json、tsconfig.client.json）0 错误。未做完整打包与开发版实机点击。"
+    },
+    {
+      "overlays": [
+        "session.delete-host",
+        "session.delete-client",
+        "session.row-context-menu"
+      ],
+      "verified": "2026-11-10：转换函数对固定 Desktop 源码与已安装 ui-workspace / dsh-agent 产物各应用一次，锚点恰好命中；装好的两份产物 node --check / vm.Script 通过。界面（右键菜单位置、确认框、取消不发请求）待开发版实机验收。"
+    }
+  ]
+}

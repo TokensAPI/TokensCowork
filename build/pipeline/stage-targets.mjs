@@ -31,6 +31,8 @@ export const desktopFiles = {
   packageOverlay: `${desktop}/src/package-overlay.ts`,
   productIdentity: `${desktop}/src/product-identity.ts`,
   index: `${desktop}/src/index.ts`,
+  clientIndex: `${desktop}/src/client/index.ts`,
+  settingsRoute: `${desktop}/src/desktop-settings-route.ts`,
   certificate: `${desktop}/src/lan-https-certificate.ts`,
   titlebar: `${desktop}/src/client/DesktopFrameTitlebarView.tsx`,
   settingsLocales: `${desktop}/src/client/desktop-settings-locales.ts`,
@@ -69,10 +71,11 @@ export const pluginEnabled = (product, id) => product.plugins.some(plugin => plu
  * @param name - npm 包名。
  * @param transform - 已安装文件内容 → 新内容；必须可重复执行。
  * @param missing - 两份都不存在时的报错。
+ * @param file - 包内文件，默认 lib/index.js。
  */
-export function installedOverlay(name, transform, missing) {
+export function installedOverlay(name, transform, missing, file = 'lib/index.js') {
   return {
-    files: installedPackage(name),
+    files: installedPackage(name, file),
     apply: ({ desktop, root }) => {
       if (desktop === undefined && root === undefined) throw new Error(missing)
       return {
