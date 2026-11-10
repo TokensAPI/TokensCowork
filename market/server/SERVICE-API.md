@@ -286,11 +286,12 @@ PUT /api/v1/users/102/grants
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/session-logs?account=&key=&clientVersion=&model=&session=&anonymous=true&from=&to=&page=` | 只查索引 → `{ items, total, page, pageSize, keyDisplayReady }`，每页 50，按最近上传倒序。每项的 `key` 是最近一把 Key 的原文（没存原文时为 `null`）。`key` 筛选可给完整 Key、已加密保存的 Key 的开头或指纹前缀，匹配会话用过的任意一把；`from`/`to` 为毫秒时间戳，按会话创建时间筛选 |
+| GET | `/session-logs?account=&key=&clientVersion=&model=&session=&tag=&anonymous=true&from=&to=&page=&pageSize=` | 只查索引 → `{ items, total, page, pageSize, keyDisplayReady }`，按最近上传倒序。`pageSize` 为 10 / 20 / 50（缺省）/ 100，其他值 `400`；`page` 超过末页时按末页返回（以响应里的 `page` 为准）。每项另带后台加的 `note`、`tags`、`annotatedAt`；`tag` 精确匹配一个标签。每项的 `key` 是最近一把 Key 的原文（没存原文时为 `null`）。`key` 筛选可给完整 Key、已加密保存的 Key 的开头或指纹前缀，匹配会话用过的任意一把；`from`/`to` 为毫秒时间戳，按会话创建时间筛选 |
 | GET | `/session-logs/:sessionId/:formatVersion?after=-1&limit=200` | `{ session, keys, keyDisplayReady, events, next }`：`keys` 是会话用过的全部 Key（`key` 原文、`fingerprint`、`label`、首末次使用时间）；从原文对象读出 `after` 之后的事件，按 seq 合并去重；`next` 非空时还有下一页。第一页（不带 `after`）另带 `header`（最新一批上传的 `{ version, sessionFormatVersion, session, client, account }`），**并写一条 `session-log.viewed` 操作记录**；之后翻页不重复记录 |
 | GET | `/session-logs/:sessionId/:formatVersion/raw?format=json` | 下载整个会话（`Content-Disposition: attachment`）：`format=json`（缺省）为 `{ version, sessionFormatVersion, session, client, account, events }`，头部与详情第一页的 `header` 相同，`events` 按 seq 合并去重，缩进 2 格，文件名 `<sessionId>.json`；`format=jsonl` 为一行一条事件，文件名 `<sessionId>.jsonl`。原文对象缺失的事件只有 `seq`、`time`、`type` 和 `unavailable: true`。**每次下载写一条 `session-log.downloaded` 操作记录（含格式）** |
-| DELETE | `/session-logs/:sessionId/:formatVersion` | 删除一个会话（先删原文对象，再删索引），写操作记录 |
-| DELETE | `/session-logs` | `{ from?, to }`：删除创建时间落在 `[from, to)` 的全部会话，写操作记录 |
+| PATCH | `/session-logs/:sessionId/:formatVersion` | `{ note?, tags? }`：后台给会话加的备注（最多 2000 字，空串或 `null` 清除）和标签（最多 10 个，每个 1-32 字，不含逗号和换行，去首尾空白并去重），可只给其一 → `{ note, tags, annotatedAt }`。日志内容不变，之后的上传也不覆盖。写一条 `session-log.annotated`（记标签和是否有备注，不记备注原文） |
+| DELETE | `/session-logs/:sessionId/:formatVersion` | 删除一个会话（先删原文对象，再删索引，**硬删除**，不可恢复），写操作记录 |
+| DELETE | `/session-logs` | 两种请求体：`{ sessions: [{ id, formatVersion }] }` 删除勾选的 1-100 个会话 → `{ ok, count, missing }`（已不存在的计入 `missing`），每删一个写一条 `session-log.deleted`；`{ from?, to }` 删除创建时间落在 `[from, to)` 的全部会话，写一条记录（含 `from`、`to`）。后台对每种删除都先弹窗确认 |
 | GET / PUT | `/session-logs/settings` | `{ retentionDays }`：`null` 为永久保留（默认），或 1-36500 天；服务每小时删除最近上传早于该天数的会话，并写 `session-log.purged` 记录 |
 
 会话摘要里 `missingEvents` = `maxSeq + 1 - eventCount`，即中间没收到的事件数（客户端不会回补缺口）。

@@ -27,6 +27,13 @@ const FINGERPRINT_PREFIX = /^[a-f0-9]{4,64}$/u
 /** Bound into the AES-GCM associated data, so a sealed session-log Key opens only as one. */
 const SEALED_FOR = 'session-log'
 const PAGE_SIZE = 50
+/** The page sizes the console offers; anything else is refused rather than silently rounded. */
+export const PAGE_SIZES = [10, 20, 50, 100]
+/** Sessions one batch delete may name. */
+const BATCH_LIMIT = 100
+const NOTE_LIMIT = 2000
+const TAG_LIMIT = 10
+const TAG = /^[^\s,，][^,，\u0000-\u001f]{0,31}$/u
 const DEFAULT_RATE = 120
 const DAY = 24 * 60 * 60 * 1000
 
@@ -238,9 +245,9 @@ const ready = env => { if (!configured(env)) throw invalid('会话日志存储�
 const target = (id, formatVersion) => `${id}:${formatVersion}`
 /** Whether Keys are kept (sealed) and can be shown; false means only fingerprints are known. */
 const keyDisplayReady = env => Boolean(env.MARKET_KEY_ENCRYPTION_SECRET)
+const parsedList = text => { try { const value = JSON.parse(text); return Array.isArray(value) ? value : [] } catch { return [] } }
 function sessionView(row, keys) {
-  let models = []
-  try { models = JSON.parse(row.models) } catch {}
+  const models = parsedList(row.models)
   return {
     id: row.session_id, formatVersion: row.format_version,
     key: keys.text.get(row.key_fingerprint) ?? null, keyFingerprint: row.key_fingerprint,
@@ -251,6 +258,7 @@ function sessionView(row, keys) {
     eventCount: row.event_count, maxSeq: row.max_seq, missingEvents: Math.max(0, row.max_seq + 1 - row.event_count),
     storedBytes: row.stored_bytes, models,
     tokens: { input: row.input_tokens, output: row.output_tokens, total: row.total_tokens },
+    note: row.note ?? null, tags: parsedList(row.tags), annotatedAt: row.annotated_at ?? null,
   }
 }
 const marks = values => values.map(() => '?').join(',')
@@ -324,16 +332,23 @@ export async function listSessionLogs(env, url) {
   const from = timestamp(url.searchParams.get('from'), 'from'), to = timestamp(url.searchParams.get('to'), 'to')
   if (from !== null) { where.push(`${sessionTime}>=?`); values.push(from) }
   if (to !== null) { where.push(`${sessionTime}<?`); values.push(to) }
+  filter('tag', 'EXISTS (SELECT 1 FROM json_each(tags) WHERE value=?)', value => value.length <= 32)
   if (url.searchParams.get('anonymous') === 'true') where.push('key_fingerprint IS NULL')
-  const page = Number(url.searchParams.get('page') || '1')
-  if (!Number.isSafeInteger(page) || page < 1 || page > 100000) throw invalid('页码无效')
+  const requested = Number(url.searchParams.get('page') || '1')
+  if (!Number.isSafeInteger(requested) || requested < 1 || requested > 100000) throw invalid('页码无效')
+  const pageSize = Number(url.searchParams.get('pageSize') || PAGE_SIZE)
+  if (!PAGE_SIZES.includes(pageSize)) throw invalid(`每页条数应为 ${PAGE_SIZES.join('、')} 之一`)
   const clause = where.length ? ' WHERE ' + where.join(' AND ') : ''
   const db = env.MARKET_SESSION_LOG_DB
   const total = (await db.prepare('SELECT COUNT(*) AS total FROM session_log_sessions' + clause).bind(...values).first()).total
-  const { results } = await db.prepare(`SELECT * FROM session_log_sessions${clause} ORDER BY last_received_at DESC,session_id LIMIT ? OFFSET ?`)
-    .bind(...values, PAGE_SIZE, (page - 1) * PAGE_SIZE).all()
+  // A page past the end (the last rows of the last page were just deleted, or a stale link) is
+  // answered with the last page, so the console never shows "page 4 of 3" with nothing on it.
+  const page = Math.min(requested, Math.max(1, Math.ceil(total / pageSize)))
+  // format_version breaks the last tie, so a page boundary never repeats or skips a row.
+  const { results } = await db.prepare(`SELECT * FROM session_log_sessions${clause} ORDER BY last_received_at DESC,session_id,format_version LIMIT ? OFFSET ?`)
+    .bind(...values, pageSize, (page - 1) * pageSize).all()
   const keys = await describeKeys(env, results.map(row => row.key_fingerprint))
-  return { items: results.map(row => sessionView(row, keys)), total, page, pageSize: PAGE_SIZE, keyDisplayReady: keyDisplayReady(env) }
+  return { items: results.map(row => sessionView(row, keys)), total, page, pageSize, keyDisplayReady: keyDisplayReady(env) }
 }
 
 function address(id, version) {
@@ -468,8 +483,70 @@ export async function deleteSessionLogRange(env, data, actor) {
   const from = timestamp(data?.from, 'from') ?? 0, to = timestamp(data?.to, 'to')
   if (to === null || to <= from) throw invalid('请提供有效的时间范围（to 必须晚于 from）')
   const removed = await removeWhere(env, `${sessionTime}>=? AND ${sessionTime}<?`, [from, to])
-  await env.MARKET_DB.batch(auditStatements(env, 'session-log.deleted', 'range', { count: removed }, actor))
+  await env.MARKET_DB.batch(auditStatements(env, 'session-log.deleted', 'range', { count: removed, from, to }, actor))
   return { ok: true, count: removed }
+}
+
+/**
+ * Deletes the sessions named one by one (the console's ticked rows), at most BATCH_LIMIT per call.
+ * Sessions already gone are reported as missing rather than failing the rest; each removed one
+ * is recorded under its own name, the same as a single delete.
+ */
+export async function deleteSessionLogBatch(env, data, actor) {
+  ready(env)
+  const named = data?.sessions
+  if (!Array.isArray(named) || !named.length || named.length > BATCH_LIMIT) throw invalid(`请提供 1-${BATCH_LIMIT} 个要删除的会话`)
+  const unique = new Map()
+  for (const item of named) {
+    const { id, formatVersion } = address(typeof item?.id === 'string' ? item.id : '', String(item?.formatVersion ?? ''))
+    unique.set(target(id, formatVersion), { id, formatVersion })
+  }
+  const removed = []
+  for (const [name, { id, formatVersion }] of unique) {
+    const row = await env.MARKET_SESSION_LOG_DB.prepare('SELECT session_id,format_version,object_prefix FROM session_log_sessions WHERE session_id=? AND format_version=?')
+      .bind(id, formatVersion).first()
+    if (!row) continue
+    await removeSession(env, row)
+    removed.push(name)
+  }
+  if (removed.length) await env.MARKET_DB.batch(removed.flatMap(name => auditStatements(env, 'session-log.deleted', name, { count: 1 }, actor)))
+  return { ok: true, count: removed.length, missing: unique.size - removed.length }
+}
+
+/** DELETE /session-logs: `{ sessions }` removes the named sessions, `{ from?, to }` a creation-time range. */
+export const deleteSessionLogs = (env, data, actor) => (data && 'sessions' in data
+  ? deleteSessionLogBatch(env, data, actor) : deleteSessionLogRange(env, data, actor))
+
+function cleanTags(value) {
+  if (!Array.isArray(value)) throw invalid('tags 应为字符串数组')
+  const tags = [...new Set(value.map(tag => (typeof tag === 'string' ? tag.trim() : tag)))]
+  if (tags.length > TAG_LIMIT) throw invalid(`标签最多 ${TAG_LIMIT} 个`)
+  for (const tag of tags) if (typeof tag !== 'string' || !TAG.test(tag)) throw invalid('标签为 1-32 个字符，不含逗号和换行')
+  return tags
+}
+
+/**
+ * The console's own metadata on a session: a note (up to NOTE_LIMIT characters; empty clears it)
+ * and tags. Either may be given alone. The uploaded log is not touched. The activity log keeps the
+ * tags and whether there is a note, never the note's text.
+ */
+export async function annotateSessionLog(env, segments, data, actor) {
+  ready(env)
+  const { id, formatVersion } = address(...segments)
+  if (!data || typeof data !== 'object' || (!('note' in data) && !('tags' in data))) throw invalid('请提供 note 或 tags')
+  const row = await sessionRow(env, id, formatVersion)
+  let note = row.note ?? null
+  if ('note' in data) {
+    if (data.note !== null && typeof data.note !== 'string') throw invalid('note 应为字符串或 null')
+    note = data.note?.trim() || null
+    if (note && note.length > NOTE_LIMIT) throw invalid(`备注最多 ${NOTE_LIMIT} 个字符`)
+  }
+  const tags = 'tags' in data ? cleanTags(data.tags) : parsedList(row.tags)
+  const annotatedAt = Date.now()
+  await env.MARKET_SESSION_LOG_DB.prepare('UPDATE session_log_sessions SET note=?,tags=?,annotated_at=? WHERE session_id=? AND format_version=?')
+    .bind(note, JSON.stringify(tags), annotatedAt, id, formatVersion).run()
+  await env.MARKET_DB.batch(auditStatements(env, 'session-log.annotated', target(id, formatVersion), { tags, note: Boolean(note) }, actor))
+  return { note, tags, annotatedAt }
 }
 
 async function retentionDays(env) {

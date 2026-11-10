@@ -8,7 +8,7 @@ import { organizationPlugins, setOrganizationPlugin } from '../services/access.j
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
 import { listUsers, getUser, saveUser, deleteUser } from '../services/users.js'
 import { auditLog, environment } from '../services/audit.js'
-import { listSessionLogs, sessionLogDetail, sessionLogRaw, deleteSessionLog, deleteSessionLogRange, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
+import { listSessionLogs, sessionLogDetail, sessionLogRaw, deleteSessionLog, deleteSessionLogs, annotateSessionLog, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
 import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
@@ -213,15 +213,18 @@ async function dispatch(request, env, url, principal) {
     onlyPlatform(principal)
     if (!second) {
       methods(method, ['GET', 'DELETE'])
-      return method === 'GET' ? listSessionLogs(env, url) : deleteSessionLogRange(env, await payload(request), actor)
+      return method === 'GET' ? listSessionLogs(env, url) : deleteSessionLogs(env, await payload(request), actor)
     }
     if (second === 'settings' && !third) {
       methods(method, ['GET', 'PUT'])
       return method === 'GET' ? sessionLogSettings(env) : saveSessionLogSettings(env, await payload(request), actor)
     }
     if (third && !fourth) {
-      methods(method, ['GET', 'DELETE'])
-      return method === 'GET' ? sessionLogDetail(env, [second, third], url, actor) : deleteSessionLog(env, [second, third], actor)
+      methods(method, ['GET', 'PATCH', 'DELETE'])
+      if (method === 'GET') return sessionLogDetail(env, [second, third], url, actor)
+      // Note and tags only; the uploaded log itself is never edited.
+      if (method === 'PATCH') return annotateSessionLog(env, [second, third], await payload(request), actor)
+      return deleteSessionLog(env, [second, third], actor)
     }
     // The whole session as a file (a Response of its own, not the JSON envelope); audited.
     if (third && fourth === 'raw') {

@@ -317,7 +317,7 @@ test('retention: forever by default, N days when set; manual deletion of one ses
     ['session-log.settings', 'retention', { retentionDays: 7 }],
     ['session-log.purged', 'retention', { count: 1, retentionDays: 7 }],
     ['session-log.deleted', 'session-b:4', { count: 1 }],
-    ['session-log.deleted', 'range', { count: 1 }],
+    ['session-log.deleted', 'range', { count: 1, from: CREATED + 2000, to: CREATED + 3000 }],
     ['session-log.settings', 'retention', { retentionDays: null }],
   ])
 })
@@ -385,4 +385,131 @@ test('the whole session downloads as JSON and JSON Lines, merged by seq, and eve
   for (const key of await env.MARKET_SESSION_LOG_STORE.list('session-logs/')) if (key.endsWith('/7-8.json.gz')) await env.MARKET_SESSION_LOG_STORE.delete(key)
   const after = JSON.parse((await download(`/session-logs/${SESSION_ID}/4/raw`)).text)
   assert.deepEqual(after.events.at(-1), { seq: 8, time: CREATED + 8000, type: 'future/unknown-kind', unavailable: true })
+})
+
+// ── Console management: paging, filters, deletion, notes (T0072) ─────────────────────────────
+
+const sessionsOf = json => json.items.map(item => item.id)
+async function seedMany(upload, count) {
+  for (let i = 0; i < count; i++) {
+    const id = `session-page-${String(i).padStart(2, '0')}`
+    await upload(batch([event(0)], { id, account: { id: String(9000 + (i % 3)) }, session: { createdAt: CREATED + i * 3600000 } }))
+  }
+}
+
+test('the list pages on the server: page size, total, a page past the end and filters kept across pages', async t => {
+  const { upload, api } = await fixture(t)
+  await seedMany(upload, 25)
+  const first = (await api('/session-logs?pageSize=10')).json
+  assert.deepEqual([first.total, first.page, first.pageSize, first.items.length], [25, 1, 10, 10])
+  const second = (await api('/session-logs?pageSize=10&page=2')).json
+  const third = (await api('/session-logs?pageSize=10&page=3')).json
+  assert.equal(third.items.length, 5)
+  // Every session exactly once across the pages.
+  assert.equal(new Set([...sessionsOf(first), ...sessionsOf(second), ...sessionsOf(third)]).size, 25)
+  // A page past the end comes back as the last page, not an empty one.
+  const beyond = (await api('/session-logs?pageSize=10&page=9')).json
+  assert.deepEqual([beyond.page, sessionsOf(beyond)], [3, sessionsOf(third)])
+  assert.deepEqual((await api('/session-logs?account=nobody&page=4')).json.page, 1)
+  for (const bad of ['pageSize=7', 'pageSize=1000', 'pageSize=abc', 'page=0', 'page=1.5'])
+    assert.equal((await api('/session-logs?' + bad)).status, 400, bad)
+  // The default is 50 per page, as before.
+  assert.equal((await api('/session-logs')).json.pageSize, 50)
+  // Filters narrow the total, and paging inside a filter keeps it.
+  const filtered = (await api('/session-logs?account=9001&pageSize=10&page=1')).json
+  assert.equal(filtered.total, 8)
+  const filteredNext = (await api('/session-logs?account=9001&pageSize=10&page=2')).json
+  assert.deepEqual([filteredNext.page, filteredNext.items.length], [1, 8])
+})
+
+test('filters: account, creation-time range, session id and tag', async t => {
+  const { upload, api } = await fixture(t)
+  await seedMany(upload, 6)
+  const total = async query => (await api('/session-logs?' + query)).json.total
+  assert.equal(await total('account=9002'), 2)
+  assert.equal(await total(`from=${CREATED + 2 * 3600000}&to=${CREATED + 4 * 3600000}`), 2)
+  assert.equal(await total(`account=9000&from=${CREATED}&to=${CREATED + 3600000}`), 1)
+  assert.equal(await total('session=session-page-03'), 1)
+  assert.equal(await total('session=session-page'), 0)
+  assert.equal((await api('/session-logs?session=' + encodeURIComponent('bad id'))).status, 400)
+  assert.equal((await api('/session-logs?from=yesterday')).status, 400)
+  await api('/session-logs/session-page-04/4', { method: 'PATCH', data: { tags: ['回归', '待跟进'] } })
+  assert.deepEqual(sessionsOf((await api('/session-logs?tag=' + encodeURIComponent('待跟进'))).json), ['session-page-04'])
+  assert.equal(await total('tag=' + encodeURIComponent('待')), 0)
+})
+
+test('a batch delete removes the ticked sessions, objects and index, and records each one', async t => {
+  const { upload, api, rows, objects } = await fixture(t)
+  await seedMany(upload, 5)
+  const response = await api('/session-logs', { method: 'DELETE', data: { sessions: [
+    { id: 'session-page-01', formatVersion: 4 }, { id: 'session-page-03', formatVersion: 4 },
+    { id: 'session-page-03', formatVersion: 4 }, { id: 'session-gone', formatVersion: 4 },
+  ] } })
+  assert.deepEqual([response.status, response.json], [200, { ok: true, count: 2, missing: 1 }])
+  assert.deepEqual(rows('SELECT session_id FROM session_log_sessions ORDER BY session_id').map(row => row.session_id),
+    ['session-page-00', 'session-page-02', 'session-page-04'])
+  assert.equal(rows("SELECT * FROM session_log_events WHERE session_id IN ('session-page-01','session-page-03')").length, 0)
+  assert.ok(!(await objects()).some(key => /session-page-0[13]/u.test(key)))
+  const deleted = (await api('/audit')).json.items.filter(item => item.action === 'session-log.deleted').map(item => item.target).sort()
+  assert.deepEqual(deleted, ['session-page-01:4', 'session-page-03:4'])
+  for (const data of [{ sessions: [] }, { sessions: 'session-page-00' }, { sessions: [{ id: 'bad id', formatVersion: 4 }] },
+    { sessions: [{ id: 'session-page-00', formatVersion: -1 }] },
+    { sessions: Array.from({ length: 101 }, (_, i) => ({ id: `session-x-${i}`, formatVersion: 4 })) }])
+    assert.equal((await api('/session-logs', { method: 'DELETE', data })).status, 400, JSON.stringify(data).slice(0, 60))
+  assert.equal(rows('SELECT * FROM session_log_sessions').length, 3)
+})
+
+test('a note and tags are kept on the session, survive later uploads, and the note text stays out of the activity log', async t => {
+  const { upload, api, rows } = await fixture(t)
+  await upload(batch([event(0)]))
+  const path = `/session-logs/${SESSION_ID}/4`
+  const saved = await api(path, { method: 'PATCH', data: { note: '  用户反馈卡顿，复现中  ', tags: ['卡顿', ' 卡顿 ', '0.7.13'] } })
+  assert.equal(saved.status, 200)
+  assert.deepEqual([saved.json.note, saved.json.tags], ['用户反馈卡顿，复现中', ['卡顿', '0.7.13']])
+  assert.ok(saved.json.annotatedAt > 0)
+  // A later batch of the same session leaves the note alone, and the log content is untouched.
+  await upload(batch([event(1)], { afterSeq: 0 }))
+  const item = (await api('/session-logs')).json.items[0]
+  assert.deepEqual([item.note, item.tags, item.eventCount], ['用户反馈卡顿，复现中', ['卡顿', '0.7.13'], 2])
+  assert.equal((await api(path)).json.session.note, '用户反馈卡顿，复现中')
+  // Tags alone keep the note; an empty note clears it.
+  assert.deepEqual((await api(path, { method: 'PATCH', data: { tags: [] } })).json.note, '用户反馈卡顿，复现中')
+  assert.deepEqual((await api(path, { method: 'PATCH', data: { note: '' } })).json, { note: null, tags: [], annotatedAt: rows('SELECT annotated_at FROM session_log_sessions')[0].annotated_at })
+  for (const data of [{}, { note: 5 }, { note: 'x'.repeat(2001) }, { tags: 'a,b' }, { tags: ['a,b'] }, { tags: [''] }, { tags: ['x'.repeat(33)] },
+    { tags: Array.from({ length: 11 }, (_, i) => `t${i}`) }])
+    assert.equal((await api(path, { method: 'PATCH', data })).status, 400, JSON.stringify(data).slice(0, 60))
+  assert.equal((await api('/session-logs/session-none/4', { method: 'PATCH', data: { note: 'x' } })).status, 404)
+  const annotated = (await api('/audit')).json.items.filter(item => item.action === 'session-log.annotated')
+  assert.deepEqual(annotated.map(item => item.details).reverse(), [
+    { tags: ['卡顿', '0.7.13'], note: true }, { tags: [], note: true }, { tags: [], note: false },
+  ])
+  assert.ok(!JSON.stringify(annotated).includes('复现中'))
+})
+
+test('writes need a signed-in platform administrator: anonymous 401, organization administrator 403, foreign origin 403', async t => {
+  const { upload, api, env, rows } = await fixture(t)
+  await upload(batch([event(0)]))
+  const writes = [
+    ['PATCH', `/session-logs/${SESSION_ID}/4`, { note: 'x' }], ['DELETE', `/session-logs/${SESSION_ID}/4`],
+    ['DELETE', '/session-logs', { sessions: [{ id: SESSION_ID, formatVersion: 4 }] }], ['DELETE', '/session-logs', { to: Date.now() }],
+    ['GET', '/session-logs'],
+  ]
+  for (const [method, path, data] of writes) {
+    const response = await worker.fetch(new Request(ORIGIN + '/api/v1' + path, { method, headers: { origin: ORIGIN },
+      ...(data ? { body: JSON.stringify(data) } : {}) }), env, {})
+    assert.equal(response.status, 401, `anonymous ${method} ${path}`)
+  }
+  const login = await worker.fetch(new Request(ORIGIN + '/api/v1/session', { method: 'PUT', headers: { origin: ORIGIN },
+    body: JSON.stringify({ tokensapi: true, accessToken: 'owner', userId: 501 }) }), env, {})
+  const tenant = login.headers.get('set-cookie').split(';')[0]
+  for (const [method, path, data] of writes) assert.equal((await api(path, { method, data, cookie: tenant })).status, 403, `tenant ${method} ${path}`)
+  // The platform administrator's console cookie, but the write comes from another site.
+  const root = await worker.fetch(new Request(ORIGIN + '/api/v1/session', { method: 'PUT', headers: { origin: ORIGIN },
+    body: JSON.stringify({ credential: 'fixture-admin' }) }), env, {})
+  const cookie = root.headers.get('set-cookie').split(';')[0]
+  const foreign = await worker.fetch(new Request(ORIGIN + `/api/v1/session-logs/${SESSION_ID}/4`, { method: 'PATCH',
+    headers: { origin: 'https://evil.test', cookie }, body: JSON.stringify({ note: 'x' }) }), env, {})
+  assert.equal(foreign.status, 403)
+  assert.deepEqual(rows('SELECT note FROM session_log_sessions'), [{ note: null }])
+  assert.equal((await api(`/session-logs/${SESSION_ID}/4`, { method: 'PATCH', data: { note: 'ok' }, cookie })).status, 200)
 })

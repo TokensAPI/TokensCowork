@@ -2155,7 +2155,7 @@
           "会话日志"
         ],
         "summary": "会话列表",
-        "description": "只查索引，不读原文。按最近上传时间倒序，每页 50 条。时间条件按会话创建时间（缺失时用首次上传时间）。",
+        "description": "只查索引，不读原文。按最近上传时间倒序，每页默认 50 条（`pageSize` 可选 10、20、50、100）。时间条件按会话创建时间（缺失时用首次上传时间）。页码超过末页时返回末页（响应里的 `page` 是实际页码）。",
         "parameters": [
           {
             "name": "account",
@@ -2203,6 +2203,15 @@
             }
           },
           {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "后台给会话加的标签，精确匹配。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "anonymous",
             "in": "query",
             "required": false,
@@ -2233,9 +2242,24 @@
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "页码，从 1 开始。",
+            "description": "页码，从 1 开始；超过末页时按末页返回。",
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "每页条数：10、20、50（缺省）或 100，其他值回 400。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                10,
+                20,
+                50,
+                100
+              ]
             }
           }
         ],
@@ -2268,30 +2292,71 @@
         "tags": [
           "会话日志"
         ],
-        "summary": "按时间范围批量删除",
-        "description": "删除创建时间落在 [from, to) 的全部会话：先删原文对象，再删索引。写一条操作记录。",
+        "summary": "批量删除（勾选的会话或时间范围）",
+        "description": "两种请求体：`{ sessions: [{ id, formatVersion }] }` 删除指定的会话（1-100 个，已不存在的计入 `missing`，每删一个写一条 `session-log.deleted`）；`{ from?, to }` 删除创建时间落在 [from, to) 的全部会话（写一条记录，含范围）。都是先删原文对象，再删索引，删除后不可恢复。",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "to"
-                ],
-                "properties": {
-                  "from": {
-                    "type": "integer",
-                    "description": "毫秒时间戳，缺省为 0。"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "sessions"
+                    ],
+                    "properties": {
+                      "sessions": {
+                        "type": "array",
+                        "description": "1-100 个会话。",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "formatVersion"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "formatVersion": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
                   },
-                  "to": {
-                    "type": "integer",
-                    "description": "毫秒时间戳，不含。"
+                  {
+                    "type": "object",
+                    "required": [
+                      "to"
+                    ],
+                    "properties": {
+                      "from": {
+                        "type": "integer",
+                        "description": "毫秒时间戳，缺省为 0。"
+                      },
+                      "to": {
+                        "type": "integer",
+                        "description": "毫秒时间戳，不含。"
+                      }
+                    }
                   }
-                }
+                ]
               },
               "examples": {
-                "示例": {
+                "勾选删除": {
+                  "value": {
+                    "sessions": [
+                      {
+                        "id": "session-11111111-2222-4333-8444-555555555555",
+                        "formatVersion": 4
+                      }
+                    ]
+                  }
+                },
+                "按时间范围": {
                   "value": {
                     "from": 1790000000000,
                     "to": 1793000000000
@@ -2460,6 +2525,77 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SessionLogDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "会话日志"
+        ],
+        "summary": "修改备注与标签",
+        "description": "只改后台给会话加的元数据，日志内容不变，之后的上传也不会覆盖。`note` 最多 2000 字（空串或 null 清除），`tags` 最多 10 个、每个 1-32 字且不含逗号和换行（会去掉首尾空白并去重）；两者可只给其一。写一条 `session-log.annotated` 操作记录（记标签和是否有备注，不记备注原文）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "备注，最多 2000 字；空串或 null 清除。"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "标签，最多 10 个。"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "note": "用户反馈卡顿，复现中",
+                    "tags": [
+                      "卡顿",
+                      "0.7.13"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogAnnotation"
                 }
               }
             }
@@ -3396,7 +3532,10 @@
           "missingEvents",
           "storedBytes",
           "models",
-          "tokens"
+          "tokens",
+          "note",
+          "tags",
+          "annotatedAt"
         ],
         "properties": {
           "id": {
@@ -3537,6 +3676,27 @@
                 "type": "integer"
               }
             }
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "后台备注；没有时为 null。"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "后台标签。"
+          },
+          "annotatedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "最近一次修改备注或标签的时间（毫秒）。"
           }
         }
       },
@@ -3674,6 +3834,10 @@
           },
           "count": {
             "type": "integer"
+          },
+          "missing": {
+            "type": "integer",
+            "description": "按会话删除时，请求里已不存在的会话数。"
           }
         }
       },
@@ -3745,6 +3909,31 @@
               "type": "object",
               "description": "上传的事件原样。"
             }
+          }
+        }
+      },
+      "SessionLogAnnotation": {
+        "type": "object",
+        "required": [
+          "note",
+          "tags",
+          "annotatedAt"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "annotatedAt": {
+            "type": "integer"
           }
         }
       }

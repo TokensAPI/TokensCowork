@@ -34,7 +34,13 @@ const ACTIONS = {
   // Session logs are not redacted, so reading one is recorded as well as changing them.
   'session-log.viewed': [SESSION_LOG, () => ({})],
   'session-log.downloaded': [SESSION_LOG, d => ({ format: d.format === 'jsonl' ? 'jsonl' : 'json' })],
-  'session-log.deleted': [/^(?:range|[A-Za-z0-9._-]{1,128}:[0-9]{1,6})$/u, d => ({ count: d.count })],
+  'session-log.deleted': [/^(?:range|[A-Za-z0-9._-]{1,128}:[0-9]{1,6})$/u, d => ({ count: d.count,
+    ...(Number.isSafeInteger(d.from) ? { from: d.from } : {}), ...(Number.isSafeInteger(d.to) ? { to: d.to } : {}) })],
+  // The console's note and tags. The note's text stays out of the activity log; only whether there is one.
+  'session-log.annotated': [SESSION_LOG, d => ({
+    tags: Array.isArray(d.tags) ? d.tags.filter(tag => typeof tag === 'string').slice(0, 10).map(tag => tag.slice(0, 32)) : [],
+    note: d.note === true,
+  })],
   'session-log.settings': [/^retention$/u, d => ({ retentionDays: Number.isSafeInteger(d.retentionDays) ? d.retentionDays : null })],
   'session-log.purged': [/^retention$/u, d => ({ count: d.count, retentionDays: d.retentionDays })],
 }

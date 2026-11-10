@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 40)
+  assert.equal(checked, 41)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -236,6 +236,11 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['DELETE', '/users/103', '/users/{userId}', 200],
     ['GET', '/session-logs', '/session-logs', 200],
     ['GET', '/session-logs?page=0', '/session-logs', 400],
+    ['GET', '/session-logs?pageSize=10&page=5&tag=x', '/session-logs', 200],
+    ['GET', '/session-logs?pageSize=7', '/session-logs', 400],
+    ['PATCH', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200, { note: '复现中', tags: ['卡顿'] }],
+    ['PATCH', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 400, { tags: 'x' }],
+    ['PATCH', '/session-logs/session-none/4', '/session-logs/{sessionId}/{formatVersion}', 404, { note: 'x' }],
     ['GET', '/session-logs/settings', '/session-logs/settings', 200],
     ['PUT', '/session-logs/settings', '/session-logs/settings', 200, { retentionDays: 30 }],
     ['PUT', '/session-logs/settings', '/session-logs/settings', 400, { retentionDays: -1 }],
@@ -247,6 +252,8 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/session-logs/session-fixture/4/raw', '/session-logs/{sessionId}/{formatVersion}/raw', 403, undefined, tenant],
     ['GET', '/session-logs', '/session-logs', 403, undefined, tenant],
     ['DELETE', '/session-logs', '/session-logs', 400, {}],
+    ['DELETE', '/session-logs', '/session-logs', 400, { sessions: [] }],
+    ['DELETE', '/session-logs', '/session-logs', 200, { sessions: [{ id: 'session-none', formatVersion: 4 }] }],
     ['DELETE', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],
     ['DELETE', '/session-logs', '/session-logs', 200, { to: Date.now() }],
     ['GET', '/audit', '/audit', 200],

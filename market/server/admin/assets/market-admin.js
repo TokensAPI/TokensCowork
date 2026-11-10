@@ -31,7 +31,7 @@ const views = {
   organizations: ['组织', '同步 TokensAPI 组织，查看每个组织能用的插件。'],
   keys: ['Key', '登记单独授权用的 Key，给它单独授权插件。'],
   users: ['用户', '给 TokensAPI 用户单独授权插件，对该用户名下所有 Key 生效。'],
-  'session-logs': ['会话日志', '客户端上传的会话日志：按账号、Key、版本、模型查找，按轮次看对话，查看或下载原始 JSON。'],
+  'session-logs': ['会话日志', '客户端上传的会话日志：按账号、会话、时间、Key、标签查找，按轮次看对话，下载原始 JSON，加备注标签或删除。'],
   activity: ['操作记录', '最近的插件、访问范围和组织变更。'],
 }
 let session = null,
@@ -333,6 +333,7 @@ const ACTIONS = {
   'session-log.deleted': '删除会话日志',
   'session-log.settings': '设置日志保留期',
   'session-log.purged': '清理过期会话日志',
+  'session-log.annotated': '修改会话备注',
 }
 function actorText(actor) {
   if (actor?.kind === 'tenant') return `组织管理员 · 用户 ${actor.id}${actor.organizationId ? ` · 组织 #${actor.organizationId}` : ''}`
@@ -374,6 +375,10 @@ function renderActivity() {
     if (d.count != null) facts.push(`${d.count} 个${event.action.startsWith('session-log.') ? '会话' : '组织'}`)
     if ('retentionDays' in d) facts.push(d.retentionDays ? `保留 ${d.retentionDays} 天` : '永久保留')
     if (event.action === 'session-log.downloaded') facts.push(d.format === 'jsonl' ? '下载 JSONL' : '下载 JSON')
+    if (event.action === 'session-log.deleted' && Number.isSafeInteger(d.to))
+      facts.push(`创建于 ${formatTime(d.from ?? 0)} 至 ${formatTime(d.to)}`)
+    if (event.action === 'session-log.annotated')
+      facts.push(d.tags?.length ? `标签：${d.tags.join('、')}` : '无标签', d.note ? '有备注' : '无备注')
     if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
     if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')
     if (d.memberCount != null) facts.push(d.memberCount ? `指定 ${d.memberCount} 位成员可见` : '全员可见')

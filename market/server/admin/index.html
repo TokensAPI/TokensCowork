@@ -352,29 +352,36 @@
               <span id="session-log-key-note" hidden><b>未配置 Key 加密，未保存原文</b>（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹。</span>
               <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
             </p>
-            <form id="session-log-filters" class="toolbar">
+            <form id="session-log-filters" class="log-filters">
               <input id="session-log-account" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" />
+              <input id="session-log-session" type="search" placeholder="会话 ID（完整）" aria-label="按会话 ID 筛选" />
               <input id="session-log-key" type="search" placeholder="Key（可只填开头）" aria-label="按 Key 筛选" />
+              <input id="session-log-tag" type="search" placeholder="标签" aria-label="按标签筛选" maxlength="32" />
               <input id="session-log-version" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" />
               <input id="session-log-model" type="search" placeholder="模型" aria-label="按模型筛选" />
-              <input id="session-log-from" type="date" aria-label="会话创建时间起（含）" />
-              <input id="session-log-to" type="date" aria-label="会话创建时间止（含）" />
+              <label class="log-date">创建于<input id="session-log-from" type="date" aria-label="会话创建时间起（含）" /></label>
+              <label class="log-date">至<input id="session-log-to" type="date" aria-label="会话创建时间止（含）" /></label>
               <div class="filter-controls">
                 <button type="submit">筛选</button
-                ><button id="session-log-reset" type="button" class="quiet">重置</button
-                ><button id="session-log-range-delete" type="button" class="quiet danger">删除所选日期内的会话</button>
+                ><button id="session-log-reset" type="button" class="quiet">重置</button>
               </div>
             </form>
+            <div id="session-log-bulk" class="toolbar log-bulk">
+              <span id="session-log-selected" class="muted" aria-live="polite"></span>
+              <div id="session-log-bulk-actions" class="filter-controls"></div>
+            </div>
             <div class="table-scroll" tabindex="0" role="region" aria-label="会话日志表格">
               <table>
                 <thead>
                   <tr>
+                    <th scope="col" class="log-check"><input id="session-log-select-all" type="checkbox" aria-label="全选本页" /></th>
                     <th scope="col">会话</th>
                     <th scope="col">上报账号（未核验）</th>
                     <th scope="col">Key</th>
                     <th scope="col">模型 · token</th>
                     <th scope="col">事件</th>
-                    <th scope="col">最近上传</th>
+                    <th scope="col">标签 · 备注</th>
+                    <th scope="col">时间</th>
                     <th scope="col"><span class="sr-only">操作</span></th>
                   </tr>
                 </thead>
@@ -382,12 +389,17 @@
               </table>
             </div>
             <p id="session-log-empty" class="empty" hidden>暂无会话日志。</p>
-            <div class="toolbar">
+            <div class="toolbar log-pager-bar">
               <span id="session-log-page" class="muted"></span>
-              <div class="filter-controls">
-                <button id="session-log-prev" type="button" class="secondary">上一页</button
-                ><button id="session-log-next" type="button" class="secondary">下一页</button>
-              </div>
+              <nav id="session-log-pager" class="log-pager" aria-label="会话列表分页"></nav>
+              <label class="log-page-size muted"
+                >每页<select id="session-log-page-size" aria-label="每页条数">
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                </select>条</label
+              >
             </div>
           </div>
           <div id="session-log-detail" class="panel" hidden>
@@ -652,6 +664,37 @@
         </div>
       </div>
       <pre id="session-log-json-text" class="log-raw"></pre>
+    </dialog>
+    <dialog id="session-log-confirm-dialog" class="log-confirm-dialog" aria-labelledby="session-log-confirm-title">
+      <form method="dialog">
+        <h2 id="session-log-confirm-title">删除会话日志？</h2>
+        <p id="session-log-confirm-text" class="notice"></p>
+        <ul id="session-log-confirm-list" class="log-confirm-list"></ul>
+        <div class="dialog-footer">
+          <span class="muted">删除后原文与索引一起移除，不可恢复</span>
+          <div class="button-row">
+            <button value="cancel" type="submit" class="secondary" autofocus>取消</button
+            ><button id="session-log-confirm-ok" value="ok" type="submit" class="danger">确认删除</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="session-log-note-dialog" aria-labelledby="session-log-note-title">
+      <form id="session-log-note-form">
+        <div class="dialog-heading">
+          <h2 id="session-log-note-title">备注与标签</h2>
+          <button id="session-log-note-cancel" class="quiet" type="button" aria-label="关闭备注编辑">✕</button>
+        </div>
+        <p id="session-log-note-session" class="package"></p>
+        <label for="session-log-note-text">备注</label
+        ><textarea id="session-log-note-text" rows="4" maxlength="2000" placeholder="只给后台看，不会改动日志内容"></textarea>
+        <label for="session-log-note-tags">标签</label
+        ><input id="session-log-note-tags" maxlength="400" placeholder="用逗号分隔，例如：卡顿, 待跟进" />
+        <output id="session-log-note-error" class="error" role="alert"></output>
+        <div class="dialog-footer">
+          <span class="muted">最多 10 个标签，每个不超过 32 字</span><button type="submit">保存</button>
+        </div>
+      </form>
     </dialog>
     <dialog id="discard-dialog" aria-labelledby="discard-title">
       <h2 id="discard-title">放弃未保存的修改？</h2>
