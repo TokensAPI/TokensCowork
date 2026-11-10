@@ -1,0 +1,12 @@
+/* 本地字体覆盖品牌文字；中文回退和业务中的等宽字体各自保留。 */
+@font-face {
+  font-family: 'Quicksand';
+  src: url('./fonts/Quicksand-Variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+:root {
+  --font-brand: 'Quicksand', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+}

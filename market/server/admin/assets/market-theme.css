@@ -38,7 +38,6 @@
 [data-theme='dark'] :is(button.danger, .feedback[data-kind='error']) { background: #422824; color: var(--danger); }
 [data-theme='dark'] :is(input:not([type='checkbox']), select, textarea, .card-bottom, td, #organization-options label) { border-color: var(--line); }
 [data-theme='dark'] .plugin-card:hover { border-color: #729780; }
-[data-theme='dark'] .brand-mark { background: var(--brand); color: #112319; }
 [data-theme='dark'] dialog { background: var(--paper); box-shadow: 0 25px 100px #0008; }
 [data-theme='dark'] dialog::backdrop { background: #050c09b3; }
 [data-theme='dark'] input::placeholder,

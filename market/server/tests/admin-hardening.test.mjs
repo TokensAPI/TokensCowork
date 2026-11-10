@@ -235,6 +235,17 @@ test('every console module the page loads is on the asset allowlist', async t =>
   for (const name of seen) {
     assert.equal((await call('/admin/assets/' + name)).status, 200, name)
   }
+  // CSS 字体资源不会进入 JS 导入图，单独验证公开路由及生产 MIME，避免上线后静默回退。
+  for (const [name, type] of [
+    ['logo-mark.svg', 'image/svg+xml'],
+    ['fonts/Quicksand-Variable.ttf', 'font/ttf'],
+    ['fonts/OFL.txt', 'text/plain; charset=utf-8'],
+  ]) {
+    const response = await call('/admin/assets/' + name)
+    assert.equal(response.status, 200, name)
+    assert.equal(response.headers.get('content-type'), type, name)
+    assert.ok((await response.arrayBuffer()).byteLength > 0, name)
+  }
   // The API reference is a separate page, and everything it needs is vendored: the console must
   // stay usable on a machine with no route to the internet, so the page may only load same-origin
   // files and every one of them has to be allowlisted.
