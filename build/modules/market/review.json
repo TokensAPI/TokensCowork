@@ -25,8 +25,8 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "258b5d25c391d8e10f2b1e2a9a00b91abb256e29",
-        "version": "0.2.29",
+        "commit": "0a388e26914edf8606c6d7f1742412a924963edb",
+        "version": "0.2.30",
         "artifact": null
       },
       "tokens-dsh-web-search": {
@@ -235,6 +235,12 @@
         "market.auth"
       ],
       "verified": "2026-11-03：tokens-model-manager 升至 0.2.29（258b5d2）。03cce6c..258b5d2 为主模型下线自动换回、非对话模型过滤、模型列表排序与默认模型改为 deepseek-v4-flash-vision-exp；凭据方面只新增读取备用线路自己的 DEEPSEEK_OFFICIAL 凭据以拉取备用目录，没有增删 TOKENSAPI_API_KEY 的读写，src/config.ts 未改，market.auth 依赖的 credentials.resolve(TOKENSAPI_API_KEY) 契约不变，无需修改。插件自身 check:host 34/34、带真实宿主 test:cases 137/137；用户用测试脚本启动看过模型列表、排序与过滤。"
+    },
+    {
+      "overlays": [
+        "market.auth"
+      ],
+      "verified": "2026-11-10：tokens-model-manager 升至 0.2.30（0a388e2）。258b5d2..0a388e2 只在 dsh/index.js 的非对话模型过滤表里加 OCR 一类（新增 segmentEnd 匹配），其余是用例、CHANGELOG 和版本号；没有增删 TOKENSAPI_API_KEY 或 credentials 调用，src/config.ts 未改，market.auth 依赖的 credentials.resolve(TOKENSAPI_API_KEY) 契约不变，无需修改。插件自身 check:host 34/34、带真实宿主 test:cases 137/137；用户在本地 staging 上用真实数据看过。本次按用户要求未在外层构建，overlay-doctor 只跑了 --check。"
     }
   ],
   "notes": [
