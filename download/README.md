@@ -8,6 +8,8 @@
 
 页面支持中英文切换。中文内容使用顶层字段，英文内容位于 `english` 对象；用户选择的语言会保存在浏览器中。
 
+Logo 使用 `logo-mark.svg`，与产品图标同为新图形加白色圆角底，名称仍为 TokensCowork。Quicksand 可变字体及 OFL 授权放在 `fonts/`，由本站加载；中文回退系统字体，代码和插件包名保留等宽字体。图标与字体变更时同步市场后台资源，入口见 `build/modules/branding/README.md`。
+
 也可以在本地访问 `index.html?edit=1`，点击右上角“编辑页面”预览文案。编辑结果只保存在当前浏览器；点击“导出配置”会生成新的 `site-config.js`，确认后替换仓库里的文件。
 
 ## GitHub Release 约定

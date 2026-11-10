@@ -7,8 +7,9 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#071018" />
     <title>TokensCowork - 桌面端下载</title>
-    <link rel="icon" type="image/svg+xml" href="./logo-mark.svg" />
-    <link rel="stylesheet" href="./styles.css?v=20260908-2" />
+    <link rel="icon" type="image/svg+xml" href="./logo-mark.svg?v=20261110" />
+    <link rel="preload" href="./fonts/Quicksand-Variable.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="./styles.css?v=20261110" />
   </head>
   <body class="page-loading">
     <div class="page-loader" id="page-loader" role="status" aria-live="polite">
@@ -20,7 +21,7 @@
 
     <header class="site-header shell">
       <a class="brand" href="#top" aria-label="TokensCowork 首页">
-        <span class="brand-mark" aria-hidden="true"><img src="./logo-mark.svg" alt="" /></span>
+        <span class="brand-mark" aria-hidden="true"><img src="./logo-mark.svg?v=20261110" alt="" /></span>
         <span data-config="productName">TokensCowork</span>
       </a>
 
@@ -111,7 +112,7 @@
           <div class="app-window">
             <div class="app-sidebar">
               <div class="window-controls" aria-hidden="true"><i></i><i></i><i></i></div>
-              <div class="mini-brand"><span class="mini-logo"><img src="./logo-mark.svg" alt="" /></span><b>TokensCowork</b></div>
+              <div class="mini-brand"><span class="mini-logo"><img src="./logo-mark.svg?v=20261110" alt="" /></span><b>TokensCowork</b></div>
               <button class="new-chat" tabindex="-1"><span>＋</span> <span data-i18n="newSession">新会话</span></button>
               <p class="section-label" data-i18n="workspace">工作区</p>
               <div class="workspace-row"><span>▣</span> tokens-project</div>
@@ -121,7 +122,7 @@
             </div>
             <div class="app-content">
               <div class="app-toolbar"><span>tokens-project⌄</span><span data-i18n="standardMode">标准模式⌄</span></div>
-              <div class="welcome-mark"><span class="spark">✦</span><strong data-i18n="whatToBuild">今天想构建什么？</strong><em>DESKTOP</em></div>
+              <div class="welcome-mark"><img class="spark" src="./logo-mark.svg?v=20261110" alt="" /><strong data-i18n="whatToBuild">今天想构建什么？</strong><em>DESKTOP</em></div>
               <div class="prompt-card">
                 <p data-i18n="describeBuild">描述你想要构建的内容</p>
                 <div class="prompt-actions"><span>＋</span><span>◇ Full access⌄</span><b data-i18n="send">发送 ↑</b></div>
