@@ -28,14 +28,17 @@ import {
   adaptMarketHomeTests,
   addMarketHome,
   addMarketHomeStyles,
-  addMarketPluginsTab,
-  expectPluginsTabInClientTest,
+  expectLocalTimestampsInTests,
+  localizeMarketTimestamps,
 } from './market-home-overlay.mjs'
 import { tolerateSlowDownloads } from './market-network-overlay.mjs'
 import {
   expectOfficialMarketHiddenInTest, hideOfficialMarketBundle, hideRemoteControlCard, pinProductMarketOnPluginPage,
 } from './market-plugin-controls-overlay.mjs'
 import { hidePluginPageSidebarEntry, removePluginPageInstall } from './market-plugin-page-overlay.mjs'
+import {
+  expectNoLauncherInBrowserPluginTest, expectSidebarPanelInClientTest, moveMarketToSidebarPanel,
+} from './market-sidebar-panel-overlay.mjs'
 import { addMarketRestartPrompt, addMarketRestartUiTests } from './market-restart-overlay.mjs'
 import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-registry-overlay.mjs'
 import {
@@ -168,15 +171,24 @@ export default [
     why: '卡片右上角状态标记与已安装卡片底色：「+」用宿主绿色 state-success 加粗并带圆形描边，「✓」用三级文字色；底部状态标签「可安装」用 state-success 文字与淡底、「已安装」用三级文字色（原「已安装」角标样式）；已安装卡片在上游底色上叠宿主 hover 淡色、悬停叠 active 色，全部是宿主 token，不改透明度、不像禁用。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
-  sourceEntry('plugins-page-discover-tab', {
+  sourceEntry('sidebar-panel', {
     kind: 'customization',
-    // dsh：这一格的 Slot 契约（kind/scope/owner）照 dsh-client-ui-plugin-manager 就地声明，
-    // 市场包不依赖那个包，所以 DSH 升级要连它一起复查。
+    // dsh：main / sidebar.panellist 两格的契约来自 dsh-client-ui-layout 与 dsh-client-ui-sidebar。
     upstream: ['desktop', 'market-server', 'dsh'],
-    files: { clientIndex: m('src/client/index.ts'), settingsTab: f.settingsTab },
-    apply: input => addMarketPluginsTab(input),
-    why: '侧栏「插件」页的「发现」标签原本由官方「自定义插件市场」bundle 提供，要用户自己添加索引源（真机上就是一个「还没有插件市场」的空壳）；产品固定关掉那个 bundle 后由产品市场接上这一格，复用同一个发现面板，目录走产品固定的私有源、安装走市场自己的流程。',
-    retireWhen: '产品不再在插件页提供发现入口，或上游把这一页的发现标签改为可配置的产品市场时移除。',
+    files: {
+      clientIndex: m('src/client/index.ts'), overlay: m('src/client/MarketOverlay.tsx'),
+      styles: f.styles, locales: f.locales,
+    },
+    apply: input => moveMarketToSidebarPanel(input),
+    why: '用户 2026-11-10 要求侧栏上方那一行「插件」点开就是插件市场，底部不再放市场入口。去掉上游 sidebar.footer.action 的浮层启动器，改为注册主区域面板（main）与侧栏上方的一行（sidebar.panellist，标签「插件」、图标沿用官方插件页那一行）；页面内容就是原来浮层的标题加同一个 MarketSurface（发现 / 已安装 / 来源）。官方插件页那一行由 market.plugin-page-sidebar-entry 去掉，插件页本身仍从设置页「前往插件页面」进入；市场浮层与设置页标签照常注册。',
+    retireWhen: '产品重新把市场放回侧栏底部浮层，或恢复官方插件页的侧栏入口时移除。',
+  }),
+  sourceEntry('local-timestamps', {
+    kind: 'customization',
+    files: { settingsTab: f.settingsTab },
+    apply: ({ settingsTab }) => ({ settingsTab: localizeMarketTimestamps(settingsTab) }),
+    why: '「来源」与「已安装」视图把服务端的 ISO 时间（UTC，带 Z）原样贴出来，北京时间 11:58 显示成 03:58，用户以为时间错了（2026-11-10）。「目录更新于 / 缓存有效期至」改为按本机时区与语言显示，解析失败原样显示；数据与缓存逻辑不变。',
+    retireWhen: '上游自己按本地时间显示目录元数据时移除。',
   }),
   /* ----------------------- 发现页首屏延迟 ----------------------- */
   sourceEntry('catalog-fast-fail', {
@@ -271,12 +283,19 @@ export default [
     why: '默认视图改为发现页后，调整上游浮层用例的进入方式。',
     retireWhen: '随 market.discover-home 一起移除。',
   }),
-  sourceEntry('test-client-registration', {
+  sourceEntry('test-client-sidebar-panel', {
     kind: 'customization',
     files: { tests: m('tests/client-api.spec.ts') },
-    apply: ({ tests }) => ({ tests: expectPluginsTabInClientTest(tests) }),
-    why: '上游注册用例按次序断言市场客户端的三条 Slot 注册；产品多注册一条插件页「发现」标签，追加第四条断言。',
-    retireWhen: '随 market.plugins-page-discover-tab 一起移除。',
+    apply: ({ tests }) => ({ tests: expectSidebarPanelInClientTest(tests) }),
+    why: '上游注册用例按次序断言市场客户端的三条 Slot 注册；产品去掉底部启动器、在末尾多注册主区域面板与侧栏行，断言相应改写，其余次序与字段照旧。',
+    retireWhen: '随 market.sidebar-panel 一起移除。',
+  }),
+  sourceEntry('test-browser-no-launcher', {
+    kind: 'customization',
+    files: { tests: m('tests/browser-plugin.spec.ts') },
+    apply: ({ tests }) => ({ tests: expectNoLauncherInBrowserPluginTest(tests) }),
+    why: '上游 browser-plugin 用例断言设置标签、侧栏启动器、浮层三格都有注册；产品不注册底部启动器，改为断言声明了这一格也不注册，其余断言保留。',
+    retireWhen: '随 market.sidebar-panel 一起移除。',
   }),
   sourceEntry('test-setup', {
     kind: 'customization',
@@ -316,6 +335,13 @@ export default [
     apply: ({ tests }) => ({ tests: addMarketRestartUiTests(tests) }),
     why: '设置页补充「更新后需重启」横幅的产品回归：宿主报 restart-required + module-comparison 时说出是哪个插件、为什么要重启并能一键重启，宿主没给原因时退回通用文案，宿主即时生效时不提示，重新挂载时按状态端点报的清单恢复横幅；同时给上游显式列举的 api.js 替身补上新导出。',
     retireWhen: '随 market.restart-prompt 一起移除。',
+  }),
+  sourceEntry('test-local-timestamps', {
+    kind: 'customization',
+    files: { tests: m('tests/market-settings-tab.spec.tsx') },
+    apply: ({ tests }) => ({ tests: expectLocalTimestampsInTests(tests) }),
+    why: '上游用例按原始 ISO 字符串断言「目录更新于 / 缓存有效期至」；产品改为本地时间显示，断言同一时间的本地格式。',
+    retireWhen: '随 market.local-timestamps 一起移除。',
   }),
   sourceEntry('test-source-repair', {
     kind: 'customization',
@@ -444,8 +470,8 @@ export default [
     when: ({ files }) => files.has(pluginPageClient),
     files: { client: pluginPageClient },
     apply: ({ client }) => ({ client: hidePluginPageSidebarEntry(client) }),
-    why: '插件统一从侧栏底部的「插件市场」管理，侧栏再放一个「插件」是重复入口（用户 2026-10-29 要求收掉）。只去掉 sidebar.panellist 导航项：插件页照常注册，设置页「前往插件页」与插件详情跳转仍可达，所以本页其余覆盖（去「添加插件」、收敛市场卡、藏远程控制与官方市场）必须保留，否则这些入口会从后门回来。',
-    retireWhen: '产品重新在侧栏露出插件页，或上游提供关闭该导航项的配置时移除。',
+    why: '侧栏上方的「插件」由产品市场注册（market.sidebar-panel），点开就是插件市场（用户 2026-11-10 要求）；官方插件页再注册一行「插件」就重复了。只去掉 sidebar.panellist 导航项：插件页照常注册，设置页「前往插件页面」与插件详情跳转仍可达，内置插件配置与实验性插件从那里进入，所以本页其余覆盖（去「添加插件」、收敛市场卡、藏远程控制与官方市场）必须保留，否则这些入口会从后门回来。',
+    retireWhen: '产品重新在侧栏露出官方插件页，或上游提供关闭该导航项的配置时移除。',
   },
 ]
 

@@ -62,14 +62,19 @@ test('registered market overlays assemble product behaviors and leave unregister
   assert.match(read('src/network/restricted-http.ts'), /totalTimeoutMs: PRODUCT_CATALOG_REQUEST_BUDGET_MS,/)
   assert.match(read('src/adapters/standard-http.ts'), /async function resolveSourceManifest\(/)
   assert.equal(read('tests/contracts.spec.ts'), untouchedTests)
+  // 底部启动器换成主区域面板与侧栏行：设置标签、浮层、面板、侧栏行四条；插件页不注册「发现」标签。
   assert.match(read('tests/client-api.spec.ts'), /expect\(test\.registrations\)\.toHaveLength\(4\)/)
-  assert.match(read('tests/client-api.spec.ts'), /name: 'plugins\.tab',\n {8}id: 'discover',/)
+  assert.doesNotMatch(read('src/client/index.ts'), /sidebar\.footer\.action|MarketLauncher|[('"]plugins\.tab['"]/)
+  assert.match(read('src/client/index.ts'), /name: 'sidebar\.panellist',\n {4}id: MARKET_PANEL_ID,/)
+  assert.match(read('src/client/MarketOverlay.tsx'), /export function MarketPage\(/)
+  // 目录元数据时间按本地时间显示，不再原样贴 ISO（UTC）字符串。
+  assert.doesNotMatch(read('src/client/MarketSettingsTab.tsx'), /\{props\.metadata\.(scannedAt|expiresAt)\}/)
+  assert.match(read('src/client/MarketSettingsTab.tsx'), /export function formatMarketTime\(/)
+  assert.doesNotMatch(read('tests/browser-plugin.spec.ts'), /MarketLauncher/)
   for (const template of ['market-update.spec.ts', 'market-registry-candidates.spec.ts']) {
     assert.equal(read(`tests/${template}`), readFileSync(resolve(import.meta.dirname, template), 'utf8'))
   }
-  assert.match(read('src/client/MarketSettingsTab.tsx'), /export function MarketPluginsTab\(/)
-  assert.match(read('src/client/index.ts'), /ctx\.slots\.inject\('plugins\.tab'/)
-  assert.match(read('tests/market-settings-tab.spec.tsx'), /product Discover tab contributed to the Plugins page/)
+  assert.doesNotMatch(read('src/client/MarketSettingsTab.tsx'), /MarketPluginsTab|showViewBar/)
   const main = readFileSync(resolve(stage, 'dsh-plugin-desktop/src/main.ts'), 'utf8')
   assert.match(main, /市场提供方固定为社区市场/)
   assert.match(main, /if \(safeModePaths === undefined\) disableDesktopOfficialPluginMarket\(activeProfileDir\)/)

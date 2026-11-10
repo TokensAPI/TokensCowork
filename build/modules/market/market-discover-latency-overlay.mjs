@@ -374,7 +374,7 @@ export function keepStaleCatalogOnRefreshFailure({ settingsTab, locales }) {
           }`, 'stale catalog refresh failure')
   settingsTab = insertAfter(settingsTab, `            installations={installations}
             inventoryError={installationsError}
-            onRetryInventory={() => { void loadInstallations() }}`,
+            onRetryInventory={() => { void loadInstallations(true) }}`,
     `
             refreshError={refreshError}
             onRetryRefresh={() => {

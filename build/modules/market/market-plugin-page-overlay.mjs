@@ -8,9 +8,10 @@ const MARKER = '/* TokensCowork: plugin page install entry removed; install thro
 const NAV_MARKER = '/* TokensCowork: sidebar plugins entry hidden; plugins are managed from the plugin market. */'
 
 /**
- * 不在侧栏注册「插件」入口。插件统一从侧栏底部的「插件市场」管理，侧栏再放一个「插件」
- * 只是重复入口（用户 2026-10-29 要求收掉）。只去掉导航项：插件页本身照常注册，设置页的
- * 「前往插件页」与跳到某个插件详情的导航仍然可达，页面上的其余产品覆盖继续生效。可重复执行。
+ * 不在侧栏注册官方插件页的「插件」入口：侧栏上方同一位置的「插件」由产品市场注册，
+ * 点开就是插件市场（market.sidebar-panel，用户 2026-11-10 要求）。只去掉导航项：插件页本身
+ * 照常注册，设置页「前往插件页面」与跳到某个插件详情的导航仍然可达，内置插件配置与实验性
+ * 插件从那里进入，页面上的其余产品覆盖继续生效。可重复执行。
  */
 export function hidePluginPageSidebarEntry(source) {
   if (source.includes(NAV_MARKER)) {

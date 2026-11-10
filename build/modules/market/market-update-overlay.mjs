@@ -277,7 +277,7 @@ function addUpdatesToRenderer(settingsTab) {
               ? 'upToDate'
               : installation.updateStatus === 'failed' ? 'updateCheckFailed' : 'updateUnavailable')}{installation.updateStatus === 'available' && ' → ' + installation.updateVersion}</span>}`)
       block = replace(block, '      <div className="dshMarketReceiptActions">', `      <div className="dshMarketReceiptActions">
-        {installation.updateStatus === 'available' && props.onUpdate !== undefined && <Button
+        {installation.updateStatus === 'available' && installation.removable && props.onUpdate !== undefined && <Button
           variant="primary"
           size="sm"
           disabled={props.operationPending || props.toggling}

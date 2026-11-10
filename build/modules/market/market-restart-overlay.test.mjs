@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 import { resolve } from 'node:path'
 import { AnchorError } from '../../pipeline/anchors.mjs'
-import { addMarketHome, addMarketPluginsTab } from './market-home-overlay.mjs'
+import { addMarketHome } from './market-home-overlay.mjs'
 import { addMarketRestartPrompt, RESTART_REASONS, RESTART_ROUTE, SHARED_MODULE_REASONS } from './market-restart-overlay.mjs'
 import { addMarketUpdates } from './market-update-overlay.mjs'
 
@@ -13,8 +13,7 @@ const upstream = path => readFileSync(resolve(root, 'desktop/dsh-community-marke
 
 /**
  * 重启提示排在插件更新与发现页之后：它要接的那条完成路径里已经有「更新」，
- * 横幅要落在插件页「发现」标签也不渲染视图栏的位置上，所以按装配顺序叠出
- * 真实 staging 的形态，再把本覆盖应用上去。
+ * 所以按装配顺序叠出真实 staging 的形态，再把本覆盖应用上去。
  */
 function input() {
   const updated = addMarketUpdates({
@@ -25,14 +24,13 @@ function input() {
     locales: upstream('src/client/locales.ts'),
   })
   const home = addMarketHome({ settingsTab: updated.settingsTab, locales: updated.locales })
-  const tabbed = addMarketPluginsTab({ clientIndex: upstream('src/client/index.ts'), settingsTab: home.settingsTab })
   return {
     types: updated.types,
     service: updated.service,
     routes: updated.routes,
     index: upstream('src/index.ts'),
     api: upstream('src/client/api.ts'),
-    settingsTab: tabbed.settingsTab,
+    settingsTab: home.settingsTab,
     locales: home.locales,
     styles: upstream('src/client/styles.ts'),
   }

@@ -27,8 +27,12 @@ export function addMarketHome({ settingsTab, locales }) {
   // Inventory never blocks catalog discovery and never comes from catalog metadata.
   // 安装/卸载之后的刷新由上游自己做了（installed 视图或已缓存清单都会重读），
   // 发现页因为这个 effect 读过一次清单，所以同样落在上游那个条件里。
+  // 发现页也查一次更新（market.updates 的同一个检查：本地清单先到、先画 + / ✓，
+  // 版本结果后到再把有新版的卡片翻成「可更新」），用户不用切到「已安装」才知道。
+  // 只在这里和发现页的重试上显式带 true：打开详情时的清单读取要等结果才决定
+  // 走安装还是详情，不能被更新检查拖慢，所以默认参数不动。
   settingsTab = replace(settingsTab, '  const items = useMemo(', `  useEffect(() => {
-    if (view === 'discover') void loadInstallations()
+    if (view === 'discover') void loadInstallations(true)
   }, [view, loadInstallations])
 
   const items = useMemo(`)
@@ -43,7 +47,7 @@ export function addMarketHome({ settingsTab, locales }) {
             inventoryReady={installationsLoaded}
             installations={installations}
             inventoryError={installationsError}
-            onRetryInventory={() => { void loadInstallations() }}`)
+            onRetryInventory={() => { void loadInstallations(true) }}`)
   settingsTab = editFunction(settingsTab, 'DiscoverView', discover => {
     discover = replace(discover, '  items: readonly VisibleItem[]', `  items: readonly VisibleItem[]
   inventoryReady: boolean
@@ -59,27 +63,35 @@ export function addMarketHome({ settingsTab, locales }) {
       'value={value} installed={props.inventoryReady ? matchingInstallation(value, props.installations) ?? false : undefined} onClick={() => props.onSelect(value)}')
   })
   // 卡片右上角的状态标记（T0063）：只是卡片按钮里的图形，点它和点卡片一样打开原来的
-  // 详情，安装、卸载与确认都留在详情里。清单还没读到时 installed 为 undefined，卡片
-  // 不带状态、不画标记；未安装 →「+」（强调），已安装 →「✓」（低调）并让整卡略深一档。
-  // 不可卸载的内置组件按已安装上底色，但不画标记。
+  // 详情，安装、卸载、更新与确认都留在详情里。清单还没读到时 installed 为 undefined，卡片
+  // 不带状态、不画标记；未安装 →「+」（强调），已安装 →「✓」（低调）并让整卡略深一档；
+  // 已安装且更新检查报 available →「可更新」（宿主刷新图标，蓝色描边），底色同已安装。
+  // 不可卸载的内置组件按已安装上底色，但不画标记（它们也不会报 available）。
   settingsTab = editFunction(settingsTab, 'PluginCard', card => {
     card = replace(card, 'value, actionLabel, disabled', 'value, installed, actionLabel, disabled')
     card = replace(card, '  value: VisibleItem', '  value: VisibleItem\n  installed?: MarketInstallationView | false | undefined')
     card = replace(card, '      className="dshMarketCard"\n', `      className="dshMarketCard"
-      data-state={installed === undefined ? undefined : installed === false ? 'install' : 'installed'}
+      data-state={installed === undefined ? undefined : installed === false ? 'install' : updatable ? 'update' : 'installed'}
 `)
     card = replace(card, '<span>{publisher}</span></div>\n', `<span>{publisher}</span></div>
         {installed === false && <span className="dshMarketCardMark" aria-hidden="true" data-mark="install"><IconPlusOutlineRegular /></span>}
-        {installed !== undefined && installed !== false && installed.removable && (
+        {updatable && <span className="dshMarketCardMark" aria-hidden="true" data-mark="update"><IconRefreshOutlineRegular /></span>}
+        {installed !== undefined && installed !== false && installed.removable && !updatable && (
           <span className="dshMarketCardMark" aria-hidden="true" data-mark="installed"><IconCheckOutlineRegular /></span>
         )}
 `)
     // 底部标签行最后一格写明状态（T0063 追加 2）：恢复原来的「已安装」角标（同一种
-    // 上游 Pill，灰色），再补一个绿色的「可安装」；文案用上游已有的 installed / installable。
+    // 上游 Pill，灰色），再补一个绿色的「可安装」与蓝色的「可更新」；文案用已有的
+    // installed / installable / updateAvailable（后者来自 market.updates）。
     // 显示条件与右上角标记相同：清单未到、不可卸载的内置组件都不显示。
-    return replace(card, '        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}\n', `        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}
+    card = replace(card, '        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}\n', `        {value.item.categories?.slice(0, 2).map(category => <Pill key={category}>{category}</Pill>)}
         {installed === false && <Pill className="dshMarketInstallableBadge">{t('installable')}</Pill>}
-        {installed !== undefined && installed !== false && installed.removable && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
+        {updatable && <Pill className="dshMarketUpdatableBadge">{t('updateAvailable')}</Pill>}
+        {installed !== undefined && installed !== false && installed.removable && !updatable && <Pill className="dshMarketInstalledBadge">{t('installed')}</Pill>}
+`)
+    return replace(card, '  const publisher = value.item.publisher?.name ?? value.source.name\n',
+      `  const publisher = value.item.publisher?.name ?? value.source.name
+  const updatable = installed !== undefined && installed !== false && installed.removable && installed.updateStatus === 'available'
 `)
   })
   // 「已安装」的说明文案 2.0.18 起由上游自己写清了启用/停用/卸载与官方插件页的分工，
@@ -123,10 +135,26 @@ export function addMarketHomeStyles(styles) {
   color: var(--dsw-alias-label-tertiary);
 }
 
+.dshMarketCardMark[data-mark='update'] {
+  border: 1.5px solid var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.dshMarketCardMark[data-mark='update'] svg {
+  width: 14px;
+  height: 14px;
+}
+
 .dshMarketTags > .dshMarketInstalledBadge,
-.dshMarketTags > .dshMarketInstallableBadge {
+.dshMarketTags > .dshMarketInstallableBadge,
+.dshMarketTags > .dshMarketUpdatableBadge {
   flex: none;
   white-space: nowrap;
+}
+
+.dshMarketTags > .dshMarketUpdatableBadge {
+  color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-tertiary);
 }
 
 .dshMarketTags > .dshMarketInstalledBadge {
@@ -139,155 +167,56 @@ export function addMarketHomeStyles(styles) {
   background: var(--dsw-alias-state-success-tertiary);
 }
 
-.dshMarketCard[data-state='installed'] {
+.dshMarketCard[data-state='installed'],
+.dshMarketCard[data-state='update'] {
   background: linear-gradient(var(--dsw-alias-interactive-bg-hover), var(--dsw-alias-interactive-bg-hover)), var(--dsw-alias-bg-layer-3);
 }
 
-.dshMarketCard[data-state='installed']:hover {
+.dshMarketCard[data-state='installed']:hover,
+.dshMarketCard[data-state='update']:hover {
   background: linear-gradient(var(--dsw-alias-interactive-bg-active), var(--dsw-alias-interactive-bg-active)), var(--dsw-alias-bg-layer-3);
 }
 
 .dshMarketCard:hover {`)
 }
 
-/** 插件页「发现」标签渲染的组件；和侧栏底部的市场面板走同一个 MarketSurface。 */
-const pluginsTabComponent = `
-export type MarketPluginsTabProps = PropsRuntime<'plugins.tab'>
-  & PropsLocale<'community-market'>
-  & { readonly readLocale: () => string }
-
-/**
- * 产品覆盖：侧栏「插件」页的「发现」标签。
- *
- * 和侧栏底部「插件市场」面板用同一个 MarketSurface：目录来自产品固定的私有源，
- * 安装、详情与更新都走市场自己的流程，不使用插件页 owner 的 install —— 那条路把
- * \`名称@版本\` 直接交给官方插件管理器，绕过产品的私有 Registry 鉴权与兼容性检查。
- * 面板自己的视图栏不渲染：这一页的标签栏（「已安装 / 发现」）已经是同一件事，
- * 嵌一排「发现 / 已安装 / 来源」只会出现两个「已安装」。
- */
-export function MarketPluginsTab({ readLocale, t }: MarketPluginsTabProps) {
-  return <MarketSurface initialView="discover" readLocale={readLocale} showHeader={false} showViewBar={false} t={t} />
+/** 目录元数据里的时间按本机时区与语言显示；解析失败原样显示。 */
+const marketTimeHelper = `
+/** 产品覆盖：服务端给的是 ISO 时间（UTC，带 Z），直接贴出来看着像差了 8 小时；按本机时区与语言显示。 */
+export function formatMarketTime(value: string): string {
+  const time = new Date(value)
+  return Number.isNaN(time.getTime()) ? value : time.toLocaleString(undefined, { hour12: false })
 }
 `
 
-/** 插件页「发现」标签的注册；上游插件页声明的 plugins.tab 是 list / root。 */
-const pluginsTabRegistration = `  // 产品覆盖：插件页的「发现」标签指向产品市场自己的发现页。上游官方「自定义
-  // 插件市场」bundle 提供的同名标签要用户自己添加索引源，产品已固定关掉它
-  // （market.desktop-official-market-off），这一格由产品市场接上。
-  ctx.slots.inject('plugins.tab', () => ctx.slots.register({
-    name: 'plugins.tab',
-    id: 'discover',
-    order: 10,
-    label: () => ctx.locale.bind(NS)('discover'),
-    locale: NS,
-    inject: () => ({ readLocale }),
-  }, MarketPluginsTab))
-`
-
 /**
- * 侧栏「插件」页的「发现」标签由产品市场提供。
- *
- * 三处改动：(1) MarketSurface 增加 showViewBar，嵌进插件页时不渲染自己的视图栏；
- * (2) 新增 MarketPluginsTab，把发现页接到插件页的标签位；(3) 客户端入口注册
- * `plugins.tab` 并就地声明这个 Slot —— 它由 `@deepseek-ai/dsh-client-ui-plugin-manager`
- * 的插件页声明，而市场包并不依赖那个包（为一个标签去加依赖不值得），所以照它的
- * `client/slot-contract.d.ts` 把 kind / scope / owner 抄在这里；owner 的两个动作产品
- * 都不用，但声明出来，用例才能断言安装没有走插件页的安装对话框。这份抄件会随上游漂移，
- * 因此登记表给这条覆盖的 upstream 带上 dsh，DSH 升级时一并复查。
- * @param input - staging 副本中市场客户端入口与设置面板的内容。
- * @returns 改写后的两个文件内容。
- * @throws 上游锚点变化时抛出，中断打包待人工复查。
+ * 「来源」与「已安装」视图里的「目录更新于 / 缓存有效期至」改为本地时间（用户 2026-11-10）。
+ * @param settingsTab - staging 中市场设置面板的内容。
+ * @returns 改写后的内容。
+ * @throws 上游锚点变化时抛出。
  */
-export function addMarketPluginsTab({ clientIndex, settingsTab }) {
-  clientIndex = clientIndex.replaceAll('\r\n', '\n')
+export function localizeMarketTimestamps(settingsTab) {
   settingsTab = settingsTab.replaceAll('\r\n', '\n')
-  settingsTab = replace(settingsTab, '  readonly showHeader?: boolean',
-    '  readonly showHeader?: boolean\n  readonly showViewBar?: boolean')
-  settingsTab = replace(settingsTab, ', showHeader = true }: MarketSurfaceProps) {',
-    ', showHeader = true, showViewBar = true }: MarketSurfaceProps) {')
-  settingsTab = replace(settingsTab, '      <div className="dshMarketViewBar">',
-    '      {showViewBar && (<div className="dshMarketViewBar">')
-  settingsTab = replace(settingsTab, '      </div>\n      <main className="dshMarketMain">',
-    '      </div>)}\n      <main className="dshMarketMain">')
-  settingsTab = replace(settingsTab, '\nfunction DiscoverView(', `${pluginsTabComponent}\nfunction DiscoverView(`)
-  clientIndex = replace(clientIndex, `declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    'community-market': MarketLocaleKey
-  }
-}`, `declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    'community-market': MarketLocaleKey
-  }
-  // 产品覆盖：插件页的 plugins.tab 由 @deepseek-ai/dsh-client-ui-plugin-manager 声明，
-  // 市场包不依赖那个包，所以照它的 client/slot-contract.d.ts 就地声明这一格。
-  // owner 的两个动作产品都不用，但声明出来，用例才能断言「没走插件页的安装对话框」。
-  interface SlotMap {
-    'plugins.tab': {
-      kind: 'list'
-      scope: 'root'
-      owner: {
-        /** 把 \`名称@版本\` 交给插件页自己的安装对话框；绕过产品的私有 Registry 鉴权与兼容性检查。 */
-        readonly install: (target: {
-          readonly spec: string
-          readonly registry?: string
-          readonly title: string
-          readonly version: string
-        }) => void
-        /** 切到「已安装」并打开某个 bundle 的详情页。 */
-        readonly openPackage: (packageName: string) => void
-      }
-    }
-  }
-}`)
-  clientIndex = replace(clientIndex, "import { MarketSettingsTab } from './MarketSettingsTab.js'",
-    "import { MarketPluginsTab, MarketSettingsTab } from './MarketSettingsTab.js'")
-  // 注册在最后：上游 tests/client-api.spec.ts 按注册次序断言，排在末尾只需追加一条。
-  clientIndex = replace(clientIndex, '  }, MarketOverlay))\n}', `  }, MarketOverlay))
-${pluginsTabRegistration}}`)
-  return { clientIndex, settingsTab }
+  const scanned = "<span>{props.t('scannedAt')}: {props.metadata.scannedAt}</span>"
+  if (settingsTab.split(scanned).length !== 3) throw new Error('market-home: upstream anchor changed: ' + scanned)
+  settingsTab = settingsTab.replaceAll(scanned, "<span>{props.t('scannedAt')}: {formatMarketTime(props.metadata.scannedAt)}</span>")
+  settingsTab = replace(settingsTab, "<span>{props.t('cacheExpiresAt')}: {props.metadata.expiresAt}</span>",
+    "<span>{props.t('cacheExpiresAt')}: {formatMarketTime(props.metadata.expiresAt)}</span>")
+  return replace(settingsTab, '\nfunction DiscoverView(', `${marketTimeHelper}\nfunction DiscoverView(`)
 }
 
-/**
- * 上游市场客户端的注册用例按次序断言三条注册，产品多注册一条「发现」标签。
- *
- * 注册排在最后，所以只需把它追加进两处断言并把计数改成 4；前三条的次序与
- * `[settings, launcher, overlay]` 解构都不动。
- * @param tests - staging 副本中 tests/client-api.spec.ts 的完整内容。
- * @returns 追加第四条注册断言后的用例源码。
- * @throws 上游锚点变化时抛出，中断打包待人工复查。
- */
-export function expectPluginsTabInClientTest(tests) {
-  tests = replace(tests.replaceAll('\r\n', '\n'),
-    "  it('registers locale, styles, settings tab, sidebar launcher, and shell overlay effects', () => {",
-    "  it('registers locale, styles, settings tab, sidebar launcher, shell overlay and Plugins page tab effects', () => {")
-  tests = replace(tests, `      'shell.overlay',
-    ])
-  })`, `      'shell.overlay',
-      // 产品覆盖：插件页的「发现」标签由产品市场提供。
-      'plugins.tab',
-    ])
-  })`)
-  tests = replace(tests, 'expect(test.registrations).toHaveLength(3)', 'expect(test.registrations).toHaveLength(4)')
-  return replace(tests, `      expect.objectContaining({
-        name: 'shell.overlay',
-        id: 'community-market',
-        order: 10,
-        locale: NS,
-      }),
-    ])`, `      expect.objectContaining({
-        name: 'shell.overlay',
-        id: 'community-market',
-        order: 10,
-        locale: NS,
-      }),
-      // 产品覆盖：插件页的「发现」标签，id 用上游插件页的标签 id。
-      expect.objectContaining({
-        name: 'plugins.tab',
-        id: 'discover',
-        order: 10,
-        locale: NS,
-      }),
-    ])`)
+/** 上游用例按原始 ISO 字符串断言这几处时间；改为断言同一时间的本地显示。 */
+export function expectLocalTimestampsInTests(tests) {
+  tests = tests.replaceAll('\r\n', '\n')
+  for (const [label, value] of [
+    ['scannedAt', 'catalogWithMetadata.metadata!.scannedAt'],
+    ['cacheExpiresAt', 'catalogWithMetadata.metadata!.expiresAt'],
+    ['scannedAt', 'initialIndex.metadata!.scannedAt'],
+  ]) {
+    tests = replace(tests, `expect(screen.getByText(\`\${en.${label}}: \${${value}}\`)).toBeTruthy()`,
+      `expect(screen.getByText(\`\${en.${label}}: \${new Date(${value}).toLocaleString(undefined, { hour12: false })}\`)).toBeTruthy()`)
+  }
+  return tests
 }
 
 export function adaptMarketHomeTestSetup(setup) {
@@ -312,11 +241,6 @@ describe('community market overlay',`)
 export function adaptMarketHomeTests(tests) {
   tests = tests.replaceAll('\r\n', '\n')
   tests = replace(tests, 'import { afterEach, describe,', 'import { afterEach, beforeEach, describe,')
-  // 插件页「发现」标签的产品回归（market-home-ui-tests.inc）渲染同一面板的嵌入形态。
-  tests = replace(tests, "import { MarketSettingsTab, type MarketSettingsTabProps } from '../src/client/MarketSettingsTab.js'",
-    `import {
-  MarketPluginsTab, type MarketPluginsTabProps, MarketSettingsTab, type MarketSettingsTabProps,
-} from '../src/client/MarketSettingsTab.js'`)
   tests = replace(tests, 'const t = ((key:', `beforeEach(() => {
   vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
 })
@@ -443,5 +367,13 @@ const t = ((key:`)
   flaky = replace(flaky, '    await waitFor(() => { expect(readMarketInstallations).toHaveBeenCalledTimes(3) })',
     "    await waitFor(() => { expect(screen.queryByRole('alert')).toBeNull() })")
   tests = tests.slice(0, flakyStart) + flaky + tests.slice(flakyEnd)
+
+  // 发现页挂载时除了本地清单还会做一次更新检查（卡片「可更新」状态），安装成功后的
+  // 重读排在这两次之后：本地清单、更新检查、安装后重读，共三次。
+  const [installStart, installEnd] = bounds("  it('previews an exact package and profile before install", 'install preview')
+  let install = tests.slice(installStart, installEnd)
+  install = replace(install, '      expect(readMarketInstallations).toHaveBeenCalledTimes(2)',
+    '      expect(readMarketInstallations).toHaveBeenCalledTimes(3)')
+  tests = tests.slice(0, installStart) + install + tests.slice(installEnd)
   return tests
 }

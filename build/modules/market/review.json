@@ -186,13 +186,6 @@
     },
     {
       "overlays": [
-        "market.plugins-page-discover-tab",
-        "market.test-client-registration"
-      ],
-      "verified": "2026-10-21（T0040）：新增。关掉官方 bundle 之后插件页只剩「已安装」，用户的预期是这一格等于产品插件市场的「发现」，所以产品自己注册 plugins.tab（id=discover、order 10），渲染 MarketPluginsTab —— 它就是侧栏底部「插件市场」面板用的同一个 MarketSurface，initialView=discover、showHeader=false，另加覆盖新增的 showViewBar=false（这一页的标签栏已经是「已安装 / 发现」，再嵌一排「发现 / 已安装 / 来源」会出现两个「已安装」）。目录仍来自产品固定的私有源，安装、详情与更新全走市场自己的流程；插件页 owner 的 install（按 `名称@版本` 交给官方插件管理器，绕过私有 Registry 鉴权与兼容性检查）与 openPackage 一概不用。代价有两处，都是有意接受的：(1) dsh-community-market 不依赖 @deepseek-ai/dsh-client-ui-plugin-manager，所以 plugins.tab 的 Slot 契约（kind: list / scope: root / owner 两个动作）照该包 client/slot-contract.d.ts 在市场客户端入口就地声明，因此这条覆盖的 upstream 带上 dsh，DSH 升级要连它一起复查；(2) 注册排在 shell.overlay 之后，上游 tests/client-api.spec.ts 按次序断言三条注册，追加第四条即可，前三条次序与解构不动。验证：build-verify market 43 项通过；overlay-doctor --doctor 两条均判「生效」，全量 0 ✖ 0 ○；staging 上 dsh-community-market 三个 tsconfig（含开着 noUnusedLocals / exactOptionalPropertyTypes 的 tsconfig.client.json，覆盖就地声明的 SlotMap）tsc --noEmit 全部 exit 0，tsdown 客户端打包、verify-client-externals（12 个外部依赖不变）、verify-client-loader 均 exit 0，vitest 全量 15 个文件 338 项通过（含新增两项：标签里渲染产品目录且没有面板自己的视图栏与标题、安装走市场的确认弹窗与 executeMarketOperation 且 owner 的 install 没被调用）。遗留：真机界面未验收——「发现」标签的外观与滚动、从产品私有源拉目录并安装成功，以及侧栏底部「插件市场」的「发现」照常。"
-    },
-    {
-      "overlays": [
         "market.catalog-fast-fail",
         "market.catalog-manifest-cache",
         "market.catalog-stale-first",
@@ -209,9 +202,19 @@
     },
     {
       "overlays": [
-        "market.plugin-page-sidebar-entry"
+        "market.sidebar-panel",
+        "market.plugin-page-sidebar-entry",
+        "market.test-client-sidebar-panel",
+        "market.test-browser-no-launcher"
       ],
-      "verified": "2026-10-29：用户要求收掉侧栏「插件」导航（插件统一从侧栏底部的「插件市场」管理）。只去掉 dsh-client-ui-plugin-manager 在 sidebar.panellist 的注册；插件页本身、设置页「前往插件页」与 pluginNavigation 详情跳转仍可达，因此本页其余四条覆盖（去「添加插件」、收敛市场卡、藏远程控制、藏官方市场）保留不删——另一份审查清单建议一并删除，核实后否决：删了「添加插件」会从设置入口回来，可绕过私有源按 npm/Git/本地目录直装。用例对 0.2.1-rc.2 的逐字片段断言导航项消失、页面导出与详情跳转保留、幂等、半删报错、锚点漂移报错，并断言与 market.plugin-page-install 同文件同条件；另在真实 staging 文件上叠加两条覆盖确认共存（仅少 6 行）。test:build、overlay-doctor --check 通过；真机侧栏观感随下一版验收。"
+      "verified": "2026-11-10：当前状态——侧栏上方只有一行「插件」，点开就是插件市场（右侧主区域，内容与原浮层相同：标题 + 发现 / 已安装 / 来源，含「可更新」状态）；侧栏底部不放市场入口；插件页本身保持官方默认显示、没有产品「发现」标签。经过：11-09 先露出官方插件页、收掉底部启动器；用户 11-10 要求插件页只要官方默认显示，删除 2026-10-21（T0040）的 market.plugins-page-discover-tab 与 market.test-client-registration（market.restart-prompt 的横幅锚点改回上游视图栏）；随后要求上方「插件」直接打开市场，于是：(1) market.sidebar-panel 去掉 dsh-community-market 的 sidebar.footer.action 启动器与 MarketLauncher 导入，在注册末尾追加 main 面板（key=community-market，渲染 MarketPage：原浮层标题 + MarketSurface，无弹窗与关闭按钮，.dshMarketPage 负责滚动与居中）与 sidebar.panellist 一行（同一 id、order 0、标签 sidebarEntry「插件」/「Plugins」、图标沿用官方插件页的 IconPluginPinwheelOutlineRegular）；市场浮层与设置页「插件」分区的市场标签照常注册；(2) 恢复 market.plugin-page-sidebar-entry，去掉官方插件页那一行，插件页本身仍从设置页「前往插件页面」进入（内置插件配置、实验性插件在那里）；插件页其余逻辑覆盖（去「添加插件」、只留产品市场、藏远程控制、藏官方市场）不动。上游两份注册用例：client-api 去掉启动器、末尾追加 main 与 sidebar.panellist（3→4），browser-plugin 改为断言声明了 sidebar.footer.action 也不注册。本地注意：已安装阶段的覆盖直接改 .build/desktop 的 node_modules，删掉覆盖不会还原（11-10 曾因此需手动还原 plugin-manager lib/client.js）。验证见本次提交说明；遗留：真机未验收（上方「插件」打开市场页、页面滚动与宽度、设置页仍能进入官方插件页）。"
+    },
+    {
+      "overlays": [
+        "market.local-timestamps",
+        "market.test-local-timestamps"
+      ],
+      "verified": "2026-11-10：新增。用户看到「目录更新于: 2026-11-10T03:58:09.132Z / 缓存有效期至: …04:03:09.132Z」以为时间不对——上游 SourcesView 与 InstalledView 把服务端的 ISO 时间（UTC，带 Z）原样渲染，北京时间 11:58 显示成 03:58。改为 formatMarketTime：new Date(value).toLocaleString(undefined, { hour12: false })，按本机时区与语言显示（zh-CN 形如 2026/11/10 11:58:09），解析失败原样显示；三处渲染（来源视图的更新时间与有效期、已安装视图的更新时间）都换掉，数据、缓存时长与状态文案不变。上游三条用例按原始 ISO 断言，改为断言同一时间的本地格式（覆盖没生效时原样 ISO 与本地格式不等，用例会红）。验证见本次提交说明；遗留：真机未验收。"
     },
     {
       "overlays": [
@@ -219,7 +222,7 @@
         "market.discover-home-styles",
         "market.test-discover-home"
       ],
-      "verified": "2026-11-03（T0063 追加 1）：用户要求卡片上直观看出装没装，已装未装同一种卡片骨架，+ / ✓ 只是标记、点它和点卡片一样打开原来的弹窗；首版的 + / − 用户嫌对比不够。先查固定上游：发现页 PluginCard 整张是打开详情的 <button>，卡片上没有任何安装标识，所以只补最小一层：卡片按钮带 data-state=install|installed（清单没读到不带），名字右侧画一个 aria-hidden 的标记。未安装：宿主 IconPlusOutlineRegular，CSS 把描边加粗到 2，外加一圈 1.5px 圆形描边，颜色用宿主唯一的绿色 --dsw-alias-state-success-primary（宿主 business 强调色是蓝 #4176e6，没有绿色主题色）；宿主主题对所有元素设了 corner-shape: superellipse，会把 50% 圆角画成方圆，所以标记写 corner-shape: round（宿主滚动条同样这么做）。已安装：宿主 IconCheckOutlineRegular，颜色 --dsw-alias-label-tertiary，无描边；不可卸载的内置组件不画标记。已安装卡片（含内置组件）在上游 bg-layer-3 上叠一层 --dsw-alias-interactive-bg-hover，悬停叠 --dsw-alias-interactive-bg-active；浅色主题 bg-layer-1/2/3 都是白色，没有更深一档的表面 token，所以用宿主交互淡色，深浅主题都比普通卡片多一档填充；不改透明度和光标，不像禁用。安装、卸载、确认框与风险提示全部照上游留在详情里；已删除整卡置灰 CSS、「已安装」角标与只为角标存在的 market.test-setup。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0；临时 staging 上 dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 355 过 9 跳过（产品回归：同一骨架只差 data-state 取值、未装 + 已装 ✓、清单未到不带状态不画标记、内置组件只上底色、点标记与点卡片打开同一个弹窗且不直接执行、装/卸后标记与状态随清单翻转）。截图：staging 装配结果 + 宿主真实 primitives 与主题 token，Edge headless 经 CDP 真实指针悬停，见主检出 .build/t0063-state-contrast/。遗留：真机未验收。"
+      "verified": "2026-11-09：用户要求「可更新」状态不必切到「已安装」才看得到，在发现页卡片上露出来。不新做比对：发现页挂载时与它的清单重试显式调用 loadInstallations(true)，复用 market.updates 的同一次服务端检查（授权目录 + registry 逐包查最新稳定版，15 s 封顶，失败只降级）；打开详情时的清单读取仍是默认参数，不被更新检查拖慢。本地清单先到先画 + / ✓，检查结果后到再把 updateStatus=available 且可卸载的已安装卡片翻成 data-state=update：右上角宿主 IconRefreshOutlineRegular 加蓝色圆形描边（--dsw-alias-state-business-primary，与「+」的绿、「✓」的灰区分），底部最后一格蓝字淡蓝底的「可更新」（market.updates 已有的 updateAvailable 文案），底色同已安装；更新本身仍在详情里点「更新」并确认。顺带收紧：详情里的「更新」按钮也要求 removable，与卡片一致（Host 本来不会给不可卸载组件报 available）。market.catalog-stale-first 的锚点随重试参数同步。验证：overlay-doctor market --doctor 85 条全部生效；临时 staging 上 dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest（单 worker）16 个文件 357 过 9 跳过（新增中英文各一条：本地清单先 ✓、检查到新版翻成可更新、已是最新保持 ✓、点卡片只开详情不执行；上游安装用例的清单读取次数 2→3；更新失败后卡片仍为可更新）；build-verify 203 项通过。遗留：真机未验收（蓝色标记在深浅主题下的观感、检查较慢时 ✓ → 可更新 的翻转）。2026-11-03（T0063 追加 1）：用户要求卡片上直观看出装没装，已装未装同一种卡片骨架，+ / ✓ 只是标记、点它和点卡片一样打开原来的弹窗；首版的 + / − 用户嫌对比不够。先查固定上游：发现页 PluginCard 整张是打开详情的 <button>，卡片上没有任何安装标识，所以只补最小一层：卡片按钮带 data-state=install|installed（清单没读到不带），名字右侧画一个 aria-hidden 的标记。未安装：宿主 IconPlusOutlineRegular，CSS 把描边加粗到 2，外加一圈 1.5px 圆形描边，颜色用宿主唯一的绿色 --dsw-alias-state-success-primary（宿主 business 强调色是蓝 #4176e6，没有绿色主题色）；宿主主题对所有元素设了 corner-shape: superellipse，会把 50% 圆角画成方圆，所以标记写 corner-shape: round（宿主滚动条同样这么做）。已安装：宿主 IconCheckOutlineRegular，颜色 --dsw-alias-label-tertiary，无描边；不可卸载的内置组件不画标记。已安装卡片（含内置组件）在上游 bg-layer-3 上叠一层 --dsw-alias-interactive-bg-hover，悬停叠 --dsw-alias-interactive-bg-active；浅色主题 bg-layer-1/2/3 都是白色，没有更深一档的表面 token，所以用宿主交互淡色，深浅主题都比普通卡片多一档填充；不改透明度和光标，不像禁用。安装、卸载、确认框与风险提示全部照上游留在详情里；已删除整卡置灰 CSS、「已安装」角标与只为角标存在的 market.test-setup。验证：build-verify market 57 项通过；overlay-doctor market --check exit 0；临时 staging 上 dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 355 过 9 跳过（产品回归：同一骨架只差 data-state 取值、未装 + 已装 ✓、清单未到不带状态不画标记、内置组件只上底色、点标记与点卡片打开同一个弹窗且不直接执行、装/卸后标记与状态随清单翻转）。截图：staging 装配结果 + 宿主真实 primitives 与主题 token，Edge headless 经 CDP 真实指针悬停，见主检出 .build/t0063-state-contrast/。遗留：真机未验收。"
     },
     {
       "overlays": [

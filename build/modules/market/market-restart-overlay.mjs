@@ -322,8 +322,8 @@ function withPendingRestart(
     "      announce(`${t(result.enabled ? 'enableComplete' : 'disableComplete')}${applicationHint(result.application)}`)",
     "      announce(`${t(result.enabled ? 'enableComplete' : 'disableComplete')}${applicationHint(result.application)}`)\n"
     + '      notePendingRestart(result.packageName, result.application, result.restartReason)', LABEL)
-  // 横幅在视图栏之前：插件页的「发现」标签不渲染视图栏，这一格也要看得到。
-  settingsTab = replaceOnce(settingsTab, `      {showViewBar && (<div className="dshMarketViewBar">`,
+  // 横幅在视图栏之前，切换视图时始终看得到。
+  settingsTab = replaceOnce(settingsTab, `      <div className="dshMarketViewBar">`,
     `      {restartPending.length > 0 && (
         <div className="dshMarketBanner dshMarketRestartBanner" role="status">
           <div className="dshMarketRestartBannerText">
@@ -341,7 +341,7 @@ function withPendingRestart(
           )}
         </div>
       )}
-      {showViewBar && (<div className="dshMarketViewBar">`, LABEL)
+      <div className="dshMarketViewBar">`, LABEL)
   // canRestart 与上游 canOpenTerminal 同一来源：Host 报告这台机器有没有这个动作。
   return replaceOnce(settingsTab, `  const announce = (text: string) => {`,
     `  const canRestart = state?.desktopActions.restart === true
