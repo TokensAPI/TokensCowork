@@ -1,4 +1,4 @@
-// 产品图形只保留两个 PNG 源资产；SVG、托盘位图、ICO 和 ICNS 在 staging 中生成。
+// 原生图标与前端 Logo 分开管理；托盘位图、ICO 和 ICNS 在 staging 中生成。
 import assert from 'node:assert/strict'
 import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -86,9 +86,10 @@ export function applyProductLogo({ productBrandRoot, stage, productName, assertG
   const manifestPath = resolve(frontend, 'manifest.webmanifest')
   const logo = readFileSync(resolve(productBrandRoot, 'logo-mark.png'))
   const svg = createLogoSvg(logo)
+  const traySvg = readFileSync(resolve(productBrandRoot, 'app-mark.svg'))
   verifyWindowsIconGenerator(readFileSync(resolve(desktop, 'scripts/generate-windows-app-icon.mjs'), 'utf8'))
   const writes = new Map([
-    [resolve(desktop, 'build/tray-icon.svg'), svg],
+    [resolve(desktop, 'build/tray-icon.svg'), traySvg],
     [resolve(frontend, 'favicon.svg'), svg],
     [resolve(frontend, 'favicon-dark.svg'), svg],
     [resolve(frontend, 'tokenscowork-logo.png'), logo],
@@ -131,7 +132,9 @@ export function verifyProductLogo({ desktopRoot, productName }) {
     assert.ok(read(`build/${name}`).equals(readFileSync(resolve(import.meta.dirname, 'assets', name))), `branding: source asset differs: ${name}`)
   }
   const frontend = 'node_modules/@deepseek-ai/dsh-web-frontend/dist'
-  for (const path of ['build/tray-icon.svg', `${frontend}/favicon.svg`, `${frontend}/favicon-dark.svg`]) {
+  assert.ok(read('build/tray-icon.svg').equals(readFileSync(resolve(import.meta.dirname, 'assets/app-mark.svg'))),
+    'branding: native tray differs from product artwork')
+  for (const path of [`${frontend}/favicon.svg`, `${frontend}/favicon-dark.svg`]) {
     assert.ok(read(path).equals(svg), `branding: incorrect logo ${path}`)
   }
   assert.ok(read(`${frontend}/tokenscowork-logo.png`).equals(logo), 'branding: frontend logo differs from product asset')

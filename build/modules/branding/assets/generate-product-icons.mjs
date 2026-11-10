@@ -1,4 +1,4 @@
-// 在 staging 中运行：从两个产品 PNG 生成应用、DMG 和托盘图标。
+// 在 staging 中运行：从应用 PNG 与原生 SVG 生成应用、DMG 和托盘图标。
 import { writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,10 +21,17 @@ export async function generateProductIcons() {
   const { generateWindowsAppIcon } = await import('./generate-windows-app-icon.mjs')
   await generateMacAppIcon()
   await generateWindowsAppIcon()
-  // 原 Logo 带展示留白；托盘单独裁透明边距，16px 画布保留约 1px 安全边。
-  const trayArtwork = await sharp(join(buildRoot, 'logo-mark.png'), { failOn: 'warning' })
+  // macOS 使用透明单色模板，由系统适配菜单栏颜色；16px 画布保留约 1px 安全边。
+  const trayArtwork = await sharp(join(buildRoot, 'tray-icon.svg'), { failOn: 'warning', density: 192 })
     .trim({ background: '#00000000', threshold: 16 }).png().toBuffer()
   await Promise.all(trayVariants.map(async ([filename, size]) => {
+    // Windows/Linux 沿用上游 blue 文件名契约，实际使用白底图标，兼顾深浅任务栏。
+    if (!filename.includes('Template')) {
+      await sharp(join(buildRoot, 'app-icon.png'))
+        .resize(size, size).toColourspace('srgb').png({ compressionLevel: 9 })
+        .toFile(join(buildRoot, filename))
+      return
+    }
     const artworkSize = Math.round(size * 14 / 16)
     const inset = (size - artworkSize) / 2
     await sharp(trayArtwork, { failOn: 'warning' })

@@ -287,7 +287,7 @@ test('runtime logo preserves caller size and class and uses the served product P
 test('SVG wraps the exact canonical PNG and rejects invalid headers and dimensions', () => {
   const png = readFileSync(resolve(assetRoot, 'logo-mark.png'))
   const svg = createLogoSvg(png)
-  assert.match(svg, /viewBox="0 0 480 480"/)
+  assert.match(svg, /viewBox="0 0 1024 1024"/)
   assert.ok(Buffer.from(svg.match(/base64,([^"]+)/)[1], 'base64').equals(png))
   for (const invalid of [Buffer.alloc(0), png.subarray(0, 20), Buffer.alloc(33)]) {
     assert.throws(() => createLogoSvg(invalid), /invalid logo PNG header/)
