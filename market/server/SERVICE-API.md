@@ -69,6 +69,7 @@
 | GET / PATCH | `/plugins/:id` | ✗ |
 | PUT | `/plugins/:id/access` | ✗ |
 | POST | `/plugins/:id/{publish,archive,trash,restore,purge}` | ✗ |
+| PUT / DELETE | `/plugins/:id/icon` | ✗ |
 | GET / POST | `/plugins/:id/docs` | ✗ |
 | PUT / DELETE | `/plugins/:id/docs/:docId` | ✗ |
 | GET | `/organizations` | ✗ |
@@ -202,6 +203,13 @@ PUT /api/v1/users/102/grants
 - 用户授权跟着人走：该用户名下的每个 Key 都命中，组织和组织开关同样影响不到它。
 - Key 的所属组织与所属用户由 TokensAPI `/api/current/organization` 一次解析；只有在答案取决于它们时才会去问上游。
   解析结果在进程内按 Key 指纹记 60 秒（失败不记）：后台改授权、组织启停与开关立即生效，只有 TokensAPI 里 Key 换了组织或所属用户最多晚 1 分钟。
+
+### 插件图标
+
+- `PUT /plugins/:id/icon` `{ contentType, data }`：上传或替换图标。`contentType` 只能是 `image/png`、`image/jpeg`、`image/webp`，`data` 是图片的 base64，不超过 256 KB；声明的格式必须和文件内容一致，否则 `400`。返回 `{ ok, updatedAt }`。`DELETE` 移除，没有图标时 `404`。
+- 公开地址 `GET /v1/icons/:pluginId`（不需要凭据，`Cache-Control: public, max-age=86400`，`nosniff`）。插件目录 `/v1/plugins` 对有图标的插件带 `media: { icon: { url, alt } }`（上游标准目录的同一个字段，地址带 `?v=<更新时间>`，换图后客户端会重新取），桌面端插件市场直接显示；文档中心 `/v1/docs` 的条目带 `icon`。
+- 桌面端只接受与目录同一个 origin 的 PNG、JPEG、WebP，取回后统一转成固定尺寸的 PNG；SVG 不支持。
+- 每次上传、移除写一条操作记录（`plugin.icon.updated` / `plugin.icon.deleted`）。后台入口在「插件文档」页，选插件后「上传图标」。
 
 ### 插件文档
 

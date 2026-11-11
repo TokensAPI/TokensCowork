@@ -17,6 +17,8 @@ const ACTIONS = {
   // A plugin's documentation page, addressed by plugin and page id together.
   'plugin.doc.saved': [/^[a-z0-9][a-z0-9-]{0,79}:[1-9][0-9]*$/u, d => ({ created: d.created === true })],
   'plugin.doc.deleted': [/^[a-z0-9][a-z0-9-]{0,79}:[1-9][0-9]*$/u, () => ({})],
+  'plugin.icon.updated': [PLUGIN, d => ({ bytes: Number.isSafeInteger(d.bytes) ? d.bytes : null })],
+  'plugin.icon.deleted': [PLUGIN, () => ({})],
   'plugin.access.updated': [PLUGIN, d => ({ visibility: d.visibility === 'restricted' ? 'restricted' : 'public',
     organizationCount: d.organizationCount, keyCount: d.keyCount, userCount: d.userCount })],
   // One organization's, Key's or user's whole grant list replaced from the subject's side.

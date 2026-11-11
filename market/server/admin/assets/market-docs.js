@@ -63,8 +63,17 @@ const withDocs = () => state.plugins.filter(plugin => plugin.docs.length)
 const withoutDocs = () => state.plugins.filter(plugin => !plugin.docs.length)
 const mac = /Mac|iPhone|iPad/u.test(navigator.platform)
 
-// A plugin's tile: its first character on a colour picked from its id, so it stays the same.
+// A plugin's tile: its uploaded icon, else its first character on a colour picked from its id.
 function tile(plugin, className = 'tile') {
+  if (plugin.icon) {
+    const img = el('img', `${className} tile-image`)
+    img.src = plugin.icon
+    img.alt = ''
+    img.loading = 'lazy'
+    // A broken icon falls back to the letter tile.
+    img.onerror = () => img.replaceWith(tile({ ...plugin, icon: undefined }, className))
+    return img
+  }
   let hash = 0
   for (const char of plugin.id) hash = (hash * 31 + char.codePointAt(0)) >>> 0
   const node = el('span', className, [...name(plugin)][0]?.toUpperCase() ?? '?')

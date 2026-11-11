@@ -51,6 +51,40 @@ export function docsAdminView({ $, node, button, json, action, formatTime, plugi
   async function load() {
     items = pluginId ? (await json(`/api/v1/plugins/${pluginId}/docs`)).items : []
     render()
+    showIcon()
+  }
+
+  // The icon preview reads the public address; a plugin without an icon answers 404 and the preview hides.
+  function showIcon() {
+    const img = $('docs-icon')
+    img.hidden = true
+    $('docs-icon-upload').disabled = !pluginId
+    $('docs-icon-remove').disabled = !pluginId
+    if (!pluginId) return
+    img.onload = () => { img.hidden = false }
+    img.onerror = () => { img.hidden = true }
+    img.src = `/v1/icons/${encodeURIComponent(pluginId)}?t=${Date.now()}`
+  }
+  $('docs-icon-upload').onclick = () => { $('docs-icon-file').value = ''; $('docs-icon-file').click() }
+  $('docs-icon-file').onchange = () => {
+    const file = $('docs-icon-file').files?.[0]
+    if (!file || !pluginId) return
+    action(async () => {
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('图标只支持 PNG、JPEG 或 WebP。')
+      if (file.size > 256 * 1024) throw new Error('图标不能超过 256 KB。')
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+      await json(`/api/v1/plugins/${pluginId}/icon`, { contentType: file.type, data: btoa(binary) }, 'PUT')
+      showIcon()
+    }, { success: '图标已更新，插件市场和文档中心会显示新图标。' })
+  }
+  $('docs-icon-remove').onclick = () => {
+    if (!pluginId || !confirm('移除这个插件的图标？')) return
+    action(async () => {
+      await json(`/api/v1/plugins/${pluginId}/icon`, undefined, 'DELETE')
+      showIcon()
+    }, { success: '图标已移除。' })
   }
 
   // One hidden file input serves both uploading a new page and replacing one.

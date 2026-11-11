@@ -143,7 +143,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 31)
+  assert.equal(paths.length, 32)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 44)
+  assert.equal(checked, 45)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -206,6 +206,10 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['PUT', '/plugins/beta/docs/999', '/plugins/{pluginId}/docs/{docId}', 404, { title: '入门', body: '改过' }],
     ['DELETE', '/plugins/beta/docs/1', '/plugins/{pluginId}/docs/{docId}', 200],
     ['GET', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 403, undefined, tenant],
+    ['PUT', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 200, { contentType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB' }],
+    ['PUT', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 400, { contentType: 'image/svg+xml', data: 'PHN2Zz4=' }],
+    ['DELETE', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 200],
+    ['DELETE', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 404],
     ['GET', '/organizations', '/organizations', 200],
     ['POST', '/organizations/sync', '/organizations/sync', 200, {}],
     ['GET', '/organizations/7', '/organizations/{orgId}', 200],

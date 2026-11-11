@@ -1587,3 +1587,23 @@ tr.selected td {
     align-items: flex-start;
   }
 }
+
+/* 插件文档页：插件选择、图标预览与图标按钮排在一起。 */
+#docs-panel .toolbar {
+  justify-content: flex-start;
+  gap: 10px;
+}
+.docs-icon-preview {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.docs-icon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

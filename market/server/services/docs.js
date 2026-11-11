@@ -6,6 +6,7 @@ import { localizeCatalog } from './catalog-locale-service.js'
 import { isPlatform, resolvePrincipal } from './auth.js'
 import { resolveIdentity } from './organizations.js'
 import { catalogRoster, invalid, pluginRow, productComponents } from './plugins.js'
+import { iconPath, iconVersions } from './icons.js'
 
 // Plugin documentation: Markdown pages a platform administrator attaches to a plugin. Who may read
 // a page is never stored with it — a reader sees the pages of exactly the plugins the catalog shows
@@ -116,9 +117,14 @@ export async function readerPlugins(request, env, locale) {
     if (!titles.has(row.plugin_id)) titles.set(row.plugin_id, [])
     titles.get(row.plugin_id).push({ id: row.id, title: row.title })
   }
+  const icons = await iconVersions(env)
   return {
     admin: reader.admin,
-    items: items.map(item => ({ id: item.id, displayName: item.displayName, summary: item.summary, docs: titles.get(item.id) ?? [] })),
+    items: items.map(item => ({
+      id: item.id, displayName: item.displayName, summary: item.summary,
+      ...(icons.has(item.id) ? { icon: iconPath(item.id, icons.get(item.id)) } : {}),
+      docs: titles.get(item.id) ?? [],
+    })),
   }
 }
 

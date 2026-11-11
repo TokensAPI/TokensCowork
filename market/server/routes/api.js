@@ -14,6 +14,7 @@ import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/pa
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
+import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon } from '../services/icons.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -131,6 +132,11 @@ async function dispatch(request, env, url, principal) {
     if (LIFECYCLE.includes(third) && !fourth) {
       methods(method, ['POST'])
       return changePlugin(request, env, third, second, await payload(request), actor)
+    }
+    // The plugin's icon; the catalog and the docs center point at /v1/icons/{id}.
+    if (third === 'icon' && !fourth) {
+      methods(method, ['PUT', 'DELETE'])
+      return method === 'PUT' ? setPluginIcon(env, second, await payload(request, ICON_BODY_LIMIT), actor) : deletePluginIcon(env, second, actor)
     }
     // The plugin's Markdown documentation pages; readers get them through /v1/docs.
     if (third === 'docs' && !fourth) {

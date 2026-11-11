@@ -342,6 +342,7 @@
               <div>
                 <h2>插件文档</h2>
                 <p class="muted">
+                  插件图标用 PNG、JPEG 或 WebP（建议正方形，256 KB 以内），会显示在 TokensCowork 插件市场的卡片和文档中心里。
                   上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇。标题取文件里第一个一级标题，没有就用文件名。用户在
                   文档中心（/docs）用自己的 TokensAPI Key 登录，只看到有权限的插件；从这里「打开文档中心」以管理员身份查看，能看到全部插件。
                 </p>
@@ -353,7 +354,11 @@
             </div>
             <div class="toolbar">
               <select id="docs-plugin" aria-label="选择插件"></select>
+              <span class="docs-icon-preview" aria-hidden="true"><img id="docs-icon" alt="" hidden /></span>
+              <button id="docs-icon-upload" class="secondary" type="button">上传图标</button>
+              <button id="docs-icon-remove" class="quiet" type="button">移除图标</button>
               <input id="docs-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+              <input id="docs-icon-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
             </div>
             <div class="table-scroll" tabindex="0" role="region" aria-label="插件文档表格">
               <table>

@@ -2912,6 +2912,111 @@
           }
         }
       }
+    },
+    "/plugins/{pluginId}/icon": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "put": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "上传插件图标",
+        "description": "PNG、JPEG 或 WebP，不超过 256 KB，以 base64 提交；整张替换。公开地址为 `/v1/icons/{pluginId}?v=<更新时间>`，插件目录以 `media.icon` 带出，文档中心同样显示。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "contentType",
+                  "data"
+                ],
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "enum": [
+                      "image/png",
+                      "image/jpeg",
+                      "image/webp"
+                    ]
+                  },
+                  "data": {
+                    "type": "string",
+                    "description": "图片内容的 base64"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "contentType": "image/png",
+                    "data": "iVBORw0KGgo…"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginIconResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "插件"
+        ],
+        "summary": "移除插件图标",
+        "description": "插件目录与文档中心回到默认图形。",
+        "responses": {
+          "200": {
+            "description": "已移除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4192,6 +4297,22 @@
             "items": {
               "$ref": "#/components/schemas/PluginDoc"
             }
+          }
+        }
+      },
+      "PluginIconResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "updatedAt"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "description": "毫秒时间戳，也是公开地址里的版本号"
           }
         }
       }

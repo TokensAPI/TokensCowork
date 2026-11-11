@@ -9,6 +9,7 @@ import { localizeCatalog } from './services/catalog-locale-service.js'
 import { sessionLogUpload } from './services/session-logs.js'
 import { createDocsCode, readerPluginDocs, readerPlugins, redeemDocsCode } from './services/docs.js'
 import { body } from './http/request.js'
+import { iconPath, iconVersions, servePluginIcon } from './services/icons.js'
 
 // The documentation center reads with the reader's own Key (or the administrator's console session)
 // and must never be cached or shared.
@@ -58,6 +59,12 @@ export default {
     }
     if (url.pathname === '/v1/session-logs') return sessionLogUpload(request, env)
     if (url.pathname === '/v1/docs' || url.pathname.startsWith('/v1/docs/')) return docsRoute(request, env, url)
+    if (url.pathname.startsWith('/v1/icons/')) {
+      if (!['GET', 'HEAD'].includes(request.method)) return reply({ error: 'method not allowed' }, 405)
+      if (!env.MARKET_DB) return reply({ error: '市场数据库未配置' }, 503)
+      const segments = url.pathname.split('/').filter(Boolean)
+      return segments.length === 3 ? servePluginIcon(env, decodeURIComponent(segments[2])) : reply({ error: 'not found' }, 404)
+    }
     // The documentation center's page. It is served from the console's folder so it carries the
     // console's security headers, but its address is /docs.
     if (url.pathname === '/docs' || url.pathname === '/docs/') {
@@ -95,9 +102,15 @@ export default {
             publisher: roster.publisher,
             items: roster.items.map(publicMetadata),
           }, 200, publicHeaders)
+        // An icon is offered as media.icon on the catalog's own origin, the only origin the
+        // desktop market accepts icons from.
+        const icons = await iconVersions(env)
         const items = await Promise.all(
           roster.items.map(async (item) => {
             return {
+              ...(icons.has(item.id)
+                ? { media: { icon: { url: url.origin + iconPath(item.id, icons.get(item.id)), alt: item.displayName } } }
+                : {}),
               id: item.id,
               name: item.package,
               displayName: item.displayName,
