@@ -47,6 +47,7 @@ import { addPrivateRegistrySupport, adaptUpstreamInstallSpecs } from './market-r
 import {
   addRequiredSourceRepairTest,
   allowMarketSourceSyntheticProxy,
+  allowProductIconsThroughSyntheticProxy,
   awaitProductSourceMigrationInLifecycleTest,
   brandMarketCopy,
   pinProductMarketSource,
@@ -100,6 +101,13 @@ export default [
     apply: ({ http }, { root }) => ({ http: allowMarketSourceSyntheticProxy(http, new URL(source(root).origin).hostname) }),
     why: '只给产品市场域名放行 fake-IP 代理地址，并适配 IPv6 假地址；其他域名仍走上游 SSRF 限制。',
     retireWhen: '上游能显式配置可信域名，且通过相同网络与安全测试后删除。',
+  }),
+  sourceEntry('icon-synthetic-proxy', {
+    kind: 'compatibility',
+    files: { routes: f.routes },
+    apply: ({ routes }, { root }) => ({ routes: allowProductIconsThroughSyntheticProxy(routes, new URL(source(root).origin).hostname) }),
+    why: '插件图标（目录里的 media.icon）只能从产品市场自己的 origin 取（2026-11-11 起市场服务提供）。图片拉取器的 fake-IP 豁免只列了上游内置主机，产品主机在 fake-IP 代理下解析进保留网段会被拒、只剩默认图形；只把产品主机补进这张名单，其他主机仍走上游限制。',
+    retireWhen: '随 market.synthetic-proxy 一起删除，或上游能显式配置可信图片主机时删除。',
   }),
   sourceEntry('pin-source', {
     kind: 'customization',

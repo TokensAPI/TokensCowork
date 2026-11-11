@@ -21,6 +21,18 @@ import { randomUUID } from 'node:crypto'
  * @returns 加入豁免后的模块内容。
  * @throws 主机名非法或上游锚点变化时抛出，中断打包待人工复查。
  */
+/**
+ * 插件图标（media.icon）只能从产品市场自己的 origin 取。图片拉取器的 fake-IP 豁免只列了上游内置的
+ * 几个主机，产品主机在代理下解析进保留网段时图标会被拒、只剩默认图形；把产品主机补进同一张名单。
+ */
+export function allowProductIconsThroughSyntheticProxy(routes, hostname) {
+  if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u.test(hostname)) throw new Error(`prepare-desktop: 市场插件源主机名不合法: ${hostname}`)
+  const anchor = "        'avatars.githubusercontent.com',\n      ],\n"
+  const source = routes.replaceAll('\r\n', '\n')
+  if (source.split(anchor).length !== 2) throw new Error('prepare-desktop: 市场图片拉取器的 fake-IP 豁免名单锚点变化')
+  return source.replace(anchor, `        'avatars.githubusercontent.com',\n        // 产品覆盖：产品插件源的插件图标。\n        '${hostname}',\n      ],\n`)
+}
+
 export function allowMarketSourceSyntheticProxy(source, hostname) {
   if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/u.test(hostname)) {
     throw new Error(`prepare-desktop: 市场插件源主机名不合法: ${hostname}`)

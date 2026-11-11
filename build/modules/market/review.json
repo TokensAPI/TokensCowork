@@ -225,6 +225,12 @@
     },
     {
       "overlays": [
+        "market.icon-synthetic-proxy"
+      ],
+      "verified": "2026-11-11：新增。用户要求插件市场卡片带上插件 logo。上游已支持：标准目录条目的 media.icon { url, alt }（url 必须与目录响应同 origin），宿主经受限图片拉取器取回、只收 PNG/JPEG/WebP、2 MB 以内、重编码成固定尺寸 PNG，渲染层 PluginIcon 显示，失败退回默认图形。所以桌面端不需要改界面：市场服务（market/server）新增后台上传图标、公开地址 /v1/icons/{id}，并在 /v1/plugins 对有图标的插件带 media.icon（地址带 ?v=更新时间）。桌面端唯一要补的是 fake-IP：图片拉取器的 syntheticProxyHostnames 只列了 1024Store、github.com、avatars.githubusercontent.com，产品主机在 fake-IP 代理下解析进 198.18.0.0/15 会被当保留地址拒绝、图标退回默认图形；本覆盖只把产品主机加进这张名单（与目录客户端的 market.synthetic-proxy 同一主机）。核对：validateRemoteImageUrl 允许查询串（只拒 hash、端口、凭据、非 https、非名单主机）。验证：overlay-doctor market --doctor 全部生效；临时 staging 上三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 360 过 9 跳过；overlays.test 断言装配后的名单含产品主机。遗留：真机未验收（卡片显示上传的图标）。"
+    },
+    {
+      "overlays": [
         "market.discover-home",
         "market.discover-home-styles",
         "market.test-discover-home"

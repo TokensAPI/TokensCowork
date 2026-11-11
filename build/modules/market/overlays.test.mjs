@@ -67,6 +67,8 @@ test('registered market overlays assemble product behaviors and leave unregister
   assert.doesNotMatch(read('src/client/index.ts'), /sidebar\.footer\.action|MarketLauncher|[('"]plugins\.tab['"]/)
   assert.match(read('src/client/index.ts'), /name: 'sidebar\.panellist',\n {4}id: MARKET_PANEL_ID,/)
   assert.match(read('src/client/MarketOverlay.tsx'), /export function MarketPage\(/)
+  // 产品主机的插件图标在 fake-IP 代理下照样能取。
+  assert.match(read('src/host/routes.ts'), /syntheticProxyHostnames: \[[^\]]*'market\.tokensapi\.ai',/u)
   // 目录元数据时间按本地时间显示，不再原样贴 ISO（UTC）字符串。
   assert.doesNotMatch(read('src/client/MarketSettingsTab.tsx'), /\{props\.metadata\.(scannedAt|expiresAt)\}/)
   assert.match(read('src/client/MarketSettingsTab.tsx'), /export function formatMarketTime\(/)

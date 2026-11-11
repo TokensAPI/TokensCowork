@@ -13,8 +13,8 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：44 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
-| [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配、隐藏来源管理及统一品牌文案 |
+| [overlays.mjs](overlays.mjs) | 登记表：45 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
+| [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配（含插件图标的拉取）、隐藏来源管理及统一品牌文案 |
 | [market-auth-overlay.mjs](market-auth-overlay.mjs) | 当前 API Key 目录鉴权、Key 切换缓存失效、不持久化授权目录、防止凭据向第三方透传 |
 | [market-update-overlay.mjs](market-update-overlay.mjs) | npm 插件检查、确认和执行更新（按官方插件页同一语义先卸载再安装），保留配置与选中状态 |
 | [market-restart-overlay.mjs](market-restart-overlay.mjs) | 把官方管理器的 `restart-required` / `restartReason` 记进安装服务、经状态端点交给界面，面板顶部的待重启横幅与「立即重启」端点 |
