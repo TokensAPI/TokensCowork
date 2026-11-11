@@ -104,11 +104,13 @@ export function addMarketHome({ settingsTab, locales }) {
 }
 
 export function addMarketHomeStyles(styles) {
-  // 全部用宿主 token，深浅主题随之切换：「+」用宿主唯一的绿色（state-success，宿主的
-  // business 强调色是蓝），加粗并套一圈圆形描边；「✓」用三级文字色、无描边。已安装卡片
-  // 在原卡片底色上叠一层宿主的 hover 淡色，悬停再叠深一档的 active 色；不改透明度、
-  // 不改光标，所以不会像禁用。底部状态标签：「已安装」恢复原角标的灰色，「可安装」用
-  // 宿主成功色文字 + 成功色淡底。
+  // 全部用主题变量，深浅主题随之切换：「+」用宿主的成功绿（state-success），加粗并套一圈
+  // 圆形描边；「✓」用三级文字色、无描边。已安装卡片在原卡片底色上叠一层宿主的 hover 淡色，
+  // 悬停再叠深一档的 active 色；不改透明度、不改光标，所以不会像禁用。底部状态标签：
+  // 「已安装」恢复原角标的灰色，「可安装」用成功色文字 + 成功色淡底。
+  // 「可更新」用蓝色（T0073）：产品主题插件把宿主的 business 强调色映射成租户强调色（绿），
+  // 所以不能用 business；改用主题契约的 --theme-info（每个租户深浅各给一档蓝），没装主题
+  // 时回落到宿主原生的 business 蓝。淡底由同一颜色混透明得到，深浅主题都可读。
   return replace(styles.replaceAll('\r\n', '\n'), '.dshMarketCard:hover {', `.dshMarketCardMark {
   display: inline-flex;
   flex: none;
@@ -135,9 +137,14 @@ export function addMarketHomeStyles(styles) {
   color: var(--dsw-alias-label-tertiary);
 }
 
+.dshMarketCardMark[data-mark='update'],
+.dshMarketTags > .dshMarketUpdatableBadge {
+  --dsh-market-update: var(--theme-info, var(--dsw-alias-state-business-primary));
+}
+
 .dshMarketCardMark[data-mark='update'] {
-  border: 1.5px solid var(--dsw-alias-state-business-primary);
-  color: var(--dsw-alias-state-business-primary);
+  border: 1.5px solid var(--dsh-market-update);
+  color: var(--dsh-market-update);
 }
 
 .dshMarketCardMark[data-mark='update'] svg {
@@ -153,8 +160,8 @@ export function addMarketHomeStyles(styles) {
 }
 
 .dshMarketTags > .dshMarketUpdatableBadge {
-  color: var(--dsw-alias-state-business-primary);
-  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsh-market-update);
+  background: color-mix(in srgb, var(--dsh-market-update) 16%, transparent);
 }
 
 .dshMarketTags > .dshMarketInstalledBadge {
