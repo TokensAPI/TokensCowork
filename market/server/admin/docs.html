@@ -11,15 +11,20 @@
   </head>
   <body class="signed-out">
     <header class="topbar">
-      <button id="menu-toggle" class="icon-button menu-toggle" type="button" aria-label="打开目录" aria-expanded="false">
+      <button id="menu-toggle" class="icon-button menu-toggle signed-in-only" type="button" aria-label="打开目录" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
-      <a class="logo" href="/docs">
+      <a class="logo" href="/docs#/">
         <img src="/admin/assets/logo-mark.svg" alt="" />
         <span class="logo-name">TokensCowork</span>
         <span class="logo-divider" aria-hidden="true"></span>
         <span class="logo-sub">插件文档</span>
       </a>
+      <button id="search-open" class="search-trigger signed-in-only" type="button" aria-label="搜索文档">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <span class="search-trigger-text">搜索文档</span>
+        <kbd id="search-shortcut">Ctrl K</kbd>
+      </button>
       <div class="topbar-actions">
         <label class="theme-select">
           <span class="sr-only">主题外观</span>
@@ -43,6 +48,7 @@
           <input id="docs-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-..." required />
         </label>
         <p class="field-hint">以 sk- 开头，就是你在 TokensCowork 里填写的那个 Key，只用来确认你能看哪些插件。</p>
+        <label class="remember"><input id="docs-remember" type="checkbox" /><span>在这台电脑上记住我</span></label>
         <button class="primary-button" type="submit">登录</button>
         <p id="docs-login-error" class="login-error" role="alert"></p>
       </form>
@@ -50,31 +56,52 @@
 
     <div class="layout signed-in-only">
       <aside id="sidebar" class="sidebar" aria-label="插件目录">
-        <div class="sidebar-search">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-          <input id="docs-search" type="search" placeholder="搜索插件或文档" aria-label="搜索插件或文档" />
-        </div>
         <nav id="docs-nav" class="nav"></nav>
       </aside>
       <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
 
       <main class="content">
-        <div class="doc">
-          <nav class="breadcrumb" aria-label="当前位置"><span>插件</span><span aria-hidden="true">/</span><span id="docs-crumb"></span></nav>
-          <article id="docs-article" class="prose"></article>
-          <div id="docs-empty" class="empty" hidden>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>
-            <h2 id="docs-empty-title"></h2>
-            <p id="docs-empty-text"></p>
+        <div id="docs-doc" class="doc">
+          <section id="docs-home" class="home" hidden>
+            <p class="home-eyebrow">TokensCowork</p>
+            <h1>插件文档</h1>
+            <p class="home-lead">你有权限使用的插件的使用说明。按 <kbd id="home-shortcut">Ctrl K</kbd> 随时搜索全部文档。</p>
+            <div id="docs-cards" class="card-grid"></div>
+            <p id="docs-home-more" class="home-more"></p>
+          </section>
+          <div id="docs-page">
+            <nav class="breadcrumb" aria-label="当前位置"><a href="#/">插件</a><span aria-hidden="true">/</span><span id="docs-crumb"></span></nav>
+            <article id="docs-article" class="prose"></article>
+            <div id="docs-empty" class="empty" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></svg>
+              <h2 id="docs-empty-title"></h2>
+              <p id="docs-empty-text"></p>
+            </div>
+            <p id="docs-updated" class="doc-meta"></p>
+            <nav id="docs-pager" class="pager" aria-label="上一篇和下一篇"></nav>
           </div>
-          <p id="docs-updated" class="doc-meta"></p>
-          <nav id="docs-pager" class="pager" aria-label="上一篇和下一篇"></nav>
         </div>
-        <aside class="toc" aria-label="本页目录">
+        <aside id="docs-toc-panel" class="toc" aria-label="本页目录" hidden>
           <p class="toc-title">本页目录</p>
           <ul id="docs-toc"></ul>
         </aside>
       </main>
     </div>
+
+    <div id="search-dialog" class="search-dialog" hidden>
+      <div id="search-backdrop" class="search-backdrop"></div>
+      <div class="search-panel" role="dialog" aria-modal="true" aria-label="搜索文档">
+        <div class="search-input-row">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input id="search-input" type="search" placeholder="搜索插件、文档标题或正文" autocomplete="off" spellcheck="false" aria-controls="search-results" />
+          <kbd>Esc</kbd>
+        </div>
+        <ul id="search-results" class="search-results" role="listbox"></ul>
+        <p id="search-hint" class="search-hint"></p>
+        <div class="search-footer"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>Enter</kbd> 打开</span><span><kbd>Esc</kbd> 关闭</span></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" hidden></div>
   </body>
 </html>
