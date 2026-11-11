@@ -42,7 +42,7 @@ test('007 folds the production-shaped schema into eight tables without losing a 
   const db = productionAt006()
   migrate(db)
   assert.deepEqual(tables(db), ['market_audit_events', 'market_data_migrations', 'market_grants', 'market_keys',
-    'market_login_limits', 'market_org_hidden', 'market_org_members', 'market_organizations', 'market_plugins', 'market_schema_migrations',
+    'market_login_limits', 'market_org_hidden', 'market_org_members', 'market_organizations', 'market_plugin_docs', 'market_plugins', 'market_schema_migrations',
     'market_sessions', 'market_users'])
   const plugins = db.prepare('SELECT id,visibility,state,revision,license_reference,updated_at FROM market_plugins ORDER BY updated_at').all()
   assert.equal(plugins.length, 12)

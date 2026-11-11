@@ -3,7 +3,7 @@ export function bearer(request) {
 }
 export function text(value, max = 200) { return typeof value === 'string' && value.length <= max && value.trim().length > 0 }
 export const idOK = value => typeof value === 'string' && value === value.trim() && /^[a-z0-9][a-z0-9-]{0,79}$/u.test(value)
-export async function body(request) {
+export async function body(request, limit = 16384) {
   const reader = request.body?.getReader()
   if (!reader) throw new Error('body required')
   let size = 0
@@ -12,7 +12,7 @@ export async function body(request) {
     const { done, value } = await reader.read()
     if (done) break
     size += value.length
-    if (size > 16384) { await reader.cancel(); throw new Error('body too large') }
+    if (size > limit) { await reader.cancel(); throw new Error('body too large') }
     chunks.push(value)
   }
   const bytes = new Uint8Array(size)

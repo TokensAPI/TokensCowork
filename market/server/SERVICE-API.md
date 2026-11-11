@@ -69,6 +69,8 @@
 | GET / PATCH | `/plugins/:id` | ✗ |
 | PUT | `/plugins/:id/access` | ✗ |
 | POST | `/plugins/:id/{publish,archive,trash,restore,purge}` | ✗ |
+| GET / POST | `/plugins/:id/docs` | ✗ |
+| PUT / DELETE | `/plugins/:id/docs/:docId` | ✗ |
 | GET | `/organizations` | ✗ |
 | POST | `/organizations/sync` | ✗ |
 | GET | `/organizations/:orgId` | ✓（限本组织） |
@@ -200,6 +202,23 @@ PUT /api/v1/users/102/grants
 - 用户授权跟着人走：该用户名下的每个 Key 都命中，组织和组织开关同样影响不到它。
 - Key 的所属组织与所属用户由 TokensAPI `/api/current/organization` 一次解析；只有在答案取决于它们时才会去问上游。
   解析结果在进程内按 Key 指纹记 60 秒（失败不记）：后台改授权、组织启停与开关立即生效，只有 TokensAPI 里 Key 换了组织或所属用户最多晚 1 分钟。
+
+### 插件文档
+
+插件的 Markdown 使用文档，一个插件可以有多篇。平台管理员管理；读者只读，见下面的 `/v1/docs`。
+
+- `GET /plugins/:id/docs` → `{ items: [{ id, title, body, position, updatedAt }] }`，按 `position` 再按 `id` 排序。
+- `POST /plugins/:id/docs` `{ title, body, position? }` → 新文档。`title` 1-120 字符；`body` 是 Markdown 正文，非空，最多 200000 字符（这两个接口的请求体上限因此放宽，其余写接口仍是 16 KB）；`position` 0-10000，默认 0，小的在前。
+- `PUT /plugins/:id/docs/:docId` 同样的字段，整篇替换；`DELETE` 删除。文档只能通过它所属的插件访问，换个插件号访问同一篇返回 `404`。
+- 删除插件（`purge`）时它的文档一并删除。每次新增、修改、删除写一条操作记录（`plugin.doc.saved` / `plugin.doc.deleted`，目标是 `插件号:文档号`）。
+
+**读者接口**（不在 `/api/v1` 下，用读者自己的 TokensAPI Key 作 Bearer，与桌面端读插件目录用的是同一个 Key）：
+
+- `GET /v1/docs?locale=` → `{ items: [{ id, displayName, summary, docs: [{ id, title }] }] }`：这个 Key 能看到的全部插件及各自的文档标题（没有文档的插件 `docs` 为空）。
+- `GET /v1/docs/:pluginId` → `{ pluginId, items: [{ id, title, body, position, updatedAt }] }`：一个插件的全部文档正文。
+- 能看到哪些插件与插件目录完全一致（同一个访问判定，见上文「访问判定」）；看不到的插件和不存在的插件一样返回 `404`。
+- 没带 Key 或 Key 不认识返回 `401`：Key 必须在市场登记过，或能在 TokensAPI 解析出组织或用户。TokensAPI 暂时连不上返回 `503`。响应 `Cache-Control: no-store`。
+- 网页入口：`/admin/docs.html`，用 Key 登录（只存在当前浏览器标签页），左侧列出能看到的插件，右侧渲染 Markdown。
 
 ### 组织
 

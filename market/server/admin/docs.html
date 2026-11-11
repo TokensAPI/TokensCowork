@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TokensCowork · 插件文档</title>
+    <link rel="icon" type="image/svg+xml" href="/admin/assets/logo-mark.svg" />
+    <link rel="stylesheet" href="/admin/assets/brand.css" />
+    <script src="/admin/assets/market-theme.js"></script>
+    <link rel="stylesheet" href="/admin/assets/market-admin.css" />
+    <link rel="stylesheet" href="/admin/assets/market-theme.css" />
+    <link rel="stylesheet" href="/admin/assets/market-docs.css" />
+    <script type="module" src="/admin/assets/market-docs.js"></script>
+  </head>
+  <body class="docs-signed-out">
+    <div class="theme-control">
+      <select id="theme-choice" aria-label="主题外观">
+        <option value="system">跟随系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </div>
+    <header class="docs-header">
+      <span class="brand-mark" aria-hidden="true"><img src="/admin/assets/logo-mark.svg" alt="" /></span>
+      <h1>插件文档</h1>
+      <button id="docs-logout" class="quiet" type="button">退出</button>
+    </header>
+
+    <form id="docs-login" class="docs-login">
+      <h2>登录</h2>
+      <p>使用你的 TokensAPI Key 登录，只显示你有权限使用的插件。</p>
+      <label>TokensAPI Key<input id="docs-key" type="password" autocomplete="off" required /></label>
+      <button type="submit">登录</button>
+      <p id="docs-login-error" class="docs-error" role="alert"></p>
+    </form>
+
+    <main id="docs-main" class="docs-main">
+      <nav class="docs-plugins" aria-label="插件">
+        <input id="docs-search" type="search" placeholder="搜索插件" aria-label="搜索插件" />
+        <ul id="docs-plugin-list"></ul>
+      </nav>
+      <section class="docs-content" aria-live="polite">
+        <h2 id="docs-plugin-title"></h2>
+        <div id="docs-tabs" class="docs-tabs" role="tablist"></div>
+        <article id="docs-article" class="log-md"></article>
+        <p id="docs-empty" class="docs-muted"></p>
+      </section>
+    </main>
+  </body>
+</html>

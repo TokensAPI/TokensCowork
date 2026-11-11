@@ -143,11 +143,11 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 29)
+  assert.equal(paths.length, 31)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
-      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4')
+      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4').replace('{docId}', '1')
     for (const method of Object.keys(item).filter(name => name !== 'parameters')) {
       // Deleting the fixture Key or the session is a real change rather than a probe. Every plugin
       // write carries a stale revision, so the optimistic lock rejects it without changing anything.
@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 41)
+  assert.equal(checked, 44)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -198,6 +198,14 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['PUT', '/plugins/beta/access', '/plugins/{pluginId}/access', 200, { visibility: 'restricted', organizations: [7], keys: [key], revision: 1 }],
     ['PUT', '/plugins/beta/access', '/plugins/{pluginId}/access', 400, { visibility: 'everyone', revision: 2 }],
     ['POST', '/plugins/beta/archive', '/plugins/{pluginId}/archive', 409, { revision: 0 }],
+    ['POST', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 200, { title: '快速开始', body: '# 快速开始' }],
+    ['POST', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 400, { title: '' }],
+    ['GET', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 200],
+    ['GET', '/plugins/nope/docs', '/plugins/{pluginId}/docs', 404],
+    ['PUT', '/plugins/beta/docs/1', '/plugins/{pluginId}/docs/{docId}', 200, { title: '入门', body: '改过', position: 1 }],
+    ['PUT', '/plugins/beta/docs/999', '/plugins/{pluginId}/docs/{docId}', 404, { title: '入门', body: '改过' }],
+    ['DELETE', '/plugins/beta/docs/1', '/plugins/{pluginId}/docs/{docId}', 200],
+    ['GET', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 403, undefined, tenant],
     ['GET', '/organizations', '/organizations', 200],
     ['POST', '/organizations/sync', '/organizations/sync', 200, {}],
     ['GET', '/organizations/7', '/organizations/{orgId}', 200],

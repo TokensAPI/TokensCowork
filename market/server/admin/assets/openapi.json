@@ -44,6 +44,10 @@
     {
       "name": "诊断",
       "description": "操作记录与 npm 查询。平台管理员专用。"
+    },
+    {
+      "name": "插件文档",
+      "description": "插件的 Markdown 使用文档。平台管理员在这里增删改；用户凭自己的 TokensAPI Key 通过 `GET /v1/docs` 阅读，只看到自己有权限的插件（不在本文档内，见 SERVICE-API.md）。"
     }
   ],
   "paths": {
@@ -2729,6 +2733,185 @@
           }
         }
       }
+    },
+    "/plugins/{pluginId}/docs": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "列出插件文档",
+        "description": "按排序返回该插件的全部文档，含正文。",
+        "responses": {
+          "200": {
+            "description": "文档列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginDocList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "新增文档",
+        "description": "",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginDocInput"
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "title": "快速开始",
+                    "body": "# 快速开始\n\n安装后在侧栏打开插件。",
+                    "position": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "新文档",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginDoc"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/docs/{docId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        },
+        {
+          "$ref": "#/components/parameters/docId"
+        }
+      ],
+      "put": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "修改文档",
+        "description": "整篇替换标题、正文和排序。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginDocInput"
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "title": "快速开始",
+                    "body": "# 快速开始\n\n安装后在侧栏打开插件。",
+                    "position": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginDoc"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "删除文档",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2779,6 +2962,16 @@
         "description": "Key 指纹。",
         "schema": {
           "$ref": "#/components/schemas/Fingerprint"
+        }
+      },
+      "docId": {
+        "name": "docId",
+        "in": "path",
+        "required": true,
+        "description": "文档编号",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -3934,6 +4127,71 @@
           },
           "annotatedAt": {
             "type": "integer"
+          }
+        }
+      },
+      "PluginDocInput": {
+        "type": "object",
+        "required": [
+          "title",
+          "body"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "body": {
+            "type": "string",
+            "description": "Markdown 正文，最多 200000 个字符。"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "排序，小的在前；默认 0。"
+          }
+        }
+      },
+      "PluginDoc": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "position",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer",
+            "description": "毫秒时间戳"
+          }
+        }
+      },
+      "PluginDocList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginDoc"
+            }
           }
         }
       }

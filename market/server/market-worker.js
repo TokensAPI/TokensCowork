@@ -7,6 +7,27 @@ import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
 import { localizeCatalog } from './services/catalog-locale-service.js'
 import { sessionLogUpload } from './services/session-logs.js'
+import { readerPluginDocs, readerPlugins } from './services/docs.js'
+
+// The documentation center reads with the reader's own Key and must never be cached or shared.
+const readerHeaders = { 'cache-control': 'no-store', vary: 'Authorization' }
+
+/** GET /v1/docs: the plugins this Key may see; GET /v1/docs/{pluginId}: that plugin's pages. */
+async function docsRoute(request, env, url) {
+  if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405, readerHeaders)
+  if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET) return reply({ error: '市场数据库未配置' }, 503, readerHeaders)
+  const segments = url.pathname.split('/').filter(Boolean).slice(2)
+  if (segments.length > 1) return reply({ error: 'not found' }, 404, readerHeaders)
+  try {
+    const result = segments.length === 0
+      ? await readerPlugins(request, env, url.searchParams.get('locale') || 'zh-CN')
+      : await readerPluginDocs(request, env, decodeURIComponent(segments[0]))
+    return reply(result, 200, readerHeaders)
+  } catch (error) {
+    if ([401, 404, 503].includes(error?.status)) return reply({ error: error.message }, error.status, readerHeaders)
+    return reply({ error: '文档中心暂时不可用' }, 503, readerHeaders)
+  }
+}
 
 const publicHeaders = {
   'access-control-allow-origin': '*',
@@ -24,6 +45,7 @@ export default {
       return api
     }
     if (url.pathname === '/v1/session-logs') return sessionLogUpload(request, env)
+    if (url.pathname === '/v1/docs' || url.pathname.startsWith('/v1/docs/')) return docsRoute(request, env, url)
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
@@ -111,6 +133,10 @@ export default {
       '/admin/assets/market-session-log-detail.js',
       '/admin/assets/market-session-log-replay.js',
       '/admin/assets/market-markdown.js',
+      // The plugin documentation center: same origin and security headers as the console.
+      '/admin/docs.html',
+      '/admin/assets/market-docs.js',
+      '/admin/assets/market-docs.css',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')

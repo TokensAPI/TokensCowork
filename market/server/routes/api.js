@@ -13,6 +13,7 @@ import { npmPackage } from '../integrations/npm-registry.js'
 import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/package.mjs'
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
+import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -25,9 +26,9 @@ const SYNC_CODES = /^(HTTP_[0-9]{3}|TIMEOUT|INVALID_JSON|TRANSPORT_TYPE_ERROR|FE
 
 const limited = wait => reply({ error: '尝试次数过多，请稍后再试', retryAfter: wait }, 429, { 'retry-after': String(wait) })
 const sameOrigin = (request, url) => request.headers.get('origin') === url.origin
-async function payload(request) {
+async function payload(request, limit) {
   if (!request.body) return {}
-  try { return await body(request) } catch { throw invalid('请求格式无效或超过 16 KB') }
+  try { return await body(request, limit) } catch { throw invalid(limit ? '请求格式无效或内容过长' : '请求格式无效或超过 16 KB') }
 }
 const onlyPlatform = principal => { if (!isPlatform(principal)) throw invalid('只有平台管理员可以执行此操作', 403) }
 // An organization administrator reaches its own organization and nothing else.
@@ -130,6 +131,17 @@ async function dispatch(request, env, url, principal) {
     if (LIFECYCLE.includes(third) && !fourth) {
       methods(method, ['POST'])
       return changePlugin(request, env, third, second, await payload(request), actor)
+    }
+    // The plugin's Markdown documentation pages; readers get them through /v1/docs.
+    if (third === 'docs' && !fourth) {
+      methods(method, ['GET', 'POST'])
+      return method === 'GET' ? listPluginDocs(env, second) : createPluginDoc(env, second, await payload(request, DOC_BODY_LIMIT), actor)
+    }
+    if (third === 'docs' && fourth) {
+      methods(method, ['PUT', 'DELETE'])
+      return method === 'PUT'
+        ? updatePluginDoc(env, second, fourth, await payload(request, DOC_BODY_LIMIT), actor)
+        : deletePluginDoc(env, second, fourth, actor)
     }
   }
 

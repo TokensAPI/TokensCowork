@@ -1,0 +1,122 @@
+/* Plugin documentation center: layout only; colors, buttons and Markdown come from the console styles. */
+body {
+  display: block;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.docs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-header h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.docs-header #docs-logout {
+  margin-left: auto;
+  margin-right: 140px;
+}
+
+.docs-login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: 64px auto;
+  padding: 0 16px;
+}
+
+.docs-login label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docs-error {
+  color: var(--danger);
+  min-height: 1.2em;
+}
+
+.docs-main {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+body.docs-signed-out .docs-main,
+body.docs-signed-out #docs-logout {
+  display: none;
+}
+
+body:not(.docs-signed-out) .docs-login {
+  display: none;
+}
+
+.docs-plugins ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.docs-plugins input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.docs-plugin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 4px;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+}
+
+.docs-plugin small,
+.docs-muted {
+  color: var(--muted);
+}
+
+.docs-plugin.active {
+  border-color: var(--line);
+  background: var(--soft);
+}
+
+.docs-content h2 {
+  margin-top: 0;
+}
+
+.docs-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.docs-tab {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.docs-tab.active {
+  background: var(--soft);
+}
+
+@media (max-width: 720px) {
+  .docs-main {
+    grid-template-columns: 1fr;
+  }
+}
