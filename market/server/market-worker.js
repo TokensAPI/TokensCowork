@@ -46,6 +46,12 @@ export default {
     }
     if (url.pathname === '/v1/session-logs') return sessionLogUpload(request, env)
     if (url.pathname === '/v1/docs' || url.pathname.startsWith('/v1/docs/')) return docsRoute(request, env, url)
+    // The documentation center's page. It is served from the console's folder so it carries the
+    // console's security headers, but its address is /docs.
+    if (url.pathname === '/docs' || url.pathname === '/docs/') {
+      if (!['GET', 'HEAD'].includes(request.method)) return reply({ error: 'method not allowed' }, 405)
+      return env.ASSETS.fetch(new Request(new URL('/admin/docs.html', url), { method: request.method, headers: request.headers }))
+    }
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
@@ -133,10 +139,10 @@ export default {
       '/admin/assets/market-session-log-detail.js',
       '/admin/assets/market-session-log-replay.js',
       '/admin/assets/market-markdown.js',
-      // The plugin documentation center: same origin and security headers as the console.
-      '/admin/docs.html',
+      // The plugin documentation center (page at /docs) and the console's docs page.
       '/admin/assets/market-docs.js',
       '/admin/assets/market-docs.css',
+      '/admin/assets/market-docs-admin.js',
     ])
     if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')

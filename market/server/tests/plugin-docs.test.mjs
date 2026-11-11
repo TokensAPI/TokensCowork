@@ -115,8 +115,25 @@ test('the platform administrator adds, edits and deletes pages; each change is a
   assert.equal((await call('/api/v1/plugins/public-tool/docs', { key: 'sk-org-one', data: { title: 't', body: 'x' } })).status, 401)
 })
 
-test('the documentation center page and its assets are served', async t => {
+test('the documentation center lives at /docs with the console security headers', async t => {
   const { call } = fixture(t)
-  for (const path of ['/admin/docs.html', '/admin/assets/market-docs.js', '/admin/assets/market-docs.css'])
+  for (const path of ['/docs', '/docs/']) {
+    const response = await call(path)
+    assert.equal(response.status, 200, path)
+    assert.match(await response.text(), /<title>TokensCowork · 插件文档<\/title>/u)
+    assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'self'/u)
+  }
+  for (const path of ['/admin/assets/market-docs.js', '/admin/assets/market-docs.css', '/admin/assets/market-docs-admin.js'])
     assert.equal((await call(path)).status, 200, path)
+  // One address only: the page file itself is not served under the console.
+  for (const path of ['/admin/docs.html', '/docs/index.html', '/docs.html']) assert.equal((await call(path)).status, 404, path)
+  assert.equal((await call('/docs', { method: 'POST', data: {} })).status, 405)
+})
+
+test('an uploaded page is titled by its first heading, else by its file name', async () => {
+  const { docTitle } = await import('../admin/assets/market-docs-admin.js')
+  assert.equal(docTitle('前言\n\n# 快速开始 #\n\n## 小节', 'readme.md'), '快速开始')
+  assert.equal(docTitle('## 只有二级标题', '常见问题.md'), '常见问题')
+  assert.equal(docTitle('正文', 'Guide.MARKDOWN'), 'Guide')
+  assert.equal(docTitle('# ' + 'x'.repeat(200), 'a.md').length, 120)
 })

@@ -218,7 +218,8 @@ PUT /api/v1/users/102/grants
 - `GET /v1/docs/:pluginId` → `{ pluginId, items: [{ id, title, body, position, updatedAt }] }`：一个插件的全部文档正文。
 - 能看到哪些插件与插件目录完全一致（同一个访问判定，见上文「访问判定」）；看不到的插件和不存在的插件一样返回 `404`。
 - 没带 Key 或 Key 不认识返回 `401`：Key 必须在市场登记过，或能在 TokensAPI 解析出组织或用户。TokensAPI 暂时连不上返回 `503`。响应 `Cache-Control: no-store`。
-- 网页入口：`/admin/docs.html`，用 Key 登录（只存在当前浏览器标签页），左侧列出能看到的插件，右侧渲染 Markdown。
+- 网页入口：`/docs`，用 Key 登录（只存在当前浏览器标签页），左侧列出能看到的插件，右侧渲染 Markdown。
+- 后台入口：左侧导航「插件文档」，选插件后上传在别处写好的 `.md` 文件，可替换、删除；标题取文件里第一个一级标题，没有就用文件名。
 
 ### 组织
 

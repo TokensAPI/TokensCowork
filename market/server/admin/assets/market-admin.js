@@ -3,6 +3,7 @@ import { organizationsView } from './market-organizations.js'
 import { keysView } from './market-keys.js'
 import { usersView } from './market-users.js'
 import { sessionLogsView } from './market-session-logs.js'
+import { docsAdminView } from './market-docs-admin.js'
 import { grantsDialog } from './market-grants.js'
 import { marketRequest } from './market-api.js'
 import { mergePlugins, filterPlugins } from './market-model.js'
@@ -31,6 +32,7 @@ const views = {
   organizations: ['组织', '同步 TokensAPI 组织，查看每个组织能用的插件。'],
   keys: ['Key', '登记单独授权用的 Key，给它单独授权插件。'],
   users: ['用户', '给 TokensAPI 用户单独授权插件，对该用户名下所有 Key 生效。'],
+  docs: ['插件文档', '上传插件的 Markdown 使用文档；用户在文档中心只看到自己有权限的插件。'],
   'session-logs': ['会话日志', '客户端上传的会话日志：按账号、会话、时间、Key、标签查找，按轮次看对话，下载原始 JSON，加备注标签或删除。'],
   activity: ['操作记录', '最近的插件、访问范围和组织变更。'],
 }
@@ -113,6 +115,7 @@ const organizations = organizationsView(shared)
 const keys = keysView(shared)
 const users = usersView(shared)
 const sessionLogs = sessionLogsView(shared)
+const docs = docsAdminView({ ...shared, plugins: () => plugins })
 
 function navigate(view) {
   const open = allowedViews()
@@ -129,6 +132,7 @@ function navigate(view) {
   $('page-title').textContent = title
   $('page-description').textContent = description
   if (currentView === 'session-logs') sessionLogs.show().catch((error) => feedback(error.message, 'error'))
+  if (currentView === 'docs') docs.show().catch((error) => feedback(error.message, 'error'))
 }
 
 // ── Plugins ──────────────────────────────────────────────────────────────────
@@ -435,6 +439,7 @@ function lock() {
   keys.clear()
   users.clear()
   sessionLogs.clear()
+  docs.clear()
   grants.clear()
   session = null
   plugins = []
@@ -469,6 +474,7 @@ async function restore() {
 $('refresh').onclick = () => action(async () => {
   await load()
   if (currentView === 'session-logs') await sessionLogs.show()
+  if (currentView === 'docs') await docs.show()
 }, { success: '已刷新。' })
 $('plugin-search').oninput = () => session && renderPlugins()
 $('visibility-filter').onchange = () => session && renderPlugins()

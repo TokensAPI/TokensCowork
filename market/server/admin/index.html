@@ -37,6 +37,9 @@
         <a href="#keys" data-view="keys"
           ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20 3M16 7l3 3M14 9l2 2"/></svg><span class="nav-text">Key</span><b id="nav-keys">—</b></a
         >
+        <a href="#docs" data-view="docs" hidden
+          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span class="nav-text">插件文档</span></a
+        >
         <a href="#session-logs" data-view="session-logs" hidden
           ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg><span class="nav-text">会话日志</span></a
         >
@@ -330,6 +333,40 @@
             <p id="user-empty" class="empty" hidden>
               暂无用户。添加后可单独给该用户授权插件，对其名下所有 Key 生效。
             </p>
+          </div>
+        </section>
+
+        <section id="docs-panel" data-panel="docs" hidden>
+          <div class="panel">
+            <div class="section-heading">
+              <div>
+                <h2>插件文档</h2>
+                <p class="muted">
+                  上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇。标题取文件里第一个一级标题，没有就用文件名。用户在
+                  <a href="/docs" target="_blank" rel="noopener">文档中心</a> 用自己的 TokensAPI Key 登录，只看到有权限的插件。
+                </p>
+              </div>
+              <button id="docs-upload" type="button">上传 Markdown</button>
+            </div>
+            <div class="toolbar">
+              <select id="docs-plugin" aria-label="选择插件"></select>
+              <input id="docs-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+            </div>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="插件文档表格">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">标题</th>
+                    <th scope="col">排序</th>
+                    <th scope="col">长度</th>
+                    <th scope="col">更新于</th>
+                    <th scope="col"><span class="sr-only">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="docs-list"></tbody>
+              </table>
+            </div>
+            <p id="docs-empty" class="empty" hidden>这个插件还没有文档，点「上传 Markdown」添加。</p>
           </div>
         </section>
 
