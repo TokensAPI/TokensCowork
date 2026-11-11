@@ -197,7 +197,7 @@ export default [
     kind: 'customization',
     files: { routes: f.routes, api: f.api, settingsTab: f.settingsTab, styles: f.styles, locales: f.locales },
     apply: (input, { root }) => addMarketDocsLink(input, source(root).origin),
-    why: '用户 2026-11-11 要求市场里能直接跳到插件文档：右上角「当前来源」与卡片底部「来源」改成「TokensCowork」，点击在浏览器打开插件文档中心（/docs，卡片打开该插件那一页）并已登录。Key 不进网址：宿主侧用当前 TokensAPI Key 向市场服务换 60 秒内有效、只能用一次的登录码，只把登录码放进地址；换不到时照样打开、由用户手动登录。渲染层只打开文档中心自己的地址。',
+    why: '用户 2026-11-11 要求市场里能直接跳到插件文档：右上角「当前来源」与卡片底部「来源」改成「教程」，点击在浏览器打开插件文档中心（/docs，卡片打开该插件那一页）并已登录。Key 不进网址：宿主侧用当前 TokensAPI Key 向市场服务换 60 秒内有效、只能用一次的登录码，只把登录码放进地址；换不到时照样打开、由用户手动登录。渲染层只打开文档中心自己的地址。',
     retireWhen: '产品不再从市场跳转插件文档，或上游提供来源文档入口时移除。',
   }),
   /* ----------------------- 发现页首屏延迟 ----------------------- */
@@ -362,7 +362,7 @@ export default [
     apply: ({ settings, overlay, runtime }) => ({
       settings: adaptDocsLinkSettingsTests(settings), overlay: adaptDocsLinkOverlayTests(overlay), runtime: adaptDocsLinkRuntimeTests(runtime),
     }),
-    why: '上游用例断言右上角来源链接指向来源主页、卡片来源写来源名；产品改为 TokensCowork 文档入口，相应改写这几处断言，并补上产品回归：卡片来源打开该插件文档且不打开详情、右上角打开文档总览、只打开文档中心自己的地址、换不到登录码时照样打开。',
+    why: '上游用例断言右上角来源链接指向来源主页、卡片来源写来源名；产品改为「教程」文档入口，相应改写这几处断言，并补上产品回归：卡片来源打开该插件文档且不打开详情、右上角打开文档总览、只打开文档中心自己的地址、换不到登录码时照样打开。',
     retireWhen: '随 market.docs-link 一起移除。',
   }),
   sourceEntry('test-source-repair', {
