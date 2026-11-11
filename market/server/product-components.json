@@ -67,8 +67,8 @@
       "displayName": "会话日志上传",
       "summary": "使用 TokensAPI 对话时，在后台把会话日志上传到 TokensCowork 服务，与模型请求和其他插件解耦，可在设置中关闭。",
       "repository": "https://github.com/TokensAPI/tokens_DshSessionLog_code.git",
-      "version": "0.1.2",
-      "commit": "e2c72b53243e4b501b9c81165d38e58494880588",
+      "version": "0.1.3",
+      "commit": "ddd61e1495437ef944bfac71d42354c32a50d4bc",
       "category": "builtin"
     }
   ]
