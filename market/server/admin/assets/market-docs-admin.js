@@ -79,6 +79,8 @@ export function docsAdminView({ $, node, button, json, action, formatTime, plugi
     }, { success: target?.replace ? '文档已替换。' : '文档已上传。' })
   }
   $('docs-upload').onclick = () => pick({})
+  // The docs center reads this console session as the administrator and shows every plugin.
+  $('docs-open-center').onclick = () => window.open(`/docs?admin#/${pluginId ? encodeURIComponent(pluginId) : ''}`, '_blank', 'noopener')
   $('docs-plugin').onchange = () => {
     pluginId = $('docs-plugin').value
     action(load)

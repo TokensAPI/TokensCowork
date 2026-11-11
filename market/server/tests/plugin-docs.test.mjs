@@ -32,7 +32,12 @@ function fixture(t) {
   const env = { MARKET_ADMIN_TOKEN: 'admin-secret', MARKET_HMAC_SECRET: 'separate-secret', MARKET_KEY_ENCRYPTION_SECRET: 'test-encryption-secret',
     MARKET_DB: { prepare: wrap, batch: async statements => { db.exec('BEGIN'); try { const r = []; for (const s of statements) r.push(await s.run()); db.exec('COMMIT'); return r } catch (e) { db.exec('ROLLBACK'); throw e } } },
     ASSETS: createAssets(resolve(fileURLToPath(new URL('..', import.meta.url)))),
-    MARKET_ORGANIZATIONS: { resolveIdentity: async key => IDENTITIES[key] ?? { organization: null, user: null } } }
+    MARKET_ORGANIZATIONS: {
+      resolveIdentity: async key => IDENTITIES[key] ?? { organization: null, user: null },
+      // An organization administrator signing in to the console (TokensAPI account 501, organization 1).
+      resolveAccount: async credential => credential.userId === 501 ? { id: 501, displayName: 'Owner' } : null,
+      resolveMyOrg: async credential => credential.userId === 501 ? { id: 1, name: 'One', role: 100 } : null,
+    } }
   const call = (path, { key, data, method = data === undefined ? 'GET' : 'POST' } = {}) => worker.fetch(new Request(ORIGIN + path, { method,
     headers: key ? { Authorization: `Bearer ${key}` } : {}, ...(data === undefined ? {} : { body: JSON.stringify(data) }) }), env, {})
   const admin = (path, data, method) => call('/api/v1' + path, { key: 'admin-secret', data, method })
@@ -59,6 +64,34 @@ test('a reader sees exactly the plugins their Key may use, with those plugins\' 
   assert.equal((await call('/v1/docs/org-two-tool', { key: 'sk-org-one' })).status, 404)
   assert.equal((await call('/v1/docs/no-such-tool', { key: 'sk-org-one' })).status, 404)
   assert.deepEqual((await reader('sk-org-two')).map(item => item.id).sort(), ['org-two-tool', 'public-tool'])
+})
+
+test('the platform administrator\'s console session reads every plugin; an organization administrator\'s does not', async t => {
+  const { env, call, addDoc } = fixture(t)
+  await addDoc('org-two-tool', '内部手册')
+  const session = async data => (await worker.fetch(new Request(ORIGIN + '/api/v1/session', { method: 'PUT', headers: { Origin: ORIGIN },
+    body: JSON.stringify(data) }), env, {})).headers.get('set-cookie').split(';')[0]
+  const withCookie = (path, cookie) => worker.fetch(new Request(ORIGIN + path, { headers: { Cookie: cookie } }), env, {})
+
+  const platform = await session({ credential: 'admin-secret' })
+  const list = await (await withCookie('/v1/docs', platform)).json()
+  assert.equal(list.admin, true)
+  assert.deepEqual(list.items.map(item => item.id).sort(), ['org-one-tool', 'org-two-tool', 'public-tool'])
+  const pages = await withCookie('/v1/docs/org-two-tool', platform)
+  assert.equal(pages.status, 200)
+  assert.deepEqual((await pages.json()).items.map(doc => doc.title), ['内部手册'])
+  assert.equal((await withCookie('/v1/docs/no-such-tool', platform)).status, 404)
+  assert.match((await withCookie('/v1/docs', platform)).headers.get('vary') ?? '', /Cookie/u)
+
+  // An organization administrator may sign in to the console, but the docs center is not theirs to see whole.
+  const tenant = await session({ tokensapi: true, accessToken: 'owner-token', userId: 501 })
+  assert.equal((await withCookie('/v1/docs', tenant)).status, 401)
+  // A Key decides on its own, even beside an administrator's cookie.
+  const keyed = await worker.fetch(new Request(ORIGIN + '/v1/docs', { headers: { Cookie: platform, Authorization: 'Bearer sk-org-one' } }), env, {})
+  const keyedList = await keyed.json()
+  assert.equal(keyedList.admin, false)
+  assert.ok(!keyedList.items.some(item => item.id === 'org-two-tool'))
+  assert.equal((await call('/v1/docs')).status, 401)
 })
 
 test('the documentation follows grant changes without touching the pages', async t => {

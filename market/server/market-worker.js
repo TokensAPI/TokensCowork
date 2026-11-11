@@ -9,8 +9,9 @@ import { localizeCatalog } from './services/catalog-locale-service.js'
 import { sessionLogUpload } from './services/session-logs.js'
 import { readerPluginDocs, readerPlugins } from './services/docs.js'
 
-// The documentation center reads with the reader's own Key and must never be cached or shared.
-const readerHeaders = { 'cache-control': 'no-store', vary: 'Authorization' }
+// The documentation center reads with the reader's own Key (or the administrator's console session)
+// and must never be cached or shared.
+const readerHeaders = { 'cache-control': 'no-store', vary: 'Authorization, Cookie' }
 
 /** GET /v1/docs: the plugins this Key may see; GET /v1/docs/{pluginId}: that plugin's pages. */
 async function docsRoute(request, env, url) {

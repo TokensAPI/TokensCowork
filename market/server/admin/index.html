@@ -343,10 +343,13 @@
                 <h2>插件文档</h2>
                 <p class="muted">
                   上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇。标题取文件里第一个一级标题，没有就用文件名。用户在
-                  <a href="/docs" target="_blank" rel="noopener">文档中心</a> 用自己的 TokensAPI Key 登录，只看到有权限的插件。
+                  文档中心（/docs）用自己的 TokensAPI Key 登录，只看到有权限的插件；从这里「打开文档中心」以管理员身份查看，能看到全部插件。
                 </p>
               </div>
-              <button id="docs-upload" type="button">上传 Markdown</button>
+              <div class="header-actions">
+                <button id="docs-open-center" class="secondary" type="button">打开文档中心</button>
+                <button id="docs-upload" type="button">上传 Markdown</button>
+              </div>
             </div>
             <div class="toolbar">
               <select id="docs-plugin" aria-label="选择插件"></select>

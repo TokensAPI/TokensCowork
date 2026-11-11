@@ -6,6 +6,9 @@ import { renderMarkdown } from './market-markdown.js'
 // same access decision as the desktop catalog. Addresses: #/ is the overview, #/<plugin>/<doc>
 // a page, and #/<plugin>/<doc>/<section> a heading on it, so any of them can be linked to.
 const KEY = 'market-docs-key'
+// Opened from the console as /docs?admin: read with the administrator's console session (every
+// plugin) instead of a stored Key.
+const ADMIN = new URLSearchParams(location.search).has('admin')
 const $ = id => document.getElementById(id)
 const state = { plugins: [], pages: new Map(), open: new Set(), pluginId: '', docId: 0, section: '', othersOpen: false }
 const search = { results: [], active: 0, loading: null }
@@ -83,7 +86,7 @@ async function copy(text, message) {
 }
 
 async function read(path) {
-  const response = await fetch(path, { headers: { Authorization: 'Bearer ' + storedKey() }, cache: 'no-store' })
+  const response = await fetch(path, { headers: ADMIN ? {} : { Authorization: 'Bearer ' + storedKey() }, cache: 'no-store' })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw Object.assign(new Error(data.error || '请求失败'), { status: response.status })
   return data
@@ -172,7 +175,7 @@ function renderHome() {
     cards.append(empty)
   }
   const rest = withoutDocs().length
-  $('docs-home-more').textContent = rest ? `另有 ${rest} 个你可以使用的插件暂无文档。` : ''
+  $('docs-home-more').textContent = rest ? `另有 ${rest} 个${ADMIN ? '已上架' : '你可以使用'}的插件暂无文档。` : ''
   document.title = 'TokensCowork · 插件文档'
 }
 
@@ -361,11 +364,19 @@ async function load() {
   state.plugins = data.items.sort((a, b) => name(a).localeCompare(name(b), 'zh-CN'))
   state.pages.clear()
   search.loading = null
+  $('docs-admin-badge').hidden = !data.admin
+  if (data.admin) $('home-lead-text').textContent = '管理员预览：显示全部已上架插件的文档，和用户看到的一样排版。'
   document.body.classList.remove('signed-out')
   route()
 }
 
 function signOut(message = '') {
+  // The console session is the console's to end; this page only forgets a Key it stored itself.
+  if (ADMIN) {
+    $('docs-login-error').textContent = message || '后台登录已过期，请回到后台重新登录后再打开。'
+    document.body.classList.add('signed-out', 'admin-expired')
+    return
+  }
   storeKey('')
   Object.assign(state, { plugins: [], pluginId: '', docId: 0, section: '' })
   state.pages.clear()
@@ -523,7 +534,11 @@ $('docs-login').onsubmit = async event => {
     signOut(error.message)
   }
 }
-$('docs-logout').onclick = () => signOut()
+$('docs-logout').onclick = () => { if (ADMIN) location.href = '/admin/#docs'; else signOut() }
+if (ADMIN) {
+  $('docs-logout').textContent = '返回后台'
+  document.querySelector('.logo').href = '/docs?admin#/'
+}
 $('menu-toggle').onclick = () => setNav(!document.body.classList.contains('nav-open'))
 $('sidebar-backdrop').onclick = () => setNav(false)
 window.addEventListener('hashchange', () => {
@@ -531,4 +546,5 @@ window.addEventListener('hashchange', () => {
   if (!document.body.classList.contains('signed-out')) route()
 })
 
-if (storedKey()) load().catch(error => signOut(error.status === 401 ? error.message : ''))
+if (ADMIN) load().catch(error => signOut(error.status === 401 ? '' : error.message))
+else if (storedKey()) load().catch(error => signOut(error.status === 401 ? error.message : ''))

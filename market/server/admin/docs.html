@@ -26,6 +26,7 @@
         <kbd id="search-shortcut">Ctrl K</kbd>
       </button>
       <div class="topbar-actions">
+        <span id="docs-admin-badge" class="admin-badge" hidden>管理员 · 全部插件</span>
         <label class="theme-select">
           <span class="sr-only">主题外观</span>
           <select id="theme-choice">
@@ -51,6 +52,7 @@
         <label class="remember"><input id="docs-remember" type="checkbox" /><span>在这台电脑上记住我</span></label>
         <button class="primary-button" type="submit">登录</button>
         <p id="docs-login-error" class="login-error" role="alert"></p>
+        <a class="admin-return" href="/admin/#docs">返回后台登录</a>
       </form>
     </main>
 
@@ -65,7 +67,7 @@
           <section id="docs-home" class="home" hidden>
             <p class="home-eyebrow">TokensCowork</p>
             <h1>插件文档</h1>
-            <p class="home-lead">你有权限使用的插件的使用说明。按 <kbd id="home-shortcut">Ctrl K</kbd> 随时搜索全部文档。</p>
+            <p class="home-lead"><span id="home-lead-text">你有权限使用的插件的使用说明。</span>按 <kbd id="home-shortcut">Ctrl K</kbd> 随时搜索全部文档。</p>
             <div id="docs-cards" class="card-grid"></div>
             <p id="docs-home-more" class="home-more"></p>
           </section>

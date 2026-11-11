@@ -517,6 +517,39 @@ body.search-open {
   filter: brightness(1.08);
 }
 
+.admin-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-badge[hidden] {
+  display: none;
+}
+
+/* An expired console session: there is no Key to type, only the way back to the console. */
+.admin-return {
+  display: none;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.admin-expired .admin-return {
+  display: inline-block;
+}
+
+body.admin-expired .field,
+body.admin-expired .field-hint,
+body.admin-expired .remember,
+body.admin-expired .primary-button {
+  display: none;
+}
+
 .login-error {
   min-height: 20px;
   margin: 12px 0 0;
@@ -1261,7 +1294,8 @@ body.search-open {
 }
 
 @media (max-width: 560px) {
-  .logo-sub {
+  .logo-sub,
+  .admin-badge {
     display: none;
   }
 

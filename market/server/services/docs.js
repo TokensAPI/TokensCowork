@@ -3,8 +3,9 @@ import { fingerprint } from '../security/key-fingerprint.js'
 import { allowed, filterRoster } from './access.js'
 import { auditStatements } from './audit.js'
 import { localizeCatalog } from './catalog-locale-service.js'
+import { isPlatform, resolvePrincipal } from './auth.js'
 import { resolveIdentity } from './organizations.js'
-import { catalogRoster, invalid, pluginRow } from './plugins.js'
+import { catalogRoster, invalid, pluginRow, productComponents } from './plugins.js'
 
 // Plugin documentation: Markdown pages a platform administrator attaches to a plugin. Who may read
 // a page is never stored with it — a reader sees the pages of exactly the plugins the catalog shows
@@ -77,21 +78,38 @@ export async function deletePluginDoc(env, pluginId, segment, actor) {
  * A reader signs in with their TokensAPI Key, the same credential the desktop catalog uses. The
  * Key must be one the market recognizes — registered here, or naming a TokensAPI organization or
  * user — so an anonymous caller is refused instead of being shown the public pages.
+ *
+ * Without a Key, the platform administrator's console session (the console links here) reads as
+ * an administrator: every published plugin, since the administrator manages all of them. An
+ * organization administrator's session is not enough. A Bearer header always decides on its own.
+ * @returns {Promise<{ admin: boolean }>}
  */
 async function requireReader(request, env) {
   const key = bearer(request)
-  if (!key) throw invalid('请先登录', 401)
-  if (await env.MARKET_DB.prepare('SELECT 1 FROM market_keys WHERE fingerprint=?').bind(await fingerprint(key, env.MARKET_HMAC_SECRET)).first()) return
+  if (!key) {
+    if (isPlatform(await resolvePrincipal(request, env))) return { admin: true }
+    throw invalid('请先登录', 401)
+  }
+  if (await env.MARKET_DB.prepare('SELECT 1 FROM market_keys WHERE fingerprint=?').bind(await fingerprint(key, env.MARKET_HMAC_SECRET)).first()) return { admin: false }
   let identity
   try { identity = await resolveIdentity(key, env) } catch { throw invalid('暂时无法验证 Key，请稍后重试', 503) }
   if (!identity?.organization && !identity?.user) throw invalid('Key 无效', 401)
+  return { admin: false }
 }
 
-/** The plugins this Key may see, each with the titles of its pages. */
+/** Every published market plugin; built-in components belong to the application, as in the catalog. */
+async function allPlugins(request, env) {
+  const [roster, components] = await Promise.all([catalogRoster(env), productComponents(request, env)])
+  const ids = new Set(components.items.map(item => item.id))
+  const packages = new Set(components.items.map(item => item.package).filter(Boolean))
+  return roster.items.filter(item => item.category !== 'builtin' && !ids.has(item.id) && !packages.has(item.package))
+}
+
+/** The plugins this reader may see, each with the titles of its pages. */
 export async function readerPlugins(request, env, locale) {
-  await requireReader(request, env)
-  const roster = await filterRoster(request, env, await catalogRoster(env))
-  const items = await localizeCatalog(roster.items, env, locale)
+  const reader = await requireReader(request, env)
+  const visible = reader.admin ? await allPlugins(request, env) : (await filterRoster(request, env, await catalogRoster(env))).items
+  const items = await localizeCatalog(visible, env, locale)
   const { results } = await env.MARKET_DB.prepare('SELECT id,plugin_id,title FROM market_plugin_docs ORDER BY position,id').all()
   const titles = new Map()
   for (const row of results) {
@@ -99,14 +117,17 @@ export async function readerPlugins(request, env, locale) {
     titles.get(row.plugin_id).push({ id: row.id, title: row.title })
   }
   return {
+    admin: reader.admin,
     items: items.map(item => ({ id: item.id, displayName: item.displayName, summary: item.summary, docs: titles.get(item.id) ?? [] })),
   }
 }
 
-/** One plugin's pages in full. A plugin the Key may not see answers exactly like one that does not exist. */
+/** One plugin's pages in full. A plugin the reader may not see answers exactly like one that does not exist. */
 export async function readerPluginDocs(request, env, pluginId) {
-  await requireReader(request, env)
-  if (!/^[a-z0-9][a-z0-9-]{0,79}$/u.test(pluginId) || !await allowed(request, env, pluginId)) throw invalid('not found', 404)
+  const reader = await requireReader(request, env)
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/u.test(pluginId)) throw invalid('not found', 404)
+  const visible = reader.admin ? (await allPlugins(request, env)).some(item => item.id === pluginId) : await allowed(request, env, pluginId)
+  if (!visible) throw invalid('not found', 404)
   const { results } = await env.MARKET_DB.prepare('SELECT * FROM market_plugin_docs WHERE plugin_id=? ORDER BY position,id').bind(pluginId).all()
   return { pluginId, items: results.map(view) }
 }
