@@ -7,25 +7,36 @@ import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
 import { localizeCatalog } from './services/catalog-locale-service.js'
 import { sessionLogUpload } from './services/session-logs.js'
-import { readerPluginDocs, readerPlugins } from './services/docs.js'
+import { createDocsCode, readerPluginDocs, readerPlugins, redeemDocsCode } from './services/docs.js'
+import { body } from './http/request.js'
 
 // The documentation center reads with the reader's own Key (or the administrator's console session)
 // and must never be cached or shared.
 const readerHeaders = { 'cache-control': 'no-store', vary: 'Authorization, Cookie' }
 
-/** GET /v1/docs: the plugins this Key may see; GET /v1/docs/{pluginId}: that plugin's pages. */
+/**
+ * GET /v1/docs: the plugins this reader may see; GET /v1/docs/{pluginId}: that plugin's pages;
+ * POST /v1/docs/codes and /v1/docs/codes/redeem: the one-time sign-in code TokensCowork opens with.
+ */
 async function docsRoute(request, env, url) {
-  if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405, readerHeaders)
   if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET) return reply({ error: '市场数据库未配置' }, 503, readerHeaders)
+  const codeRoute = ['/v1/docs/codes', '/v1/docs/codes/redeem'].includes(url.pathname)
+  if (request.method !== (codeRoute ? 'POST' : 'GET')) return reply({ error: 'method not allowed' }, 405, readerHeaders)
   const segments = url.pathname.split('/').filter(Boolean).slice(2)
-  if (segments.length > 1) return reply({ error: 'not found' }, 404, readerHeaders)
+  if (!codeRoute && segments.length > 1) return reply({ error: 'not found' }, 404, readerHeaders)
   try {
+    if (url.pathname === '/v1/docs/codes') return reply(await createDocsCode(request, env), 200, readerHeaders)
+    if (codeRoute) {
+      let data
+      try { data = await body(request) } catch { return reply({ error: '请求格式无效' }, 400, readerHeaders) }
+      return reply(redeemDocsCode(data), 200, readerHeaders)
+    }
     const result = segments.length === 0
       ? await readerPlugins(request, env, url.searchParams.get('locale') || 'zh-CN')
       : await readerPluginDocs(request, env, decodeURIComponent(segments[0]))
     return reply(result, 200, readerHeaders)
   } catch (error) {
-    if ([401, 404, 503].includes(error?.status)) return reply({ error: error.message }, error.status, readerHeaders)
+    if ([400, 401, 404, 503].includes(error?.status)) return reply({ error: error.message }, error.status, readerHeaders)
     return reply({ error: '文档中心暂时不可用' }, 503, readerHeaders)
   }
 }

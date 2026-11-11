@@ -546,5 +546,21 @@ window.addEventListener('hashchange', () => {
   if (!document.body.classList.contains('signed-out')) route()
 })
 
+// Opened from TokensCowork as /docs?code=…: trade the one-time code for the Key, keep it for this
+// tab, and take the code out of the address before anything else.
+async function redeemCode(code) {
+  const url = new URL(location.href)
+  url.searchParams.delete('code')
+  history.replaceState(null, '', url.pathname + url.search + url.hash)
+  const response = await fetch('/v1/docs/codes/redeem', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }), cache: 'no-store',
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || typeof data.key !== 'string') throw new Error(data.error || '登录链接已失效，请回到 TokensCowork 重新打开')
+  storeKey(data.key, false)
+}
+
+const code = new URLSearchParams(location.search).get('code')
 if (ADMIN) load().catch(error => signOut(error.status === 401 ? '' : error.message))
+else if (code) redeemCode(code).then(load).catch(error => signOut(error.message))
 else if (storedKey()) load().catch(error => signOut(error.status === 401 ? error.message : ''))

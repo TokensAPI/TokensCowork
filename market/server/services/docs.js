@@ -122,6 +122,43 @@ export async function readerPlugins(request, env, locale) {
   }
 }
 
+/* ── One-time sign-in codes ─────────────────────────────
+ * TokensCowork opens the docs center in the browser already signed in, without putting the Key in
+ * the address: the desktop market service trades the Key for a code that lives 60 seconds and works
+ * once, opens /docs?code=…, and the page redeems the code for the Key it keeps in that tab. The
+ * codes live in this process's memory only; the market runs as one Node process, and a restart
+ * merely voids the links nobody has opened yet.
+ */
+const CODE_TTL = 60_000
+const MAX_CODES = 2000
+const codes = new Map()
+const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+
+function purgeCodes(now) {
+  for (const [code, entry] of codes) if (entry.expires <= now) codes.delete(code)
+  while (codes.size >= MAX_CODES) codes.delete(codes.keys().next().value)
+}
+
+/** POST /v1/docs/codes with the reader's Key: a code for one signed-in visit. */
+export async function createDocsCode(request, env) {
+  const reader = await requireReader(request, env)
+  if (reader.admin) throw invalid('管理员请从后台进入文档中心')
+  const now = Date.now()
+  purgeCodes(now)
+  const code = hex(crypto.getRandomValues(new Uint8Array(32)))
+  codes.set(code, { key: bearer(request), expires: now + CODE_TTL })
+  return { code, expiresIn: CODE_TTL / 1000 }
+}
+
+/** POST /v1/docs/codes/redeem { code }: the Key, once. An unknown, used or expired code is one answer. */
+export function redeemDocsCode(data) {
+  const code = typeof data?.code === 'string' && /^[a-f0-9]{64}$/u.test(data.code) ? data.code : ''
+  const entry = code ? codes.get(code) : undefined
+  if (code) codes.delete(code)
+  if (!entry || entry.expires <= Date.now()) throw invalid('登录链接已失效，请回到 TokensCowork 重新打开', 404)
+  return { key: entry.key }
+}
+
 /** One plugin's pages in full. A plugin the reader may not see answers exactly like one that does not exist. */
 export async function readerPluginDocs(request, env, pluginId) {
   const reader = await requireReader(request, env)

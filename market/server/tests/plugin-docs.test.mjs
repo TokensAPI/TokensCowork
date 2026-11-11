@@ -94,6 +94,43 @@ test('the platform administrator\'s console session reads every plugin; an organ
   assert.equal((await call('/v1/docs')).status, 401)
 })
 
+test('TokensCowork opens the docs center signed in through a one-time code, never the Key in the address', async t => {
+  const { call, reader } = fixture(t)
+  const issued = await call('/v1/docs/codes', { key: 'sk-org-one', data: {} })
+  assert.equal(issued.status, 200)
+  const { code, expiresIn } = await issued.json()
+  assert.match(code, /^[a-f0-9]{64}$/u)
+  assert.equal(expiresIn, 60)
+  assert.ok(!code.includes('sk-org-one'))
+
+  const redeem = value => call('/v1/docs/codes/redeem', { data: { code: value } })
+  const first = await redeem(code)
+  assert.equal(first.status, 200)
+  const { key } = await first.json()
+  assert.equal(key, 'sk-org-one')
+  // The redeemed Key reads exactly what the Key reads.
+  assert.deepEqual((await reader(key)).map(item => item.id).sort(), ['org-one-tool', 'public-tool'])
+  // Once only, and a guess is answered the same way.
+  assert.equal((await redeem(code)).status, 404)
+  assert.equal((await redeem('a'.repeat(64))).status, 404)
+  assert.equal((await redeem('not-a-code')).status, 404)
+
+  // A code needs a Key the market recognizes; the console session has its own way in.
+  assert.equal((await call('/v1/docs/codes', { data: {} })).status, 401)
+  assert.equal((await call('/v1/docs/codes', { key: 'sk-unknown', data: {} })).status, 401)
+  assert.equal((await call('/v1/docs/codes', { key: 'sk-org-one' })).status, 405)
+  assert.equal((await call('/v1/docs/codes/redeem', { method: 'GET' })).status, 405)
+})
+
+test('a sign-in code stops working after 60 seconds', async t => {
+  const { call } = fixture(t)
+  const { code } = await (await call('/v1/docs/codes', { key: 'sk-org-two', data: {} })).json()
+  const realNow = Date.now
+  t.after(() => { Date.now = realNow })
+  Date.now = () => realNow() + 61_000
+  assert.equal((await call('/v1/docs/codes/redeem', { data: { code } })).status, 404)
+})
+
 test('the documentation follows grant changes without touching the pages', async t => {
   const { db, call, addDoc, reader } = fixture(t)
   await addDoc('org-two-tool', '内部手册')
