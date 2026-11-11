@@ -13,7 +13,7 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：42 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：44 条市场覆盖的目标文件、执行顺序、原因与删除条件 |
 | [market-source-overlay.mjs](market-source-overlay.mjs) | 固定唯一来源、修复旧来源、Fake-IP 网络适配、隐藏来源管理及统一品牌文案 |
 | [market-auth-overlay.mjs](market-auth-overlay.mjs) | 当前 API Key 目录鉴权、Key 切换缓存失效、不持久化授权目录、防止凭据向第三方透传 |
 | [market-update-overlay.mjs](market-update-overlay.mjs) | npm 插件检查、确认和执行更新（按官方插件页同一语义先卸载再安装），保留配置与选中状态 |
@@ -24,6 +24,7 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 | [market-desktop-overlay.mjs](market-desktop-overlay.mjs) | Desktop 正常启动固定市场提供者并修复旧偏好、固定关掉官方「自定义插件市场」bundle 并清掉它预置的索引源，保留 Safe Mode 例外 |
 | [market-plugin-controls-overlay.mjs](market-plugin-controls-overlay.mjs) | 侧栏「插件」页：市场区只留产品市场一张卡（去掉 dsh-market、来源配置弹窗与启用开关），隐藏官方「自定义插件市场」bundle 与远程控制卡 |
 | [market-plugin-page-overlay.mjs](market-plugin-page-overlay.mjs) | 官方插件页去掉「添加插件」入口（安装统一走插件市场），并去掉它在侧栏的那一行（插件页仍从设置页「前往插件页面」进入） |
+| [market-docs-link-overlay.mjs](market-docs-link-overlay.mjs) | 右上角「当前来源」与卡片「来源」改成「TokensCowork」，点击在浏览器打开插件文档中心并已登录：宿主侧用当前 Key 换一次性登录码，地址里只带登录码；并调整相关上游用例 |
 | [market-sidebar-panel-overlay.mjs](market-sidebar-panel-overlay.mjs) | 侧栏上方的「插件」点开就是插件市场：去掉底部浮层启动器，注册主区域面板（原浮层标题 + 同一个市场面板）与侧栏行（图标沿用官方插件页），并相应调整上游两份注册用例 |
 | [market-catalog-verify.mjs](market-catalog-verify.mjs) | 校验生成来源、产品组件清单和初始 SQLite 目录；产品输入检查自动调用 |
 | `*-overlay.test.mjs` | 外层覆盖代码回归，直接对照固定上游输入 |
@@ -38,7 +39,7 @@ Desktop v2.0.18 起所有包操作由官方插件管理器执行，市场不再�
 
 1. 产品来源和网络适配 → 当前 Key 鉴权。
 2. 插件更新 → 私有 Registry → 客户端 API。
-3. 发现首页和样式 → 市场改为侧栏上方「插件」打开的主区域面板 → 发现页首屏延迟 → 待重启横幅 → 最终品牌文案。
+3. 发现首页和样式 → 市场改为侧栏上方「插件」打开的主区域面板 → 本地时间 → 插件文档入口 → 发现页首屏延迟 → 待重启横幅 → 最终品牌文案。
 4. 适配上游测试、载入产品回归模板。
 5. Desktop 侧：固定市场提供者 → 固定关掉官方自定义市场 bundle（及其用例）→ 插件页市场区收敛 → 隐藏远程控制卡 → 隐藏官方自定义插件市场。
 
