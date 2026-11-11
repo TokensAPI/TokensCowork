@@ -97,7 +97,7 @@ async function openMarketDocs(pluginId?: string): Promise<void> {
                 </a>
               )}`, `            : (
                 <a href={DOCS_ORIGIN + '/docs'} title={t('openDocs')} onClick={event => { event.preventDefault(); void openMarketDocs() }}>
-                  {t('docsLabel')} <IconRightUpOutlineRegular size={12} />
+                  {t('currentDocs')}: TokensCowork <IconRightUpOutlineRegular size={12} />
                 </a>
               )}`, LABEL)
   settingsTab = replaceOnce(settingsTab, `  const currentSourceHref = currentSource === undefined
@@ -108,7 +108,7 @@ async function openMarketDocs(pluginId?: string): Promise<void> {
   settingsTab = replaceOnce(settingsTab, '  const sourceLabel = sourceDisplayLabel(value.source)\n', '', LABEL)
   return replaceOnce(settingsTab, "        <Pill>{t('source')}: {sourceLabel}</Pill>\n",
     `        <span className="dshMarketDocsLink" title={t('openDocs')} onClick={event => { event.stopPropagation(); void openMarketDocs(value.item.id) }}>
-          <Pill>{t('docsLabel')}</Pill>
+          <Pill>{t('docsLabel')}: TokensCowork</Pill>
         </span>
 `, LABEL)
 }
@@ -128,8 +128,8 @@ const DOCS_LINK_STYLES = `.dshMarketDocsLink {
 `
 
 const MESSAGES = {
-  zh: { openDocs: '查看使用教程', docsLabel: '教程' },
-  en: { openDocs: 'Open the plugin guide', docsLabel: 'Guide' },
+  zh: { openDocs: '查看使用教程', docsLabel: '教程', currentDocs: '当前教程' },
+  en: { openDocs: 'Open the plugin guide', docsLabel: 'Guide', currentDocs: 'Current guide' },
 }
 
 /**
@@ -165,14 +165,14 @@ export function adaptDocsLinkSettingsTests(tests) {
     expect(currentSourceLink.rel).toContain('noopener')
     expect(screen.getByText(\`\${en.source}: Fixture catalog · Fixture provider\`)).toBeTruthy()
 `, `    // 产品覆盖：右上角与卡片来源换成「教程」，指向插件文档。
-    expect(screen.getByRole('link', { name: en.docsLabel })).toBeTruthy()
-    expect(within(plugin).getByText(en.docsLabel)).toBeTruthy()
+    expect(screen.getByRole('link', { name: \`\${en.currentDocs}: TokensCowork\` })).toBeTruthy()
+    expect(within(plugin).getByText(\`\${en.docsLabel}: TokensCowork\`)).toBeTruthy()
 `],
     // 详情里的来源行照旧（下一句核对它的链接）；卡片上那一行已改成「教程」。
     ["    expect(screen.getByText(`${en.source}: Fixture catalog · Fixture provider`)).toBeTruthy()\n    expect(within(screen.getByRole('dialog')).getByRole('link', {\n",
       "    expect(within(screen.getByRole('dialog')).getByRole('link', {\n"],
     ["    expect(screen.getByText(`${en.currentSource}: ${second.name}`)).toBeTruthy()\n",
-      "    // 产品覆盖：右上角固定显示「教程」（文档入口），切换由列表内容体现。\n    expect(screen.getByRole('link', { name: en.docsLabel })).toBeTruthy()\n"],
+      "    // 产品覆盖：右上角固定显示「当前教程: TokensCowork」（文档入口），切换由列表内容体现。\n    expect(screen.getByText(`${en.currentDocs}: TokensCowork`)).toBeTruthy()\n"],
   ]
   for (const [from, to] of swaps) tests = replaceOnce(tests, from, to, 'market settings tab test')
   tests = replaceOnce(tests, "import { en, type MarketLocaleKey } from '../src/client/locales.js'\n",
@@ -192,7 +192,7 @@ describe('product plugin docs links', () => {
     vi.mocked(openMarketDocsLink).mockResolvedValue({ url: 'https://market.tokensapi.ai/docs?code=${'a'.repeat(64)}#/docs-card' })
     render(<MarketSettingsTab {...docsProps} />)
     const card = await screen.findByRole('button', { name: /Docs Card/u })
-    fireEvent.click(within(card).getByText(en.docsLabel))
+    fireEvent.click(within(card).getByText(\`\${en.docsLabel}: TokensCowork\`))
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://market.tokensapi.ai/docs?code=${'a'.repeat(64)}#/docs-card', '_blank', 'noopener,noreferrer'))
     expect(openMarketDocsLink).toHaveBeenCalledWith('docs-card')
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -204,7 +204,7 @@ describe('product plugin docs links', () => {
     vi.mocked(openMarketDocsLink).mockResolvedValue({ url: 'https://evil.example/docs' })
     render(<MarketSettingsTab {...docsProps} />)
     await screen.findByRole('button', { name: /Docs Card/u })
-    fireEvent.click(screen.getByRole('link', { name: en.docsLabel }))
+    fireEvent.click(screen.getByRole('link', { name: \`\${en.currentDocs}: TokensCowork\` }))
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://market.tokensapi.ai/docs#/', '_blank', 'noopener,noreferrer'))
     expect(openMarketDocsLink).toHaveBeenCalledWith(undefined)
   })
@@ -215,7 +215,7 @@ describe('product plugin docs links', () => {
     vi.mocked(openMarketDocsLink).mockRejectedValue(new Error('offline'))
     render(<MarketSettingsTab {...docsProps} />)
     const card = await screen.findByRole('button', { name: /Docs Card/u })
-    fireEvent.click(within(card).getByText(en.docsLabel))
+    fireEvent.click(within(card).getByText(\`\${en.docsLabel}: TokensCowork\`))
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://market.tokensapi.ai/docs#/docs-card', '_blank', 'noopener,noreferrer'))
   })
 })
@@ -300,5 +300,5 @@ export function adaptDocsLinkRuntimeTests(tests) {
 /** 上游浮层用例：切换来源后右上角固定显示「教程」。 */
 export function adaptDocsLinkOverlayTests(tests) {
   return replaceOnce(tests.replaceAll('\r\n', '\n'), "    expect(await screen.findByText('currentSource: Second catalog')).toBeTruthy()\n",
-    "    // 产品覆盖：右上角固定显示「教程」（文档入口）。\n    expect(await screen.findByText('docsLabel')).toBeTruthy()\n", 'market overlay test')
+    "    // 产品覆盖：右上角固定显示「当前教程: TokensCowork」（文档入口）。\n    expect(await screen.findByText('currentDocs: TokensCowork')).toBeTruthy()\n", 'market overlay test')
 }
