@@ -101,6 +101,16 @@ test('authentication errors and malformed Apple output do not expose credentials
   assert.throws(() => queryNotary(['history'], () => 'secret-value', { APPLE_ID: 'fixture', APPLE_APP_PASSWORD: 'secret-value', APPLE_TEAM_ID: 'fixture' }), /invalid notarization JSON/)
 })
 
+test("Apple's failure reason is logged with every argument value masked", t => {
+  const logged = []
+  t.mock.method(console, 'error', message => logged.push(message))
+  const script = 'process.stderr.write("HTTP status code: 403. A required agreement is missing. user=" + process.argv[1] + " pw=" + process.argv[2]);process.exit(1)'
+  assert.throws(() => runMac(process.execPath, ['-e', script, 'dev@example.com', 'abcd-efgh-ijkl-mnop']), /node.*failed \(exit 1\)|failed \(exit 1\)/)
+  assert.equal(logged.length, 1)
+  assert.match(logged[0], /A required agreement is missing/)
+  assert.ok(!logged[0].includes('dev@example.com') && !logged[0].includes('abcd-efgh-ijkl-mnop'))
+})
+
 test('hook skips Windows before any signing or notarization access', async () => {
   await afterSign({ electronPlatformName: 'win32' })
 })

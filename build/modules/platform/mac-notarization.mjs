@@ -10,9 +10,20 @@ export const sha256 = file => createHash('sha256').update(readFileSync(file)).di
 
 export function runMac(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', timeout: 600000, ...options })
-  // Never include argv/stderr: notarytool authentication arguments contain secrets.
-  if (result.error || result.status !== 0) throw new Error(`${command} failed (exit ${result.status ?? 'timeout'})`)
+  // Never include argv: notarytool authentication arguments contain secrets. Apple's reason is
+  // printed only after every argument value has been masked.
+  if (result.error || result.status !== 0) {
+    const reason = redactArgs(`${result.stderr ?? ''}\n${result.stdout ?? ''}`, args).trim().slice(-2000)
+    if (reason) console.error(`${command} output (arguments masked):\n${reason}`)
+    throw new Error(`${command} failed (exit ${result.status ?? 'timeout'})`)
+  }
   return result.stdout
+}
+
+export function redactArgs(text, args) {
+  return args.filter(value => typeof value === 'string' && value.length >= 4 && !value.startsWith('-'))
+    .sort((a, b) => b.length - a.length)
+    .reduce((out, value) => out.split(value).join('***'), text)
 }
 
 export function queryNotary(args, run = runMac, env = process.env) {
