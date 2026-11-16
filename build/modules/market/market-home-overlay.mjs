@@ -31,8 +31,10 @@ export function addMarketHome({ settingsTab, locales }) {
   // 版本结果后到再把有新版的卡片翻成「可更新」），用户不用切到「已安装」才知道。
   // 只在这里和发现页的重试上显式带 true：打开详情时的清单读取要等结果才决定
   // 走安装还是详情，不能被更新检查拖慢，所以默认参数不动。
+  // 每次打开市场只查一次（T0081，标记见 market.updates 的 updatesChecked）：
+  // 切回发现页、语言字典变化让 loadInstallations 重建时都不再重查。
   settingsTab = replace(settingsTab, '  const items = useMemo(', `  useEffect(() => {
-    if (view === 'discover') void loadInstallations(true)
+    if (view === 'discover' && !updatesChecked.current && installationsRequest.current === undefined) void loadInstallations(true)
   }, [view, loadInstallations])
 
   const items = useMemo(`)
@@ -298,7 +300,7 @@ const t = ((key:`)
   let race = tests.slice(raceStart, raceEnd)
   race = replace(race, 'vi.mocked(readMarketInstallations)\n', 'vi.mocked(readMarketInstallations)\n      .mockImplementationOnce(() => new Promise(() => {}))\n')
   tests = tests.slice(0, raceStart) + race + tests.slice(raceEnd)
-  // 发现页挂载会先读一次清单给卡片的「+ / ✓」，进入 Installed 还会再做一次更新检查，
+  // 发现页挂载会先读一次清单给卡片的「+ / ✓」，紧接着做这次打开唯一的一次更新检查，
   // 上游这两个按调用次序排夹具的用例因此错位。改成跟着 Host 的当前清单走，断言
   // 只问"重新读过了"，不再钉死次数；产品里的刷新按钮现在叫"检查更新"。
   const bounds = (start, label) => {
@@ -375,12 +377,12 @@ const t = ((key:`)
     "    await waitFor(() => { expect(screen.queryByRole('alert')).toBeNull() })")
   tests = tests.slice(0, flakyStart) + flaky + tests.slice(flakyEnd)
 
-  // 发现页挂载时除了本地清单还会做一次更新检查（卡片「可更新」状态），安装成功后的
-  // 重读排在这两次之后：本地清单、更新检查、安装后重读，共三次。
+  // 发现页挂载时除了本地清单还会做一次更新检查（卡片「可更新」状态）；安装成功后
+  // 重新检查一次（T0081），同样是本地清单 + 更新检查两次读取，共四次。
   const [installStart, installEnd] = bounds("  it('previews an exact package and profile before install", 'install preview')
   let install = tests.slice(installStart, installEnd)
   install = replace(install, '      expect(readMarketInstallations).toHaveBeenCalledTimes(2)',
-    '      expect(readMarketInstallations).toHaveBeenCalledTimes(3)')
+    '      expect(readMarketInstallations).toHaveBeenCalledTimes(4)')
   tests = tests.slice(0, installStart) + install + tests.slice(installEnd)
   return tests
 }

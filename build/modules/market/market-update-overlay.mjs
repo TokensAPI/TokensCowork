@@ -211,31 +211,55 @@ function addUpdatesToRoutes(routes) {
 /** 已安装清单与详情里的更新角标、更新按钮与确认文案。 */
 function addUpdatesToRenderer(settingsTab) {
   // 本地清单先渲染，再去网络查版本；查失败只降级角标，不清空列表。
+  // 更新检查每次打开市场只做一次（T0081）：updatesChecked 记这次打开是否查完了，
+  // 发现页、详情、「已安装」共用这一份结果；只有手动刷新 / 检查更新、安装卸载更新
+  // 成功后才显式传 true 再查。开始检查时先清标记，检查被打断就留着 false 等下次补查。
+  // 不查更新的普通重读（启停之后）沿用已有的版本结果，版本没变就不丢角标。
   settingsTab = replace(settingsTab, '  const loadInstallations = useCallback(async (): Promise<InstallationLoadOutcome | undefined> => {',
-    "  const loadInstallations = useCallback(async (checkUpdates = viewRef.current === 'installed'): Promise<InstallationLoadOutcome | undefined> => {")
+    `  const updatesChecked = useRef(false)
+  const loadInstallations = useCallback(async (checkUpdates = false): Promise<InstallationLoadOutcome | undefined> => {
+    if (checkUpdates) updatesChecked.current = false`)
   settingsTab = replace(settingsTab, `      setInstallations(response.installations)
       setInstallationsLoaded(true)
       setInstallationsUnavailable(false)
-      return { installations: response.installations }`, `      setInstallations(response.installations)
+      return { installations: response.installations }`, `      setInstallations(current => response.installations.map(item => {
+        const known = current.find(old => old.packageName === item.packageName && old.version === item.version)
+        if (known?.updateStatus === undefined) return item
+        return { ...item, updateStatus: known.updateStatus, ...(known.updateVersion === undefined ? {} : { updateVersion: known.updateVersion }) }
+      }))
       setInstallationsLoaded(true)
       setInstallationsUnavailable(false)
       if (!checkUpdates) return { installations: response.installations }
       try {
         const updates = await readMarketInstallations(request.signal, true)
         if (request.signal.aborted || installationsRequest.current !== request) return
+        updatesChecked.current = true
         setInstallations(updates.installations)
         return { installations: updates.installations }
       } catch {
         if (request.signal.aborted || installationsRequest.current !== request) return
+        updatesChecked.current = true
         setInstallationsError(t('updateCheckFailed'))
       }
       return { installations: response.installations }`)
-  // 详情打开时对已安装插件自动检查一次；失败才显示重试。
+  // 详情直接用已有的检查结果；只有这次打开的检查被打断、又没有别的读取在途时才补查一次。
   settingsTab = replace(settingsTab, `      if (installation !== undefined) setSelectedInstallation(installation)
       else beginInstallPreview()`, `      if (installation !== undefined) {
         setSelectedInstallation(installation)
-        if (installation.removable) void loadInstallations(true)
+        if (!updatesChecked.current && installationsRequest.current === undefined) void loadInstallations(true)
       } else beginInstallPreview()`)
+  // 切到「已安装」不再重读：已经查过就用缓存，没查过且没有读取在途才查一次。
+  settingsTab = replace(settingsTab, `      setInstallableLoadingMore(false)
+      void loadInstallations()
+    } else if (next === 'discover') {`, `      setInstallableLoadingMore(false)
+      if (!updatesChecked.current && installationsRequest.current === undefined) void loadInstallations(true)
+    } else if (next === 'discover') {`)
+  // 安装、卸载、更新成功后重新检查一次。
+  settingsTab = replace(settingsTab, `      if (viewRef.current === 'installed' || installationsLoaded) {
+        void loadInstallations()
+      }`, `      if (viewRef.current === 'installed' || installationsLoaded) {
+        void loadInstallations(true)
+      }`)
   settingsTab = replace(settingsTab, `      setInstallations(current => {
         if (result.action === 'install') return current
         return current.filter(installation => installation.packageName !== result.packageName)
@@ -257,7 +281,7 @@ function addUpdatesToRenderer(settingsTab) {
             : 'uninstallPreviewError')))`)
   settingsTab = replace(settingsTab, '            onRetry={() => { setToggleError(undefined); void loadInstallations() }}',
     `            onUpdate={packageName => { void beginOperationPreview({ action: 'update', packageName }) }}
-            onRetry={() => { setToggleError(undefined); void loadInstallations() }}`)
+            onRetry={() => { setToggleError(undefined); void loadInstallations(true) }}`)
   for (const name of ['InstalledView', 'InstallationCard']) {
     const start = settingsTab.indexOf(`function ${name}(`)
     const end = settingsTab.indexOf('\nfunction ', start + 1)
@@ -290,10 +314,11 @@ function addUpdatesToRenderer(settingsTab) {
   // 发现页详情复用原生"已安装"卡片与确认流程，所以更新入口也挂在那里。
   settingsTab = replace(settingsTab, '          installation={selectedInstallation}',
     '          installation={selectedInstallation === undefined ? undefined : matchingInstallation(selected, installations)}')
-  settingsTab = replace(settingsTab, '          inventoryLoading={selectedInventoryLoading}',
-    '          inventoryLoading={selectedInventoryLoading || (selectedInstallation !== undefined && installationsLoading)}')
+  // 详情的加载态只跟详情自己的清单读取走，不绑全局的 installationsLoading（T0081）。
+  // 已安装插件详情里的重试就是手动检查更新；本地清单读失败的重试仍是重新打开详情。
   settingsTab = replace(settingsTab, '          inventoryError={selectedInventoryError}',
-    '          inventoryError={selectedInventoryError ?? (selectedInstallation === undefined ? undefined : installationsError)}\n          onRetryInventory={() => openItem(selected)}')
+    '          inventoryError={selectedInventoryError ?? (selectedInstallation === undefined ? undefined : installationsError)}\n'
+    + '          onRetryInventory={() => { if (selectedInstallation !== undefined) void loadInstallations(true); else openItem(selected) }}')
   settingsTab = replace(settingsTab, `          onUninstall={packageName => {
             selectedKeyRef.current = undefined
             setSelected(undefined)
@@ -438,6 +463,8 @@ describe('product market update UI', () => {
     toggleable: true,
     removable: true,
   }
+  /** 更新检查就是带 updates 标记的那一次读取。 */
+  const checks = () => vi.mocked(readMarketInstallations).mock.calls.filter(([, updates]) => updates === true).length
 
   it('renders local inventory while the update lookup is pending and retains it on failure', async () => {
     vi.mocked(readMarketState).mockResolvedValue(emptyState)
@@ -453,7 +480,8 @@ describe('product market update UI', () => {
     expect(await screen.findByRole('heading', { name: managed.packageName })).toBeTruthy()
     expect(screen.queryByText(en.loadingInstallations)).toBeNull()
     expect(screen.getByRole('button', { name: en.checkingUpdates })).toBeTruthy()
-    expect(readMarketInstallations).toHaveBeenCalledWith(expect.any(AbortSignal), true)
+    // 进入「已安装」时市场打开那次检查还在途：等它，不另起一次。
+    expect(checks()).toBe(1)
     rejectUpdates(new Error('offline'))
     expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
     expect(screen.getByRole('heading', { name: managed.packageName })).toBeTruthy()
@@ -489,6 +517,8 @@ describe('product market update UI', () => {
     expect(screen.getByRole('heading', { name: managed.packageName })).toBeTruthy()
     expect(screen.queryByRole('button', { name: \`\${en.updatePlugin}: \${managed.packageName}\` })).toBeNull()
     expect(screen.getByText(en.upToDate)).toBeTruthy()
+    // 市场打开时查一次，更新成功后再查一次。
+    await waitFor(() => expect(checks()).toBe(2))
   })
 
   it('offers retry for a failed check and no update button for an unavailable one', async () => {
@@ -502,10 +532,10 @@ describe('product market update UI', () => {
     expect(await screen.findByText(en.updateCheckFailed)).toBeTruthy()
     expect(screen.getByText(en.updateUnavailable)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Update:/u })).toBeNull()
-    // 重试要真的再读一次；总次数取决于发现页挂载和进入时的自动检查，不钉死。
-    const reads = vi.mocked(readMarketInstallations).mock.calls.length
+    // 进入「已安装」不重查，用市场打开时那一次；手动「检查更新」才再查一次。
+    expect(checks()).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: en.checkUpdates }))
-    await waitFor(() => expect(vi.mocked(readMarketInstallations).mock.calls.length).toBeGreaterThan(reads))
+    await waitFor(() => expect(checks()).toBe(2))
   })
 })
 `

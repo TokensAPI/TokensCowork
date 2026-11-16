@@ -379,19 +379,80 @@ describe('product Discover home and installed details', () => {
     expect(await screen.findByRole('dialog', { name: en.confirmInstallTitle })).toBeTruthy()
   })
 
-  it('refreshes the marks after switching from Installed and keeps local management usable offline', async () => {
+  it('checks for updates once per opening and again only after a refresh or a successful change', async () => {
+    browse()
+    const fresh = { ...localPlugin, packageName: freshItem.package!.name }
+    let inventory: readonly typeof localPlugin[] = [localPlugin]
+    vi.mocked(readMarketInstallations).mockImplementation(async (_signal, updates) => ({ installations: inventory.map(item =>
+      updates ? { ...item, updateStatus: 'current' as const, updateVersion: item.version } : item) }))
+    vi.mocked(previewMarketOperation).mockResolvedValue({
+      action: 'install', previewId: 'count-install', ...makeOperationTarget({ packageName: fresh.packageName }), expiresAt: '2099-01-01',
+    })
+    vi.mocked(executeMarketOperation).mockImplementation(async () => {
+      inventory = [localPlugin, fresh]
+      return { action: 'install', packageName: fresh.packageName, version: '1.0.0', application: 'applied' }
+    })
+    /** 更新检查就是带 updates 标记的那一次读取。 */
+    const checks = () => vi.mocked(readMarketInstallations).mock.calls.filter(([, updates]) => updates === true).length
+    const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)) })
+    const { unmount } = render(<MarketSettingsTab {...homeProps} />)
+    const card = await screen.findByRole('button', { name: /Installed Card/ })
+    // Opening the market: one check.
+    await waitFor(() => expect(checks()).toBe(1))
+    await settle()
+    // Opening details: none; the details reuse the stored result.
+    fireEvent.click(card)
+    const details = await screen.findByRole('dialog', { name: installedItem.displayName })
+    expect(await within(details).findByText(en.upToDate)).toBeTruthy()
+    await settle()
+    expect(checks()).toBe(1)
+    fireEvent.click(within(details).getByRole('button', { name: en.close }))
+    // Installed, then back to Discover: none.
+    fireEvent.click(screen.getByRole('button', { name: en.installed }))
+    expect(await screen.findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
+    expect(screen.getByText(en.upToDate)).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.checkUpdates })).toBeTruthy()
+    await settle()
+    expect(checks()).toBe(1)
+    // A manual check: +1.
+    fireEvent.click(screen.getByRole('button', { name: en.checkUpdates }))
+    await waitFor(() => expect(checks()).toBe(2))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: en.discover }))
+    await waitFor(() => expect(markOf(screen.getByRole('button', { name: /Installed Card/ }))).toBe('installed'))
+    await settle()
+    expect(checks()).toBe(2)
+    // A successful install: +1.
+    fireEvent.click(screen.getByRole('button', { name: /Fresh Card/ }))
+    const confirmation = await screen.findByRole('dialog', { name: en.confirmInstallTitle })
+    fireEvent.click(within(confirmation).getByRole('button', { name: en.confirmInstall }))
+    expect(await screen.findByText(en.installComplete)).toBeTruthy()
+    await waitFor(() => expect(checks()).toBe(3))
+    await settle()
+    expect(checks()).toBe(3)
+    // Closing and reopening the market: one more.
+    unmount()
+    render(<MarketSettingsTab {...homeProps} />)
+    await screen.findByRole('button', { name: /Installed Card/ })
+    await waitFor(() => expect(checks()).toBe(4))
+    await settle()
+    expect(checks()).toBe(4)
+  })
+
+  it('keeps the checked marks across Installed and Discover and keeps local management usable offline', async () => {
     browse()
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [localPlugin] })
     render(<MarketSettingsTab {...homeProps} />)
     const card = await screen.findByRole('button', { name: /Installed Card/ })
     await waitFor(() => expect(markOf(card)).toBe('installed'))
+    await waitFor(() => expect(readMarketInstallations).toHaveBeenCalledTimes(2))
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
     expect(await screen.findByRole('heading', { name: localPlugin.packageName })).toBeTruthy()
+    // Switching views reuses this opening's inventory instead of reading it again.
     vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [] })
     fireEvent.click(screen.getByRole('button', { name: en.discover }))
-    await waitFor(() => expect(markOf(screen.getByRole('button', { name: /Installed Card/ }))).toBe('install'))
+    expect(markOf(screen.getByRole('button', { name: /Installed Card/ }))).toBe('installed')
     vi.mocked(readMarketState).mockRejectedValue(new Error('market offline'))
-    vi.mocked(readMarketInstallations).mockResolvedValue({ installations: [localPlugin] })
     fireEvent.click(screen.getByRole('button', { name: en.installed }))
     const receipt = (await screen.findByRole('heading', { name: localPlugin.packageName })).closest('article')!
     expect(receipt.className).toBe('dshMarketReceipt')

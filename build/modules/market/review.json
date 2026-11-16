@@ -231,6 +231,15 @@
     },
     {
       "overlays": [
+        "market.updates",
+        "market.discover-home",
+        "market.test-update-ui",
+        "market.test-discover-home"
+      ],
+      "verified": "2026-11-16（T0081）：用户定的规则——更新检查每次打开市场只做一次，发现页、详情、「已安装」共用结果；只有手动刷新 / 检查更新、安装卸载更新成功后、关掉再打开市场才重查；不加有效期、不动服务端、不做后台刷新。实现：market.updates 在 loadInstallations 旁加 updatesChecked 标记（开始检查时清零，检查返回或失败后置位，被打断就保持未查），默认参数改为不查；发现页 effect、切到「已安装」、打开详情都只在「没查过且没有读取在途」时补查；去掉详情里的 loadInstallations(true)，详情加载态不再绑 installationsLoading，详情里的重试改为手动检查；安装、卸载、更新成功后、「检查更新」按钮显式查一次；启停后的普通重读按包名 + 版本沿用已有结果，不丢角标。锚点新增两处（selectMarketView 的 installed 分支、executePreview 成功后的重读），都在 market.updates 内。验证：build-verify market 60 过；overlay-doctor --check exit 0、--doctor 91 条生效；临时 staging 上三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 361 过 9 跳过。新用例按带 updates 标记的读取计数：打开 1、详情 0、「已安装」0、切回发现 0、手动检查 +1、安装成功 +1、关掉再开 +1。遗留：按用户要求未启动桌面端，真机未验收。"
+    },
+    {
+      "overlays": [
         "market.discover-home",
         "market.discover-home-styles",
         "market.test-discover-home"
