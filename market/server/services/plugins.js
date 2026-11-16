@@ -95,10 +95,11 @@ const STAGES = ['all', 'builtin', 'published', 'draft', 'archived', 'deleted']
 const fold = value => String(value).replace(/[A-Z]/gu, letter => letter.toLowerCase())
 
 /**
- * One page of the console's plugin list, filtered on the server: the product's built-in components
- * first (read-only, from product-components.json), then the market's plugins by id. A market row that
- * duplicates a built-in is left out, as the console always did. `counts` are the whole inventory,
- * whatever the filters. A page past the end answers the last page.
+ * One page of the console's plugin list, filtered on the server. The product's built-in components
+ * (read-only, from product-components.json) are listed only under stage=builtin; every other stage,
+ * `all` included, lists the market's own plugins by id. A market row that duplicates a built-in is
+ * left out, as the console always did. `counts` are the whole inventory, whatever the filters, and
+ * `all` counts market plugins only. A page past the end answers the last page.
  */
 export async function pluginPage(request, env, url) {
   const param = name => url.searchParams.get(name) ?? ''
@@ -116,7 +117,7 @@ export async function pluginPage(request, env, url) {
     .map(item => ({ ...item, category: 'builtin', state: 'builtin', productVersion: components.productVersion }))
   const needle = fold(query)
   const found = item => !needle || fold([item.id, item.displayName, item.package, item.summary].filter(Boolean).join(' ')).includes(needle)
-  const shown = ['all', 'builtin'].includes(stage) && visibility !== 'restricted' ? builtins.filter(found) : []
+  const shown = stage === 'builtin' && visibility !== 'restricted' ? builtins.filter(found) : []
 
   const hide = [], hidden = []
   if (builtins.length) {
@@ -152,7 +153,7 @@ export async function pluginPage(request, env, url) {
   const byState = Object.fromEntries(states.map(row => [row.state, row.count]))
   const counts = { all: 0, builtin: builtins.length, published: 0, draft: 0, archived: 0, deleted: 0 }
   for (const state of ['published', 'draft', 'archived', 'deleted']) counts[state] = byState[state] ?? 0
-  counts.all = builtins.length + counts.published + counts.draft + counts.archived
+  counts.all = counts.published + counts.draft + counts.archived
   return { builtins: builtinSlice, rows, total, page, pageSize, counts }
 }
 

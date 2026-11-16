@@ -273,7 +273,8 @@ function renderPlugins() {
   const scope = stage === 'deleted' ? counts.deleted : stage === 'all' ? counts.all : counts[stage]
   $('plugin-result-count').textContent = filtering()
     ? `筛选结果 ${pageTotal} 个${stage === 'deleted' ? '（回收站）' : ''}，本类共 ${scope} 个`
-    : `共 ${pageTotal} 个（含 ${counts.builtin} 个内置组件，不含回收站 ${counts.deleted} 个）`
+    : `共 ${pageTotal} 个（不含回收站 ${counts.deleted} 个）`
+  $('builtin-note').hidden = stage !== 'builtin'
   $('stat-total').textContent = counts.all
   $('stat-optional').textContent = counts.published
   $('stat-restricted').textContent = counts.archived
