@@ -1,19 +1,25 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-11-11",
+  "reviewedAt": "2026-11-16",
   "reviewNote": "会话日志覆盖的登记基线。锚点守护在装配期生效:补丁层出现重复行即中断打包;行为验收见 evidence。升级后不要机械更新基线。",
   "baseline": {
     "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
     "dsh": null,
     "plugins": {
       "tokens-session-log": {
-        "commit": "ddd61e1495437ef944bfac71d42354c32a50d4bc",
-        "version": "0.1.3",
+        "commit": "16cd303a4d11bacf61489a94f27670659d30332b",
+        "version": "0.1.4",
         "artifact": null
       }
     }
   },
   "evidence": [
+    {
+      "overlays": [
+        "sessionlog.disable-upstream-setting"
+      ],
+      "verified": "2026-11-16：随插件 0.1.3 → 0.1.4（16cd303，T0080 去掉设置里的上传开关）复查。插件删掉浏览器端 dsh/client.js，不再注册任何设置项；裸宿主截图里通用设置只剩上游「在使用官方模型 API 时上传 Session Log」，本覆盖仍需保留以隐藏它（启用条件只看产品是否内置该插件，与插件 client 无关）。why 改写为新事实。插件 npm test 无失败、check:host 9/9；publish-npm 通过。"
+    },
     {
       "overlays": [
         "sessionlog.disable-upstream-setting"

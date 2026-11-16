@@ -14,7 +14,7 @@ export default [
     when: ({ product }) => pluginEnabled(product, 'tokens-session-log'),
     files: { patch: d.desktopPatchSource },
     apply: ({ patch }) => ({ patch: disableUpstreamSessionLogSetting(patch) }),
-    why: '上游 Session Log 开关只控制夹带在 DeepSeek 官方模型请求里的上传，产品走 TokensAPI 时不起作用；tokens-session-log 在同一位置（settings.general.item，order 90）注册自己的开关，两行同时出现会让用户以为有两种上传。插件未启用时上游开关保持原样。',
+    why: '上游 Session Log 开关只控制夹带在 DeepSeek 官方模型请求里的上传，产品走 TokensAPI 时不起作用；tokens-session-log 0.1.4 起不再提供界面开关（组织成员默认上传），上游这一行留着会让用户以为上传受它控制。插件未启用时上游开关保持原样。',
     retireWhen: '产品不再内置 tokens-session-log，或上游 Session Log 改为可配置上传地址、不依赖模型适配器时。',
   },
 ]
