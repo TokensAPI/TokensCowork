@@ -272,7 +272,8 @@ async function start(port) {
       let size = 0
       for await (const chunk of incoming) {
         size += chunk.length
-        if (size > (incoming.url === '/v1/session-logs' ? SESSION_LOG_BODY_LIMIT : 65536)) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
+        // The same limits as runtime/server.mjs: an icon or a docs page upload is larger than 64 KB.
+        if (size > (incoming.url === '/v1/session-logs' ? SESSION_LOG_BODY_LIMIT : 1024 * 1024)) { outgoing.writeHead(413); outgoing.end('Request too large'); return }
         chunks.push(chunk)
       }
       const headers = new Headers()
@@ -322,7 +323,7 @@ async function smoke() {
       return response.json()
     }
     assert.equal((await call('/admin/')).status, 200)
-    for (const asset of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-session-logs.js',
+    for (const asset of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-plugin-icon.js', 'market-session-logs.js',
       'market-session-log-detail.js', 'market-session-log-replay.js', 'market-markdown.js', 'market-admin.css']) {
       assert.equal((await call('/admin/assets/' + asset)).status, 200, asset)
     }

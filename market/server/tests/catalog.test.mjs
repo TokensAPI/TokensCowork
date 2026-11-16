@@ -26,8 +26,14 @@ function fixture(t) {
  const call=(path,data,token='fixture-admin',method=data===undefined?'GET':'PUT')=>worker.fetch(new Request('https://market.test'+path,{method,headers:{Origin:'https://market.test',...(token?{Authorization:'Bearer '+token}:{})},...(data===undefined?{}:{body:JSON.stringify(data)})}),env)
  const entry=()=>db.prepare('SELECT * FROM market_plugins WHERE id=?').get(m.id)
  // One helper per REST shape: create is a POST to the collection, edit a PATCH, the rest are lifecycle actions.
- const change=(operation,extra={})=>{
-  if(operation==='create')return call('/api/v1/plugins',{id:m.id,...extra},undefined,'POST')
+ const change=async(operation,extra={})=>{
+  if(operation==='create'){
+   // New plugins start restricted. These cases are about the public catalog, so each new entry is
+   // opened to everyone right away, as an administrator does on purpose (plugin-page.test covers the default).
+   const created=await call('/api/v1/plugins',{id:m.id,...extra},undefined,'POST')
+   if(created.ok)assert.equal((await call(`/api/v1/plugins/${m.id}/access`,{visibility:'public',revision:1})).status,200)
+   return created
+  }
   const data={revision:entry()?.revision,...extra}
   return operation==='edit'?call('/api/v1/plugins/'+m.id,data,undefined,'PATCH'):call(`/api/v1/plugins/${m.id}/${operation}`,data,undefined,'POST')
  }
@@ -297,6 +303,7 @@ test('self-hosted packages publish as public no matter how the Registry itself g
  const hidden={...m,id:'hidden-tool',package:'@fixture-private/new-tool',registry:'tokenscowork'}
  const revision=()=>f.db.prepare('SELECT revision FROM market_plugins WHERE id=?').get(hidden.id).revision
  assert.equal((await f.call('/api/v1/plugins',{id:hidden.id,metadata:hidden},undefined,'POST')).status,200)
+ assert.equal((await f.call(`/api/v1/plugins/${hidden.id}/access`,{visibility:'public',revision:revision()})).status,200)
  assert.equal((await f.call(`/api/v1/plugins/${hidden.id}/publish`,{revision:revision(),confirmPublic:true},undefined,'POST')).status,200)
  assert.equal(f.db.prepare('SELECT visibility FROM market_plugins WHERE id=?').get(hidden.id).visibility,'public')
 })

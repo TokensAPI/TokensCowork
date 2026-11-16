@@ -175,56 +175,69 @@
         "tags": [
           "插件"
         ],
-        "summary": "列出全部插件",
-        "description": "含草稿与回收站，每条带访问配置 `access`；`components` 是应用内置组件（只读）。",
+        "summary": "列出插件（全部、分页或名录）",
+        "description": "三种用法，看查询参数：\n\n- **不带参数**：全部插件，含草稿与回收站，每条带访问配置 `access` 和图标 `icon`；`components` 是应用内置组件（只读）。TokensAPI 和脚本用这个。\n- **带 `page`、`pageSize`、`stage`、`visibility`、`q` 任意一个**：服务端筛选后的一页，内置组件在前，再按 ID 排列市场插件；只为这一页查 npm latest 和授权。`counts` 是整个插件库的数量。后台「插件」页用这个。\n- **`view=index`**：全部市场插件的 ID、名称、状态和访问范围，不查 npm、不带授权。后台的名称显示和插件选择框用这个。",
         "responses": {
           "200": {
-            "description": "插件列表",
+            "description": "插件列表；形状取决于用法",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "publisher",
-                    "components",
-                    "items"
-                  ],
-                  "properties": {
-                    "publisher": {
+                  "oneOf": [
+                    {
                       "type": "object",
+                      "required": [
+                        "publisher",
+                        "components",
+                        "items"
+                      ],
                       "properties": {
-                        "name": {
-                          "type": "string"
+                        "publisher": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          }
                         },
-                        "url": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    "components": {
-                      "type": "object",
-                      "properties": {
-                        "productVersion": {
-                          "type": "string"
+                        "components": {
+                          "type": "object",
+                          "properties": {
+                            "productVersion": {
+                              "type": "string"
+                            },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/Component"
+                              }
+                            }
+                          }
                         },
                         "items": {
                           "type": "array",
                           "items": {
-                            "$ref": "#/components/schemas/Component"
+                            "$ref": "#/components/schemas/Plugin"
                           }
                         }
                       }
                     },
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Plugin"
-                      }
+                    {
+                      "$ref": "#/components/schemas/PluginPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PluginIndex"
                     }
-                  }
+                  ]
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -235,14 +248,93 @@
           "503": {
             "$ref": "#/components/responses/Unavailable"
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "description": "只能是 `index`（名录模式），其他值 400。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "index"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "页码，从 1 开始；超过末页时按末页返回。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "每页条数：10、20（缺省）、50 或 100，其他值 400。",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                10,
+                20,
+                50,
+                100
+              ]
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "required": false,
+            "description": "`all`（缺省，不含回收站）、`builtin`（只看内置组件）、`published`、`draft`、`archived` 或 `deleted`（回收站）。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "builtin",
+                "published",
+                "draft",
+                "archived",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "visibility",
+            "in": "query",
+            "required": false,
+            "description": "`all`（缺省）、`public` 或 `restricted`；内置组件算公开。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "public",
+                "restricted"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "搜索词（最多 100 字），在 ID、名称、包名、简介里包含匹配，英文字母不分大小写。",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       },
       "post": {
         "tags": [
           "插件"
         ],
         "summary": "新建插件",
-        "description": "新建总是草稿、访问范围总是 `public`；草稿不会出现在任何人的目录里。与内置组件同 ID/包名、或 ID 已存在（含回收站）返回 `409`。",
+        "description": "新建总是草稿，访问范围默认 `restricted`（受限）：上架后只有授权的组织、Key 或用户能看到；要公开，调 `PUT /plugins/{pluginId}/access` 改成 `public`，上架时再加 `confirmPublic`。草稿不会出现在任何人的目录里。与内置组件同 ID/包名、或 ID 已存在（含回收站）返回 `409`。",
         "requestBody": {
           "required": true,
           "content": {
@@ -3527,6 +3619,13 @@
                   "null"
                 ],
                 "description": "仅列表：已上架 npm 插件当前的稳定 latest。"
+              },
+              "icon": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "图标地址（同源相对路径，带版本，如 `/v1/icons/example-tool?v=1731740000000`），没有图标为 `null`。插件目录的 `media.icon` 和文档中心用的是同一张图。"
               }
             }
           }
@@ -4313,6 +4412,154 @@
           "updatedAt": {
             "type": "integer",
             "description": "毫秒时间戳，也是公开地址里的版本号"
+          }
+        }
+      },
+      "ListedComponent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Component"
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "const": "builtin"
+              },
+              "productVersion": {
+                "type": "string",
+                "description": "内置它的产品版本。"
+              }
+            }
+          }
+        ]
+      },
+      "PluginPage": {
+        "type": "object",
+        "description": "分页模式：一页插件，内置组件在前（只读），再按插件 ID 排列市场插件。",
+        "required": [
+          "publisher",
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "counts"
+        ],
+        "properties": {
+          "publisher": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Plugin"
+                },
+                {
+                  "$ref": "#/components/schemas/ListedComponent"
+                }
+              ]
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "符合筛选条件的总数。"
+          },
+          "page": {
+            "type": "integer",
+            "description": "实际页码；请求超过末页时为末页。"
+          },
+          "pageSize": {
+            "type": "integer",
+            "enum": [
+              10,
+              20,
+              50,
+              100
+            ]
+          },
+          "counts": {
+            "type": "object",
+            "description": "整个插件库的数量，不受筛选影响。`all` = 内置组件 + 未进回收站的市场插件。",
+            "required": [
+              "all",
+              "builtin",
+              "published",
+              "draft",
+              "archived",
+              "deleted"
+            ],
+            "properties": {
+              "all": {
+                "type": "integer"
+              },
+              "builtin": {
+                "type": "integer"
+              },
+              "published": {
+                "type": "integer"
+              },
+              "draft": {
+                "type": "integer"
+              },
+              "archived": {
+                "type": "integer"
+              },
+              "deleted": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "PluginIndex": {
+        "type": "object",
+        "description": "名录模式（`view=index`）：全部市场插件（含回收站）的 ID、名称和状态，供下拉框与名称显示用，不查 npm、不带授权。",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "displayName",
+                "package",
+                "state",
+                "visibility"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "package": {
+                  "type": "string"
+                },
+                "state": {
+                  "$ref": "#/components/schemas/State"
+                },
+                "visibility": {
+                  "$ref": "#/components/schemas/Visibility"
+                }
+              }
+            }
           }
         }
       }

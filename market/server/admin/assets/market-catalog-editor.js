@@ -129,9 +129,11 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
           : await request('/api/v1/plugins', { id: metadata.id, metadata }, 'POST')
         $('catalog-dialog').close()
         await reload(
-          result.state === 'draft'
-            ? '插件已保存为草稿。配置访问范围并完成检查后，再点击上架。'
-            : '插件信息已保存。',
+          !selected
+            ? '插件已保存为草稿，访问范围默认「受限」：上架后只有授权的组织、Key 或用户能看到。先在「访问范围」里授权，再点击上架。'
+            : result.state === 'draft'
+              ? '插件已保存为草稿。配置访问范围并完成检查后，再点击上架。'
+              : '插件信息已保存。',
         )
       },
       { errorTarget: 'catalog-error' },
@@ -163,7 +165,9 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
     $('lifecycle-description').textContent = {
       publish: isPublic
         ? '此插件将对所有人公开。若仅给指定组织使用，请先取消并配置访问范围。'
-        : '此插件将按已保存的组织或 Key 授权上架。',
+        : ['organizations', 'keys', 'users'].some((kind) => plugin.access?.[kind]?.length)
+          ? '此插件受限，将按已保存的组织、Key 或用户授权上架。'
+          : '此插件受限，还没有授权任何组织、Key 或用户：上架后暂时无人可见，之后在「访问范围」里授权即可。',
       archive:
         '下架后不再出现在市场，也不能通过市场私有下载入口下载。不会卸载用户已经安装的插件。',
       trash:

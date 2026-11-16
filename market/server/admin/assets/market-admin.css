@@ -1607,3 +1607,55 @@ tr.selected td {
   height: 100%;
   object-fit: cover;
 }
+
+/* 插件页：卡片显示上传的图标（与插件市场、文档中心同一张图），图标对话框左右对比当前与保存后。 */
+.plugin-icon.has-image {
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.plugin-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.icon-dialog {
+  width: 560px;
+}
+.icon-compare {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin: 22px 0 8px;
+}
+.icon-compare figure {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.icon-preview {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--soft);
+  overflow: hidden;
+  font-size: 0.8125rem;
+}
+.icon-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.icon-arrow {
+  font-size: 1.25rem;
+}
+#icon-file-info {
+  min-height: 1.4em;
+  text-align: center;
+  font-size: 0.8125rem;
+}

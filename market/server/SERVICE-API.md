@@ -101,7 +101,18 @@
 
 `GET /plugins` → `{ publisher, components, items: [ … ] }`。`components` 是应用内置组件（只读，由客户端发布决定，
 不能上下架也不能配权限）；`items` 是市场管理的插件，每条除资料外还带 `effectiveRegistry`（本实例实际给桌面的来源）
-与 `npmLatestVersion`（已上架 npm 插件当前的稳定 latest）。`GET /plugins/:id` 返回单条：
+与 `npmLatestVersion`（已上架 npm 插件当前的稳定 latest），以及图标地址 `icon`（见「插件图标」，没有为 `null`）。
+
+`GET /plugins` 还有两种用法，看查询参数：
+
+- **分页**：带 `page`、`pageSize`、`stage`、`visibility`、`q` 任意一个 → `{ publisher, items, total, page, pageSize, counts }`。
+  服务端筛选后只返回一页，只为这一页查 npm latest 和授权。`items` 里内置组件在前（`category: "builtin"`、`state: "builtin"`，只读），再按插件 ID 排列市场插件。
+  `stage` 为 `all`（缺省，不含回收站）/ `builtin` / `published` / `draft` / `archived` / `deleted`；`visibility` 为 `all` / `public` / `restricted`（内置组件算公开）；
+  `q` 在 ID、名称、包名、简介里包含匹配（最多 100 字，英文字母不分大小写）；`pageSize` 为 10 / 20（缺省）/ 50 / 100，其他值 `400`；`page` 超过末页时按末页返回。
+  `counts` 是整个插件库的数量 `{ all, builtin, published, draft, archived, deleted }`，不受筛选影响，`all` = 内置组件 + 未进回收站的市场插件。后台「插件」页用这个。
+- **名录**：`view=index` → `{ items: [{ id, displayName, package, state, visibility }] }`，全部市场插件（含回收站），不查 npm、不带授权，给后台的名称显示和插件选择框用。
+
+不带参数时形状不变，TokensAPI 和脚本照旧用。`GET /plugins/:id` 返回单条：
 
 ```json
 {
@@ -129,8 +140,9 @@ POST /api/v1/plugins
   "repository": "https://github.com/TokensAPI/example-tool" } }
 ```
 
-→ `{ "ok": true, "state": "draft", "revision": 1 }`。新建总是草稿、访问范围为 `public`，草稿不会出现在任何人的目录里；
-要做成受限插件，建完再调一次 `PUT /plugins/:id/access`。资料可以先用 `GET /npm-package?name=<包名>` 从 npm 读出来再改。
+→ `{ "ok": true, "state": "draft", "revision": 1 }`。新建总是草稿，草稿不会出现在任何人的目录里。
+**访问范围默认 `restricted`（受限）**：上架后只有授权的组织、Key 或用户能看到（见「访问判定」），一个都没授权就谁也看不到；
+授权或改成公开都用 `PUT /plugins/:id/access`，公开插件上架时还要带 `confirmPublic`。这条默认只管新建，已有插件的访问范围不变。资料可以先用 `GET /npm-package?name=<包名>` 从 npm 读出来再改。
 
 - `npm: true` 时 `registry` 取 `npm`（公开 npm）或 `tokenscowork`（自建仓库），版本跟随稳定 `latest`。
 - `npm: false` 表示 GitHub 来源，必须给 `installSource.commit`（完整 40 位），版本固定不跟随。
@@ -209,7 +221,10 @@ PUT /api/v1/users/102/grants
 - `PUT /plugins/:id/icon` `{ contentType, data }`：上传或替换图标。`contentType` 只能是 `image/png`、`image/jpeg`、`image/webp`，`data` 是图片的 base64，不超过 256 KB；声明的格式必须和文件内容一致，否则 `400`。返回 `{ ok, updatedAt }`。`DELETE` 移除，没有图标时 `404`。
 - 公开地址 `GET /v1/icons/:pluginId`（不需要凭据，`Cache-Control: public, max-age=86400`，`nosniff`）。插件目录 `/v1/plugins` 对有图标的插件带 `media: { icon: { url, alt } }`（上游标准目录的同一个字段，地址带 `?v=<更新时间>`，换图后客户端会重新取），桌面端插件市场直接显示；文档中心 `/v1/docs` 的条目带 `icon`。
 - 桌面端只接受与目录同一个 origin 的 PNG、JPEG、WebP，取回后统一转成固定尺寸的 PNG；SVG 不支持。
-- 每次上传、移除写一条操作记录（`plugin.icon.updated` / `plugin.icon.deleted`）。后台入口在「插件文档」页，选插件后「上传图标」。
+- 每次上传、移除写一条操作记录（`plugin.icon.updated` / `plugin.icon.deleted`）。
+- 只有一份数据：后台插件卡片（`GET /plugins` 的 `icon`）、文档中心（`/v1/docs` 的 `icon`）、桌面端市场卡片（`/v1/plugins` 的 `media.icon`）都指向同一个 `/v1/icons/:pluginId`，地址里的版本相同。
+- 后台入口：「插件」页卡片上的「图标」，或「插件文档」页的「编辑图标」，两处打开同一个对话框（当前图与新图对比预览，可替换、移除）。
+  对话框接受浏览器能显示的常见图片：PNG、JPEG、WebP 在 256 KB 以内原样上传；GIF、SVG、BMP 等其他格式或超过 256 KB 的图片先在浏览器里转成 PNG（最长边 512 像素）再上传，接口本身仍只收这三种格式。
 
 ### 插件文档
 

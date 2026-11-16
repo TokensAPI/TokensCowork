@@ -48,10 +48,13 @@ export async function pluginRow(env, id) {
   const row = await env.MARKET_DB.prepare('SELECT * FROM market_plugins WHERE id=?').bind(id).first()
   return row ? { ...row, metadata: JSON.parse(row.metadata) } : null
 }
-// Who a plugin is granted to, keyed by plugin id. Only restricted plugins consult it.
+// Who a plugin is granted to, keyed by plugin id: every plugin, one id, or a list of ids (one page).
+// Only restricted plugins consult it.
 export async function pluginGrants(env, pluginId = null) {
-  const { results } = await (pluginId
-    ? env.MARKET_DB.prepare('SELECT plugin_id,kind,subject FROM market_grants WHERE plugin_id=? ORDER BY kind,subject').bind(pluginId)
+  const ids = pluginId === null ? null : [pluginId].flat()
+  if (ids && !ids.length) return new Map()
+  const { results } = await (ids
+    ? env.MARKET_DB.prepare(`SELECT plugin_id,kind,subject FROM market_grants WHERE plugin_id IN (${ids.map(() => '?').join(',')}) ORDER BY kind,subject`).bind(...ids)
     : env.MARKET_DB.prepare('SELECT plugin_id,kind,subject FROM market_grants ORDER BY kind,subject')).all()
   const grants = new Map()
   for (const row of results) {
@@ -84,6 +87,84 @@ export async function productComponents(request, env) {
   if (!Array.isArray(result.items)) throw invalid('产品组件清单无效', 503)
   return result
 }
+/** Plugins per page on the console's plugin page. */
+export const PLUGIN_PAGE_SIZES = [10, 20, 50, 100]
+const PLUGIN_PAGE_SIZE = 20
+const STAGES = ['all', 'builtin', 'published', 'draft', 'archived', 'deleted']
+// SQLite's lower() folds ASCII only, so the search folds the same letters and no others.
+const fold = value => String(value).replace(/[A-Z]/gu, letter => letter.toLowerCase())
+
+/**
+ * One page of the console's plugin list, filtered on the server: the product's built-in components
+ * first (read-only, from product-components.json), then the market's plugins by id. A market row that
+ * duplicates a built-in is left out, as the console always did. `counts` are the whole inventory,
+ * whatever the filters. A page past the end answers the last page.
+ */
+export async function pluginPage(request, env, url) {
+  const param = name => url.searchParams.get(name) ?? ''
+  const stage = param('stage') || 'all', visibility = param('visibility') || 'all', query = param('q').trim()
+  if (!STAGES.includes(stage)) throw invalid('阶段筛选无效')
+  if (!['all', 'public', 'restricted'].includes(visibility)) throw invalid('访问范围筛选无效')
+  if (query.length > 100) throw invalid('搜索词最多 100 个字符')
+  const pageSize = Number(param('pageSize') || PLUGIN_PAGE_SIZE)
+  if (!PLUGIN_PAGE_SIZES.includes(pageSize)) throw invalid(`每页条数应为 ${PLUGIN_PAGE_SIZES.join('、')} 之一`)
+  const requested = Number(param('page') || 1)
+  if (!Number.isSafeInteger(requested) || requested < 1) throw invalid('页码无效')
+
+  const components = await productComponents(request, env)
+  const builtins = components.items.filter(item => item?.id)
+    .map(item => ({ ...item, category: 'builtin', state: 'builtin', productVersion: components.productVersion }))
+  const needle = fold(query)
+  const found = item => !needle || fold([item.id, item.displayName, item.package, item.summary].filter(Boolean).join(' ')).includes(needle)
+  const shown = ['all', 'builtin'].includes(stage) && visibility !== 'restricted' ? builtins.filter(found) : []
+
+  const hide = [], hidden = []
+  if (builtins.length) {
+    const marks = list => list.map(() => '?').join(',')
+    const packages = builtins.map(item => item.package).filter(Boolean)
+    hide.push(`id NOT IN (${marks(builtins)})`)
+    hidden.push(...builtins.map(item => item.id))
+    if (packages.length) { hide.push(`ifnull(json_extract(metadata,'$.package'),'') NOT IN (${marks(packages)})`); hidden.push(...packages) }
+  }
+  const where = [...hide], values = [...hidden]
+  if (stage === 'builtin') where.push('0')
+  else if (stage === 'all') where.push("state!='deleted'")
+  else { where.push('state=?'); values.push(stage) }
+  if (visibility !== 'all') { where.push('visibility=?'); values.push(visibility) }
+  if (needle) {
+    where.push(`instr(lower(id||' '||ifnull(json_extract(metadata,'$.displayName'),'')||' '||ifnull(json_extract(metadata,'$.package'),'')||' '||ifnull(json_extract(metadata,'$.summary'),'')),?)>0`)
+    values.push(needle)
+  }
+  const clause = ' WHERE ' + where.join(' AND ')
+  const db = env.MARKET_DB
+  const marketTotal = (await db.prepare('SELECT COUNT(*) AS total FROM market_plugins' + clause).bind(...values).first()).total
+  const total = shown.length + marketTotal
+  const page = Math.min(requested, Math.max(1, Math.ceil(total / pageSize)))
+  const offset = (page - 1) * pageSize
+  const builtinSlice = shown.slice(offset, offset + pageSize)
+  const room = pageSize - builtinSlice.length
+  const rows = room > 0 && marketTotal
+    ? (await db.prepare(`SELECT * FROM market_plugins${clause} ORDER BY id LIMIT ? OFFSET ?`)
+      .bind(...values, room, Math.max(0, offset - shown.length)).all()).results.map(row => ({ ...row, metadata: JSON.parse(row.metadata) }))
+    : []
+  const { results: states } = await db.prepare(`SELECT state,COUNT(*) AS count FROM market_plugins${hide.length ? ' WHERE ' + hide.join(' AND ') : ''} GROUP BY state`)
+    .bind(...hidden).all()
+  const byState = Object.fromEntries(states.map(row => [row.state, row.count]))
+  const counts = { all: 0, builtin: builtins.length, published: 0, draft: 0, archived: 0, deleted: 0 }
+  for (const state of ['published', 'draft', 'archived', 'deleted']) counts[state] = byState[state] ?? 0
+  counts.all = builtins.length + counts.published + counts.draft + counts.archived
+  return { builtins: builtinSlice, rows, total, page, pageSize, counts }
+}
+
+/** Every market plugin's id, name and scope: what the console's name lookups and pickers need, nothing more. */
+export async function pluginIndex(env) {
+  const { results } = await env.MARKET_DB.prepare('SELECT id,visibility,state,metadata FROM market_plugins ORDER BY id').all()
+  return { items: results.map(row => {
+    const m = JSON.parse(row.metadata)
+    return { id: row.id, displayName: m.displayName || row.id, package: m.package ?? '', state: row.state, visibility: row.visibility }
+  }) }
+}
+
 function metadata(value) {
   const plain = (v, max) =>
     text(v, max) &&
@@ -161,9 +242,11 @@ export async function createPlugin(request, env, data, actor) {
   if (await env.MARKET_DB.prepare('SELECT 1 FROM market_plugins WHERE id=?').bind(m.id).first())
     throw invalid('插件 ID 已存在（包括回收站），请选择其他 ID 或恢复原插件', 409)
   await env.MARKET_DB.batch([
-    env.MARKET_DB.prepare("INSERT INTO market_plugins(id,visibility,state,metadata,version_mode,updated_at) VALUES(?,'public','draft',?,?,?)")
+    // A new plugin starts restricted: nobody sees it until it is granted to someone, or until an
+    // administrator deliberately makes it public. Plugins created before this keep their scope.
+    env.MARKET_DB.prepare("INSERT INTO market_plugins(id,visibility,state,metadata,version_mode,updated_at) VALUES(?,'restricted','draft',?,?,?)")
       .bind(m.id, JSON.stringify(m), m.npm ? 'latest' : 'pinned', Date.now()),
-    ...auditStatements(env, 'catalog.created', m.id, { state: 'draft' }, actor),
+    ...auditStatements(env, 'catalog.created', m.id, { state: 'draft', visibility: 'restricted' }, actor),
   ])
   return { ok: true, state: 'draft', revision: 1 }
 }

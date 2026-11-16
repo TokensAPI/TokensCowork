@@ -2,7 +2,7 @@ import { reply } from '../http/response.js'
 import { body, bearer } from '../http/request.js'
 import { resolvePrincipal, isPlatform, login, logout } from '../services/auth.js'
 import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from '../security/admin-login-limit.js'
-import { pluginRows, pluginRow, pluginView, pluginGrants, noGrants, createPlugin, changePlugin, setPluginAccess, subjectGrants, setSubjectGrants, productComponents, publisher, invalid } from '../services/plugins.js'
+import { pluginRows, pluginRow, pluginView, pluginGrants, pluginPage, pluginIndex, noGrants, createPlugin, changePlugin, setPluginAccess, subjectGrants, setSubjectGrants, productComponents, publisher, invalid } from '../services/plugins.js'
 import { listOrganizations, getOrganization, saveOrganization, syncOrganizations, organizationProviderReady, organizationSessionReady, searchUsers, searchOrganizationMembers } from '../services/organizations.js'
 import { organizationPlugins, setOrganizationPlugin } from '../services/access.js'
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
@@ -14,7 +14,7 @@ import { isPrivateNpmReference, privateNpmPackage } from '../private-registry/pa
 import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
-import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon } from '../services/icons.js'
+import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon, iconVersions, iconPath } from '../services/icons.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -70,20 +70,34 @@ async function session(request, env, url, principal) {
   }
 }
 
-async function plugins(request, env) {
-  const [rows, grants, components] = await Promise.all([pluginRows(env), pluginGrants(env), productComponents(request, env)])
+// A plugin row as the console lists it: its effective source, live npm latest, grants and icon.
+// The icon address is the one the catalog and the docs center use, from the same table.
+async function listed(env, rows, grants) {
   const items = rows.map(pluginView)
-  const resolved = await resolveNpmVersions(selectCatalogSources(items, env, true), env)
-  return {
-    publisher, components,
-    items: resolved.map((item, i) => ({ ...item, registry: items[i].registry, effectiveRegistry: item.registry ?? 'npm',
-      access: grants.get(item.id) ?? noGrants() })),
+  const [resolved, icons] = await Promise.all([resolveNpmVersions(selectCatalogSources(items, env, true), env), iconVersions(env)])
+  return resolved.map((item, i) => ({ ...item, registry: items[i].registry, effectiveRegistry: item.registry ?? 'npm',
+    access: grants.get(item.id) ?? noGrants(), icon: icons.has(item.id) ? iconPath(item.id, icons.get(item.id)) : null }))
+}
+// GET /plugins: everything (TokensAPI and scripts, unchanged); with any of page, pageSize, stage,
+// visibility or q, one filtered page for the console; with view=index, names only.
+const PAGE_PARAMS = ['page', 'pageSize', 'stage', 'visibility', 'q']
+async function plugins(request, env, url) {
+  if (url.searchParams.get('view') === 'index') return pluginIndex(env)
+  if (url.searchParams.has('view')) throw invalid('view 只能是 index')
+  if (PAGE_PARAMS.some(name => url.searchParams.has(name))) {
+    const { builtins, rows, total, page, pageSize, counts } = await pluginPage(request, env, url)
+    const market = await listed(env, rows, await pluginGrants(env, rows.map(row => row.id)))
+    return { publisher, items: [...builtins, ...market], total, page, pageSize, counts }
   }
+  const [rows, grants, components] = await Promise.all([pluginRows(env), pluginGrants(env), productComponents(request, env)])
+  return { publisher, components, items: await listed(env, rows, grants) }
 }
 async function plugin(env, id) {
   const row = await pluginRow(env, id)
   if (!row) throw invalid('插件不存在', 404)
-  return { ...pluginView(row), access: (await pluginGrants(env, id)).get(id) ?? noGrants() }
+  const icons = await iconVersions(env)
+  return { ...pluginView(row), access: (await pluginGrants(env, id)).get(id) ?? noGrants(),
+    icon: icons.has(id) ? iconPath(id, icons.get(id)) : null }
 }
 
 async function npmLookup(url, env) {
@@ -117,7 +131,7 @@ async function dispatch(request, env, url, principal) {
     onlyPlatform(principal)
     if (!second) {
       methods(method, ['GET', 'POST'])
-      if (method === 'GET') return plugins(request, env)
+      if (method === 'GET') return plugins(request, env, url)
       const data = await payload(request)
       return createPlugin(request, env, data, actor)
     }

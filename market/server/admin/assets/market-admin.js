@@ -5,12 +5,14 @@ import { usersView } from './market-users.js'
 import { sessionLogsView } from './market-session-logs.js'
 import { docsAdminView } from './market-docs-admin.js'
 import { grantsDialog } from './market-grants.js'
+import { iconDialog } from './market-plugin-icon.js'
 import { marketRequest } from './market-api.js'
-import { mergePlugins, filterPlugins } from './market-model.js'
 
 // The console shell: sign-in, navigation, the plugin page with its access dialog, and the
 // activity log. Organizations, Keys, users and the per-subject grant dialog live in their own
-// modules and share these helpers.
+// modules and share these helpers. The plugin page is paged and filtered on the server; `plugins`
+// is only the name index (every market plugin's id, name, state and scope) that name lookups,
+// grant pickers and the docs page need.
 const $ = (id) => document.getElementById(id)
 const node = (tag, text = '', className = '') => {
   const el = document.createElement(tag)
@@ -42,6 +44,13 @@ let session = null,
   busy = false,
   stage = 'all',
   currentView = 'plugins'
+// The plugin page on screen: one server page, its filters and the inventory counts.
+let pageItems = [],
+  page = 1,
+  pageSize = 20,
+  pageTotal = 0,
+  counts = null,
+  pageRequest = 0
 const platform = () => session?.role === 'platform'
 const allowedViews = () => (platform() ? Object.keys(views) : ['organizations'])
 const pluginName = (id) => plugins.find((p) => p.id === id)?.displayName || id
@@ -115,7 +124,8 @@ const organizations = organizationsView(shared)
 const keys = keysView(shared)
 const users = usersView(shared)
 const sessionLogs = sessionLogsView(shared)
-const docs = docsAdminView({ ...shared, plugins: () => plugins })
+const icons = iconDialog({ $, json, action, isBusy: () => busy })
+const docs = docsAdminView({ ...shared, plugins: () => plugins, icons })
 
 function navigate(view) {
   const open = allowedViews()
@@ -139,15 +149,85 @@ function navigate(view) {
 const builtin = (p) => p.category === 'builtin'
 const restricted = (p) => !builtin(p) && p.visibility === 'restricted'
 const STATES = { builtin: '随应用更新', draft: '草稿', published: '已上架', archived: '已下架', deleted: '回收站' }
+// The plugin's icon where it has one (the same address the catalog and the docs center use),
+// else its first character; a broken image falls back to the character too.
+function pluginIcon(p) {
+  const box = node('div', '', 'plugin-icon')
+  const letter = () => box.replaceChildren(p.displayName.slice(0, 1))
+  if (!p.icon) letter()
+  else {
+    const img = document.createElement('img')
+    img.alt = ''
+    img.src = p.icon
+    img.onerror = letter
+    box.append(img)
+    box.classList.add('has-image')
+  }
+  return box
+}
+const pluginFilters = () => {
+  const query = $('plugin-search').value.trim(), visibility = $('visibility-filter').value
+  return { stage, ...(query ? { q: query } : {}), ...(visibility !== 'all' ? { visibility } : {}) }
+}
+const filtering = () => stage !== 'all' || Object.keys(pluginFilters()).length > 1
+// One page from the server. A slower answer to an older query never overwrites a newer one.
+async function loadPlugins() {
+  const ticket = ++pageRequest
+  const result = await json('/api/v1/plugins?' + new URLSearchParams({ ...pluginFilters(), page: String(page), pageSize: String(pageSize) }))
+  if (ticket !== pageRequest) return
+  pageItems = result.items
+  pageTotal = result.total
+  counts = result.counts
+  // The server answers a page past the end with the last page; follow it.
+  page = result.page
+  pageSize = result.pageSize
+  renderPlugins()
+}
+function goToPage(target) {
+  page = target
+  action(loadPlugins)
+}
+// Filters change the query, so they start again from page 1.
+function refilter() {
+  page = 1
+  action(loadPlugins)
+}
+// 「上一页 1 … 4 5 [6] 7 8 … 20 下一页」, rebuilt from scratch on every load so no stale
+// disabled state survives an action().
+function renderPluginPager() {
+  const pages = Math.max(1, Math.ceil(pageTotal / pageSize))
+  const first = pageTotal ? (page - 1) * pageSize + 1 : 0
+  $('plugin-page').textContent = `第 ${first}-${Math.min(pageTotal, page * pageSize)} 个 · 共 ${pageTotal} 个 · 第 ${page} / ${pages} 页`
+  const numbers = new Set([1, pages])
+  for (let n = page - 2; n <= page + 2; n++) if (n >= 1 && n <= pages) numbers.add(n)
+  const step = (label, target, disabled) => {
+    const el = button(label, () => goToPage(target), 'secondary log-page-step')
+    el.disabled = disabled
+    el.setAttribute('aria-label', label)
+    return el
+  }
+  const controls = [step('上一页', page - 1, page <= 1)]
+  let last = 0
+  for (const n of [...numbers].sort((a, b) => a - b)) {
+    if (n - last > 1) controls.push(node('span', '…', 'log-page-gap muted'))
+    const el = button(String(n), () => goToPage(n), n === page ? 'log-page-number current' : 'quiet log-page-number')
+    el.setAttribute('aria-label', `第 ${n} 页`)
+    if (n === page) el.setAttribute('aria-current', 'page')
+    controls.push(el)
+    last = n
+  }
+  controls.push(step('下一页', page + 1, page >= pages))
+  $('plugin-pager').replaceChildren(...controls)
+  $('plugin-page-size').value = String(pageSize)
+}
 function renderPlugins() {
-  const visible = filterPlugins(plugins, { stage, query: $('plugin-search').value, visibility: $('visibility-filter').value })
-  $('plugin-grid').replaceChildren(...visible.map((p) => {
+  $('plugin-grid').replaceChildren(...pageItems.map((p) => {
     const card = node('article', '', 'plugin-card'),
       top = node('div', '', 'card-top'),
       name = node('div', '', 'card-name')
     name.append(node('h2', p.displayName), node('div', p.package, 'package'))
     top.append(
-      node('div', p.displayName.slice(0, 1), 'plugin-icon'),
+      pluginIcon(p),
       name,
       node('span', builtin(p) ? '内置' : restricted(p) ? '受限' : '公开', 'badge' + (builtin(p) ? ' builtin' : restricted(p) ? ' restricted' : '')),
     )
@@ -176,7 +256,8 @@ function renderPlugins() {
         button('彻底删除', () => editor.transition(p, 'purge', !restricted(p)), 'danger'),
       )
     else {
-      actions.append(button('编辑资料', () => editor.open(p), 'quiet'), button('访问范围', () => openAccess(p)))
+      actions.append(button('编辑资料', () => editor.open(p), 'quiet'), button('图标', () => icons.open(p, reload), 'quiet'),
+        button('访问范围', () => openAccess(p)))
       if (p.state === 'published') actions.append(button('下架', () => editor.transition(p, 'archive', !restricted(p)), 'quiet'))
       else actions.append(
         button('上架', () => editor.transition(p, 'publish', !restricted(p))),
@@ -188,15 +269,17 @@ function renderPlugins() {
     card.append(top, node('p', p.summary, 'description'), summary, bottom)
     return card
   }))
-  const inScope = plugins.filter((p) => (stage === 'deleted' ? p.state === 'deleted' : p.state !== 'deleted'))
-  $('empty').hidden = visible.length > 0
-  $('plugin-result-count').textContent = `显示 ${visible.length} / ${inScope.length} 项${stage === 'deleted' ? '（回收站）' : '（不含回收站）'}`
-  const count = (state) => plugins.filter((p) => p.state === state).length
-  $('stat-total').textContent = plugins.filter((p) => p.state !== 'deleted').length
-  $('stat-optional').textContent = count('published')
-  $('stat-restricted').textContent = count('archived')
-  $('stat-builtin').textContent = count('draft')
-  $('nav-plugins').textContent = plugins.filter((p) => p.state !== 'deleted').length
+  $('empty').hidden = pageItems.length > 0
+  const scope = stage === 'deleted' ? counts.deleted : stage === 'all' ? counts.all : counts[stage]
+  $('plugin-result-count').textContent = filtering()
+    ? `筛选结果 ${pageTotal} 个${stage === 'deleted' ? '（回收站）' : ''}，本类共 ${scope} 个`
+    : `共 ${pageTotal} 个（含 ${counts.builtin} 个内置组件，不含回收站 ${counts.deleted} 个）`
+  $('stat-total').textContent = counts.all
+  $('stat-optional').textContent = counts.published
+  $('stat-restricted').textContent = counts.archived
+  $('stat-builtin').textContent = counts.draft
+  $('nav-plugins').textContent = counts.all
+  renderPluginPager()
 }
 
 // ── Access dialog: scope, organizations, Keys and users, saved in one write ──
@@ -338,6 +421,10 @@ const ACTIONS = {
   'session-log.settings': '设置日志保留期',
   'session-log.purged': '清理过期会话日志',
   'session-log.annotated': '修改会话备注',
+  'plugin.icon.updated': '更新插件图标',
+  'plugin.icon.deleted': '移除插件图标',
+  'plugin.doc.saved': '保存插件文档',
+  'plugin.doc.deleted': '删除插件文档',
 }
 function actorText(actor) {
   if (actor?.kind === 'tenant') return `组织管理员 · 用户 ${actor.id}${actor.organizationId ? ` · 组织 #${actor.organizationId}` : ''}`
@@ -356,6 +443,7 @@ function targetText(event) {
     const [kind, subject] = event.target.split(':')
     return kind === 'org' ? organizations.label(Number(subject)) : kind === 'key' ? keys.label(subject) : users.label(subject)
   }
+  if (event.action.startsWith('plugin.doc.')) return `${pluginName(event.target.split(':')[0])} · 文档 #${event.target.split(':')[1]}`
   if (event.action.startsWith('key.')) return keys.label(event.target)
   if (event.action.startsWith('user.')) return users.label(event.target)
   if (event.action === 'organization.updated') return organizations.label(Number(event.target))
@@ -383,6 +471,8 @@ function renderActivity() {
       facts.push(`创建于 ${formatTime(d.from ?? 0)} 至 ${formatTime(d.to)}`)
     if (event.action === 'session-log.annotated')
       facts.push(d.tags?.length ? `标签：${d.tags.join('、')}` : '无标签', d.note ? '有备注' : '无备注')
+    if (event.action === 'plugin.icon.updated' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
+    if (event.action === 'plugin.doc.saved') facts.push(d.created ? '新增' : '替换')
     if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
     if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')
     if (d.memberCount != null) facts.push(d.memberCount ? `指定 ${d.memberCount} 位成员可见` : '全员可见')
@@ -416,17 +506,18 @@ async function load() {
   if (!platform()) {
     await organizations.lockTo(session.organizationId)
   } else {
-    const [catalog, orgList, keyList, userList, log] = await Promise.all([
-      json('/api/v1/plugins'), json('/api/v1/organizations'), json('/api/v1/keys'), json('/api/v1/users'), json('/api/v1/audit'),
+    const [index, orgList, keyList, userList, log] = await Promise.all([
+      json('/api/v1/plugins?view=index'), json('/api/v1/organizations'), json('/api/v1/keys'), json('/api/v1/users'), json('/api/v1/audit'),
     ])
-    plugins = mergePlugins(catalog)
+    plugins = index.items
     audit = log.items
     organizations.set(orgList)
     keys.set(keyList)
     users.set(userList)
     const privateRegistry = $('catalog-registry').querySelector('option[value="tokenscowork"]')
     if (privateRegistry) privateRegistry.disabled = privateRegistry.hidden = !session.environment.privateRegistryReady
-    renderPlugins()
+    // The page cards read organization names, so the page draws after the directories are in.
+    await loadPlugins()
     renderActivity()
     await organizations.refreshDetail()
   }
@@ -441,8 +532,12 @@ function lock() {
   sessionLogs.clear()
   docs.clear()
   grants.clear()
+  icons.clear()
   session = null
   plugins = []
+  pageItems = []
+  counts = null
+  page = 1
   audit = []
   accessPlugin = null
   for (const id of ['plugin-dialog', 'discard-dialog']) $(id).close()
@@ -476,21 +571,36 @@ $('refresh').onclick = () => action(async () => {
   if (currentView === 'session-logs') await sessionLogs.show()
   if (currentView === 'docs') await docs.show()
 }, { success: '已刷新。' })
-$('plugin-search').oninput = () => session && renderPlugins()
-$('visibility-filter').onchange = () => session && renderPlugins()
+// Typing searches on the server after a short pause. It stays out of action(), which would disable
+// the search box (and drop its focus) for every keystroke's request.
+let searchTimer
+$('plugin-search').oninput = () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (!session) return
+    page = 1
+    loadPlugins().catch((error) => feedback(error.message, 'error'))
+  }, 300)
+}
+$('visibility-filter').onchange = () => session && refilter()
+$('plugin-page-size').onchange = () => {
+  if (!session) return
+  pageSize = Number($('plugin-page-size').value)
+  refilter()
+}
 for (const el of document.querySelectorAll('[data-category]'))
   el.onclick = () => {
     if (busy) return
     stage = el.dataset.category
     document.querySelectorAll('[data-category]').forEach((b) => b.setAttribute('aria-pressed', String(b === el)))
-    if (session) renderPlugins()
+    if (session) refilter()
   }
 $('reset-filters').onclick = () => {
   stage = 'all'
   $('plugin-search').value = ''
   $('visibility-filter').value = 'all'
   document.querySelectorAll('[data-category]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.category === 'all')))
-  renderPlugins()
+  refilter()
 }
 window.addEventListener('hashchange', () => session && navigate(location.hash.slice(1)))
 $('logout').onclick = () => action(async () => {

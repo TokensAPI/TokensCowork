@@ -38,7 +38,7 @@ function fixture(t) {
 
 test('admin pages and public assets are served; source files and old routes are not', async t => {
   const { call } = fixture(t)
-  for (const path of ['/admin/', '/admin/index.html', '/admin/access.html', '/admin/assets/market-admin.js', '/admin/assets/market-api.js', '/admin/assets/market-model.js', '/admin/assets/market-admin.css', '/source.json'])
+  for (const path of ['/admin/', '/admin/index.html', '/admin/access.html', '/admin/assets/market-admin.js', '/admin/assets/market-api.js', '/admin/assets/market-plugin-icon.js', '/admin/assets/market-admin.css', '/source.json'])
     assert.equal((await call(path)).status, 200, path)
   for (const path of ['/admin/organization-ui.js', '/admin/assets/unknown.js', '/%73erver/services/auth.js', '/scripts/schema.sql', '/tests/access.test.mjs', '/%73cripts/schema.sql',
     '/server/market-worker.js', '/server/security/key-vault.js', '/database/migrations/001-market-access.sql', '/ops/market-copy-admin-token.ps1',
@@ -608,6 +608,8 @@ test('a package the Registry gates behind login still distributes once the backe
       : selfHostedMetadata(hidden.package, 'https://registry.example.test/hidden-1.0.0.tgz')
   })
   assert.equal((await admin('/plugins', { id: hidden.id, metadata: hidden }, 'POST')).status, 200)
+  // A new plugin starts restricted; opening it to everyone is the operator's explicit call.
+  assert.equal((await access({ visibility: 'public' }, hidden.id)).status, 200)
   assert.equal((await admin(`/plugins/${hidden.id}/publish`, { revision: revision(hidden.id), confirmPublic: true }, 'POST')).status, 200)
   const path = '/registry/hidden-tool/' + hidden.package
   assert.ok((await (await call('/v1/plugins', undefined, undefined, { 'X-Dsh-Catalog-Registries': 'npm tokenscowork' })).json()).items.some(item => item.id === hidden.id))

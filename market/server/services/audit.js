@@ -7,7 +7,7 @@ const SESSION_LOG = /^[A-Za-z0-9._-]{1,128}:[0-9]{1,6}$/u
 // Every action the market records, the target it names, and the only details it may keep.
 // Explicit allowlists prevent a later call site from accidentally auditing a credential.
 const ACTIONS = {
-  'catalog.created': [PLUGIN, d => ({ state: d.state })],
+  'catalog.created': [PLUGIN, d => ({ state: d.state, ...(d.visibility === 'restricted' ? { visibility: 'restricted' } : {}) })],
   'catalog.edit': [PLUGIN, d => ({ state: d.state })],
   'catalog.publish': [PLUGIN, d => ({ state: d.state })],
   'catalog.archive': [PLUGIN, d => ({ state: d.state })],

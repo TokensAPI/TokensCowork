@@ -151,7 +151,7 @@ export default {
       '/admin/assets/vendor/swagger-ui-bundle.js',
       '/admin/assets/market-admin.js',
       '/admin/assets/market-api.js',
-      '/admin/assets/market-model.js',
+      '/admin/assets/market-plugin-icon.js',
       '/admin/assets/market-admin.css',
       '/admin/assets/market-theme.js',
       '/admin/assets/market-theme.css',
