@@ -540,6 +540,8 @@ main {
   width: 300px;
 }
 .table-scroll {
+  /* Positioned so absolutely placed descendants (.sr-only header text) stay clipped here, not widening the page. */
+  position: relative;
   overflow: auto;
 }
 table {
