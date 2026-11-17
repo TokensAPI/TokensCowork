@@ -193,6 +193,8 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/plugins', '/plugins', 200],
     ['GET', '/plugins?page=1&pageSize=10', '/plugins', 200],
     ['GET', '/plugins?stage=published&visibility=restricted&q=beta', '/plugins', 200],
+    ['GET', '/plugins?kind=builtin', '/plugins', 200],
+    ['GET', '/plugins?kind=plugin', '/plugins', 400],
     ['GET', '/plugins?view=index', '/plugins', 200],
     ['GET', '/plugins?pageSize=7', '/plugins', 400],
     ['GET', '/plugins/beta', '/plugins/{pluginId}', 200],

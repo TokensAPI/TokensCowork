@@ -3,7 +3,7 @@
  * the user to every Key they own. TokensAPI keeps the accounts; the market only records the user
  * number and the name shown here.
  */
-export function usersView({ $, node, button, json, action, reload, pluginName, grants }) {
+export function usersView({ $, node, button, rowActions, json, action, reload, pluginName, grants }) {
   let items = [],
     searchReady = false,
     editing = null
@@ -18,24 +18,21 @@ export function usersView({ $, node, button, json, action, reload, pluginName, g
     const visible = items.filter((user) => `${user.name} ${user.id}`.toLowerCase().includes(query))
     $('user-list').replaceChildren(...visible.map((user) => {
       const row = document.createElement('tr'),
-        actions = node('div', '', 'row-actions'),
         cell = document.createElement('td')
-      actions.append(
-        button('授权插件', () => grants.open(`/api/v1/users/${user.id}`, label(user.id))),
-        button('改名', () => edit(user), 'quiet'),
-        button('移除', () => {
+      cell.append(rowActions(label(user.id), { label: '授权插件', run: () => grants.open(`/api/v1/users/${user.id}`, label(user.id)) }, [
+        { label: '改名', run: () => edit(user) },
+        'divider',
+        { label: '移除', danger: true, run: () => {
           const held = user.plugins.length ? `，并撤掉它的 ${user.plugins.length} 项插件授权` : ''
           if (!confirm(`移除 ${label(user.id)}${held}？`)) return
           action(async () => {
             await json(`/api/v1/users/${user.id}`, undefined, 'DELETE')
             await reload('用户已移除。')
           })
-        }, 'quiet danger'),
-      )
-      cell.append(actions)
-      const plugins = node('td', user.plugins.length ? user.plugins.map(pluginName).join('、') : '—')
-      plugins.style.whiteSpace = 'normal'
-      row.append(node('td', user.name), node('td', String(user.id), 'fingerprint'), plugins, cell)
+        } },
+      ]))
+      const plugins = node('td', user.plugins.length ? user.plugins.map(pluginName).join('、') : '—', 'text-break')
+      row.append(node('td', user.name, 'fw-medium text-break'), node('td', String(user.id), 'font-monospace'), plugins, cell)
       return row
     }))
     $('user-empty').hidden = items.length > 0
@@ -66,10 +63,10 @@ export function usersView({ $, node, button, json, action, reload, pluginName, g
         const pick = button(`${user.name}${user.username && user.username !== user.name ? ' · ' + user.username : ''} (#${user.id})`, () => {
           $('user-id').value = user.id
           $('user-name').value = user.name
-        }, 'quiet')
+        }, 'btn btn-sm')
         return pick
       }))
-      if (!found.items.length) $('user-lookup-results').append(node('p', '没有找到匹配的用户。', 'muted'))
+      if (!found.items.length) $('user-lookup-results').append(node('p', '没有找到匹配的用户。', 'text-secondary m-0'))
     }, { errorTarget: 'user-error' })
   }
   $('user-form').onsubmit = (event) => {

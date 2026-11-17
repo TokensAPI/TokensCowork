@@ -5,939 +5,949 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TokensCowork · 插件管理</title>
     <link rel="icon" type="image/svg+xml" href="/admin/assets/logo-mark.svg" />
-    <link rel="stylesheet" href="/admin/assets/brand.css" />
     <script src="/admin/assets/market-theme.js"></script>
+    <link rel="stylesheet" href="/admin/assets/vendor/tabler/tabler.min.css" />
+    <link rel="stylesheet" href="/admin/assets/brand.css" />
     <link rel="stylesheet" href="/admin/assets/market-admin.css" />
-    <link rel="stylesheet" href="/admin/assets/market-theme.css" />
+    <script src="/admin/assets/vendor/tabler/tabler.min.js" defer></script>
   </head>
-  <body class="signed-out session-pending">
-    <div class="theme-control">
-      <select id="theme-choice" aria-label="主题外观">
-        <option value="system">跟随系统</option>
-        <option value="light">浅色</option>
-        <option value="dark">深色</option>
-      </select>
-    </div>
-    <aside class="sidebar">
-      <a class="brand" href="#plugins"
-        ><span class="brand-mark" aria-hidden="true"><img src="/admin/assets/logo-mark.svg" alt="" /></span
-        ><span>TokensCowork<small>MARKET CONSOLE</small></span></a
-      >
-      <div class="nav-label">工作空间</div>
-      <nav aria-label="后台导航">
-        <a href="#plugins" data-view="plugins"
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="nav-text">插件</span><b id="nav-plugins">—</b></a
-        >
-        <a href="#organizations" data-view="organizations"
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h4M8 11h4M8 15h4M2 21h20"/></svg><span id="nav-org-label" class="nav-text">组织</span><b id="nav-orgs">—</b></a
-        >
-        <a href="#users" data-view="users"
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg><span class="nav-text">用户</span><b id="nav-users">—</b></a
-        >
-        <a href="#keys" data-view="keys"
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20 3M16 7l3 3M14 9l2 2"/></svg><span class="nav-text">Key</span><b id="nav-keys">—</b></a
-        >
-        <a href="#docs" data-view="docs" hidden
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg><span class="nav-text">插件文档</span></a
-        >
-        <a href="#session-logs" data-view="session-logs" hidden
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg><span class="nav-text">会话日志</span></a
-        >
-        <a href="#activity" data-view="activity"
-          ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span class="nav-text">操作记录</span></a
-        >
-      </nav>
-      <div class="sidebar-bottom">
-        <span class="live-dot"></span
-        ><span id="sidebar-environment">服务配置</span>
-        <p>账号与组织来自 TokensAPI</p>
-        <p id="api-docs-link"><a href="/admin/api-docs.html">API 文档</a></p>
-      </div>
-    </aside>
-
-    <main>
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">工作空间 / 插件市场</p>
-          <h1 id="page-title">插件</h1>
-          <p id="page-description" class="muted">
-            管理插件资料、上架状态和访问范围。
-          </p>
-        </div>
-        <div id="session-actions" class="header-actions" hidden>
-          <span id="environment-badge" class="badge">—</span
-          ><button id="refresh" class="secondary">刷新</button
-          ><button id="logout" class="quiet">退出登录</button>
-        </div>
-      </header>
-      <output
-        id="message"
-        popover="manual"
-        hidden
-        class="feedback"
-        role="status"
-        aria-live="polite"
-      ></output>
-
-      <section id="login-panel" class="login-card">
-        <div class="login-brand">
-          <span class="brand-mark" aria-hidden="true"><img src="/admin/assets/logo-mark.svg" alt="" /></span>TokensCowork
-        </div>
-        <p class="eyebrow">插件市场 · 管理控制台</p>
-        <h1>欢迎回来</h1>
-        <p class="muted">登录后管理插件、组织与访问权限。</p>
-        <p id="session-loading" class="notice">正在恢复登录状态…</p>
-        <form id="tenant-login-form">
-          <p class="muted">
-            用你在 TokensAPI 的账号登录：访问令牌在「个人设置 →
-            系统访问令牌」生成，用户 ID 在同一页。只有组织管理员可以登录，且只能配置自己的组织。
-          </p>
-          <label for="tokensapi-user">TokensAPI 用户 ID</label
-          ><input
-            id="tokensapi-user"
-            type="text"
-            inputmode="numeric"
-            pattern="[0-9]+"
-            autocomplete="username"
-            maxlength="12"
-            required
-            placeholder="例如 10086"
-          /><label for="tokensapi-token">TokensAPI 访问令牌</label
-          ><input
-            id="tokensapi-token"
-            type="password"
-            autocomplete="off"
-            maxlength="4096"
-            required
-            placeholder="个人设置 → 系统访问令牌"
-          /><button type="submit">
-            登录 TokensAPI 账号 <span aria-hidden="true">→</span>
+  <body class="session-pending">
+    <div class="page">
+      <aside id="sidebar" class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark" hidden>
+        <div class="container-fluid">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="打开导航">
+            <span class="navbar-toggler-icon"></span>
           </button>
-        </form>
-        <form id="login-form" hidden>
-          <label for="admin-token">后台口令</label
-          ><input
-            id="admin-token"
-            type="password"
-            autocomplete="current-password"
-            maxlength="512"
-            required
-            placeholder="输入后台口令"
-          /><button type="submit">
-            登录管理后台 <span aria-hidden="true">→</span>
-          </button>
-        </form>
-        <p class="login-switch">
-          <button id="login-switch" class="quiet" type="button">改用后台口令登录</button>
-        </p>
-        <p class="login-foot">
-          登录保持 7 天 · 凭证不保存在本地存储 · 账号与组织由 TokensAPI 管理
-        </p>
-      </section>
+          <a class="navbar-brand" href="#plugins"
+            ><img src="/admin/assets/logo-mark.svg" alt="" class="navbar-brand-image" /><span class="brand-name">TokensCowork</span></a
+          >
+          <div id="sidebar-menu" class="collapse navbar-collapse">
+            <ul class="navbar-nav pt-lg-3" aria-label="后台导航">
+              <li class="nav-item">
+                <a class="nav-link" href="#plugins" data-view="plugins"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3a1 1 0 0 0 1 -1v-1a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h1a2 2 0 0 1 0 4h-1a1 1 0 0 0 -1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-1a2 2 0 0 0 -4 0v1a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h1a2 2 0 0 0 0 -4h-1a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1" /></svg></span
+                  ><span class="nav-link-title">插件</span><span id="nav-plugins" class="badge badge-sm ms-auto">—</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#organizations" data-view="organizations"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l5 5v7h-5v-4m0 4h-5v-7l5 -5m1 1v-6a1 1 0 0 1 1 -1h10a1 1 0 0 1 1 1v17h-8" /><path d="M13 7l0 .01" /><path d="M17 7l0 .01" /><path d="M17 11l0 .01" /><path d="M17 15l0 .01" /></svg></span
+                  ><span id="nav-org-label" class="nav-link-title">组织</span><span id="nav-orgs" class="badge badge-sm ms-auto">—</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#users" data-view="users"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg></span
+                  ><span class="nav-link-title">用户</span><span id="nav-users" class="badge badge-sm ms-auto">—</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#keys" data-view="keys"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0" /><path d="M15 9h.01" /></svg></span
+                  ><span class="nav-link-title">Key</span><span id="nav-keys" class="badge badge-sm ms-auto">—</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#docs" data-view="docs" hidden
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M9 9l1 0" /><path d="M9 13l6 0" /><path d="M9 17l6 0" /></svg></span
+                  ><span class="nav-link-title">插件文档</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#session-logs" data-view="session-logs" hidden
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 14l-3 -3h-7a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h9a1 1 0 0 1 1 1v10" /><path d="M14 15v2a1 1 0 0 1 -1 1h-7l-3 3v-10a1 1 0 0 1 1 -1h2" /></svg></span
+                  ><span class="nav-link-title">会话日志</span></a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#activity" data-view="activity"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8l0 4l2 2" /><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" /></svg></span
+                  ><span class="nav-link-title">操作记录</span></a
+                >
+              </li>
+            </ul>
+            <ul class="navbar-nav mt-lg-auto pb-lg-3">
+              <li class="nav-item">
+                <a class="nav-link" href="/admin/api-docs.html"
+                  ><span class="nav-link-icon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h5" /><path d="M12 16v-8h3a2 2 0 0 1 2 2v1a2 2 0 0 1 -2 2h-3" /><path d="M20 8v8" /><path d="M9 16v-5.5a2.5 2.5 0 0 0 -5 0v5.5" /></svg></span
+                  ><span class="nav-link-title">API 文档</span></a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
 
-      <div id="workspace" hidden>
-        <section id="plugins-panel" data-panel="plugins">
-          <div class="section-heading">
-            <p class="muted">
-              插件资料、上架状态和访问范围均在此管理，无需修改代码发布。
-            </p>
-            <button id="new-plugin">新建插件</button>
-          </div>
-          <div class="stats">
-            <div>
-              <span>全部插件</span><b id="stat-total">—</b
-              ><small>不含回收站</small>
-            </div>
-            <div>
-              <span>已上架</span><b id="stat-optional">—</b
-              ><small>用户可按权限访问</small>
-            </div>
-            <div>
-              <span>已下架</span><b id="stat-restricted">—</b
-              ><small>保留资料与授权</small>
-            </div>
-            <div>
-              <span>草稿</span><b id="stat-builtin">—</b
-              ><small>尚未对用户展示</small>
-            </div>
-          </div>
-          <div class="toolbar">
-            <div class="tabs" role="group" aria-label="插件状态">
-              <button data-category="all" aria-pressed="true">全部</button>
-              <button data-category="builtin" aria-pressed="false">内置组件</button>
-              <button data-category="published" aria-pressed="false">
-                已上架
-              </button>
-              <button data-category="draft" aria-pressed="false">草稿</button>
-              <button data-category="archived" aria-pressed="false">
-                已下架
-              </button>
-              <button data-category="deleted" aria-pressed="false">
-                回收站
-              </button>
-            </div>
-            <div class="filter-controls">
-              <input
-                id="plugin-search"
-                type="search"
-                placeholder="搜索插件名称或包名"
-                aria-label="搜索插件"
-              /><select id="visibility-filter" aria-label="访问范围筛选">
-                <option value="all">全部访问范围</option>
-                <option value="public">公开</option>
-                <option value="restricted">受限</option>
+      <div class="page-wrapper">
+        <header class="navbar navbar-expand d-print-none">
+          <div class="container-fluid">
+            <div class="navbar-nav flex-row align-items-center gap-2 ms-auto">
+              <div id="session-actions" class="d-flex align-items-center gap-2" hidden>
+                <span id="environment-badge" class="badge bg-green-lt text-truncate environment-badge">—</span
+                ><button id="refresh" class="btn" type="button" aria-label="刷新"
+                  ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg><span class="d-none d-sm-inline">刷新</span></button
+                ><button id="logout" class="btn btn-ghost-secondary" type="button" aria-label="退出登录"
+                  ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" /><path d="M9 12h12l-3 -3" /><path d="M18 15l3 -3" /></svg><span class="d-none d-sm-inline">退出登录</span></button>
+              </div>
+              <select id="theme-choice" class="form-select w-auto" aria-label="主题外观">
+                <option value="system">跟随系统</option>
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
               </select>
             </div>
           </div>
-          <div class="result-line">
-            <span id="plugin-result-count"></span
-            ><span id="builtin-note" hidden>内置组件随桌面产品发布、由产品清单管理，后台不能修改，也不在「全部」里显示</span>
-          </div>
-          <div id="plugin-grid"></div>
-          <div class="toolbar log-pager-bar">
-            <span id="plugin-page" class="muted"></span>
-            <nav id="plugin-pager" class="log-pager" aria-label="插件列表分页"></nav>
-            <label class="log-page-size muted"
-              >每页<select id="plugin-page-size" aria-label="每页插件数">
-                <option value="10">10</option>
-                <option value="20" selected>20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>个</label
-            >
-          </div>
-          <div id="empty" class="empty panel" hidden>
-            <h3>没有匹配的插件</h3>
-            <p>试试其他关键词，或重置筛选条件。</p>
-            <button id="reset-filters" class="secondary">重置筛选</button>
-          </div>
-          <p class="footnote">
-            访问范围控制本市场的展示与自建 Registry 下载。公开 npm / GitHub
-            包仍可从原地址下载。
-          </p>
-        </section>
+        </header>
+        <output id="message" popover="manual" hidden class="alert alert-important" role="status" aria-live="polite"></output>
 
-        <section id="organizations-panel" data-panel="organizations" hidden>
-          <div id="org-directory" class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>组织名录</h2>
-                <p id="org-directory-note" class="muted"></p>
+        <div id="login-panel" class="page-body">
+          <div class="container container-tight py-4">
+            <div class="text-center mb-4">
+              <span class="navbar-brand"><img src="/admin/assets/logo-mark.svg" alt="" class="navbar-brand-image" /><span class="brand-name">TokensCowork</span></span>
+            </div>
+            <div class="card card-md">
+              <div class="card-body">
+                <h1 class="h2 text-center mb-2">插件市场管理后台</h1>
+                <p class="text-secondary text-center mb-4">登录后管理插件、组织与访问权限。</p>
+                <p id="session-loading" class="text-secondary text-center">正在恢复登录状态…</p>
+                <form id="tenant-login-form">
+                  <p class="text-secondary">
+                    用你在 TokensAPI 的账号登录：访问令牌在「个人设置 → 系统访问令牌」生成，用户 ID 在同一页。只有组织管理员可以登录，且只能配置自己的组织。
+                  </p>
+                  <div class="mb-3">
+                    <label class="form-label" for="tokensapi-user">TokensAPI 用户 ID</label
+                    ><input id="tokensapi-user" class="form-control" type="text" inputmode="numeric" pattern="[0-9]+" autocomplete="username" maxlength="12" required placeholder="例如 10086" />
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label" for="tokensapi-token">TokensAPI 访问令牌</label
+                    ><input id="tokensapi-token" class="form-control" type="password" autocomplete="off" maxlength="4096" required placeholder="个人设置 → 系统访问令牌" />
+                  </div>
+                  <div class="form-footer"><button class="btn btn-primary w-100" type="submit">登录 TokensAPI 账号</button></div>
+                </form>
+                <form id="login-form" hidden>
+                  <div class="mb-3">
+                    <label class="form-label" for="admin-token">后台口令</label
+                    ><input id="admin-token" class="form-control" type="password" autocomplete="current-password" maxlength="512" required placeholder="输入后台口令" />
+                  </div>
+                  <div class="form-footer"><button class="btn btn-primary w-100" type="submit">登录管理后台</button></div>
+                </form>
               </div>
-              <div class="button-row">
-                <button id="new-organization" class="secondary">手动登记</button
-                ><button id="sync-organizations">同步组织</button>
+              <div class="card-body pt-0">
+                <button id="login-switch" class="btn w-100" type="button">改用后台口令登录</button>
               </div>
             </div>
-            <div class="toolbar">
-              <input
-                id="org-search"
-                type="search"
-                placeholder="搜索组织名称或 ID"
-                aria-label="搜索组织名录"
-              />
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="组织名录表格">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">组织</th>
-                    <th scope="col">组织 ID</th>
-                    <th scope="col">组织授权</th>
-                    <th scope="col">状态</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="organization-list"></tbody>
-              </table>
-            </div>
-            <p id="org-empty" class="empty" hidden>
-              暂无组织。可同步 TokensAPI 名录或手动登记。
-            </p>
+            <p class="text-center text-secondary mt-3">登录保持 7 天 · 凭证不保存在本地存储 · 账号与组织由 TokensAPI 管理</p>
           </div>
-          <div id="org-detail" class="panel" hidden>
-            <div class="section-heading">
-              <div>
-                <h2 id="org-detail-title">组织</h2>
-                <p class="muted">
-                  公开插件对所有人可见，不受这里约束。平台授权给本组织的插件默认本组织全员可见，可在这里关闭，或指定只给哪些成员；只影响本组织。
-                </p>
-              </div>
-              <button id="org-back" class="secondary">返回组织名录</button>
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="组织可用插件">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">插件</th>
-                    <th scope="col">来源</th>
-                    <th scope="col">本组织成员</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="org-plugin-list"></tbody>
-              </table>
-            </div>
-            <p id="org-plugin-empty" class="empty" hidden>
-              暂无本组织可用的插件。
-            </p>
-          </div>
-        </section>
+        </div>
 
-        <section id="keys-panel" data-panel="keys" hidden>
-          <div class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>Key 名录</h2>
-                <p id="keys-note" class="muted"></p>
-              </div>
-              <button id="new-key">登记 Key</button>
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="Key 名录表格">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">备注</th>
-                    <th scope="col">API Key</th>
-                    <th scope="col">授权插件</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="key-list"></tbody>
-              </table>
-            </div>
-            <p id="key-empty" class="empty" hidden>
-              暂无登记的 Key。登记后可在插件的「访问范围」里直接勾选。
-            </p>
-          </div>
-        </section>
-
-        <section id="users-panel" data-panel="users" hidden>
-          <div class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>用户名录</h2>
-                <p id="users-note" class="muted"></p>
-              </div>
-              <button id="new-user">添加用户</button>
-            </div>
-            <div class="toolbar">
-              <input
-                id="user-directory-search"
-                type="search"
-                placeholder="搜索用户名称或 ID"
-                aria-label="搜索用户名录"
-              />
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="用户名录表格">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">用户</th>
-                    <th scope="col">用户 ID</th>
-                    <th scope="col">授权插件</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="user-list"></tbody>
-              </table>
-            </div>
-            <p id="user-empty" class="empty" hidden>
-              暂无用户。添加后可单独给该用户授权插件，对其名下所有 Key 生效。
-            </p>
-          </div>
-        </section>
-
-        <section id="docs-panel" data-panel="docs" hidden>
-          <div class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>插件文档</h2>
-                <p class="muted">
-                  插件图标用 PNG、JPEG 或 WebP（建议正方形，256 KB 以内），会显示在 TokensCowork 插件市场的卡片和文档中心里。
-                  上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇。标题取文件里第一个一级标题，没有就用文件名。用户在
-                  文档中心（/docs）用自己的 TokensAPI Key 登录，只看到有权限的插件；从这里「打开文档中心」以管理员身份查看，能看到全部插件。
-                </p>
-              </div>
-              <div class="header-actions">
-                <button id="docs-open-center" class="secondary" type="button">打开文档中心</button>
-                <button id="docs-upload" type="button">上传 Markdown</button>
-              </div>
-            </div>
-            <div class="toolbar">
-              <select id="docs-plugin" aria-label="选择插件"></select>
-              <span class="docs-icon-preview" aria-hidden="true"><img id="docs-icon" alt="" hidden /></span>
-              <button id="docs-icon-edit" class="secondary" type="button">编辑图标</button>
-              <input id="docs-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="插件文档表格">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">标题</th>
-                    <th scope="col">排序</th>
-                    <th scope="col">长度</th>
-                    <th scope="col">更新于</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="docs-list"></tbody>
-              </table>
-            </div>
-            <p id="docs-empty" class="empty" hidden>这个插件还没有文档，点「上传 Markdown」添加。</p>
-          </div>
-        </section>
-
-        <section id="session-logs-panel" data-panel="session-logs" hidden>
-          <div id="session-log-browser" class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>会话列表</h2>
-                <p id="session-logs-note" class="muted"></p>
-              </div>
-              <form id="session-log-settings" class="filter-controls">
-                <label for="session-log-retention" class="muted">保留天数</label
-                ><input id="session-log-retention" type="number" min="1" max="36500" step="1" placeholder="永久" aria-describedby="session-log-retention-note"
-                /><button type="submit" class="secondary">保存</button>
-              </form>
-            </div>
-            <p class="notice">
-              日志<b>不脱敏</b>，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情都会写一条操作记录。
-              「上报账号」是客户端自己报的，<b>未核验</b>；上传所带的 Key 加密保存，这里显示完整 Key。
-              <span id="session-log-key-note" hidden><b>未配置 Key 加密，未保存原文</b>（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹。</span>
-              <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
-            </p>
-            <form id="session-log-filters" class="log-filters">
-              <input id="session-log-account" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" />
-              <input id="session-log-session" type="search" placeholder="会话 ID（完整）" aria-label="按会话 ID 筛选" />
-              <input id="session-log-key" type="search" placeholder="Key（可只填开头）" aria-label="按 Key 筛选" />
-              <input id="session-log-tag" type="search" placeholder="标签" aria-label="按标签筛选" maxlength="32" />
-              <input id="session-log-version" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" />
-              <input id="session-log-model" type="search" placeholder="模型" aria-label="按模型筛选" />
-              <label class="log-date">创建于<input id="session-log-from" type="date" aria-label="会话创建时间起（含）" /></label>
-              <label class="log-date">至<input id="session-log-to" type="date" aria-label="会话创建时间止（含）" /></label>
-              <div class="filter-controls">
-                <button type="submit">筛选</button
-                ><button id="session-log-reset" type="button" class="quiet">重置</button>
-              </div>
-            </form>
-            <div id="session-log-bulk" class="toolbar log-bulk">
-              <span id="session-log-selected" class="muted" aria-live="polite"></span>
-              <div id="session-log-bulk-actions" class="filter-controls"></div>
-            </div>
-            <div class="table-scroll" tabindex="0" role="region" aria-label="会话日志表格">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col" class="log-check"><input id="session-log-select-all" type="checkbox" aria-label="全选本页" /></th>
-                    <th scope="col">会话</th>
-                    <th scope="col">上报账号（未核验）</th>
-                    <th scope="col">Key</th>
-                    <th scope="col">模型 · token</th>
-                    <th scope="col">事件</th>
-                    <th scope="col">标签 · 备注</th>
-                    <th scope="col">时间</th>
-                    <th scope="col"><span class="sr-only">操作</span></th>
-                  </tr>
-                </thead>
-                <tbody id="session-log-list"></tbody>
-              </table>
-            </div>
-            <p id="session-log-empty" class="empty" hidden>暂无会话日志。</p>
-            <div class="toolbar log-pager-bar">
-              <span id="session-log-page" class="muted"></span>
-              <nav id="session-log-pager" class="log-pager" aria-label="会话列表分页"></nav>
-              <label class="log-page-size muted"
-                >每页<select id="session-log-page-size" aria-label="每页条数">
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="50" selected>50</option>
-                  <option value="100">100</option>
-                </select>条</label
-              >
-            </div>
-          </div>
-          <div id="session-log-detail" class="panel" hidden>
-            <div class="section-heading">
-              <div>
-                <h2 id="session-log-title">会话</h2>
-                <p id="session-log-meta" class="muted fingerprint"></p>
-              </div>
-              <div class="row-actions">
-                <button id="session-log-parent" type="button" class="secondary" hidden>打开父会话</button
-                ><button id="session-log-back" type="button" class="quiet">返回列表</button>
-              </div>
-            </div>
-            <div id="session-log-overview" class="log-overview"></div>
-            <div class="toolbar log-view-bar">
-              <div class="tabs" role="tablist" aria-label="会话视图">
-                <button id="session-log-tab-conversation" type="button" role="tab" aria-controls="session-log-conversation" aria-pressed="true" aria-selected="true">对话</button
-                ><button id="session-log-tab-raw" type="button" role="tab" aria-controls="session-log-raw" aria-pressed="false" aria-selected="false">原始 JSON</button>
-              </div>
-              <span id="session-log-loaded" class="muted"></span>
-              <span id="session-log-fold-row" class="row-actions"
-                ><button id="session-log-expand-all" type="button" class="quiet log-toggle">全部展开</button
-                ><button id="session-log-collapse-all" type="button" class="quiet log-toggle">全部收起</button></span
-              >
-              <label id="session-log-internal-row" class="log-switch"><input id="session-log-internal" type="checkbox" /> 显示内部事件</label>
-            </div>
-            <div id="session-log-conversation" role="tabpanel" aria-labelledby="session-log-tab-conversation">
-              <div id="session-log-turns" class="log-turns"></div>
-              <p id="session-log-timeline-empty" class="empty" hidden>这个会话没有可显示的事件。</p>
-            </div>
-            <div id="session-log-raw" role="tabpanel" aria-labelledby="session-log-tab-raw" hidden>
-              <div class="toolbar">
-                <span id="session-log-raw-size" class="muted"></span>
-                <div class="row-actions">
-                  <button id="session-log-download-json" type="button" class="secondary">下载 JSON</button
-                  ><button id="session-log-download-jsonl" type="button" class="secondary">下载 JSONL</button
-                  ><button id="session-log-copy" type="button" class="secondary">复制</button>
+        <div id="workspace" hidden>
+          <div class="page-header d-print-none">
+            <div class="container-fluid">
+              <div class="row g-2 align-items-center">
+                <div class="col">
+                  <div class="page-pretitle">插件市场</div>
+                  <h2 id="page-title" class="page-title">插件</h2>
+                  <div id="page-description" class="text-secondary mt-1"></div>
+                </div>
+                <div class="col-12 col-md-auto ms-auto d-print-none">
+                  <div class="btn-list" data-actions="plugins">
+                    <button id="new-plugin" class="btn btn-primary" type="button"
+                      ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>新建插件</button
+                    >
+                  </div>
+                  <div class="btn-list" data-actions="organizations" hidden>
+                    <button id="new-organization" class="btn" type="button">手动登记</button
+                    ><button id="sync-organizations" class="btn btn-primary" type="button">同步组织</button>
+                  </div>
+                  <div class="btn-list" data-actions="keys" hidden>
+                    <button id="new-key" class="btn btn-primary" type="button"
+                      ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>登记 Key</button
+                    >
+                  </div>
+                  <div class="btn-list" data-actions="users" hidden>
+                    <button id="new-user" class="btn btn-primary" type="button"
+                      ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>添加用户</button
+                    >
+                  </div>
+                  <div class="btn-list" data-actions="docs" hidden>
+                    <button id="docs-open-center" class="btn" type="button">打开文档中心</button
+                    ><button id="docs-upload" class="btn btn-primary" type="button">上传 Markdown</button>
+                  </div>
+                  <form id="session-log-settings" class="d-flex align-items-center gap-2" data-actions="session-logs" hidden>
+                    <label for="session-log-retention" class="text-secondary text-nowrap">保留天数</label
+                    ><input id="session-log-retention" class="form-control retention-input" type="number" min="1" max="36500" step="1" placeholder="永久" aria-describedby="session-log-retention-note" /><button type="submit" class="btn">保存</button>
+                  </form>
                 </div>
               </div>
-              <pre id="session-log-raw-text" class="log-raw"></pre>
-              <div id="session-log-raw-sentinel" aria-hidden="true"></div>
-              <button id="session-log-raw-more" type="button" class="secondary" hidden>显示更多</button>
             </div>
           </div>
-        </section>
 
-        <section id="activity-panel" data-panel="activity" hidden>
-          <div class="panel">
-            <div class="section-heading">
-              <div>
-                <h2>最近操作</h2>
-                <p class="muted">
-                  显示最近 100 条管理变更，服务端最多保留 5000 条，不记录 API Key 明文。
-                </p>
+          <div class="page-body">
+            <div class="container-fluid">
+              <section id="plugins-panel" data-panel="plugins">
+                <div class="card">
+                  <div class="card-header flex-wrap gap-2">
+                    <ul class="nav nav-tabs card-header-tabs" aria-label="插件状态">
+                      <li class="nav-item"><button class="nav-link" type="button" data-stage="all">全部<span class="badge ms-2" data-count="all">—</span></button></li>
+                      <li class="nav-item"><button class="nav-link" type="button" data-stage="published">已上架<span class="badge ms-2" data-count="published">—</span></button></li>
+                      <li class="nav-item"><button class="nav-link" type="button" data-stage="draft">草稿<span class="badge ms-2" data-count="draft">—</span></button></li>
+                      <li class="nav-item"><button class="nav-link" type="button" data-stage="archived">已下架<span class="badge ms-2" data-count="archived">—</span></button></li>
+                      <li class="nav-item"><button class="nav-link" type="button" data-stage="deleted">回收站<span class="badge ms-2" data-count="deleted">—</span></button></li>
+                    </ul>
+                    <div class="card-actions btn-group" role="group" aria-label="列表视图">
+                      <button class="btn btn-sm" type="button" data-plugin-view="table"
+                        ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /><path d="M3 10h18" /><path d="M10 3v18" /></svg>表格</button
+                      ><button class="btn btn-sm" type="button" data-plugin-view="cards"
+                        ><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /><path d="M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /><path d="M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /><path d="M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /></svg>卡片</button
+                      >
+                    </div>
+                  </div>
+                  <div class="card-body border-bottom py-3">
+                    <div class="row g-2 align-items-center">
+                      <div class="col-12 col-md">
+                        <div class="input-icon">
+                          <span class="input-icon-addon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></span
+                          ><input id="plugin-search" class="form-control" type="search" placeholder="搜索名称、包名、ID 或简介" aria-label="搜索插件" />
+                        </div>
+                      </div>
+                      <div class="col-6 col-md-auto">
+                        <select id="plugin-kind" class="form-select" aria-label="插件类型">
+                          <option value="all">全部类型</option>
+                          <option value="market">市场插件</option>
+                          <option value="builtin">内置组件</option>
+                        </select>
+                      </div>
+                      <div class="col-6 col-md-auto">
+                        <select id="visibility-filter" class="form-select" aria-label="访问范围">
+                          <option value="all">全部访问范围</option>
+                          <option value="public">公开</option>
+                          <option value="restricted">受限</option>
+                        </select>
+                      </div>
+                      <div class="col-12 col-md-auto">
+                        <button id="plugin-reset" class="btn w-100" type="button">重置</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="plugin-table" class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">插件</th>
+                          <th scope="col">版本</th>
+                          <th scope="col">状态</th>
+                          <th scope="col">访问范围</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="plugin-rows"></tbody>
+                    </table>
+                  </div>
+                  <div id="plugin-cards" class="card-body plugin-cards" hidden></div>
+                  <div id="plugin-empty" class="empty" hidden>
+                    <p class="empty-title">没有匹配的插件</p>
+                    <p class="empty-subtitle text-secondary">换个关键词，或重置筛选条件。</p>
+                  </div>
+                  <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                    <p id="plugin-page" class="m-0 text-secondary"></p>
+                    <ul id="plugin-pager" class="pagination m-0 ms-auto" aria-label="插件列表分页"></ul>
+                    <label class="d-flex align-items-center gap-2 text-secondary text-nowrap"
+                      >每页<select id="plugin-page-size" class="form-select form-select-sm w-auto" aria-label="每页插件数">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>个</label
+                    >
+                  </div>
+                </div>
+              </section>
+
+              <section id="organizations-panel" data-panel="organizations" hidden>
+                <div id="org-directory" class="card">
+                  <div class="card-body border-bottom py-3">
+                    <div class="input-icon">
+                      <span class="input-icon-addon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></span
+                      ><input id="org-search" class="form-control" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索组织名录" />
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">组织</th>
+                          <th scope="col">组织 ID</th>
+                          <th scope="col">组织授权</th>
+                          <th scope="col">状态</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="organization-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="org-empty" class="empty" hidden>
+                    <p class="empty-title">暂无组织</p>
+                    <p class="empty-subtitle text-secondary">可同步 TokensAPI 名录或手动登记。</p>
+                  </div>
+                  <div id="org-directory-note" class="card-footer text-secondary"></div>
+                </div>
+                <div id="org-detail" class="card" hidden>
+                  <div class="card-header">
+                    <div>
+                      <h3 id="org-detail-title" class="card-title">组织</h3>
+                      <p class="card-subtitle">公开插件对所有人可见，不受这里约束。平台授权给本组织的插件默认本组织全员可见，可在这里关闭，或指定只给哪些成员；只影响本组织。</p>
+                    </div>
+                    <div class="card-actions"><button id="org-back" class="btn" type="button">返回组织名录</button></div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">插件</th>
+                          <th scope="col">来源</th>
+                          <th scope="col">本组织成员</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="org-plugin-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="org-plugin-empty" class="empty" hidden><p class="empty-title">暂无本组织可用的插件</p></div>
+                </div>
+              </section>
+
+              <section id="keys-panel" data-panel="keys" hidden>
+                <div class="card">
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">备注</th>
+                          <th scope="col">API Key</th>
+                          <th scope="col">授权插件</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="key-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="key-empty" class="empty" hidden>
+                    <p class="empty-title">暂无登记的 Key</p>
+                    <p class="empty-subtitle text-secondary">登记后可在插件的「访问范围」里直接勾选。</p>
+                  </div>
+                  <div id="keys-note" class="card-footer text-secondary"></div>
+                </div>
+              </section>
+
+              <section id="users-panel" data-panel="users" hidden>
+                <div class="card">
+                  <div class="card-body border-bottom py-3">
+                    <div class="input-icon">
+                      <span class="input-icon-addon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></span
+                      ><input id="user-directory-search" class="form-control" type="search" placeholder="搜索用户名称或 ID" aria-label="搜索用户名录" />
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">用户</th>
+                          <th scope="col">用户 ID</th>
+                          <th scope="col">授权插件</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="user-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="user-empty" class="empty" hidden>
+                    <p class="empty-title">暂无用户</p>
+                    <p class="empty-subtitle text-secondary">添加后可单独给该用户授权插件，对其名下所有 Key 生效。</p>
+                  </div>
+                  <div id="users-note" class="card-footer text-secondary"></div>
+                </div>
+              </section>
+
+              <section id="docs-panel" data-panel="docs" hidden>
+                <div class="card">
+                  <div class="card-body border-bottom py-3">
+                    <div class="row g-2 align-items-center">
+                      <div class="col-12 col-md">
+                        <select id="docs-plugin" class="form-select" aria-label="选择插件"></select>
+                      </div>
+                      <div class="col-auto">
+                        <span class="avatar rounded" aria-hidden="true"><img id="docs-icon" alt="" hidden /></span>
+                      </div>
+                      <div class="col">
+                        <button id="docs-icon-edit" class="btn" type="button">编辑图标</button>
+                      </div>
+                    </div>
+                    <input id="docs-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+                    <p class="form-hint mb-0 mt-2">
+                      插件图标会显示在 TokensCowork 插件市场的卡片和文档中心里。文档上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇；标题取文件里第一个一级标题，没有就用文件名。用户在文档中心（/docs）用自己的 TokensAPI Key 登录，只看到有权限的插件；「打开文档中心」以管理员身份查看全部插件。
+                    </p>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">标题</th>
+                          <th scope="col">排序</th>
+                          <th scope="col">长度</th>
+                          <th scope="col">更新于</th>
+                          <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                        </tr>
+                      </thead>
+                      <tbody id="docs-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="docs-empty" class="empty" hidden>
+                    <p class="empty-title">这个插件还没有文档</p>
+                    <p class="empty-subtitle text-secondary">点右上角「上传 Markdown」添加。</p>
+                  </div>
+                </div>
+              </section>
+
+              <section id="session-logs-panel" data-panel="session-logs" hidden>
+                <div id="session-log-browser">
+                  <div class="alert alert-warning">
+                    日志<b>不脱敏</b>，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情都会写一条操作记录。
+                    「上报账号」是客户端自己报的，<b>未核验</b>；上传所带的 Key 加密保存，这里显示完整 Key。
+                    <span id="session-log-key-note" hidden><b>未配置 Key 加密，未保存原文</b>（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹。</span>
+                    <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
+                  </div>
+                  <div class="card">
+                    <form id="session-log-filters" class="card-body border-bottom py-3">
+                      <div class="row g-2">
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-account" class="form-control" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-session" class="form-control" type="search" placeholder="会话 ID（完整）" aria-label="按会话 ID 筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-key" class="form-control" type="search" placeholder="Key（可只填开头）" aria-label="按 Key 筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-tag" class="form-control" type="search" placeholder="标签" aria-label="按标签筛选" maxlength="32" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-version" class="form-control" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-model" class="form-control" type="search" placeholder="模型" aria-label="按模型筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                          <div class="input-group">
+                            <span class="input-group-text">创建于</span><input id="session-log-from" class="form-control" type="date" aria-label="会话创建时间起（含）" />
+                          </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
+                          <div class="input-group">
+                            <span class="input-group-text">至</span><input id="session-log-to" class="form-control" type="date" aria-label="会话创建时间止（含）" />
+                          </div>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap gap-2">
+                          <button type="submit" class="btn btn-primary">筛选</button
+                          ><button id="session-log-reset" type="button" class="btn">重置</button>
+                          <span class="ms-auto d-flex flex-wrap align-items-center gap-2">
+                            <span id="session-log-selected" class="text-secondary" aria-live="polite"></span>
+                            <span id="session-log-bulk-actions" class="btn-list"></span>
+                          </span>
+                        </div>
+                      </div>
+                    </form>
+                    <div class="table-responsive">
+                      <table class="table card-table table-vcenter">
+                        <thead>
+                          <tr>
+                            <th scope="col" class="w-1"><input id="session-log-select-all" class="form-check-input m-0 align-middle" type="checkbox" aria-label="全选本页" /></th>
+                            <th scope="col">会话</th>
+                            <th scope="col">上报账号（未核验）</th>
+                            <th scope="col">Key</th>
+                            <th scope="col">模型 · token</th>
+                            <th scope="col">事件</th>
+                            <th scope="col">标签 · 备注</th>
+                            <th scope="col">时间</th>
+                            <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
+                          </tr>
+                        </thead>
+                        <tbody id="session-log-list"></tbody>
+                      </table>
+                    </div>
+                    <div id="session-log-empty" class="empty" hidden><p class="empty-title">暂无会话日志</p></div>
+                    <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+                      <p id="session-log-page" class="m-0 text-secondary"></p>
+                      <ul id="session-log-pager" class="pagination m-0 ms-auto" aria-label="会话列表分页"></ul>
+                      <label class="d-flex align-items-center gap-2 text-secondary text-nowrap"
+                        >每页<select id="session-log-page-size" class="form-select form-select-sm w-auto" aria-label="每页条数">
+                          <option value="10">10</option>
+                          <option value="20">20</option>
+                          <option value="50" selected>50</option>
+                          <option value="100">100</option>
+                        </select>条</label
+                      >
+                    </div>
+                  </div>
+                </div>
+                <div id="session-log-detail" class="card" hidden>
+                  <div class="card-header flex-wrap gap-2">
+                    <div class="min-w-0">
+                      <h3 id="session-log-title" class="card-title">会话</h3>
+                      <p id="session-log-meta" class="card-subtitle font-monospace text-break"></p>
+                    </div>
+                    <div class="card-actions btn-list">
+                      <button id="session-log-parent" type="button" class="btn" hidden>打开父会话</button
+                      ><button id="session-log-back" type="button" class="btn">返回列表</button>
+                    </div>
+                  </div>
+                  <div id="session-log-overview" class="card-body border-bottom log-overview"></div>
+                  <div class="card-header flex-wrap gap-2">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist" aria-label="会话视图">
+                      <li class="nav-item"><button id="session-log-tab-conversation" class="nav-link active" type="button" role="tab" aria-controls="session-log-conversation" aria-selected="true">对话</button></li>
+                      <li class="nav-item"><button id="session-log-tab-raw" class="nav-link" type="button" role="tab" aria-controls="session-log-raw" aria-selected="false">原始 JSON</button></li>
+                    </ul>
+                    <div class="card-actions d-flex flex-wrap align-items-center gap-2">
+                      <span id="session-log-loaded" class="text-secondary small"></span>
+                      <span id="session-log-fold-row" class="btn-list"
+                        ><button id="session-log-expand-all" type="button" class="btn btn-sm">全部展开</button
+                        ><button id="session-log-collapse-all" type="button" class="btn btn-sm">全部收起</button></span
+                      >
+                      <label id="session-log-internal-row" class="form-check form-switch m-0"
+                        ><input id="session-log-internal" class="form-check-input" type="checkbox" /><span class="form-check-label">显示内部事件</span></label
+                      >
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div id="session-log-conversation" role="tabpanel" aria-labelledby="session-log-tab-conversation">
+                      <div id="session-log-turns" class="log-turns"></div>
+                      <div id="session-log-timeline-empty" class="empty" hidden><p class="empty-title">这个会话没有可显示的事件</p></div>
+                    </div>
+                    <div id="session-log-raw" role="tabpanel" aria-labelledby="session-log-tab-raw" hidden>
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span id="session-log-raw-size" class="text-secondary"></span>
+                        <div class="btn-list ms-auto">
+                          <button id="session-log-download-json" type="button" class="btn">下载 JSON</button
+                          ><button id="session-log-download-jsonl" type="button" class="btn">下载 JSONL</button
+                          ><button id="session-log-copy" type="button" class="btn">复制</button>
+                        </div>
+                      </div>
+                      <pre id="session-log-raw-text" class="log-raw"></pre>
+                      <div id="session-log-raw-sentinel" aria-hidden="true"></div>
+                      <button id="session-log-raw-more" type="button" class="btn" hidden>显示更多</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section id="activity-panel" data-panel="activity" hidden>
+                <div class="card">
+                  <div class="table-responsive">
+                    <table class="table card-table table-vcenter">
+                      <thead>
+                        <tr>
+                          <th scope="col">操作</th>
+                          <th scope="col">详情</th>
+                          <th scope="col">操作人</th>
+                          <th scope="col">时间</th>
+                        </tr>
+                      </thead>
+                      <tbody id="activity-list"></tbody>
+                    </table>
+                  </div>
+                  <div id="activity-empty" class="empty" hidden><p class="empty-title">暂无操作记录</p></div>
+                  <div class="card-footer text-secondary">显示最近 100 条管理变更，服务端最多保留 5000 条，不记录 API Key 明文。</div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <footer class="footer footer-transparent d-print-none">
+          <div class="container-fluid d-flex flex-wrap gap-2 text-secondary">
+            <span>TokensCowork / 插件市场 · 账号与组织来自 TokensAPI</span><span id="last-refresh" class="ms-auto"></span>
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <dialog id="plugin-dialog" class="modal" aria-labelledby="plugin-title">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form id="plugin-access-form" class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <h2 id="plugin-title" class="modal-title">访问范围</h2>
+              <div id="plugin-package" class="text-secondary small text-break"></div>
+            </div>
+            <button id="cancel-plugin" class="btn-close" type="button" aria-label="关闭访问范围"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              公开插件所有人可见。受限插件只对下面勾选的组织（且该组织没有自行关闭）、勾选的 Key 或勾选的用户可见，任一命中即可。保存不会改变上架状态。
+              访问范围控制本市场的展示与自建 Registry 下载；公开 npm / GitHub 包仍可从原地址下载。
+            </div>
+            <div id="visibility-choice" class="mb-4" role="radiogroup" aria-label="访问范围">
+              <label class="form-check"><input class="form-check-input" type="radio" name="plugin-visibility" value="public" /><span class="form-check-label">公开 · 所有人可见</span></label>
+              <label class="form-check"><input class="form-check-input" type="radio" name="plugin-visibility" value="restricted" /><span class="form-check-label">受限 · 仅下列组织、Key 或用户可见</span></label>
+            </div>
+            <div class="mb-4">
+              <div class="d-flex align-items-center mb-2"><h3 class="h4 m-0">组织</h3><span id="selected-org-count" class="ms-auto text-secondary"></span></div>
+              <input id="organization-search" class="form-control mb-2" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索可选组织" />
+              <div id="organization-options" class="list-group grant-list"></div>
+            </div>
+            <div class="mb-4">
+              <div class="d-flex align-items-center mb-2"><h3 class="h4 m-0">Key</h3><span id="selected-key-count" class="ms-auto text-secondary"></span></div>
+              <input id="key-search" class="form-control mb-2" type="search" placeholder="搜索 Key 备注或原文" aria-label="搜索可选 Key" />
+              <div id="key-options" class="list-group grant-list"></div>
+              <div class="form-hint">新的 Key 请先在「Key」页登记。</div>
+            </div>
+            <div>
+              <div class="d-flex align-items-center mb-2"><h3 class="h4 m-0">用户</h3><span id="selected-user-count" class="ms-auto text-secondary"></span></div>
+              <input id="user-search" class="form-control mb-2" type="search" placeholder="搜索用户名称或 ID" aria-label="搜索可选用户" />
+              <div id="user-options" class="list-group grant-list"></div>
+              <div class="form-hint">用户授权对该用户名下所有 Key 生效。新用户请先在「用户」页添加。</div>
+            </div>
+            <output id="plugin-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer">
+            <div class="me-auto min-w-0">
+              <div class="text-secondary small">保存后的访问范围</div>
+              <div id="permission-summary" class="fw-medium"></div>
+            </div>
+            <button id="save-plugin" class="btn btn-primary" type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="org-dialog" class="modal" aria-labelledby="org-dialog-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="organization-form" class="modal-content">
+          <div class="modal-header">
+            <h2 id="org-dialog-title" class="modal-title">登记组织</h2>
+            <button id="cancel-org" class="btn-close" type="button" aria-label="关闭组织编辑"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label" for="organization-id">TokensAPI 组织 ID</label
+              ><input id="organization-id" class="form-control" type="number" min="1" max="9007199254740991" step="1" required />
+              <div class="form-hint">组织 ID 保存后不可修改。</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="organization-name">组织名称</label><input id="organization-name" class="form-control" maxlength="200" required />
+            </div>
+            <label class="form-check"><input id="organization-enabled" class="form-check-input" type="checkbox" checked /><span class="form-check-label">启用此组织</span></label>
+            <div class="form-hint">停用后该组织的组织授权全部暂停、其管理员无法登录；单独 Key 授权不受影响。</div>
+            <output id="org-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer"><button class="btn btn-primary" type="submit">保存组织</button></div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="key-dialog" class="modal" aria-labelledby="key-dialog-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="key-form" class="modal-content">
+          <div class="modal-header">
+            <h2 id="key-dialog-title" class="modal-title">登记 Key</h2>
+            <button id="cancel-key" class="btn-close" type="button" aria-label="关闭 Key 编辑"></button>
+          </div>
+          <div class="modal-body">
+            <div id="key-value-row" class="mb-3">
+              <label class="form-label" for="key-value">API Key</label
+              ><input id="key-value" class="form-control" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="key-label">备注</label><input id="key-label" class="form-control" maxlength="120" placeholder="例如 某客户测试 Key" />
+            </div>
+            <div id="key-dialog-note" class="form-hint text-break"></div>
+            <output id="key-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer"><button class="btn btn-primary" type="submit">保存</button></div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="user-dialog" class="modal" aria-labelledby="user-dialog-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="user-form" class="modal-content">
+          <div class="modal-header">
+            <h2 id="user-dialog-title" class="modal-title">添加用户</h2>
+            <button id="cancel-user" class="btn-close" type="button" aria-label="关闭用户编辑"></button>
+          </div>
+          <div class="modal-body">
+            <div id="user-lookup-row" class="mb-3">
+              <label class="form-label" for="user-lookup">在 TokensAPI 搜索</label>
+              <div class="input-group">
+                <input id="user-lookup" class="form-control" type="search" maxlength="100" placeholder="用户名或显示名" /><button id="user-lookup-button" class="btn" type="button">搜索</button>
+              </div>
+              <div id="user-lookup-results" class="btn-list mt-2"></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="user-id">TokensAPI 用户 ID</label><input id="user-id" class="form-control" type="number" min="1" max="9007199254740991" step="1" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="user-name">显示名称</label><input id="user-name" class="form-control" maxlength="200" required />
+              <div class="form-hint">只记用户 ID 和名称，账号本身在 TokensAPI。</div>
+            </div>
+            <output id="user-error" class="d-block text-danger" role="alert"></output>
+          </div>
+          <div class="modal-footer"><button class="btn btn-primary" type="submit">保存</button></div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="grants-dialog" class="modal" aria-labelledby="grants-title">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form id="grants-form" class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <div class="text-secondary small">授权插件</div>
+              <h2 id="grants-title" class="modal-title text-break">授权插件</h2>
+            </div>
+            <button id="cancel-grants" class="btn-close" type="button" aria-label="关闭授权插件"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">勾选的受限插件对它可见。公开插件本来就所有人可见；插件的公开/受限在「插件」页设置。</div>
+            <input id="grant-search" class="form-control mb-2" type="search" placeholder="搜索插件名称或包名" aria-label="搜索可授权插件" />
+            <div id="grant-options" class="list-group grant-list"></div>
+            <output id="grants-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer">
+            <span id="grant-count" class="me-auto text-secondary"></span><button class="btn btn-primary" type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="members-dialog" class="modal" aria-labelledby="members-title">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form id="members-form" class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <div class="text-secondary small">指定成员</div>
+              <h2 id="members-title" class="modal-title text-break">指定成员</h2>
+            </div>
+            <button id="cancel-members" class="btn-close" type="button" aria-label="关闭指定成员"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">不指定成员时本组织全员可见；指定后只有名单里的成员可见。清空名单即恢复全员可见。</div>
+            <label class="form-label" for="member-lookup">搜索本组织成员</label>
+            <div class="input-group">
+              <input id="member-lookup" class="form-control" type="search" maxlength="100" placeholder="用户名、显示名或用户 ID" /><button id="member-lookup-button" class="btn" type="button">搜索</button>
+            </div>
+            <div id="member-lookup-results" class="btn-list mt-2"></div>
+            <div class="form-label mt-3">可见成员（点击移除）</div>
+            <div id="member-list" class="btn-list"></div>
+            <output id="members-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer">
+            <span id="member-count" class="me-auto text-secondary"></span><button class="btn btn-primary" type="submit">保存</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="session-log-json-dialog" class="modal" aria-labelledby="session-log-json-title">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="session-log-json-title" class="modal-title">原始 JSON</h2>
+            <button id="session-log-json-close" class="btn-close" type="button" aria-label="关闭原始 JSON"></button>
+          </div>
+          <div class="modal-body"><pre id="session-log-json-text" class="log-raw m-0"></pre></div>
+          <div class="modal-footer"><button id="session-log-json-copy" type="button" class="btn">复制</button></div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="session-log-confirm-dialog" class="modal" aria-labelledby="session-log-confirm-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form method="dialog" class="modal-content">
+          <div class="modal-status bg-danger"></div>
+          <div class="modal-body">
+            <h2 id="session-log-confirm-title" class="h3">删除会话日志？</h2>
+            <p id="session-log-confirm-text" class="text-secondary"></p>
+            <ul id="session-log-confirm-list" class="log-confirm-list"></ul>
+            <p class="text-secondary small mb-0">删除后原文与索引一起移除，不可恢复。</p>
+          </div>
+          <div class="modal-footer">
+            <button value="cancel" type="submit" class="btn" autofocus>取消</button
+            ><button id="session-log-confirm-ok" value="ok" type="submit" class="btn btn-danger">确认删除</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="session-log-note-dialog" class="modal" aria-labelledby="session-log-note-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="session-log-note-form" class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <h2 id="session-log-note-title" class="modal-title">备注与标签</h2>
+              <div id="session-log-note-session" class="text-secondary small text-break"></div>
+            </div>
+            <button id="session-log-note-cancel" class="btn-close" type="button" aria-label="关闭备注编辑"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label" for="session-log-note-text">备注</label
+              ><textarea id="session-log-note-text" class="form-control" rows="4" maxlength="2000" placeholder="只给后台看，不会改动日志内容"></textarea>
+            </div>
+            <div>
+              <label class="form-label" for="session-log-note-tags">标签</label
+              ><input id="session-log-note-tags" class="form-control" maxlength="400" placeholder="用逗号分隔，例如：卡顿, 待跟进" />
+              <div class="form-hint">最多 10 个标签，每个不超过 32 字。</div>
+            </div>
+            <output id="session-log-note-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer"><button class="btn btn-primary" type="submit">保存</button></div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="discard-dialog" class="modal" aria-labelledby="discard-title">
+      <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-status bg-warning"></div>
+          <div class="modal-body">
+            <h2 id="discard-title" class="h3">放弃未保存的修改？</h2>
+            <p class="text-secondary mb-0">修改尚未生效。可以返回继续编辑，或放弃本次草稿。</p>
+          </div>
+          <div class="modal-footer">
+            <button id="discard-changes" type="button" class="btn btn-outline-danger">放弃修改</button
+            ><button id="keep-editing" type="button" class="btn btn-primary">继续编辑</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="catalog-dialog" class="modal" aria-labelledby="catalog-title">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form id="catalog-form" class="modal-content">
+          <div class="modal-header">
+            <h2 id="catalog-title" class="modal-title">新建插件</h2>
+            <button id="cancel-catalog" class="btn-close" type="button" aria-label="关闭插件资料"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">新插件默认保存为草稿。已上架插件若更换包、仓库或版本，会退回草稿，需重新检查后上架；仅修改名称、简介即时生效。</div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-id">插件 ID</label
+              ><input id="catalog-id" class="form-control" pattern="[a-z0-9][a-z0-9-]{0,79}" maxlength="80" required placeholder="例如 tokens-my-tool" />
+              <div class="form-hint">从 npm 读取时自动填写，也可自定义；创建后不可修改。</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-package">npm 包名或链接</label
+              ><input id="catalog-package" class="form-control" maxlength="512" required placeholder="粘贴 https://www.npmjs.com/package/包名 或输入包名" />
+            </div>
+            <div class="input-group mb-3">
+              <input id="catalog-import-version" class="form-control" aria-label="读取的 npm 版本" placeholder="latest 或指定版本" /><button id="catalog-import" class="btn" type="button">读取并自动填写</button>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-name">显示名称</label><input id="catalog-name" class="form-control" maxlength="120" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-summary">简介</label><textarea id="catalog-summary" class="form-control" maxlength="1000" rows="3" required></textarea>
+            </div>
+            <div id="catalog-readme-panel" class="alert alert-secondary" hidden>
+              <strong>README 简介建议</strong>
+              <p id="catalog-readme-summary" class="my-2"></p>
+              <div id="catalog-readme-notice" class="text-secondary small mb-2"></div>
+              <button id="catalog-use-readme" class="btn btn-sm" type="button">采用这段简介</button>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-repository">GitHub 仓库（npm 安装选填）</label
+              ><input id="catalog-repository" class="form-control" type="url" placeholder="https://github.com/组织/仓库" />
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-sm-6">
+                <label class="form-label" for="catalog-version">版本（支持 Beta 草稿）</label
+                ><input id="catalog-version" class="form-control" maxlength="64" placeholder="例如 0.1.0-beta.1" required />
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="catalog-kind">安装方式</label
+                ><select id="catalog-kind" class="form-select">
+                  <option value="npm">npm 包</option>
+                  <option value="github">固定 Git commit</option>
+                </select>
               </div>
             </div>
-            <div id="activity-list"></div>
-            <p id="activity-empty" class="empty" hidden>暂无操作记录。</p>
+            <div id="catalog-registry-label" class="mb-3">
+              <label class="form-label" for="catalog-registry">npm 来源</label
+              ><select id="catalog-registry" class="form-select">
+                <option value="npm">兼容来源（新版自建仓库 / 旧版公开 npm）</option>
+                <option value="tokenscowork">TokensCowork 自建 Registry（需服务器配置）</option>
+              </select>
+              <div class="form-hint">兼容来源保留旧版的公开 npm 安装方式；新版经市场从自建仓库下载。仅自建的新插件请选择自建 Registry。新插件统一使用 @tokensapi/包名：仓库限制直连，用户公开或受限由市场范围决定，无需改包名。公开 npm 历史包和第三方兜底规则下的包不受市场权限保护。</div>
+            </div>
+            <div id="catalog-commit-label" class="mb-3" hidden>
+              <label class="form-label" for="catalog-commit">Git commit</label
+              ><input id="catalog-commit" class="form-control" pattern="[a-f0-9]{40}" maxlength="40" placeholder="完整的 40 位 commit" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="catalog-mode">版本策略</label
+              ><select id="catalog-mode" class="form-select">
+                <option value="pinned">固定 Git 版本</option>
+                <option value="latest">自动跟随 npm 稳定版 latest</option>
+              </select>
+              <div class="form-hint">npm 插件首次上架后自动跟随所选 Registry 的稳定版 latest，不需要重复保存或上架。名称、简介与权限保持不变；下架和草稿不会自动上架。依赖许可证检查应在发布前完成。Registry 查询失败或 latest 为预发布版时，暂不向应用提供该条目。</div>
+            </div>
+            <output id="catalog-error" class="d-block text-danger" role="alert"></output>
           </div>
-        </section>
+          <div class="modal-footer">
+            <span class="me-auto text-secondary">下一步：访问范围 → 上架</span><button class="btn btn-primary" type="submit">保存插件</button>
+          </div>
+        </form>
       </div>
-      <footer id="footer">
-        <span>TokensCowork / 插件市场</span><span id="last-refresh"></span>
-      </footer>
-    </main>
-
-    <dialog id="plugin-dialog" aria-labelledby="plugin-title">
-      <form id="plugin-access-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">访问范围</p>
-            <h2 id="plugin-title">访问范围</h2>
-            <p id="plugin-package" class="package"></p>
-          </div>
-          <button id="cancel-plugin" class="quiet" type="button" aria-label="关闭访问范围">
-            ✕
-          </button>
-        </div>
-        <div class="notice">
-          公开插件所有人可见。受限插件只对下面勾选的组织（且该组织没有自行关闭）、勾选的 Key 或勾选的用户可见，任一命中即可。保存不会改变上架状态。
-        </div>
-        <section class="grant-section">
-          <div id="visibility-choice" role="radiogroup" aria-label="访问范围">
-            <label><input type="radio" name="plugin-visibility" value="public" />公开 · 所有人可见</label>
-            <label><input type="radio" name="plugin-visibility" value="restricted" />受限 · 仅下列组织、Key 或用户可见</label>
-          </div>
-        </section>
-        <section class="grant-section">
-          <div class="section-heading">
-            <h3>组织</h3>
-            <span id="selected-org-count" class="muted"></span>
-          </div>
-          <input id="organization-search" type="search" placeholder="搜索组织名称或 ID" aria-label="搜索可选组织" />
-          <div id="organization-options"></div>
-        </section>
-        <section class="grant-section">
-          <div class="section-heading">
-            <h3>Key</h3>
-            <span id="selected-key-count" class="muted"></span>
-          </div>
-          <input id="key-search" type="search" placeholder="搜索 Key 备注或原文" aria-label="搜索可选 Key" />
-          <div id="key-options"></div>
-          <p class="muted">新的 Key 请先在「Key」页登记。</p>
-        </section>
-        <section class="grant-section">
-          <div class="section-heading">
-            <h3>用户</h3>
-            <span id="selected-user-count" class="muted"></span>
-          </div>
-          <input id="user-search" type="search" placeholder="搜索用户名称或 ID" aria-label="搜索可选用户" />
-          <div id="user-options"></div>
-          <p class="muted">用户授权对该用户名下所有 Key 生效。新用户请先在「用户」页添加。</p>
-        </section>
-        <output id="plugin-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <div>
-            <small>保存后的访问范围</small>
-            <p id="permission-summary"></p>
-          </div>
-          <button type="submit" id="save-plugin">保存</button>
-        </div>
-      </form>
     </dialog>
 
-    <dialog id="org-dialog" aria-labelledby="org-dialog-title">
-      <form id="organization-form">
-        <div class="dialog-heading">
-          <h2 id="org-dialog-title">登记组织</h2>
-          <button
-            id="cancel-org"
-            class="quiet"
-            type="button"
-            aria-label="关闭组织编辑"
-          >
-            ✕
-          </button>
-        </div>
-        <label for="organization-id">TokensAPI 组织 ID</label
-        ><input
-          id="organization-id"
-          type="number"
-          min="1"
-          max="9007199254740991"
-          step="1"
-          required
-        />
-        <label for="organization-name">组织名称</label
-        ><input id="organization-name" maxlength="200" required />
-        <label class="check-row"
-          ><input
-            id="organization-enabled"
-            type="checkbox"
-            checked
-          />启用此组织</label
-        >
-        <p class="notice">停用后该组织的组织授权全部暂停、其管理员无法登录；单独 Key 授权不受影响。</p>
-        <output id="org-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span class="muted">组织 ID 保存后不可修改</span
-          ><button type="submit">保存组织</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="key-dialog" aria-labelledby="key-dialog-title">
-      <form id="key-form">
-        <div class="dialog-heading">
-          <h2 id="key-dialog-title">登记 Key</h2>
-          <button id="cancel-key" class="quiet" type="button" aria-label="关闭 Key 编辑">✕</button>
-        </div>
-        <label id="key-value-label" for="key-value">API Key</label
-        ><input id="key-value" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="sk-…" />
-        <label for="key-label">备注</label
-        ><input id="key-label" maxlength="120" placeholder="例如 某客户测试 Key" />
-        <output id="key-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span id="key-dialog-note" class="muted"></span><button type="submit">保存</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="user-dialog" aria-labelledby="user-dialog-title">
-      <form id="user-form">
-        <div class="dialog-heading">
-          <h2 id="user-dialog-title">添加用户</h2>
-          <button id="cancel-user" class="quiet" type="button" aria-label="关闭用户编辑">✕</button>
-        </div>
-        <div id="user-lookup-row">
-          <label for="user-lookup">在 TokensAPI 搜索</label>
-          <div class="verify-input">
-            <input id="user-lookup" type="search" maxlength="100" placeholder="用户名或显示名" /><button
-              id="user-lookup-button"
-              type="button"
-              class="secondary"
-            >
-              搜索
-            </button>
+    <dialog id="lifecycle-dialog" class="modal" aria-labelledby="lifecycle-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="lifecycle-form" class="modal-content">
+          <div id="lifecycle-status" class="modal-status bg-primary"></div>
+          <div class="modal-header">
+            <h2 id="lifecycle-title" class="modal-title text-break"></h2>
+            <button id="cancel-lifecycle" class="btn-close" type="button" aria-label="取消状态变更"></button>
           </div>
-          <div id="user-lookup-results" class="button-row"></div>
-        </div>
-        <label for="user-id">TokensAPI 用户 ID</label
-        ><input id="user-id" type="number" min="1" max="9007199254740991" step="1" required />
-        <label for="user-name">显示名称</label
-        ><input id="user-name" maxlength="200" required />
-        <output id="user-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span class="muted">只记用户 ID 和名称，账号本身在 TokensAPI</span><button type="submit">保存</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="grants-dialog" aria-labelledby="grants-title">
-      <form id="grants-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">授权插件</p>
-            <h2 id="grants-title">授权插件</h2>
+          <div class="modal-body">
+            <p id="lifecycle-description" class="text-secondary"></p>
+            <div id="publish-checks">
+              <label id="publish-public-label" class="form-check"><input id="publish-public" class="form-check-input" type="checkbox" /><span class="form-check-label">确认向所有用户公开上架</span></label>
+            </div>
+            <div id="purge-confirm-label" hidden>
+              <label class="form-label" for="purge-confirm-id">请输入插件 ID 确认：<code id="purge-target-id"></code></label>
+              <input id="purge-confirm-id" class="form-control" autocomplete="off" spellcheck="false" maxlength="80" />
+            </div>
+            <output id="lifecycle-error" class="d-block text-danger mt-3" role="alert"></output>
           </div>
-          <button id="cancel-grants" class="quiet" type="button" aria-label="关闭授权插件">✕</button>
-        </div>
-        <p class="notice">勾选的受限插件对它可见。公开插件本来就所有人可见；插件的公开/受限在「插件」页设置。</p>
-        <input id="grant-search" type="search" placeholder="搜索插件名称或包名" aria-label="搜索可授权插件" />
-        <div id="grant-options"></div>
-        <output id="grants-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span id="grant-count" class="muted"></span><button type="submit">保存</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="members-dialog" aria-labelledby="members-title">
-      <form id="members-form">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">指定成员</p>
-            <h2 id="members-title">指定成员</h2>
-          </div>
-          <button id="cancel-members" class="quiet" type="button" aria-label="关闭指定成员">✕</button>
-        </div>
-        <p class="notice">不指定成员时本组织全员可见；指定后只有名单里的成员可见。清空名单即恢复全员可见。</p>
-        <label for="member-lookup">搜索本组织成员</label>
-        <div class="verify-input">
-          <input id="member-lookup" type="search" maxlength="100" placeholder="用户名、显示名或用户 ID" /><button
-            id="member-lookup-button"
-            type="button"
-            class="secondary"
-          >
-            搜索
-          </button>
-        </div>
-        <div id="member-lookup-results" class="button-row"></div>
-        <p class="eyebrow">可见成员（点击移除）</p>
-        <div id="member-list" class="button-row"></div>
-        <output id="members-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span id="member-count" class="muted"></span><button type="submit">保存</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="session-log-json-dialog" class="log-json-dialog" aria-labelledby="session-log-json-title">
-      <div class="dialog-heading">
-        <h2 id="session-log-json-title">原始 JSON</h2>
-        <div class="row-actions">
-          <button id="session-log-json-copy" type="button" class="secondary">复制</button
-          ><button id="session-log-json-close" type="button" class="quiet">关闭</button>
-        </div>
-      </div>
-      <pre id="session-log-json-text" class="log-raw"></pre>
-    </dialog>
-    <dialog id="session-log-confirm-dialog" class="log-confirm-dialog" aria-labelledby="session-log-confirm-title">
-      <form method="dialog">
-        <h2 id="session-log-confirm-title">删除会话日志？</h2>
-        <p id="session-log-confirm-text" class="notice"></p>
-        <ul id="session-log-confirm-list" class="log-confirm-list"></ul>
-        <div class="dialog-footer">
-          <span class="muted">删除后原文与索引一起移除，不可恢复</span>
-          <div class="button-row">
-            <button value="cancel" type="submit" class="secondary" autofocus>取消</button
-            ><button id="session-log-confirm-ok" value="ok" type="submit" class="danger">确认删除</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="session-log-note-dialog" aria-labelledby="session-log-note-title">
-      <form id="session-log-note-form">
-        <div class="dialog-heading">
-          <h2 id="session-log-note-title">备注与标签</h2>
-          <button id="session-log-note-cancel" class="quiet" type="button" aria-label="关闭备注编辑">✕</button>
-        </div>
-        <p id="session-log-note-session" class="package"></p>
-        <label for="session-log-note-text">备注</label
-        ><textarea id="session-log-note-text" rows="4" maxlength="2000" placeholder="只给后台看，不会改动日志内容"></textarea>
-        <label for="session-log-note-tags">标签</label
-        ><input id="session-log-note-tags" maxlength="400" placeholder="用逗号分隔，例如：卡顿, 待跟进" />
-        <output id="session-log-note-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span class="muted">最多 10 个标签，每个不超过 32 字</span><button type="submit">保存</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="discard-dialog" aria-labelledby="discard-title">
-      <h2 id="discard-title">放弃未保存的修改？</h2>
-      <p class="notice">修改尚未生效。可以返回继续编辑，或放弃本次草稿。</p>
-      <div class="button-row">
-        <button id="keep-editing" type="button">继续编辑</button
-        ><button id="discard-changes" type="button" class="secondary danger">
-          放弃修改
-        </button>
+          <div class="modal-footer"><button id="lifecycle-submit" class="btn btn-primary" type="submit">确认</button></div>
+        </form>
       </div>
     </dialog>
-    <dialog id="catalog-dialog" aria-labelledby="catalog-title">
-      <form id="catalog-form">
-        <div class="dialog-heading">
-          <h2 id="catalog-title">新建插件</h2>
-          <button
-            id="cancel-catalog"
-            class="quiet"
-            type="button"
-            aria-label="关闭插件资料"
-          >
-            ✕
-          </button>
-        </div>
-        <p class="notice">
-          新插件默认保存为草稿。已上架插件若更换包、仓库或版本，会退回草稿，需重新检查后上架；仅修改名称、简介即时生效。
-        </p>
-        <div class="catalog-fields">
-          <label
-            >插件 ID<input
-              id="catalog-id"
-              pattern="[a-z0-9][a-z0-9-]{0,79}"
-              maxlength="80"
-              required
-              placeholder="例如 tokens-my-tool"
-            /><small
-              >从 npm 读取时自动填写，也可自定义；创建后不可修改。</small
-            ></label
-          >
-          <label
-            >npm 包名或链接<input
-              id="catalog-package"
-              maxlength="512"
-              required
-              placeholder="粘贴 https://www.npmjs.com/package/包名 或输入包名"
-          /></label>
-          <div class="import-row">
-            <input
-              id="catalog-import-version"
-              aria-label="读取的 npm 版本"
-              placeholder="latest 或指定版本"
-            /><button id="catalog-import" class="secondary" type="button">
-              读取并自动填写
-            </button>
+
+    <dialog id="icon-dialog" class="modal" aria-labelledby="icon-title">
+      <div class="modal-dialog modal-dialog-centered">
+        <form id="icon-form" class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <h2 id="icon-title" class="modal-title text-break">插件图标</h2>
+              <div id="icon-package" class="text-secondary small text-break"></div>
+            </div>
+            <button id="cancel-icon" class="btn-close" type="button" aria-label="关闭插件图标"></button>
           </div>
-          <label
-            >显示名称<input id="catalog-name" maxlength="120" required
-          /></label>
-          <label
-            >简介<textarea
-              id="catalog-summary"
-              maxlength="1000"
-              rows="3"
-              required
-            ></textarea>
-          </label>
-          <div id="catalog-readme-panel" class="notice" hidden>
-            <strong>README 简介建议</strong>
-            <p id="catalog-readme-summary"></p>
-            <small id="catalog-readme-notice"></small>
-            <div><button id="catalog-use-readme" class="secondary" type="button">采用这段简介</button></div>
+          <div class="modal-body">
+            <div class="d-flex align-items-center justify-content-center gap-4 my-2">
+              <figure class="m-0 text-center">
+                <span class="avatar avatar-xl rounded"><img id="icon-current" alt="当前图标" hidden /><span id="icon-current-empty" class="small">无图标</span></span>
+                <figcaption class="text-secondary small mt-2">当前</figcaption>
+              </figure>
+              <span class="text-secondary" aria-hidden="true">→</span>
+              <figure class="m-0 text-center">
+                <span class="avatar avatar-xl rounded"><img id="icon-next" alt="新图标预览" hidden /><span id="icon-next-empty" class="small">未选择</span></span>
+                <figcaption class="text-secondary small mt-2">保存后</figcaption>
+              </figure>
+            </div>
+            <p id="icon-file-info" class="text-secondary small text-center text-break"></p>
+            <div class="form-hint">
+              支持 PNG、JPEG、WebP、GIF、SVG、BMP 等常见图片。PNG、JPEG、WebP 在 256 KB 以内原样保存；其他格式或更大的图片会先在浏览器里转成 PNG（最长边 512 像素）。建议用正方形、至少 128×128。插件市场卡片、文档中心和后台显示的都是这一张图。
+            </div>
+            <input id="icon-file" type="file" accept="image/*,.svg,.ico" hidden />
+            <output id="icon-error" class="d-block text-danger mt-3" role="alert"></output>
           </div>
-          <label
-            >GitHub 仓库（npm 安装选填）<input
-              id="catalog-repository"
-              type="url"
-              placeholder="https://github.com/组织/仓库"
-          /></label>
-          <div class="field-pair">
-            <label
-              >版本（支持 Beta 草稿）<input
-                id="catalog-version"
-                maxlength="64"
-                placeholder="例如 0.1.0-beta.1"
-                required /></label
-            ><label
-              >安装方式<select id="catalog-kind">
-                <option value="npm">npm 包</option>
-                <option value="github">固定 Git commit</option>
-              </select></label
-            >
+          <div class="modal-footer">
+            <button id="icon-remove" type="button" class="btn btn-ghost-danger me-auto">移除图标</button
+            ><button id="icon-pick" type="button" class="btn">选择图片</button
+            ><button id="icon-save" type="submit" class="btn btn-primary">保存图标</button>
           </div>
-          <label id="catalog-registry-label"
-            >npm 来源<select id="catalog-registry">
-              <option value="npm">兼容来源（新版自建仓库 / 旧版公开 npm）</option>
-              <option value="tokenscowork">TokensCowork 自建 Registry（需服务器配置）</option>
-            </select><small>兼容来源保留旧版的公开 npm 安装方式；新版经市场从自建仓库下载。仅自建的新插件请选择自建 Registry。新插件统一使用 @tokensapi/包名：仓库限制直连，用户公开或受限由市场范围决定，无需改包名。公开 npm 历史包和第三方兜底规则下的包不受市场权限保护。</small></label
-          >
-          <label id="catalog-commit-label" hidden
-            >Git commit<input
-              id="catalog-commit"
-              pattern="[a-f0-9]{40}"
-              maxlength="40"
-              placeholder="完整的 40 位 commit"
-          /></label>
-          <label
-            >版本策略<select id="catalog-mode">
-              <option value="pinned">固定 Git 版本</option>
-              <option value="latest">自动跟随 npm 稳定版 latest</option>
-            </select></label
-          >
-          <p class="muted">
-            npm 插件首次上架后自动跟随所选 Registry 的稳定版 latest，不需要重复保存或上架。名称、简介与权限保持不变；下架和草稿不会自动上架。依赖许可证检查应在发布前完成。Registry 查询失败或 latest 为预发布版时，暂不向应用提供该条目。
-          </p>
-        </div>
-        <output id="catalog-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <span class="muted">下一步：访问范围 → 上架</span
-          ><button type="submit">保存插件</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="lifecycle-dialog" aria-labelledby="lifecycle-title">
-      <form id="lifecycle-form">
-        <div class="dialog-heading">
-          <h2 id="lifecycle-title"></h2>
-          <button
-            id="cancel-lifecycle"
-            type="button"
-            class="quiet"
-            aria-label="取消状态变更"
-          >
-            ✕
-          </button>
-        </div>
-        <p id="lifecycle-description" class="notice"></p>
-        <div id="publish-checks">
-          <label id="publish-public-label" class="check-row"
-            ><input
-              id="publish-public"
-              type="checkbox"
-            />确认向所有用户公开上架</label
-          >
-        </div>
-        <output id="lifecycle-error" class="error" role="alert"></output>
-        <label id="purge-confirm-label" class="catalog-fields" hidden>
-          <span>请输入插件 ID 确认：<code id="purge-target-id"></code></span>
-          <input id="purge-confirm-id" autocomplete="off" spellcheck="false" maxlength="80" />
-        </label>
-        <div class="dialog-footer">
-          <span></span><button id="lifecycle-submit" type="submit">确认</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="icon-dialog" class="icon-dialog" aria-labelledby="icon-title">
-      <form id="icon-form">
-        <div class="dialog-heading">
-          <div>
-            <h2 id="icon-title">插件图标</h2>
-            <p id="icon-package" class="package"></p>
-          </div>
-          <button id="cancel-icon" type="button" class="quiet" aria-label="关闭插件图标">✕</button>
-        </div>
-        <div class="icon-compare">
-          <figure>
-            <span class="icon-preview"><img id="icon-current" alt="当前图标" hidden /><span id="icon-current-empty" class="muted">无图标</span></span>
-            <figcaption class="muted">当前</figcaption>
-          </figure>
-          <span class="icon-arrow muted" aria-hidden="true">→</span>
-          <figure>
-            <span class="icon-preview"><img id="icon-next" alt="新图标预览" hidden /><span id="icon-next-empty" class="muted">未选择</span></span>
-            <figcaption class="muted">保存后</figcaption>
-          </figure>
-        </div>
-        <p id="icon-file-info" class="muted"></p>
-        <p class="notice">
-          支持 PNG、JPEG、WebP、GIF、SVG、BMP 等常见图片。PNG、JPEG、WebP 在 256 KB 以内原样保存；其他格式或更大的图片会先在浏览器里转成 PNG（最长边 512 像素）。建议用正方形、至少 128×128。插件市场卡片、文档中心和后台显示的都是这一张图。
-        </p>
-        <input id="icon-file" type="file" accept="image/*,.svg,.ico" hidden />
-        <output id="icon-error" class="error" role="alert"></output>
-        <div class="dialog-footer">
-          <button id="icon-remove" type="button" class="quiet danger">移除图标</button>
-          <span class="button-row"
-            ><button id="icon-pick" type="button" class="secondary">选择图片</button
-            ><button id="icon-save" type="submit">保存图标</button></span
-          >
-        </div>
-      </form>
+        </form>
+      </div>
     </dialog>
     <script type="module" src="/admin/assets/market-admin.js"></script>
   </body>

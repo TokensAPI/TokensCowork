@@ -90,21 +90,24 @@ export async function productComponents(request, env) {
 /** Plugins per page on the console's plugin page. */
 export const PLUGIN_PAGE_SIZES = [10, 20, 50, 100]
 const PLUGIN_PAGE_SIZE = 20
-const STAGES = ['all', 'builtin', 'published', 'draft', 'archived', 'deleted']
+const STAGES = ['all', 'published', 'draft', 'archived', 'deleted']
+const KINDS = ['all', 'market', 'builtin']
 // SQLite's lower() folds ASCII only, so the search folds the same letters and no others.
 const fold = value => String(value).replace(/[A-Z]/gu, letter => letter.toLowerCase())
 
 /**
- * One page of the console's plugin list, filtered on the server. The product's built-in components
- * (read-only, from product-components.json) are listed only under stage=builtin; every other stage,
- * `all` included, lists the market's own plugins by id. A market row that duplicates a built-in is
- * left out, as the console always did. `counts` are the whole inventory, whatever the filters, and
- * `all` counts market plugins only. A page past the end answers the last page.
+ * One page of the console's plugin list, filtered on the server. `stage` is the lifecycle tab and
+ * `kind` the type: the product's built-in components (read-only, from product-components.json, state
+ * `builtin`) belong to stage=all only, first and in product order, then the market's own plugins by
+ * id. A market row that duplicates a built-in is left out, as the console always did. `counts` are the
+ * whole inventory, whatever the filters: `all` = builtin + published + draft + archived (the trash is
+ * counted apart), `market` = published + draft + archived. A page past the end answers the last page.
  */
 export async function pluginPage(request, env, url) {
   const param = name => url.searchParams.get(name) ?? ''
-  const stage = param('stage') || 'all', visibility = param('visibility') || 'all', query = param('q').trim()
+  const stage = param('stage') || 'all', kind = param('kind') || 'all', visibility = param('visibility') || 'all', query = param('q').trim()
   if (!STAGES.includes(stage)) throw invalid('阶段筛选无效')
+  if (!KINDS.includes(kind)) throw invalid('类型筛选无效')
   if (!['all', 'public', 'restricted'].includes(visibility)) throw invalid('访问范围筛选无效')
   if (query.length > 100) throw invalid('搜索词最多 100 个字符')
   const pageSize = Number(param('pageSize') || PLUGIN_PAGE_SIZE)
@@ -117,7 +120,7 @@ export async function pluginPage(request, env, url) {
     .map(item => ({ ...item, category: 'builtin', state: 'builtin', productVersion: components.productVersion }))
   const needle = fold(query)
   const found = item => !needle || fold([item.id, item.displayName, item.package, item.summary].filter(Boolean).join(' ')).includes(needle)
-  const shown = stage === 'builtin' && visibility !== 'restricted' ? builtins.filter(found) : []
+  const shown = stage === 'all' && kind !== 'market' && visibility !== 'restricted' ? builtins.filter(found) : []
 
   const hide = [], hidden = []
   if (builtins.length) {
@@ -128,7 +131,7 @@ export async function pluginPage(request, env, url) {
     if (packages.length) { hide.push(`ifnull(json_extract(metadata,'$.package'),'') NOT IN (${marks(packages)})`); hidden.push(...packages) }
   }
   const where = [...hide], values = [...hidden]
-  if (stage === 'builtin') where.push('0')
+  if (kind === 'builtin') where.push('0')
   else if (stage === 'all') where.push("state!='deleted'")
   else { where.push('state=?'); values.push(stage) }
   if (visibility !== 'all') { where.push('visibility=?'); values.push(visibility) }
@@ -151,9 +154,10 @@ export async function pluginPage(request, env, url) {
   const { results: states } = await db.prepare(`SELECT state,COUNT(*) AS count FROM market_plugins${hide.length ? ' WHERE ' + hide.join(' AND ') : ''} GROUP BY state`)
     .bind(...hidden).all()
   const byState = Object.fromEntries(states.map(row => [row.state, row.count]))
-  const counts = { all: 0, builtin: builtins.length, published: 0, draft: 0, archived: 0, deleted: 0 }
+  const counts = { all: 0, builtin: builtins.length, market: 0, published: 0, draft: 0, archived: 0, deleted: 0 }
   for (const state of ['published', 'draft', 'archived', 'deleted']) counts[state] = byState[state] ?? 0
-  counts.all = counts.published + counts.draft + counts.archived
+  counts.market = counts.published + counts.draft + counts.archived
+  counts.all = counts.builtin + counts.market
   return { builtins: builtinSlice, rows, total, page, pageSize, counts }
 }
 

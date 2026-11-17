@@ -222,7 +222,13 @@ test('every console module the page loads is on the asset allowlist', async t =>
   const read = name => readFileSync(new URL('../admin/' + name, import.meta.url), 'utf8')
   // The console is an ES module graph, so a new panel reaches the browser only if its file is
   // both imported and allowlisted in market-worker.js. Walk the graph instead of trusting a list.
-  const pending = [...read('index.html').matchAll(/(?:src|href)="\/admin\/assets\/([\w.-]+)"/gu)].map(m => m[1])
+  const page = read('index.html')
+  const pending = [...page.matchAll(/(?:src|href)="\/admin\/assets\/([\w./-]+)"/gu)].map(m => m[1])
+  // The console's Tabler styles and scripts are vendored and served from here, never from a CDN
+  // (the /admin/* CSP only allows 'self').
+  for (const name of ['vendor/tabler/tabler.min.css', 'vendor/tabler/tabler.min.js']) assert.ok(pending.includes(name), name)
+  for (const [, reference] of page.matchAll(/(?:src|href)="([^"#]+)"/gu)) assert.ok(reference.startsWith('/'), `index.html loads ${reference} from another origin`)
+  assert.doesNotMatch(page, /<script(?![^>]*\ssrc=)[^>]*>|<style|\sstyle="/u)
   const seen = new Set()
   while (pending.length) {
     const name = pending.pop()
@@ -231,7 +237,7 @@ test('every console module the page loads is on the asset allowlist', async t =>
     if (!name.endsWith('.js')) continue
     for (const match of read('assets/' + name).matchAll(/from '\.\/([\w.-]+)'/gu)) pending.push(match[1])
   }
-  for (const name of ['market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-catalog-editor.js']) assert.ok(seen.has(name), name)
+  for (const name of ['market-admin.js', 'market-ui.js', 'market-plugins.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-catalog-editor.js']) assert.ok(seen.has(name), name)
   for (const name of seen) {
     assert.equal((await call('/admin/assets/' + name)).status, 200, name)
   }

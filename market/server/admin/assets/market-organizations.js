@@ -4,7 +4,7 @@
  * lands straight on its own organization and can only narrow its granted plugins: switch one off,
  * or name the members who see it (none named = every member).
  */
-export function organizationsView({ $, node, button, json, action, reload, grants }) {
+export function organizationsView({ $, node, button, badge, rowActions, json, action, reload, grants }) {
   let items = [],
     syncReady = false,
     detail = null,
@@ -23,22 +23,21 @@ export function organizationsView({ $, node, button, json, action, reload, grant
     $('organization-list').replaceChildren(...visible.map((org) => {
       const row = document.createElement('tr')
       const name = document.createElement('td')
-      name.append(node('strong', org.name))
-      if (org.hidden) name.append(node('div', `组织管理员关闭了 ${org.hidden} 个插件`, 'muted'))
-      const actions = node('div', '', 'row-actions')
-      actions.append(
-        button('查看插件', () => action(() => open(org.id))),
-        button('授权插件', () => grants.open(`/api/v1/organizations/${org.id}`, label(org.id))),
-        button('编辑', () => edit(org), 'quiet'),
-        button(org.enabled ? '停用' : '启用', () => action(async () => {
+      name.append(node('div', org.name, 'fw-medium text-break'))
+      if (org.hidden) name.append(node('div', `组织管理员关闭了 ${org.hidden} 个插件`, 'text-secondary small'))
+      const cell = document.createElement('td')
+      cell.append(rowActions(org.name, { label: '查看插件', run: () => action(() => open(org.id)) }, [
+        { label: '授权插件', run: () => grants.open(`/api/v1/organizations/${org.id}`, label(org.id)) },
+        { label: '编辑', run: () => edit(org) },
+        'divider',
+        { label: org.enabled ? '停用' : '启用', danger: org.enabled, run: () => action(async () => {
           await json(`/api/v1/organizations/${org.id}`, { name: org.name, enabled: !org.enabled })
           await reload(`${org.name} 已${org.enabled ? '停用' : '启用'}。`)
-        }), org.enabled ? 'quiet danger' : 'secondary'),
-      )
-      const cell = document.createElement('td')
-      cell.append(actions)
-      row.append(name, node('td', String(org.id), 'fingerprint'), node('td', org.granted ? `${org.granted} 个插件` : '—'),
-        node('td', org.enabled ? '启用' : '已停用', org.enabled ? '' : 'muted'), cell)
+        }) },
+      ]))
+      const state = node('td')
+      state.append(org.enabled ? badge('启用', 'green') : badge('已停用', 'secondary'))
+      row.append(name, node('td', String(org.id), 'font-monospace'), node('td', org.granted ? `${org.granted} 个插件` : '—'), state, cell)
       return row
     }))
     $('org-empty').hidden = items.length > 0
@@ -60,22 +59,21 @@ export function organizationsView({ $, node, button, json, action, reload, grant
     $('org-plugin-list').replaceChildren(...detail.items.map((plugin) => {
       const row = document.createElement('tr'),
         name = document.createElement('td')
-      name.append(node('strong', plugin.displayName), node('div', plugin.package, 'package'))
+      name.append(node('div', plugin.displayName, 'fw-medium text-break'), node('div', plugin.package, 'text-secondary small text-break'))
       const cell = document.createElement('td')
       if (plugin.switchable) {
-        const actions = node('div', '', 'row-actions')
-        actions.append(
-          button('指定成员', () => members(plugin), 'quiet'),
-          button(plugin.enabled ? '对本组织关闭' : '对本组织开启', () => action(async () => {
+        cell.append(rowActions(plugin.displayName, { label: '指定成员', run: () => members(plugin) }, [
+          { label: plugin.enabled ? '对本组织关闭' : '对本组织开启', danger: plugin.enabled, run: () => action(async () => {
             await json(pluginPath(plugin), { enabled: !plugin.enabled })
             await reload(`${plugin.displayName} 已对本组织${plugin.enabled ? '关闭' : '开启'}。`)
-          }), plugin.enabled ? 'quiet danger' : 'secondary'),
-        )
-        cell.append(actions)
-      } else cell.append(node('span', '所有人可见', 'muted'))
+          }) },
+        ]))
+      } else cell.append(node('span', '所有人可见', 'text-secondary text-nowrap'))
       const reach = !plugin.visible ? (plugin.enabled ? '不可见（组织已停用）' : '已关闭')
         : plugin.members.length ? `仅 ${plugin.members.length} 位成员可见` : '全员可见'
-      row.append(name, node('td', SOURCES[plugin.source] || plugin.source), node('td', reach, plugin.visible ? '' : 'muted'), cell)
+      const source = node('td')
+      source.append(plugin.source === 'public' ? badge('公开', 'green') : badge(SOURCES[plugin.source] || plugin.source, 'yellow'))
+      row.append(name, source, node('td', reach, plugin.visible ? '' : 'text-secondary'), cell)
       return row
     }))
     $('org-plugin-empty').hidden = detail.items.length > 0
@@ -89,7 +87,7 @@ export function organizationsView({ $, node, button, json, action, reload, grant
     $('member-list').replaceChildren(...list.map(([id, name]) => button(`${name} (#${id}) ✕`, () => {
       picking.members.delete(id)
       renderMembers()
-    }, 'quiet')))
+    }, 'btn btn-sm')))
     $('member-count').textContent = list.length ? `只有这 ${list.length} 位成员可见` : '本组织全员可见'
   }
   function members(plugin) {
@@ -110,9 +108,9 @@ export function organizationsView({ $, node, button, json, action, reload, grant
         `+ ${user.name}${user.username && user.username !== user.name ? ' · ' + user.username : ''} (#${user.id})`, () => {
           picking.members.set(user.id, user.name)
           renderMembers()
-        }, 'quiet')))
-      if (!found.items.length) $('member-lookup-results').append(node('p', '没有找到本组织的匹配成员。', 'muted'))
-      if (found.more) $('member-lookup-results').append(node('p', '匹配的人较多，只查了前 100 个，可换更具体的关键词。', 'muted'))
+        }, 'btn btn-sm')))
+      if (!found.items.length) $('member-lookup-results').append(node('p', '没有找到本组织的匹配成员。', 'text-secondary m-0'))
+      if (found.more) $('member-lookup-results').append(node('p', '匹配的人较多，只查了前 100 个，可换更具体的关键词。', 'text-secondary m-0'))
     }, { errorTarget: 'members-error' })
   }
   $('member-lookup').onkeydown = (event) => {

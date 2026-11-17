@@ -72,28 +72,34 @@ function fixture(t) {
 const live = SEED.filter(row => row.state !== 'deleted')
 const ids = rows => rows.map(row => row.id)
 
-test('the plugin list is paged on the server: market plugins only, every row once, a page past the end is the last page', async t => {
+test('the plugin list is paged on the server: 全部 holds the built-ins then every market plugin once, a page past the end is the last page', async t => {
   const { page, call } = fixture(t)
   const first = await page({ page: 1, pageSize: 10 })
-  assert.equal(first.total, live.length)
+  const everything = [...BUILTINS, ...ids(live)]
+  assert.equal(first.total, everything.length)
   assert.equal(first.items.length, 10)
   assert.deepEqual([first.page, first.pageSize], [1, 10])
-  // 「全部」 counts market plugins only, so it is exactly published + draft + archived.
+  // 「全部」 includes the built-in components, and the tab counts add up: 全部 = 内置 + 已上架 + 草稿 + 已下架,
+  // 市场插件 = 已上架 + 草稿 + 已下架; the trash is counted on its own.
   const count = state => SEED.filter(row => row.state === state).length
-  assert.deepEqual(first.counts, { all: live.length, builtin: BUILTINS.length,
+  assert.deepEqual(first.counts, { all: BUILTINS.length + live.length, builtin: BUILTINS.length, market: live.length,
     published: count('published'), draft: count('draft'), archived: count('archived'), deleted: count('deleted') })
-  assert.equal(first.counts.all, first.counts.published + first.counts.draft + first.counts.archived)
-  // Walking every page lists each market plugin exactly once, by id; no built-in component among them.
+  const { counts } = first
+  assert.equal(counts.all, counts.builtin + counts.published + counts.draft + counts.archived)
+  assert.equal(counts.all, counts.builtin + counts.market)
+  // Each tab and each type lists exactly as many rows as its count says.
+  for (const stage of ['all', 'published', 'draft', 'archived', 'deleted']) assert.equal((await page({ stage })).total, counts[stage], stage)
+  for (const kind of ['builtin', 'market']) assert.equal((await page({ kind })).total, counts[kind], kind)
+  // Walking every page lists each row exactly once: the built-ins first in product order, then the market by id.
   const seen = []
   for (let n = 1; n <= Math.ceil(first.total / 10); n++) seen.push(...(await page({ page: n, pageSize: 10 })).items)
-  assert.deepEqual(seen.map(item => item.id), ids(live))
-  assert.ok(seen.every(item => item.category !== 'builtin'))
-  // The built-in tab lists the components and nothing else, read-only, in product order.
-  const builtins = await page({ stage: 'builtin' })
-  assert.deepEqual(ids(builtins.items), BUILTINS)
-  assert.equal(builtins.total, builtins.counts.builtin)
-  assert.ok(builtins.items.every(item => item.category === 'builtin' && item.state === 'builtin' && item.productVersion === COMPONENTS.productVersion))
-  assert.deepEqual(builtins.counts, first.counts)
+  assert.deepEqual(ids(seen), everything)
+  assert.ok(seen.slice(0, BUILTINS.length).every(item => item.category === 'builtin' && item.state === 'builtin' && item.productVersion === COMPONENTS.productVersion))
+  // The type filter splits 全部 into the components and the market's own plugins.
+  assert.deepEqual(ids((await page({ kind: 'builtin' })).items), BUILTINS)
+  assert.deepEqual(ids((await page({ kind: 'market', pageSize: 100 })).items), ids(live))
+  // Built-ins have no lifecycle, so the other tabs never list them, whatever the type.
+  for (const stage of ['published', 'draft', 'archived', 'deleted']) assert.equal((await page({ stage, kind: 'builtin' })).total, 0, stage)
   // The market row that duplicates a built-in stays hidden, as it always was on this page.
   assert.ok(!seen.some(item => item.id === 'shadow'))
   // Past the end: the last page, named in the answer.
@@ -101,7 +107,7 @@ test('the plugin list is paged on the server: market plugins only, every row onc
   assert.equal(last.page, Math.ceil(first.total / 10))
   assert.deepEqual(last.items.map(item => item.id), seen.slice((last.page - 1) * 10).map(item => item.id))
   assert.equal((await page({ page: 1 })).pageSize, 20)
-  for (const query of ['pageSize=7', 'page=0', 'page=x', 'stage=everything', 'visibility=hidden', 'q=' + 'x'.repeat(101), 'view=all'])
+  for (const query of ['pageSize=7', 'page=0', 'page=x', 'stage=everything', 'stage=builtin', 'kind=plugin', 'visibility=hidden', 'q=' + 'x'.repeat(101), 'view=all'])
     assert.equal((await call('/api/v1/plugins?' + query)).status, 400, query)
   // Without paging parameters the list keeps the shape TokensAPI and scripts read.
   const full = (await call('/api/v1/plugins')).json
@@ -114,8 +120,9 @@ test('filters run on the server and hold across pages', async t => {
   const drafts = await page({ stage: 'draft', pageSize: 10 })
   assert.deepEqual(ids(drafts.items), ids(SEED.filter(row => row.state === 'draft')))
   assert.deepEqual(ids((await page({ stage: 'deleted' })).items), ids(SEED.filter(row => row.state === 'deleted')))
-  assert.deepEqual(ids((await page({ stage: 'builtin' })).items), BUILTINS)
-  // Built-ins are public; restricting the scope leaves only market plugins.
+  // Built-ins are public: the public scope lists them first, restricting the scope leaves only market plugins.
+  assert.deepEqual(ids((await page({ visibility: 'public', pageSize: 100 })).items),
+    [...BUILTINS, ...ids(live.filter(row => row.visibility === 'public'))])
   const restricted = await page({ visibility: 'restricted', pageSize: 10 })
   const expected = live.filter(row => row.visibility === 'restricted')
   assert.equal(restricted.total, expected.length)
@@ -127,10 +134,13 @@ test('filters run on the server and hold across pages', async t => {
   // Search covers id, name, package and summary; ASCII letters ignore case.
   assert.deepEqual(ids((await page({ q: 'FINANCE' })).items), ['tool-05'])
   assert.deepEqual(ids((await page({ q: '@fixture/tool-1' })).items), ids(live.filter(row => row.id.startsWith('tool-1'))))
-  // A built-in is found only on its own tab.
-  assert.deepEqual(ids((await page({ q: COMPONENTS.items[1].displayName })).items), [])
-  assert.deepEqual(ids((await page({ stage: 'builtin', q: COMPONENTS.items[1].displayName })).items), [BUILTINS[1]])
-  assert.deepEqual(ids((await page({ stage: 'builtin', visibility: 'restricted' })).items), [])
+  // A built-in is found under 全部 and under its own type, never among the market plugins or a lifecycle tab.
+  const name = COMPONENTS.items[1].displayName
+  assert.deepEqual(ids((await page({ q: name })).items), [BUILTINS[1]])
+  assert.deepEqual(ids((await page({ kind: 'builtin', q: name })).items), [BUILTINS[1]])
+  assert.deepEqual(ids((await page({ kind: 'market', q: name })).items), [])
+  assert.deepEqual(ids((await page({ stage: 'published', q: name })).items), [])
+  assert.deepEqual(ids((await page({ kind: 'builtin', visibility: 'restricted' })).items), [])
   // Counts describe the whole inventory, whatever the filters.
   assert.deepEqual(drafts.counts, (await page({ page: 1 })).counts)
 })

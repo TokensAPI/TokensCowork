@@ -11,7 +11,7 @@ export function docTitle(text, fileName) {
   return (heading || fileName.replace(/\.(md|markdown|txt)$/iu, '') || '未命名文档').slice(0, 120)
 }
 
-export function docsAdminView({ $, node, button, json, action, reload, formatTime, plugins, icons }) {
+export function docsAdminView({ $, node, rowActions, json, action, reload, formatTime, plugins, icons }) {
   let pluginId = '', items = [], pending = null
 
   const documentable = () => plugins().filter(plugin => plugin.category !== 'builtin' && plugin.state !== 'deleted')
@@ -29,19 +29,18 @@ export function docsAdminView({ $, node, button, json, action, reload, formatTim
 
   function render() {
     $('docs-list').replaceChildren(...items.map(doc => {
-      const row = document.createElement('tr'), cell = document.createElement('td'), actions = node('div', '', 'row-actions')
-      actions.append(
-        button('替换', () => pick({ replace: doc })),
-        button('删除', () => {
+      const row = document.createElement('tr'), cell = document.createElement('td')
+      cell.append(rowActions(doc.title, { label: '替换', run: () => pick({ replace: doc }) }, [
+        { label: '删除', danger: true, run: () => {
           if (!confirm(`删除文档「${doc.title}」？`)) return
           action(async () => {
             await json(`/api/v1/plugins/${pluginId}/docs/${doc.id}`, undefined, 'DELETE')
             await load()
           }, { success: '文档已删除。' })
-        }, 'quiet danger'),
-      )
-      cell.append(actions)
-      row.append(node('td', doc.title), node('td', String(doc.position)), node('td', `${doc.body.length} 字`), node('td', formatTime(doc.updatedAt)), cell)
+        } },
+      ]))
+      row.append(node('td', doc.title, 'fw-medium text-break'), node('td', String(doc.position)), node('td', `${doc.body.length} 字`),
+        node('td', formatTime(doc.updatedAt), 'text-secondary text-nowrap'), cell)
       return row
     }))
     $('docs-empty').hidden = items.length > 0 || !pluginId

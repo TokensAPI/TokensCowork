@@ -14,7 +14,13 @@ function fixture(saved, dark = false, blocked = false) {
     localStorage: { getItem: () => { if (blocked) throw Error('blocked'); return storage.value }, setItem: (_, value) => { if (blocked) throw Error('blocked'); storage.value = value } },
   })
   events.ready()
-  return { document, events, control, storage, system, theme: () => document.documentElement.dataset.theme }
+  // The docs center reads data-theme, the console's Tabler styles data-bs-theme; both always agree.
+  const theme = () => {
+    const { theme: value, bsTheme } = document.documentElement.dataset
+    assert.equal(bsTheme, value)
+    return value
+  }
+  return { document, events, control, storage, system, theme }
 }
 test('theme follows system by default and responds to system changes', () => {
   const f = fixture(null, true)

@@ -16,20 +16,21 @@ export function grantsDialog({ $, node, json, action, reload, plugins }) {
     const items = grantable()
     const visible = items.filter((p) => `${p.displayName} ${p.package} ${p.id}`.toLowerCase().includes(search))
     $('grant-options').replaceChildren(...visible.map((p) => {
-      const label = node('label'),
+      const label = node('label', '', 'list-group-item d-flex align-items-center gap-2'),
         box = document.createElement('input')
       box.type = 'checkbox'
+      box.className = 'form-check-input m-0'
       box.checked = chosen.has(p.id)
       box.onchange = () => {
         if (box.checked) chosen.add(p.id)
         else chosen.delete(p.id)
         count()
       }
-      label.append(box, document.createTextNode(' ' + p.displayName))
-      if (p.state !== 'published') label.append(node('span', '未上架', 'muted'))
+      label.append(box, node('span', p.displayName, 'text-break'))
+      if (p.state !== 'published') label.append(node('span', '未上架', 'badge bg-secondary-lt ms-auto'))
       return label
     }))
-    if (!visible.length) $('grant-options').append(node('p', items.length ? '没有匹配项，已选项仍保留。' : '暂无受限插件；公开插件所有人都能用，无需授权。', 'muted'))
+    if (!visible.length) $('grant-options').append(node('div', items.length ? '没有匹配项，已选项仍保留。' : '暂无受限插件；公开插件所有人都能用，无需授权。', 'list-group-item text-secondary'))
     count()
   }
   const count = () => {

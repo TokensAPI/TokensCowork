@@ -12,7 +12,7 @@ import { sessionLogDetailView } from './market-session-log-detail.js'
  * control it disabled back the way it found it, which used to undo the prev/next states a load had
  * just set (page 2 of 3 kept 「上一页」 disabled, and 「下一页」 ran past the last page).
  */
-export function sessionLogsView({ $, node, button, json, action, formatTime }) {
+export function sessionLogsView({ $, node, button, badge, rowActions, pager, json, action, feedback, formatTime }) {
   const DAY = 24 * 60 * 60 * 1000
   let page = 1,
     pageSize = 50,
@@ -31,8 +31,8 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
   // The Key in full when the server kept it (sealed); otherwise only its fingerprint is known.
   function keyLines(target, { key, fingerprint, label }) {
     if (label) target.append(node('div', label))
-    if (key) target.append(node('div', key, 'key-value'))
-    else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'fingerprint muted'))
+    if (key) target.append(node('div', key, 'font-monospace small text-break user-select-all'))
+    else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'font-monospace small text-secondary'))
   }
   const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
   const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, onBack: back })
@@ -43,7 +43,7 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     const dialog = $('session-log-confirm-dialog')
     $('session-log-confirm-text').textContent = text
     const shown = sessions.slice(0, 8).map((item) => node('li', `${titleOf(item)} · ${item.id}`))
-    if (sessions.length > shown.length) shown.push(node('li', `…以及另外 ${sessions.length - shown.length} 个`, 'muted'))
+    if (sessions.length > shown.length) shown.push(node('li', `…以及另外 ${sessions.length - shown.length} 个`, 'text-secondary'))
     $('session-log-confirm-list').replaceChildren(...shown)
     $('session-log-confirm-list').hidden = !shown.length
     return new Promise((resolve) => {
@@ -78,43 +78,14 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     selected.clear()
     $('session-log-list').replaceChildren(...items.map(row))
     $('session-log-empty').hidden = items.length > 0
-    $('session-log-empty').textContent = filtering() ? '没有符合条件的会话。' : '暂无会话日志。'
+    $('session-log-empty').firstElementChild.textContent = filtering() ? '没有符合条件的会话' : '暂无会话日志'
     $('session-log-key-note').hidden = result.keyDisplayReady
-    $('session-log-page-size').value = String(pageSize)
-    $('session-logs-note').textContent = filtering() ? `筛选结果 ${total} 个会话。` : `共 ${total} 个会话。`
-    renderPager()
+    pager({ info: $('session-log-page'), list: $('session-log-pager'), size: $('session-log-page-size'), page, pageSize, total, unit: '个会话', go: goTo })
     renderSelection()
   }
   function goTo(target) {
     page = target
     action(loadList)
-  }
-  // 「上一页 1 … 4 5 [6] 7 8 … 20 下一页」, rebuilt from scratch on every load.
-  function renderPager() {
-    const pages = Math.max(1, Math.ceil(total / pageSize))
-    const first = total ? (page - 1) * pageSize + 1 : 0
-    $('session-log-page').textContent = `第 ${first}-${Math.min(total, page * pageSize)} 条 · 共 ${total} 个会话 · 第 ${page} / ${pages} 页`
-    const numbers = new Set([1, pages])
-    for (let n = page - 2; n <= page + 2; n++) if (n >= 1 && n <= pages) numbers.add(n)
-    const controls = []
-    const step = (label, target, disabled, aria) => {
-      const el = button(label, () => goTo(target), 'secondary log-page-step')
-      el.disabled = disabled
-      el.setAttribute('aria-label', aria)
-      return el
-    }
-    controls.push(step('上一页', page - 1, page <= 1, '上一页'))
-    let last = 0
-    for (const n of [...numbers].sort((a, b) => a - b)) {
-      if (n - last > 1) controls.push(node('span', '…', 'log-page-gap muted'))
-      const el = button(String(n), () => goTo(n), n === page ? 'log-page-number current' : 'quiet log-page-number')
-      el.setAttribute('aria-label', `第 ${n} 页`)
-      if (n === page) el.setAttribute('aria-current', 'page')
-      controls.push(el)
-      last = n
-    }
-    controls.push(step('下一页', page + 1, page >= pages, '下一页'))
-    $('session-log-pager').replaceChildren(...controls)
   }
   // The selection count and the two bulk deletions, rebuilt whenever the selection changes.
   function renderSelection() {
@@ -124,58 +95,57 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     all.indeterminate = selected.size > 0 && selected.size < boxes.length
     all.disabled = !boxes.length
     $('session-log-selected').textContent = selected.size ? `已选 ${selected.size} 个会话（本页）` : '勾选会话后可批量删除；翻页或改筛选会清空勾选。'
-    const remove = button(`删除所选${selected.size ? `（${selected.size}）` : ''}`, removeSelected, 'secondary danger')
+    const remove = button(`删除所选${selected.size ? `（${selected.size}）` : ''}`, removeSelected, 'btn btn-outline-danger')
     remove.disabled = !selected.size
-    const range = button('删除筛选日期内的会话', removeRange, 'quiet danger')
+    const range = button('删除筛选日期内的会话', removeRange, 'btn btn-ghost-danger')
     range.title = '按「创建于…至…」删除，只能和日期一起用'
     $('session-log-bulk-actions').replaceChildren(remove, range)
   }
   function row(item) {
     const tr = document.createElement('tr')
-    const check = node('td', '', 'log-check')
+    const check = node('td')
     const box = document.createElement('input')
     box.type = 'checkbox'
+    box.className = 'form-check-input m-0 align-middle'
     box.setAttribute('aria-label', `选择 ${titleOf(item)}`)
     box.onchange = () => {
       if (box.checked) selected.set(nameOf(item), item)
       else selected.delete(nameOf(item))
-      tr.classList.toggle('selected', box.checked)
+      tr.classList.toggle('table-active', box.checked)
       renderSelection()
     }
     check.append(box)
     const name = node('td')
-    name.append(node('strong', titleOf(item)), node('div', item.id, 'fingerprint muted log-id'),
-      node('div', clientText(item.client) + (item.parentSession ? ' · 子代理会话' : ''), 'muted'))
+    name.append(node('div', titleOf(item), 'fw-medium text-break'), node('div', item.id, 'font-monospace small text-secondary text-break'),
+      node('div', clientText(item.client) + (item.parentSession ? ' · 子代理会话' : ''), 'text-secondary small'))
     const key = node('td')
     if (item.keyFingerprint) keyLines(key, { key: item.key, fingerprint: item.keyFingerprint, label: item.keyLabel })
-    else key.append(node('span', '未带 Key（匿名）', 'muted'))
+    else key.append(node('span', '未带 Key（匿名）', 'text-secondary'))
     const usage = node('td')
     usage.append(node('div', item.models.join('、') || '—'))
-    if (item.tokens.total) usage.append(node('div', `${item.tokens.total.toLocaleString('zh-CN')} token`, 'muted'))
+    if (item.tokens.total) usage.append(node('div', `${item.tokens.total.toLocaleString('zh-CN')} token`, 'text-secondary small'))
     const events = node('td', `${item.eventCount} 条 · ${bytes(item.storedBytes)}${item.missingEvents ? ` · 缺 ${item.missingEvents} 条` : ''}`)
     const notes = node('td', '', 'log-annotation')
     if (item.tags.length) {
-      const chips = node('div', '', 'log-tags')
-      chips.append(...item.tags.map((tag) => node('span', tag, 'chip')))
+      const chips = node('div', '', 'badges-list mb-1')
+      chips.append(...item.tags.map((tag) => badge(tag)))
       notes.append(chips)
     }
     if (item.note) {
-      const note = node('div', item.note, 'log-note muted')
+      const note = node('div', item.note, 'text-secondary small log-clamp')
       note.title = item.note
       notes.append(note)
     }
-    if (!item.tags.length && !item.note) notes.append(node('span', '—', 'muted'))
-    const when = node('td', '', 'log-when')
-    when.append(node('div', `创建 ${time(item.createdAt ?? item.firstReceivedAt)}`), node('div', `最近上传 ${time(item.lastReceivedAt)}`, 'muted'))
-    const actions = node('div', '', 'row-actions'),
-      cell = document.createElement('td')
-    actions.append(
-      button('查看', () => action(() => open(item.id, item.formatVersion))),
-      button('备注', () => editNote(item), 'quiet'),
-      button('删除', () => removeOne(item), 'quiet danger'),
-    )
-    cell.append(actions)
-    tr.append(check, name, node('td', item.accountId || '—', item.accountId ? '' : 'muted'), key, usage, events, notes, when, cell)
+    if (!item.tags.length && !item.note) notes.append(node('span', '—', 'text-secondary'))
+    const when = node('td', '', 'text-nowrap small')
+    when.append(node('div', `创建 ${time(item.createdAt ?? item.firstReceivedAt)}`), node('div', `最近上传 ${time(item.lastReceivedAt)}`, 'text-secondary'))
+    const cell = document.createElement('td')
+    cell.append(rowActions(titleOf(item), { label: '查看', run: () => action(() => open(item.id, item.formatVersion)) }, [
+      { label: '备注与标签', run: () => editNote(item) },
+      'divider',
+      { label: '删除', danger: true, run: () => removeOne(item) },
+    ]))
+    tr.append(check, name, node('td', item.accountId || '—', item.accountId ? '' : 'text-secondary'), key, usage, events, notes, when, cell)
     return tr
   }
 
@@ -194,8 +164,8 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     action(async () => {
       const result = await json('/api/v1/session-logs', { sessions: sessions.map(({ id, formatVersion }) => ({ id, formatVersion })) }, 'DELETE')
       await loadList()
-      $('session-logs-note').textContent = `已删除 ${result.count} 个会话${result.missing ? `（${result.missing} 个已不存在）` : ''}。`
-    }, { success: `已删除 ${sessions.length} 个会话。` })
+      feedback(`已删除 ${result.count} 个会话${result.missing ? `（${result.missing} 个已不存在）` : ''}。`)
+    })
   }
   // A date range deletes every account's sessions in it, so it is refused while any other filter
   // is applied: what the list shows and what would be deleted must be the same set.
@@ -209,8 +179,8 @@ export function sessionLogsView({ $, node, button, json, action, formatTime }) {
     action(async () => {
       const result = await json('/api/v1/session-logs', { from: Number(from), to: Number(to) }, 'DELETE')
       await loadList()
-      $('session-logs-note').textContent = `已删除 ${result.count} 个会话。`
-    }, { success: '已按日期删除。' })
+      feedback(`已按日期删除 ${result.count} 个会话。`)
+    })
   }
 
   // ── Note and tags ──────────────────────────────────────────────────────────

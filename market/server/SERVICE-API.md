@@ -105,11 +105,13 @@
 
 `GET /plugins` 还有两种用法，看查询参数：
 
-- **分页**：带 `page`、`pageSize`、`stage`、`visibility`、`q` 任意一个 → `{ publisher, items, total, page, pageSize, counts }`。
-  服务端筛选后只返回一页，只为这一页查 npm latest 和授权。`items` 按插件 ID 排列市场插件；内置组件（`category: "builtin"`、`state: "builtin"`，只读，后台不能改）只在 `stage=builtin` 时列出，其他阶段包括 `all` 都不含。
-  `stage` 为 `all`（缺省，市场插件，不含回收站和内置组件）/ `builtin` / `published` / `draft` / `archived` / `deleted`；`visibility` 为 `all` / `public` / `restricted`（内置组件算公开）；
+- **分页**：带 `page`、`pageSize`、`stage`、`kind`、`visibility`、`q` 任意一个 → `{ publisher, items, total, page, pageSize, counts }`。
+  服务端筛选后只返回一页，只为这一页查 npm latest 和授权。`items` 先列内置组件（`category: "builtin"`、`state: "builtin"`，只读，后台不能改，按产品清单顺序），再按插件 ID 排列市场插件。
+  `stage` 是状态页签：`all`（缺省，内置组件加未进回收站的市场插件）/ `published` / `draft` / `archived` / `deleted`，内置组件没有上下架，只出现在 `all`；
+  `kind` 是类型：`all`（缺省）/ `market`（市场插件）/ `builtin`（内置组件）；`visibility` 为 `all` / `public` / `restricted`（内置组件算公开）；
   `q` 在 ID、名称、包名、简介里包含匹配（最多 100 字，英文字母不分大小写）；`pageSize` 为 10 / 20（缺省）/ 50 / 100，其他值 `400`；`page` 超过末页时按末页返回。
-  `counts` 是整个插件库的数量 `{ all, builtin, published, draft, archived, deleted }`，不受筛选影响，`all` = 未进回收站的市场插件（= `published + draft + archived`，不含内置组件）。后台「插件」页用这个。
+  `counts` 是整个插件库的数量 `{ all, builtin, market, published, draft, archived, deleted }`，不受筛选影响：`all` = `builtin + published + draft + archived`，
+  `market` = `published + draft + archived`，回收站 `deleted` 单独计。后台「插件」页的页签和类型筛选用这个。
 - **名录**：`view=index` → `{ items: [{ id, displayName, package, state, visibility }] }`，全部市场插件（含回收站），不查 npm、不带授权，给后台的名称显示和插件选择框用。
 
 不带参数时形状不变，TokensAPI 和脚本照旧用。`GET /plugins/:id` 返回单条：

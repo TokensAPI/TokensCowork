@@ -5,9 +5,11 @@
   const valid = value => ['light', 'dark', 'system'].includes(value) ? value : 'system'
   let preference = 'system'
   try { preference = valid(localStorage.getItem(key)) } catch {}
+  // data-theme drives the docs center's own styles, data-bs-theme the console's Tabler styles.
   function apply() {
-    document.documentElement.dataset.theme = preference === 'system'
-      ? (system.matches ? 'dark' : 'light') : preference
+    const theme = preference === 'system' ? (system.matches ? 'dark' : 'light') : preference
+    document.documentElement.dataset.theme = theme
+    document.documentElement.dataset.bsTheme = theme
     const control = document.getElementById('theme-choice')
     if (control) control.value = preference
   }

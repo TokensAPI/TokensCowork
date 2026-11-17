@@ -78,9 +78,9 @@ async function listed(env, rows, grants) {
   return resolved.map((item, i) => ({ ...item, registry: items[i].registry, effectiveRegistry: item.registry ?? 'npm',
     access: grants.get(item.id) ?? noGrants(), icon: icons.has(item.id) ? iconPath(item.id, icons.get(item.id)) : null }))
 }
-// GET /plugins: everything (TokensAPI and scripts, unchanged); with any of page, pageSize, stage,
+// GET /plugins: everything (TokensAPI and scripts, unchanged); with any of page, pageSize, stage, kind,
 // visibility or q, one filtered page for the console; with view=index, names only.
-const PAGE_PARAMS = ['page', 'pageSize', 'stage', 'visibility', 'q']
+const PAGE_PARAMS = ['page', 'pageSize', 'stage', 'kind', 'visibility', 'q']
 async function plugins(request, env, url) {
   if (url.searchParams.get('view') === 'index') return pluginIndex(env)
   if (url.searchParams.has('view')) throw invalid('view 只能是 index')

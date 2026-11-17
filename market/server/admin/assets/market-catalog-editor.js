@@ -154,7 +154,9 @@ export function catalogEditor({ request, action, reload, close, isBusy }) {
     $('lifecycle-title').textContent =
       labels[operation] + ' · ' + plugin.displayName
     $('lifecycle-submit').textContent = labels[operation]
-    $('lifecycle-submit').className = operation === 'purge' ? 'danger' : ''
+    const danger = operation === 'purge' || operation === 'trash'
+    $('lifecycle-submit').className = danger ? 'btn btn-danger' : 'btn btn-primary'
+    $('lifecycle-status').className = `modal-status ${danger ? 'bg-danger' : operation === 'archive' ? 'bg-warning' : 'bg-primary'}`
     $('purge-confirm-label').hidden = operation !== 'purge'
     $('purge-confirm-id').required = operation === 'purge'
     $('purge-confirm-id').value = ''

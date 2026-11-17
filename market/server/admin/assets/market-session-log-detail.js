@@ -43,15 +43,15 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       box.querySelector('.log-full').hidden = !open
       if (preview) preview.hidden = open
       toggle.textContent = open ? '收起' : `${label}（${all.length} 行 · ${number(text.length)} 字符）`
-    }, 'quiet log-toggle')
+    }, 'btn btn-sm log-toggle')
     box.append(...[preview, toggle].filter(Boolean))
     return box
   }
-  const jsonButton = (item) => button('JSON', () => showJson(item.events.length === 1 ? item.events[0] : item.events), 'quiet log-json')
+  const jsonButton = (item) => button('JSON', () => showJson(item.events.length === 1 ? item.events[0] : item.events), 'btn btn-sm log-json')
   function blockHead(label, kind, item, ...extra) {
     const head = node('div', '', 'log-block-head')
-    head.append(node('span', label, 'log-role ' + kind), ...extra.filter(Boolean).map((text) => (typeof text === 'string' ? node('span', text, 'muted') : text)))
-    head.append(node('time', time(item.events[0]?.time), 'muted log-time'), jsonButton(item))
+    head.append(node('span', label, 'log-role ' + kind), ...extra.filter(Boolean).map((text) => (typeof text === 'string' ? node('span', text, 'text-secondary') : text)))
+    head.append(node('time', time(item.events[0]?.time), 'text-secondary log-time'), jsonButton(item))
     return head
   }
   function block(kind, label, item, ...extra) {
@@ -75,13 +75,13 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
         const toggle = button('展开', () => {
           if (!list.childElementCount) {
             item.events.forEach((event, index) => {
-              list.append(node('div', contextLabel(item.kinds[index]), 'muted'), foldText(
+              list.append(node('div', contextLabel(item.kinds[index]), 'text-secondary'), foldText(
                 [event.data?.content].flat().map((part) => part?.text ?? '').join('\n') || pretty(event.data), { lines: 4, code: true }))
             })
           }
           list.hidden = !list.hidden
           toggle.textContent = list.hidden ? '展开' : '收起'
-        }, 'quiet log-toggle')
+        }, 'btn btn-sm log-toggle')
         list.hidden = true
         box.append(toggle, list)
         return box
@@ -90,33 +90,33 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
         const box = block('model', '模型', item, item.model, item.step !== null ? `第 ${item.step} 步` : '')
         if (item.reasoning) box.append(foldText(item.reasoning, { lines: 2, label: '思考', className: 'log-reasoning' }))
         // The final answer's text is shown below the fold; its step keeps reasoning and usage here.
-        if (item === answer) box.append(node('p', '（这一步的回答显示在下方）', 'muted'))
+        if (item === answer) box.append(node('p', '（这一步的回答显示在下方）', 'text-secondary'))
         else if (item.text) box.append(item.text.length > 6000 ? foldText(item.text, { lines: 30 }) : node('pre', item.text, 'log-text'))
-        if (!item.reasoning && !item.text) box.append(node('p', '（这一步只调用了工具）', 'muted'))
+        if (!item.reasoning && !item.text) box.append(node('p', '（这一步只调用了工具）', 'text-secondary'))
         const usage = item.usage
         const facts = [
           usage.input ? `输入 ${number(usage.input)}` : '', usage.output ? `输出 ${number(usage.output)}` : '',
           usage.cacheRead ? `缓存读 ${number(usage.cacheRead)}` : '', usage.cacheWrite ? `缓存写 ${number(usage.cacheWrite)}` : '',
           usage.total ? `共 ${number(usage.total)} token` : '', item.interrupted ? '已中断' : '',
         ].filter(Boolean)
-        if (facts.length) box.append(node('p', facts.join(' · '), 'muted log-usage'))
+        if (facts.length) box.append(node('p', facts.join(' · '), 'text-secondary log-usage'))
         return box
       }
       case 'tool': {
         const failed = item.result?.error
-        const box = block('tool', '工具', item, node('strong', item.name), failed ? node('span', '出错', 'chip disabled') : null)
+        const box = block('tool', '工具', item, node('strong', item.name), failed ? node('span', '出错', 'badge bg-red-lt') : null)
         if (item.arguments !== null) {
           box.append(node('div', argumentSummary(item.arguments) || '（无参数）', 'log-args log-code'))
           if (item.arguments !== '' && item.arguments !== '{}') box.append(foldText(pretty(item.arguments), { lines: 0, code: true, label: '完整参数' }))
         }
-        if (!item.result) box.append(node('p', '没有收到结果', 'muted'))
-        else box.append(node('div', '结果', 'muted log-result-label'), foldText(item.result.text || pretty(item.result.meta ?? {}), { lines: 3, code: true, label: '展开结果' }))
+        if (!item.result) box.append(node('p', '没有收到结果', 'text-secondary'))
+        else box.append(node('div', '结果', 'text-secondary log-result-label'), foldText(item.result.text || pretty(item.result.meta ?? {}), { lines: 3, code: true, label: '展开结果' }))
         return box
       }
       case 'note': {
         const line = node('div', '', 'log-note' + (item.tone ? ' ' + item.tone : ''))
-        line.append(node('span', item.text, 'log-note-text'), node('time', time(item.events[0]?.time), 'muted log-time'))
-        if (item.childId) line.append(button('打开子会话', () => action(() => openBySession(item.childId, '子会话的日志不在这里（可能未上传或已删除）。')), 'quiet log-toggle'))
+        line.append(node('span', item.text, 'log-note-text'), node('time', time(item.events[0]?.time), 'text-secondary log-time'))
+        if (item.childId) line.append(button('打开子会话', () => action(() => openBySession(item.childId, '子会话的日志不在这里（可能未上传或已删除）。')), 'btn btn-sm log-toggle'))
         line.append(jsonButton(item))
         if (!item.detail) return line
         const box = node('div', '', 'log-note-box')
@@ -129,7 +129,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
         const internal = item.kind === 'internal'
         const line = node('div', '', 'log-note ' + (internal ? 'log-internal' : 'log-other'))
         line.append(node('span', item.missing ? `原文缺失 · ${event.type} #${event.seq}` : `${internal ? '内部' : '其他'} · ${event.type} #${event.seq}`, 'log-note-text'),
-          node('time', time(event.time), 'muted log-time'), jsonButton(item))
+          node('time', time(event.time), 'text-secondary log-time'), jsonButton(item))
         if (item.missing || internal) return line
         const box = node('div', '', 'log-note-box')
         box.append(line, foldText(pretty(event.data ?? {}), { lines: 0, code: true, label: '展开' }))
@@ -150,10 +150,10 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     const head = node('div', '', 'log-turn-head')
     if (group.turn === null) head.append(node('h3', '会话开始'))
     else {
-      head.append(node('h3', `第 ${group.turn} 轮`), node('span', time(group.startedAt), 'muted'))
-      if (group.endedAt && group.startedAt) head.append(node('span', `用时 ${durationText(group.endedAt - group.startedAt)}`, 'muted'))
+      head.append(node('h3', `第 ${group.turn} 轮`), node('span', time(group.startedAt), 'text-secondary'))
+      if (group.endedAt && group.startedAt) head.append(node('span', `用时 ${durationText(group.endedAt - group.startedAt)}`, 'text-secondary'))
       const ending = turnEnding(group.reason)
-      head.append(node('span', ending, 'chip' + (group.reason?.kind === 'completed' ? '' : ' disabled')))
+      head.append(node('span', ending, 'badge ' + (group.reason?.kind === 'completed' ? 'bg-green-lt' : 'bg-yellow-lt')))
     }
     section.append(head, ...users.map((item) => renderItem(item)))
     if (process.length) {
@@ -167,7 +167,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       const build = () => {
         if (body.childElementCount) return
         body.append(...(visible.length ? visible.map((item) => renderItem(item, answer))
-          : [node('p', '这里只有内部事件，打开「显示内部事件」可以查看。', 'muted')]))
+          : [node('p', '这里只有内部事件，打开「显示内部事件」可以查看。', 'text-secondary')]))
       }
       fold.addEventListener('toggle', () => {
         if (fold.open) { openTurns.add(key); build() } else openTurns.delete(key)
@@ -212,16 +212,16 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       const dd = document.createElement('dd')
       if (value instanceof Node) dd.append(value)
       else { dd.textContent = value; if (className) dd.className = className }
-      wrap.append(node('dt', name, 'muted'), dd)
+      wrap.append(node('dt', name, 'text-secondary'), dd)
       facts.append(wrap)
     }
     fact('上报账号', current.accountId ? `${current.accountId}（客户端上报，未核验）` : '—')
     const keys = node('div')
-    if (!current.keys.length) keys.append(node('span', '未带 Key（匿名）', 'muted'))
+    if (!current.keys.length) keys.append(node('span', '未带 Key（匿名）', 'text-secondary'))
     for (const item of current.keys) {
       const line = node('div', '', 'session-log-key')
       keyLines(line, item)
-      if (current.keys.length > 1) line.append(node('div', `首次 ${time(item.firstUsedAt)} · 最近 ${time(item.lastUsedAt)}`, 'muted'))
+      if (current.keys.length > 1) line.append(node('div', `首次 ${time(item.firstUsedAt)} · 最近 ${time(item.lastUsedAt)}`, 'text-secondary'))
       keys.append(line)
     }
     fact(current.keys.length > 1 ? `Key（${current.keys.length} 把）` : 'Key', keys)
@@ -232,12 +232,12 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     fact('模型', current.models.join('、') || '—')
     fact('累计 token', current.tokens.total ? `${number(current.tokens.total)}（输入 ${number(current.tokens.input)} · 输出 ${number(current.tokens.output)}）` : '—')
     box.append(facts)
-    const chips = node('div', '', 'log-chips')
+    const chips = node('div', '', 'badges-list')
     for (const [type, label] of Object.entries(SETTINGS)) {
-      if (overview.settings[type]) chips.append(node('span', `${label} ${overview.settings[type]}`, 'chip'))
+      if (overview.settings[type]) chips.append(node('span', `${label} ${overview.settings[type]}`, 'badge bg-secondary-lt'))
     }
     const descriptor = overview.descriptor
-    if (descriptor) chips.append(node('span', `子代理 ${[descriptor.label, descriptor.mode, [descriptor.agentProvider, descriptor.agentModel].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}`, 'chip'))
+    if (descriptor) chips.append(node('span', `子代理 ${[descriptor.label, descriptor.mode, [descriptor.agentProvider, descriptor.agentModel].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')}`, 'badge bg-secondary-lt'))
     if (chips.childElementCount) box.append(chips)
     overview.systemPrompts.forEach((text, index) => {
       box.append(foldText(text, { lines: 0, code: true, label: overview.systemPrompts.length > 1 ? `系统提示词 ${index + 1}/${overview.systemPrompts.length}` : '系统提示词' }))
@@ -307,7 +307,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
   function selectTab(name) {
     tab = name
     for (const [id, value] of [['session-log-tab-conversation', 'conversation'], ['session-log-tab-raw', 'raw']]) {
-      $(id).setAttribute('aria-pressed', String(value === name))
+      $(id).classList.toggle('active', value === name)
       $(id).setAttribute('aria-selected', String(value === name))
     }
     $('session-log-conversation').hidden = name !== 'conversation'
