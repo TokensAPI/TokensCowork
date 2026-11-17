@@ -3,7 +3,7 @@
  * the user to every Key they own. TokensAPI keeps the accounts; the market only records the user
  * number and the name shown here.
  */
-export function usersView({ $, node, button, rowActions, json, action, reload, pluginName, grants }) {
+export function usersView({ $, node, button, rowActions, confirmAction, json, action, reload, pluginName, grants }) {
   let items = [],
     searchReady = false,
     editing = null
@@ -22,9 +22,10 @@ export function usersView({ $, node, button, rowActions, json, action, reload, p
       cell.append(rowActions(label(user.id), { label: '授权插件', run: () => grants.open(`/api/v1/users/${user.id}`, label(user.id)) }, [
         { label: '改名', run: () => edit(user) },
         'divider',
-        { label: '移除', danger: true, run: () => {
-          const held = user.plugins.length ? `，并撤掉它的 ${user.plugins.length} 项插件授权` : ''
-          if (!confirm(`移除 ${label(user.id)}${held}？`)) return
+        { label: '移除', danger: true, run: async () => {
+          const held = user.plugins.length ? `它的 ${user.plugins.length} 项插件授权一并撤掉，对该用户名下所有 Key 生效。` : '它目前没有单独授权的插件。'
+          if (!(await confirmAction({ title: `移除用户 ${label(user.id)}？`, ok: '移除用户',
+            text: `${held}TokensAPI 里的账号、组织授权和单独登记的 Key 不受影响。` }))) return
           action(async () => {
             await json(`/api/v1/users/${user.id}`, undefined, 'DELETE')
             await reload('用户已移除。')

@@ -11,7 +11,7 @@ export function docTitle(text, fileName) {
   return (heading || fileName.replace(/\.(md|markdown|txt)$/iu, '') || '未命名文档').slice(0, 120)
 }
 
-export function docsAdminView({ $, node, rowActions, json, action, reload, formatTime, plugins, icons }) {
+export function docsAdminView({ $, node, rowActions, confirmAction, json, action, reload, formatTime, plugins, icons }) {
   let pluginId = '', items = [], pending = null
 
   const documentable = () => plugins().filter(plugin => plugin.category !== 'builtin' && plugin.state !== 'deleted')
@@ -31,8 +31,9 @@ export function docsAdminView({ $, node, rowActions, json, action, reload, forma
     $('docs-list').replaceChildren(...items.map(doc => {
       const row = document.createElement('tr'), cell = document.createElement('td')
       cell.append(rowActions(doc.title, { label: '替换', run: () => pick({ replace: doc }) }, [
-        { label: '删除', danger: true, run: () => {
-          if (!confirm(`删除文档「${doc.title}」？`)) return
+        { label: '删除', danger: true, run: async () => {
+          if (!(await confirmAction({ title: `删除文档「${doc.title}」？`, ok: '删除文档',
+            text: '删除后用户在文档中心再也看不到这篇文档，不可恢复；这个插件的其他文档和图标不受影响。' }))) return
           action(async () => {
             await json(`/api/v1/plugins/${pluginId}/docs/${doc.id}`, undefined, 'DELETE')
             await load()

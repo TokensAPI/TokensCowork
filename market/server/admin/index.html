@@ -793,6 +793,22 @@
       </div>
     </dialog>
 
+    <dialog id="confirm-dialog" class="modal" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+      <div class="modal-dialog modal-dialog-centered">
+        <form method="dialog" class="modal-content">
+          <div id="confirm-status" class="modal-status bg-danger"></div>
+          <div class="modal-body">
+            <h2 id="confirm-title" class="h3 text-break"></h2>
+            <p id="confirm-text" class="text-secondary mb-0 text-break"></p>
+          </div>
+          <div class="modal-footer">
+            <button id="confirm-cancel" value="cancel" type="submit" class="btn" autofocus>取消</button
+            ><button id="confirm-ok" value="ok" type="submit" class="btn btn-danger">确认</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
     <dialog id="discard-dialog" class="modal" aria-labelledby="discard-title">
       <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">

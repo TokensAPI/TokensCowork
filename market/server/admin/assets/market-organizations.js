@@ -4,7 +4,7 @@
  * lands straight on its own organization and can only narrow its granted plugins: switch one off,
  * or name the members who see it (none named = every member).
  */
-export function organizationsView({ $, node, button, badge, rowActions, json, action, reload, grants }) {
+export function organizationsView({ $, node, button, badge, rowActions, confirmAction, json, action, reload, grants }) {
   let items = [],
     syncReady = false,
     detail = null,
@@ -118,11 +118,12 @@ export function organizationsView({ $, node, button, badge, rowActions, json, ac
     event.preventDefault()
     $('member-lookup-button').click()
   }
-  $('members-form').onsubmit = (event) => {
+  $('members-form').onsubmit = async (event) => {
     event.preventDefault()
     const { plugin } = picking
     const ids = [...picking.members.keys()]
-    if (!ids.length && plugin.members.length && !confirm(`清空名单后 ${plugin.displayName} 对本组织全员可见，确定吗？`)) return
+    if (!ids.length && plugin.members.length && !(await confirmAction({ title: `清空「${plugin.displayName}」的可见成员？`, ok: '清空并保存',
+      text: `清空后 ${plugin.displayName} 对本组织全员可见，不再只限名单上的 ${plugin.members.length} 位成员；只影响本组织。` }))) return
     action(async () => {
       await json(pluginPath(plugin), { members: ids })
       $('members-dialog').close()

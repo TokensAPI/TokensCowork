@@ -105,7 +105,7 @@ const organizations = organizationsView(shared)
 const keys = keysView(shared)
 const users = usersView(shared)
 const sessionLogs = sessionLogsView(shared)
-const icons = iconDialog({ $, json, action, isBusy: () => busy })
+const icons = iconDialog({ $, json, action, isBusy: () => busy, confirmAction: kit.confirmAction })
 const docs = docsAdminView({ ...shared, plugins: () => plugins, icons })
 const pluginPage = pluginsView({ ...shared, isSignedIn: () => !!session, organizations, keys, users, editor: () => editor, icons })
 
@@ -312,7 +312,7 @@ function lock() {
   session = null
   plugins = []
   audit = []
-  $('discard-dialog').close()
+  for (const id of ['confirm-dialog', 'discard-dialog']) $(id).close()
   pendingClose = null
   $('activity-list').replaceChildren()
   $('admin-token').value = ''

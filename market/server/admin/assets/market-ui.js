@@ -91,5 +91,27 @@ export function consoleKit({ isBusy }) {
     size.value = String(pageSize)
   }
 
-  return { node, button, badge, rowActions, pager }
+  /**
+   * The console's confirmation, in place of the browser's confirm(): Tabler's modal on the shared
+   * native <dialog id="confirm-dialog">. Resolves true only for the confirm button; cancel, Esc or
+   * closing it any other way resolve false. Focus starts on 取消, so Enter never confirms by accident.
+   * `danger` (the default) draws the red status bar and button.
+   */
+  function confirmAction({ title, text, ok = '确认', danger = true }) {
+    const dialog = document.getElementById('confirm-dialog')
+    document.getElementById('confirm-title').textContent = title
+    document.getElementById('confirm-text').textContent = text
+    const okButton = document.getElementById('confirm-ok')
+    okButton.textContent = ok
+    okButton.className = danger ? 'btn btn-danger' : 'btn btn-primary'
+    document.getElementById('confirm-status').className = `modal-status ${danger ? 'bg-danger' : 'bg-primary'}`
+    return new Promise((resolve) => {
+      dialog.returnValue = ''
+      dialog.addEventListener('close', () => resolve(dialog.returnValue === 'ok'), { once: true })
+      dialog.showModal()
+      document.getElementById('confirm-cancel').focus()
+    })
+  }
+
+  return { node, button, badge, rowActions, pager, confirmAction }
 }

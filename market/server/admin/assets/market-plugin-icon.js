@@ -62,7 +62,7 @@ async function base64(blob) {
   return btoa(binary)
 }
 
-export function iconDialog({ $, json, action, isBusy }) {
+export function iconDialog({ $, json, action, isBusy, confirmAction }) {
   let plugin = null, chosen = null, hasIcon = false, done = null
 
   function show(img, empty, src) {
@@ -138,8 +138,10 @@ export function iconDialog({ $, json, action, isBusy }) {
       await done?.(`${target.displayName || target.id} 的图标已更新，插件市场和文档中心显示同一张图。`)
     }, { errorTarget: 'icon-error' })
   }
-  $('icon-remove').onclick = () => {
-    if (!plugin || !hasIcon || !confirm(`移除「${plugin.displayName || plugin.id}」的图标？插件市场和文档中心会改回显示首字。`)) return
+  $('icon-remove').onclick = async () => {
+    if (!plugin || !hasIcon || isBusy()) return
+    if (!(await confirmAction({ title: `移除「${plugin.displayName || plugin.id}」的图标？`, ok: '移除图标',
+      text: '插件市场卡片、文档中心和后台都会改回显示首字，直到重新上传图标。' }))) return
     const target = plugin
     action(async () => {
       await json(`/api/v1/plugins/${encodeURIComponent(target.id)}/icon`, undefined, 'DELETE')

@@ -3,7 +3,7 @@
  * or from a plugin's access dialog. A Key grant stands on its own: organizations, their switches
  * and user grants never add to or take away from it.
  */
-export function keysView({ $, node, rowActions, json, action, reload, pluginName, grants }) {
+export function keysView({ $, node, rowActions, confirmAction, json, action, reload, pluginName, grants }) {
   let items = [],
     displayReady = false,
     editing = null
@@ -24,9 +24,10 @@ export function keysView({ $, node, rowActions, json, action, reload, pluginName
         }, { success: 'Key 已复制到剪贴板。' }) }] : []),
         { label: '改备注', run: () => edit(key) },
         'divider',
-        { label: '删除', danger: true, run: () => {
-          const held = key.plugins.length ? `，并移除它的 ${key.plugins.length} 项插件授权` : ''
-          if (!confirm(`删除 ${label(key.fingerprint)}${held}？`)) return
+        { label: '删除', danger: true, run: async () => {
+          const held = key.plugins.length ? `它的 ${key.plugins.length} 项插件授权一并移除，只授权给这个 Key 的受限插件，持有它的人将看不到。` : '它目前没有单独授权的插件。'
+          if (!(await confirmAction({ title: `删除 Key「${label(key.fingerprint)}」？`, ok: '删除 Key',
+            text: `${held}组织授权和用户授权不受影响；删除后不可恢复，需要时重新登记。` }))) return
           action(async () => {
             await json(`/api/v1/keys/${key.fingerprint}`, undefined, 'DELETE')
             await reload('Key 已删除。')
