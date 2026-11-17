@@ -266,7 +266,9 @@ function renderPlugins() {
     }
     for (const control of actions.children) control.setAttribute('aria-label', p.displayName + ' ' + control.textContent)
     bottom.append(actions)
-    card.append(top, node('p', p.summary, 'description'), summary, bottom)
+    const description = node('p', p.summary, 'description')
+    if (p.summary) description.title = p.summary
+    card.append(top, description, summary, bottom)
     return card
   }))
   $('empty').hidden = pageItems.length > 0

@@ -280,7 +280,6 @@ nav b {
 }
 main {
   margin-left: 235px;
-  max-width: 1750px;
   padding: 32px 42px 22px;
 }
 .topbar {
@@ -400,10 +399,15 @@ main {
   gap: 12px;
   margin-bottom: 16px;
 }
+/* Fluid columns: as many 260px+ cards as fit, never more than five per row. */
 #plugin-grid {
+  --plugin-gap: 18px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(min(100%, 260px), calc((100% - 4 * var(--plugin-gap)) / 5)), 1fr)
+  );
+  gap: var(--plugin-gap);
 }
 .plugin-card {
   background: #fff;
@@ -470,6 +474,12 @@ main {
   color: #7b867f;
   flex: 1;
   min-height: 44px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .grant-summary {
   display: flex;
@@ -867,11 +877,6 @@ dialog::backdrop {
 [hidden] {
   display: none !important;
 }
-@media (min-width: 1600px) {
-  #plugin-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
 @media (max-width: 1150px) {
   main {
     padding: 28px 25px;
@@ -960,9 +965,6 @@ dialog::backdrop {
   }
   .stats b {
     font-size: 1.7rem;
-  }
-  #plugin-grid {
-    grid-template-columns: 1fr;
   }
   .filter-controls {
     width: 100%;
@@ -1097,12 +1099,12 @@ nav a[aria-current='page'] {
 }
 .catalog-actions {
   display: flex;
-  gap: 7px;
+  gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 .catalog-actions button {
-  padding: 7px 10px;
+  padding: 7px 8px;
 }
 .card-bottom {
   flex-direction: column;
