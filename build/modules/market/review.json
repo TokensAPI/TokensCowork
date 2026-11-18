@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "reviewedAt": "2026-10-22",
+  "reviewedAt": "2026-11-18",
   "reviewNote": "2026-10-22（T0048）：在 T0042 的 Desktop v2.0.18 / DSH 0.2.1-rc.2 基线上新增两条覆盖（更新后待重启的横幅与重启端点、设置页的界面回归），baseline 未变。overlay-doctor market --check exit 0（38 条市场覆盖，0 条 pin 变化），build-verify market 55 项通过，临时 staging 上 market 三个 tsconfig tsc --noEmit exit 0、vitest 16 个文件 354 项通过。真机横幅外观与一键重启未验收。上一轮 2026-10-21（T0042）：在 T0040 的 Desktop v2.0.18 / DSH 0.2.1-rc.2 基线上新增四条「发现」页首屏延迟覆盖（过期快照先返回、产品目录源请求 8 s 快速失败、产品来源清单按来源缓存，外加一条上游选项断言的用例适配），baseline 未变。overlay-doctor --doctor 全量 0 ✖ 0 ○（71 条生效，其中 market 41 条），build-verify market 49 项、全量 163 项通过，staging 上 market 三个 tsconfig tsc --noEmit exit 0、vitest 349 项通过。真机首开秒数与刷新失败提示未验收。上一轮 2026-10-21（T0040）：在 T0037 的 Desktop v2.0.18 / DSH 0.2.1-rc.2 基线上新增四条覆盖——官方「自定义插件市场」bundle 启动时固定关闭（含补进上游 Profile 用例的产品回归）、插件页「发现」标签改由产品市场提供（含上游注册用例的第四条断言），baseline 未变。overlay-doctor --doctor 全量 0 ✖ 0 ○（67 条生效，其中 market 32 条），build-verify market 43 项、全量 157 项通过。上一轮 2026-10-21（T0037）：在 T0018 的 Desktop v2.0.18 / DSH 0.2.1-rc.2 基线上新增侧栏「插件」页的三条覆盖，baseline 未变。overlay-doctor --doctor 全量 0 ✖ 0 ○（28 条 market 覆盖），build-verify market 40 项通过。上一轮 2026-10-20（T0018）：pin 换到 Desktop v2.0.18 / DSH 0.2.1-rc.2 后逐条复查。上游把全部包操作交给官方插件管理器（de7b7e4556）并合并了测试文件（80a42398c2），市场的 pnpm 直调、restart token、Profile 清单读写全部消失；24 条覆盖重新落点后 overlay-doctor --doctor 全量 0 ✖ 0 ○，build-verify market 28 项通过。真实宿主视觉、账户权限、真机安装/更新激活语义未验收。",
   "baseline": {
     "desktop": "6a63b9730b82cf4e858b9a11ac9783da9a5a0c3a",
@@ -25,8 +25,8 @@
         "artifact": null
       },
       "tokens-model-manager": {
-        "commit": "0a388e26914edf8606c6d7f1742412a924963edb",
-        "version": "0.2.30",
+        "commit": "476b8a541927610eac93249b525144af13493b4f",
+        "version": "0.2.31",
         "artifact": null
       },
       "tokens-dsh-web-search": {
@@ -42,6 +42,12 @@
     }
   },
   "evidence": [
+    {
+      "overlays": [
+        "market.auth"
+      ],
+      "verified": "2026-11-18：模型管理插件 0.2.30（0a388e2）→ 0.2.31（476b8a5，T0087：视觉识别失败自动重试 2 次、失败结果不再缓存；另含 main 上 aaa858e 的 context_length 测试和合并后的类型修复）。0a388e2..476b8a5 在 dsh/index.js 没有增删 TOKENSAPI_API_KEY、credentials 调用或 credentialRef/verificationRef，credentials.resolve(TOKENSAPI_API_KEY) 契约不变，覆盖无需修改。插件 CI 6 个平台测试通过并已发布到 npm.tokensapi.ai（latest 0.2.31）。外层按约定只本地提交，未构建。"
+    },
     {
       "overlays": [
         "market.pin-source",
