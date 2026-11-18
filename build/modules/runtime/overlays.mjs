@@ -1,6 +1,6 @@
 /* ====================================================================
  * runtime 覆盖登记表
- * DSH 版本、首次启动、stderr、测试适配、外部浏览器登录桥、RPC 作用域、
+ * DSH 版本、打包 pnpm 版本、首次启动、stderr、测试适配、外部浏览器登录桥、RPC 作用域、
  * 摘要压缩、联网搜索设置。字段说明见 build/modules/README.md。
  * ==================================================================== */
 import { desktopFiles as d, desktopInstalled, installedOverlay, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
@@ -14,7 +14,17 @@ import {
 } from './desktop-runtime-overlay.mjs'
 import { alignDiagnosticsSpec, keepErrorCodesReadable } from './mask-secrets-overlay.mjs'
 import { addDesktopOpenExternal } from './open-external-overlay.mjs'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { keepDshRuntimeSeries } from './profile-package-overlay.mjs'
+import {
+  alignPnpmDependency,
+  alignPnpmNotice,
+  alignPnpmPackageSpec,
+  alignPnpmResolutions,
+  normalizePatch,
+  PNPM_PATCH,
+} from './pnpm-version-overlay.mjs'
 import {
   alignConnectionRpcScope,
   alignLegacySearchSettingsImport,
@@ -45,6 +55,42 @@ export default [
     },
     why: '统一外层固定的 DSH 依赖及 peers，保留 Desktop Yarn patches，冷却期只豁免产品固定版本。',
     retireWhen: 'Desktop 原生依赖图与产品固定运行时一致时评估缩减；不能删除闭包及 immutable lock 验证。',
+  },
+  {
+    id: 'runtime.pnpm-version',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'workaround',
+    files: ({ files }) => ({
+      workspace: d.workspacePackage,
+      patch: { path: PNPM_PATCH, optional: true },
+      ...Object.fromEntries(files.read('package.json', { json: true }).workspaces
+        .map(entry => [`manifest:${entry}`, { path: `${entry}/package.json`, json: true }])),
+      ...Object.fromEntries(['dsh-plugin-desktop', 'dsh-plugin-desktop-beta']
+        .map(variant => [`notice:${variant}`, `${variant}/THIRD_PARTY_NOTICES.md`])),
+    }),
+    apply: input => Object.fromEntries(Object.entries(input).map(([key, value]) => {
+      if (key === 'workspace') return [key, { ...value, resolutions: alignPnpmResolutions(value.resolutions) }]
+      // 上游 anywhere-labs/deepseek-harness-desktop 06446375 的 patches/pnpm@11.28.5.patch，原样（LF）。
+      if (key === 'patch') return [key, normalizePatch(readFileSync(resolve(import.meta.dirname, 'assets', 'pnpm@11.28.5.patch'), 'utf8'))]
+      if (key.startsWith('notice:')) return [key, alignPnpmNotice(value)]
+      return [key, alignPnpmDependency(value, key.slice('manifest:'.length))]
+    })),
+    why: 'pnpm 11.8.0 的 finishWorkers() 清空线程池引用，Done 之后晚到的抓取（其他平台可选依赖，如 sharp 的 @img/*）新建一个没人关闭的池，进程不退出（pnpm#12297/#13617，#13226 修复于 11.23.0）；宿主插件管理器等 pnpm 退出，市场更新插件卡到 10 分钟静默上限并误报“没能卸载”。与上游 Desktop 271cc526 一样打包 11.28.5，resolutions 与补丁换成上游 06446375 的 patches/pnpm@11.28.5.patch（同一处 minimumReleaseAge 修正）。',
+    retireWhen: '固定的 Desktop pin 自带 pnpm ≥ 11.23.0（上游 271cc526 之后的版本）时删除，连同 runtime.test-pnpm-version 与 assets/pnpm@11.28.5.patch；删除前用 pnpm-exit-regression.mjs 复验。',
+  },
+  {
+    id: 'runtime.test-pnpm-version',
+    phase: 'prepare',
+    upstream: ['desktop'],
+    kind: 'workaround',
+    files: {
+      stable: 'dsh-plugin-desktop/tests/package.spec.ts',
+      beta: 'dsh-plugin-desktop-beta/tests/package.spec.ts',
+    },
+    apply: ({ stable, beta }) => ({ stable: alignPnpmPackageSpec(stable), beta: alignPnpmPackageSpec(beta) }),
+    why: 'Stable/Beta 的 package.spec 断言打包 pnpm 的版本、锁文件条目与补丁条目；只把这三处的 11.8.0 换成 11.28.5（与上游 271cc526 的改法一致），补丁内容断言不变，staging 的 Desktop vitest 保持可跑。',
+    retireWhen: '随 runtime.pnpm-version 一起删除。',
   },
   {
     id: 'runtime.skip-setup-wizard',
@@ -190,4 +236,5 @@ export default [
 export const checks = [
   { file: 'staging-compaction-smoke.mjs', runBy: 'staging-runtime-patch.mjs（installed 阶段之后自动执行）' },
   { file: 'staging-rpc-smoke.mjs', runBy: 'build/build.mjs（installed 阶段之后自动执行）' },
+  { file: 'pnpm-exit-regression.mjs', runBy: '手动：用装配出的插件管理器与打包 pnpm 验证安装/卸载/更新后按时退出（--live 走真实 Registry）' },
 ]

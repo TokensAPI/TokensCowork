@@ -102,5 +102,12 @@
       ],
       "verified": "2026-10-23：v0.7.4 真机验收 T0048 时，市场\"立即重启\"取消过一次后再点无反应。上游 desktop-actions.ts 在确认框取消（bootstrap 正常返回）时也把 restartCompleted 置 true，之后直接返回。覆盖去掉该闩、只保留进行中去重并在结束后清槽。用例以 stripTypeScriptTypes 加载真实 desktop-actions.ts（仅把 cordis Service 换成空壳）：上游取消一次后第二次不再弹框、覆盖后每次都弹，进行中复用同一 Promise、失败后可重试，锚点漂移报错。test:build、overlay-doctor --check 通过；完整门禁随 v0.7.5。"
     }
+    ,{
+      "overlays": [
+        "runtime.pnpm-version",
+        "runtime.test-pnpm-version"
+      ],
+      "verified": "2026-11-18（T0086）：市场更新连接中心卡 10 分钟后报“没能卸载”。根因 pnpm 11.8.0 finishWorkers() 清空 workerPool，Done 之后晚到的抓取新建线程池不再退出（pnpm#12297/#13617，#13226 修复于 11.23.0）。打包版本对齐上游 Desktop 271cc526 的 11.28.5，补丁取 06446375 的 patches/pnpm@11.28.5.patch（blob 32ec0280，与 11.8.0 补丁同一处 minimumReleaseAge 修正）。pnpm-exit-regression.mjs 经固定插件管理器 runProfilePnpm（service 模式，electron.exe + ELECTRON_RUN_AS_NODE）实测：离线夹具（hoisted、空 store、其他平台可选依赖 tarball 延迟 3 秒）11.28.5 安装/卸载/安装 3 步全部 exitCode 0、Done 后 26–31ms 返回；11.8.0 卸载打出 Done 后不退出，宿主等满 20 秒静默上限报 exitCode 1、timedOut。真实 Registry：11.28.5 连接中心 2.10.0 安装 → 卸载 → 安装 2.10.1、润洲报告 0.3.6 → 0.3.7，6 步全部 0，Done 后 20–120ms 返回，package.json/锁文件/已装版本/.modules.yaml packageManager 正确；11.8.0 卸载连接中心 2.10.0 打出 Done 后挂住，宿主 241 秒才以 exitCode 1 结束（与用户现象一致）。市场私有 Registry 的临时项目 .npmrc（@tokensapi 作用域 + 字面 _authToken + fetch-timeout）在两个版本下都带鉴权安装与卸载成功。遗留：Windows + Electron 44 下 11.28.5 偶发在 Done 之后以 0x80000003（libuv PostQueuedCompletionStatus 句柄无效）退出，约 2/39 次连接中心安装，安装已落盘但宿主按失败报；卸载约 40 次、离线夹具 160 次未出现；同条件对照（同一脚本、runProfilePnpm service 模式、每次新建 Profile/store/cache，各 40 次安装连接中心 2.10.1）11.8.0 与 11.28.5 都是 40/40 正常、0 崩溃、0 挂住，Done 后 47–324ms 返回，未复现 0x80000003。"
+    }
   ]
 }

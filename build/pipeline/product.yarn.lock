@@ -11049,7 +11049,7 @@ __metadata:
     micromark-util-symbol: "npm:^2.0.1"
     papaparse: "npm:^5.5.0"
     playwright: "npm:1.63.0"
-    pnpm: "npm:11.8.0"
+    pnpm: "npm:11.28.5"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
     selfsigned: "npm:5.5.0"
@@ -11283,7 +11283,7 @@ __metadata:
     node-addon-require-builtin: "npm:^0.1.9"
     node-gyp: "npm:13.0.1"
     papaparse: "npm:^5.5.0"
-    pnpm: "npm:11.8.0"
+    pnpm: "npm:11.28.5"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
     selfsigned: "npm:5.5.0"
@@ -11527,7 +11527,7 @@ __metadata:
     node-addon-require-builtin: "npm:^0.1.9"
     node-gyp: "npm:13.0.1"
     papaparse: "npm:^5.5.0"
-    pnpm: "npm:11.8.0"
+    pnpm: "npm:11.28.5"
     react: "npm:18.3.1"
     react-dom: "npm:18.3.1"
     selfsigned: "npm:5.5.0"
@@ -15577,9 +15577,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pnpm@npm:11.8.0":
-  version: 11.8.0
-  resolution: "pnpm@npm:11.8.0"
+"pnpm@npm:11.28.5":
+  version: 11.28.5
+  resolution: "pnpm@npm:11.28.5"
   dependencies:
     node-gyp: "npm:latest"
   bin:
@@ -15587,13 +15587,13 @@ __metadata:
     pnpm: bin/pnpm.mjs
     pnpx: bin/pnpx.mjs
     pnx: bin/pnpx.mjs
-  checksum: 10c0/a24262bc503a6007a1948c2182377b30d22e8e192cb2b85e8dd7e2bbac0e87ed1426f454a73ed95943f36177d54938a02d5d6cbbadf01f58467c8c2d06d1a35d
+  checksum: 10c0/b21f4ee96b9ec89b78c952db0ffbd97bcda3c0d3e52bc068a6ef109e84da4ccc010c7525239870cc31aaf175eb4938a4c26c91f7bbfd7e003bdd5ab490810bfc
   languageName: node
   linkType: hard
 
-"pnpm@patch:pnpm@npm%3A11.8.0#./patches/pnpm@11.8.0.patch::locator=deepseek-harness-desktop%40workspace%3A.":
-  version: 11.8.0
-  resolution: "pnpm@patch:pnpm@npm%3A11.8.0#./patches/pnpm@11.8.0.patch::version=11.8.0&hash=13eaf9&locator=deepseek-harness-desktop%40workspace%3A."
+"pnpm@patch:pnpm@npm%3A11.28.5#./patches/pnpm@11.28.5.patch::locator=deepseek-harness-desktop%40workspace%3A.":
+  version: 11.28.5
+  resolution: "pnpm@patch:pnpm@npm%3A11.28.5#./patches/pnpm@11.28.5.patch::version=11.28.5&hash=b421f8&locator=deepseek-harness-desktop%40workspace%3A."
   dependencies:
     node-gyp: "npm:latest"
   bin:
@@ -15601,7 +15601,7 @@ __metadata:
     pnpm: bin/pnpm.mjs
     pnpx: bin/pnpx.mjs
     pnx: bin/pnpx.mjs
-  checksum: 10c0/b1015c7aa081daf65d4ad34f3baddd80fca6a97ac0e23d5733f84dc648cde34092294651855b860d98bbf77713ddb75e78bf7869b46e29bcb5964d2df8ebcece
+  checksum: 10c0/b38a5067c810afd779d91735c38b51c5576ad07f772417a031b51167cce80f0ea9677be426970ab74fb4741670afa266f43b0db32889fd2efae49475058a3114
   languageName: node
   linkType: hard
 
