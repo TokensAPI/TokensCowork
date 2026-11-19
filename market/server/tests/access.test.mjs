@@ -623,3 +623,45 @@ test('a package the Registry gates behind login still distributes once the backe
   assert.equal((await access({ visibility: 'public' }, hidden.id)).status, 200)
   assert.equal((await call(path)).status, 200)
 })
+
+test('a withdrawn grant keeps version lists readable for known Keys; listing and downloading stay gated', async t => {
+  const { env, call, admin, access, revision } = fixture(t)
+  Object.assign(env, selfHostedEnv)
+  const plugin = { ...selfHosted, id: 'withdrawn-tool', package: '@fixture-private/withdrawn' }
+  t.mock.method(globalThis, 'fetch', async url => String(url).endsWith('.tgz')
+    ? new Response('tarball-bytes', { headers: { 'content-type': 'application/octet-stream' } })
+    : Response.json({ name: plugin.package, readme: 'secret readme', description: 'secret summary', 'dist-tags': { latest: '1.0.0' },
+      time: { '1.0.0': '2026-11-01T00:00:00.000Z' },
+      versions: { '1.0.0': { name: plugin.package, version: '1.0.0', description: 'secret summary', dependencies: { left: '1.0.0' },
+        dist: { tarball: 'https://registry.example.test/withdrawn-1.0.0.tgz', integrity: 'sha512-abc', shasum: 'abc' } } } }))
+  env.MARKET_ORGANIZATIONS = { resolveOrganization: async () => null, resolveIdentity: async raw => ({ organization: null, user: raw === 'sk-user' ? { id: 525, name: 'U' } : null }) }
+  assert.equal((await admin('/plugins', { id: plugin.id, metadata: plugin }, 'POST')).status, 200)
+  assert.equal((await admin(`/plugins/${plugin.id}/publish`, { revision: revision(plugin.id) }, 'POST')).status, 200)
+  assert.equal((await admin('/users/525', { name: 'U' })).status, 200)
+  const catalog = async key => (await (await call('/v1/plugins', key, undefined, { 'X-Dsh-Catalog-Registries': 'npm tokenscowork' })).json()).items.map(item => item.id)
+  const path = '/registry/by-package/' + encodeURIComponent(plugin.package)
+  const tarball = '/registry/' + plugin.id + '/' + plugin.package + '/1.0.0/tarball'
+
+  // Granted: listed, full metadata, downloadable.
+  assert.equal((await access({ users: [525] }, plugin.id)).status, 200)
+  assert.ok((await catalog('sk-user')).includes(plugin.id))
+  assert.equal((await (await call(path, 'sk-user')).json()).readme, 'secret readme')
+  assert.equal((await call(tarball, 'sk-user')).status, 200)
+
+  // Withdrawn: not listed, not downloadable, but the version list still answers with versions and times only.
+  assert.equal((await access({ users: [] }, plugin.id)).status, 200)
+  assert.ok(!(await catalog('sk-user')).includes(plugin.id))
+  assert.equal((await call(tarball, 'sk-user')).status, 403)
+  const response = await call(path, 'sk-user')
+  assert.equal(response.status, 200)
+  const body = await response.json()
+  assert.deepEqual(Object.keys(body).sort(), ['dist-tags', 'name', 'time', 'versions'])
+  assert.deepEqual(body.time, { '1.0.0': '2026-11-01T00:00:00.000Z' })
+  assert.deepEqual(body.versions['1.0.0'], { name: plugin.package, version: '1.0.0',
+    dist: { tarball: ORIGIN + '/registry/withdrawn-tool/%40fixture-private%2Fwithdrawn/1.0.0/tarball', integrity: 'sha512-abc', shasum: 'abc' } })
+  assert.ok(!JSON.stringify(body).includes('secret'))
+
+  // No Key, or a Key nobody recognises: nothing at all.
+  assert.equal((await call(path)).status, 403)
+  assert.equal((await call(path, 'sk-unknown')).status, 403)
+})

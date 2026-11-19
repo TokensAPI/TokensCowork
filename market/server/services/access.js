@@ -1,6 +1,6 @@
 import { bearer } from '../http/request.js'
 import { fingerprint } from '../security/key-fingerprint.js'
-import { resolveIdentity, validOrganizationId, organizationMember } from './organizations.js'
+import { resolveIdentity, validOrganizationId, organizationMember, organizationProviderReady } from './organizations.js'
 import { catalogRoster, productComponents, invalid } from './plugins.js'
 import { auditStatements } from './audit.js'
 
@@ -89,6 +89,19 @@ export async function allowed(request, env, pluginId) {
   const state = await baseline(request, env, plugin.visibility !== 'public')
   if (needsIdentity(plugin, state)) await callerIdentity(request, env, state)
   return decide(plugin, state)
+}
+
+// Whether the caller holds a Key the market or TokensAPI recognises. Package version lists are
+// served to such callers even after a grant is withdrawn, so a client that still has the plugin
+// installed can verify its lockfile, uninstall it and keep managing its other plugins. Listing and
+// downloading stay behind allowed().
+export async function knownCaller(request, env) {
+  const key = bearer(request)
+  if (!key) return false
+  if ((await keyGrants(env, key)).size) return true
+  if (!organizationProviderReady(env)) return false
+  const identity = await resolveIdentity(key, env)
+  return Boolean(identity.organization || identity.user)
 }
 
 export async function filterRoster(request, env, roster) {

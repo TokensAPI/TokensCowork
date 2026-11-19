@@ -1,5 +1,5 @@
 import { reply } from '../http/response.js'
-import { allowed } from '../services/access.js'
+import { allowed, knownCaller } from '../services/access.js'
 import { packageOK, versionOK } from '../services/plugins.js'
 import { createRegistryClient } from './client.mjs'
 import { canServeRegistryPackage } from '../services/catalog-source-service.js'
@@ -11,19 +11,24 @@ function pathParts(url) {
   try { return raw.map(value => decodeURIComponent(value)) } catch { return undefined }
 }
 
-async function privatePackage(request, env, id, name) {
+async function registryPackage(env, id, name) {
   if (!pluginId.test(id) || !packageOK(name)) return undefined
   const row = await env.MARKET_DB.prepare("SELECT * FROM market_plugins WHERE id=? AND state='published'").bind(id).first()
   if (!row) return undefined
   let metadata
   try { metadata = JSON.parse(row.metadata) } catch { return undefined }
   if (!canServeRegistryPackage(metadata) || metadata.package !== name) return undefined
+  return { id, name, metadata }
+}
+
+async function privatePackage(request, env, id, name) {
+  const item = await registryPackage(env, id, name)
   // Visibility is decided in the admin backend, nowhere else, and through the same
   // function the catalog uses so installing can never diverge from listing. The Registry is
   // storage — the proxy always fetches with the service account, so which scope
   // hosts the package never affects who can install the plugin.
-  if (!await allowed(request, env, id)) return undefined
-  return { id, name, metadata }
+  if (!item || !await allowed(request, env, id)) return undefined
+  return item
 }
 
 function tarballUrl(requestUrl, id, name, version) {
@@ -31,8 +36,12 @@ function tarballUrl(requestUrl, id, name, version) {
 }
 
 async function metadataResponse(request, env, id, name) {
-  const item = await privatePackage(request, env, id, name)
+  const item = await registryPackage(env, id, name)
   if (!item) return reply({ error: '插件不存在或没有下载权限' }, 403)
+  // Without a grant a recognised Key still gets version numbers and publish times, which the
+  // client's lockfile check needs; the archive itself stays behind allowed() in tarballResponse.
+  const full = await allowed(request, env, id)
+  if (!full && !await knownCaller(request, env)) return reply({ error: '插件不存在或没有下载权限' }, 403)
   const client = createRegistryClient(env)
   if (!client.status().ready) return reply({ error: '私有 Registry 未配置' }, 503)
   const result = await client.metadata(name)
@@ -42,12 +51,13 @@ async function metadataResponse(request, env, id, name) {
     if (!versionOK(key) || !value || typeof value !== 'object' || value.name !== name || value.version !== key) continue
     const dist = value.dist
     if (!dist || typeof dist !== 'object' || typeof dist.tarball !== 'string') continue
-    versions[key] = {
-      ...value,
-      dist: { ...dist, tarball: tarballUrl(request.url, id, name, key) },
-    }
+    const tarball = tarballUrl(request.url, id, name, key)
+    versions[key] = full
+      ? { ...value, dist: { ...dist, tarball } }
+      : { name, version: key, dist: { tarball, integrity: dist.integrity, shasum: dist.shasum } }
   }
   if (!Object.keys(versions).length) return reply({ error: '私有 Registry 返回的包元数据无效' }, 502)
+  if (!full) return reply({ name, 'dist-tags': result.data['dist-tags'], time: result.data.time, versions })
   return reply({ ...result.data, name, versions })
 }
 
