@@ -88,8 +88,14 @@ test('shared registry: real SQLite, independent Key ACLs, tarball checks and rev
     assert.equal(await repeat.text(), ARCHIVE)
     assert.equal(upstream, cached, '已验证过的同一版本不应再回源')
     const before = upstream
-    for (const path of ['by-package/%40tokensapi%2Fqa-b', 'by-package/%40tokensapi%2Fqa-draft', 'qa-a/%40tokensapi%2Fqa-b', 'by-package/%40tokensapi%2Fmissing']) assert.equal((await request(path, key)).status, 403)
-    assert.equal(upstream, before, 'unauthorized requests must not reach Registry')
+    for (const path of ['by-package/%40tokensapi%2Fqa-draft', 'qa-a/%40tokensapi%2Fqa-b', 'by-package/%40tokensapi%2Fmissing']) assert.equal((await request(path, key)).status, 403)
+    assert.equal(upstream, before, 'unknown packages and mismatched routes must not reach Registry')
+    // 已登记的 Key 对没授权的受限插件：只给版本号和发布时间（客户端 lockfile 核对要用），安装包照样 403。
+    const versionsOnly = await request('by-package/%40tokensapi%2Fqa-b', key)
+    assert.equal(versionsOnly.status, 200)
+    const fields = Object.keys(await versionsOnly.json())
+    assert.ok(fields.includes('versions') && fields.every(field => ['dist-tags', 'name', 'time', 'versions'].includes(field)), fields.join(','))
+    assert.equal((await request('qa-b/%40tokensapi%2Fqa-b/1.0.0/tarball', key)).status, 403)
     assert.equal((await request('by-package/qa-unscoped')).status, 200)
     assert.equal((await request('by-package/%ZZ')).status, 400)
     await db.prepare('DELETE FROM market_grants WHERE plugin_id=?').bind('qa-a').run()
