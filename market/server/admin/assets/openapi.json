@@ -1934,6 +1934,80 @@
         }
       ]
     },
+    "/users/names": {
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "按用户号查显示名",
+        "description": "只读。后台给会话日志的上报账号配名称用。先取市场用户名录里的名称，名录里没有的按用户号向 TokensAPI 查，每个结果在进程内缓存 5 分钟，不落库。查不到或 TokensAPI 不可用的用户号不出现在结果里，不报错。",
+        "responses": {
+          "200": {
+            "description": "查到名称的用户",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "source"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "directory",
+                              "tokensapi"
+                            ],
+                            "description": "directory 为市场用户名录，tokensapi 为按用户号向 TokensAPI 查得。"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "ids",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "1-100 个用户号，以逗号分隔，重复的只查一次。",
+          "example": "102,531"
+        }
+      ]
+    },
     "/users/{userId}": {
       "parameters": [
         {

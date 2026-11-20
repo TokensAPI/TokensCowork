@@ -534,6 +534,35 @@ test('a user\'s effective plugins name each source, follow the organization rule
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_users').get().n, 1)
 })
 
+test('reported account ids are named from the directory first, then TokensAPI once, and an unknown id stays unnamed', async t => {
+  const { env, admin } = fixture(t)
+  const directory = { 102: 'Alice (TokensAPI)', 531: 'Runzhou' }
+  let searches = []
+  env.MARKET_ORGANIZATIONS = {
+    searchUsers: async keyword => {
+      searches.push(keyword)
+      const items = directory[keyword] ? [{ id: Number(keyword), name: directory[keyword], username: 'u' + keyword, organizationId: 6 }] : []
+      return { items, total: items.length }
+    },
+  }
+  assert.equal((await admin('/users/102', { name: 'Alice' })).status, 200)
+  const names = async ids => (await (await admin('/users/names?ids=' + ids)).json()).items
+  const expected = [{ id: 102, name: 'Alice', source: 'directory' }, { id: 531, name: 'Runzhou', source: 'tokensapi' }]
+  // Duplicates are asked once; the directory user is never asked of TokensAPI.
+  assert.deepEqual(await names('531,102,999,531'), expected)
+  assert.deepEqual(searches.sort(), ['531', '999'])
+  // Within five minutes the same ids, found or not, are answered without TokensAPI.
+  assert.deepEqual(await names('999,531,102'), expected)
+  assert.equal(searches.length, 2)
+  // A failing or missing TokensAPI only leaves ids unnamed; the directory still answers.
+  env.MARKET_ORGANIZATIONS = { searchUsers: async () => { throw new Error('down') } }
+  assert.deepEqual(await names('102,531'), [expected[0]])
+  env.MARKET_ORGANIZATIONS = {}
+  assert.deepEqual(await names('102,531'), [expected[0]])
+  for (const bad of ['', 'abc', '0', '1,x', Array.from({ length: 101 }, (_, i) => i + 1).join(',')])
+    assert.equal((await admin('/users/names?ids=' + bad)).status, 400, bad.slice(0, 10))
+})
+
 test('an organization administrator names members of its own organization only', async t => {
   const { env, db, access, organization, visible } = fixture(t)
   await organization(7); await organization(8)

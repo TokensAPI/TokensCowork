@@ -10,7 +10,7 @@ import { renderMarkdown } from './market-markdown.js'
  * market-markdown.js, which builds elements and text nodes only; long content is built only when
  * unfolded, so a large session stays responsive.
  */
-export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, onBack }) {
+export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountName, onBack }) {
   const PAGE = 1000
   const RAW_CHUNK = 256 * 1024
   const DIALOG_LIMIT = 2 * 1024 * 1024
@@ -215,7 +215,12 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       wrap.append(node('dt', name, 'text-secondary'), dd)
       facts.append(wrap)
     }
-    fact('上报账号', current.accountId ? `${current.accountId}（客户端上报，未核验）` : '—')
+    const accountId = current.accountId
+    const account = node('span', accountId ? `${accountId}（客户端上报，未核验）` : '—')
+    if (accountId) accountName(accountId).then((name) => {
+      if (name) account.textContent = `${accountId} · ${name}（客户端上报，未核验；名称按此 ID 查得）`
+    })
+    fact('上报账号', account)
     const keys = node('div')
     if (!current.keys.length) keys.append(node('span', '未带 Key（匿名）', 'text-secondary'))
     for (const item of current.keys) {

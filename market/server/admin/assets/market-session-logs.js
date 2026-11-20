@@ -35,7 +35,36 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'font-monospace small text-secondary'))
   }
   const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
-  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, onBack: back })
+  // Names for the account ids the clients report, asked once per id for a whole page and drawn in
+  // when they arrive, so the list never waits on TokensAPI. An id nobody can name stays a bare id;
+  // a failed request is forgotten so the next load asks again.
+  const accountNames = new Map()
+  const numericId = (value) => (/^[1-9][0-9]{0,15}$/u.test(value ?? '') ? value : '')
+  function lookupNames(ids) {
+    const missing = [...new Set(ids.map(numericId).filter((id) => id && !accountNames.has(id)))]
+    if (!missing.length) return
+    const request = json('/api/v1/users/names?ids=' + missing.join(','))
+      .then((result) => new Map(result.items.map((user) => [String(user.id), user.name])))
+      .catch(() => {
+        for (const id of missing) accountNames.delete(id)
+        return new Map()
+      })
+    for (const id of missing) accountNames.set(id, request.then((found) => found.get(id) ?? null))
+  }
+  function accountName(id) {
+    lookupNames([id])
+    return accountNames.get(numericId(id)) ?? Promise.resolve(null)
+  }
+  function accountCell(id) {
+    const cell = node('td', id || '—', id ? 'text-break' : 'text-secondary')
+    if (id) accountName(id).then((name) => {
+      if (!name) return
+      cell.textContent = `${id} · ${name}`
+      cell.title = '名称按客户端上报的 ID 查得，ID 未核验'
+    })
+    return cell
+  }
+  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountName, onBack: back })
 
   // ── Confirmation ───────────────────────────────────────────────────────────
   // Every deletion asks here first: what goes, how many, and that it cannot be undone.
@@ -76,6 +105,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     pageSize = result.pageSize
     items = result.items
     selected.clear()
+    lookupNames(items.map((item) => item.accountId))
     $('session-log-list').replaceChildren(...items.map(row))
     $('session-log-empty').hidden = items.length > 0
     $('session-log-empty').firstElementChild.textContent = filtering() ? '没有符合条件的会话' : '暂无会话日志'
@@ -145,7 +175,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       'divider',
       { label: '删除', danger: true, run: () => removeOne(item) },
     ]))
-    tr.append(check, name, node('td', item.accountId || '—', item.accountId ? '' : 'text-secondary'), key, usage, events, notes, when, cell)
+    tr.append(check, name, accountCell(item.accountId), key, usage, events, notes, when, cell)
     return tr
   }
 

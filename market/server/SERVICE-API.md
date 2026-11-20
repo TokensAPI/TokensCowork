@@ -86,6 +86,7 @@
 | GET / PUT | `/keys/:fingerprint/grants` | ✗ |
 | GET | `/users` | ✗ |
 | GET | `/users/search?keyword=&page=` | ✗ |
+| GET | `/users/names?ids=` | ✗ |
 | GET / PUT / DELETE | `/users/:userId` | ✗ |
 | GET / PUT | `/users/:userId/grants` | ✗ |
 | GET | `/users/:userId/plugins` | ✗ |
@@ -307,6 +308,7 @@ PUT /api/v1/users/102/grants
 | --- | --- | --- |
 | GET | `/users` | `{ items: [{ id, name, createdAt, plugins }], searchReady }`；`searchReady` 表示本实例能否在 TokensAPI 搜用户 |
 | GET | `/users/search?keyword=alice&page=1` | 转发 TokensAPI 用户搜索 → `{ items: [{ id, name, username }], total }`，结果不落库；未配置或上游不可用 `503` |
+| GET | `/users/names?ids=102,531` | 只读：按用户号配显示名（1-100 个，逗号分隔）→ `{ items: [{ id, name, source }] }`；`source` 为 `directory`（名录）或 `tokensapi`（按号查得，进程内缓存 5 分钟，不落库）。查不到或 TokensAPI 不可用的号不出现在结果里，不报错。后台会话日志的「上报账号」用它 |
 | GET | `/users/:userId` | 单个用户，不存在 `404` |
 | PUT | `/users/:userId` | `{ name }`（最多 200 字），不存在时登记，存在时改名 |
 | DELETE | `/users/:userId` | 移除用户，**连同它的所有插件授权** |

@@ -143,7 +143,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 33)
+  assert.equal(paths.length, 34)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 46)
+  assert.equal(checked, 47)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -244,6 +244,9 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['GET', '/users', '/users', 200],
     ['GET', '/users/search?keyword=al', '/users/search', 200],
     ['GET', '/users/search', '/users/search', 400],
+    ['GET', '/users/names?ids=102,7,102', '/users/names', 200],
+    ['GET', '/users/names?ids=x', '/users/names', 400],
+    ['GET', '/users/names?ids=102', '/users/names', 403, undefined, tenant],
     ['PUT', '/users/103', '/users/{userId}', 200, { name: 'Bob' }],
     ['GET', '/users/102', '/users/{userId}', 200],
     ['GET', '/users/999', '/users/{userId}', 404],

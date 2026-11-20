@@ -6,7 +6,7 @@ import { pluginRows, pluginRow, pluginView, pluginGrants, pluginPage, pluginInde
 import { listOrganizations, getOrganization, saveOrganization, syncOrganizations, organizationProviderReady, organizationSessionReady, searchUsers, searchOrganizationMembers } from '../services/organizations.js'
 import { organizationPlugins, setOrganizationPlugin } from '../services/access.js'
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
-import { listUsers, getUser, saveUser, deleteUser, userAccess } from '../services/users.js'
+import { listUsers, getUser, saveUser, deleteUser, userAccess, userNames } from '../services/users.js'
 import { auditLog, environment } from '../services/audit.js'
 import { listSessionLogs, sessionLogDetail, sessionLogRaw, deleteSessionLog, deleteSessionLogs, annotateSessionLog, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
 import { npmPackage } from '../integrations/npm-registry.js'
@@ -228,6 +228,10 @@ async function dispatch(request, env, url, principal) {
     if (second === 'search' && !third) {
       methods(method, ['GET'])
       return userLookup(url, env)
+    }
+    if (second === 'names' && !third) {
+      methods(method, ['GET'])
+      return userNames(env, (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).map(userId))
     }
     const id = userId(second)
     if (!id) throw invalid('用户号无效')

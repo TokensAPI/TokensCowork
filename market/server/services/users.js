@@ -26,6 +26,45 @@ export async function listUsers(env) {
   return { items: results.map(row => view(row, grants)), searchReady: userSearchReady(env) }
 }
 
+// Display names for user numbers seen elsewhere in the console (the account a session log reports).
+// The directory's name wins; the rest are asked of TokensAPI one by one, a few at a time, and each
+// answer -- a name or "no such user" -- is kept for five minutes per process. A failed lookup is
+// not kept and simply leaves that number unnamed: a name is a convenience, never a reason to fail.
+const NAME_TTL = 5 * 60_000, NAME_LIMIT = 100, NAME_CONCURRENCY = 4
+const names = new WeakMap()
+function nameCache(env) {
+  let cache = names.get(env)
+  if (!cache || cache.source !== env.MARKET_ORGANIZATIONS) {
+    cache = { source: env.MARKET_ORGANIZATIONS, entries: new Map() }
+    names.set(env, cache)
+  }
+  return cache.entries
+}
+async function upstreamName(env, id) {
+  const cache = nameCache(env), hit = cache.get(id)
+  if (hit && hit.expires > Date.now()) return hit.name
+  let user
+  try { user = await tokensApiUser(env, id) } catch { return null }
+  if (cache.size >= 4096) cache.clear()
+  cache.set(id, { name: user?.name || null, expires: Date.now() + NAME_TTL })
+  return user?.name || null
+}
+export async function userNames(env, ids) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > NAME_LIMIT || !ids.every(validOrganizationId))
+    throw invalid(`ids 须为 1-${NAME_LIMIT} 个用户号，以逗号分隔`)
+  const wanted = [...new Set(ids)]
+  const { results } = await env.MARKET_DB.prepare(`SELECT id,name FROM market_users WHERE id IN (${wanted.map(() => '?').join(',')})`).bind(...wanted).all()
+  const items = results.map(row => ({ id: row.id, name: row.name, source: 'directory' }))
+  const known = new Set(items.map(item => item.id))
+  const rest = userSearchReady(env) ? wanted.filter(id => !known.has(id)) : []
+  for (let i = 0; i < rest.length; i += NAME_CONCURRENCY) {
+    const batch = rest.slice(i, i + NAME_CONCURRENCY)
+    const found = await Promise.all(batch.map(id => upstreamName(env, id)))
+    batch.forEach((id, j) => { if (found[j]) items.push({ id, name: found[j], source: 'tokensapi' }) })
+  }
+  return { items: items.sort((a, b) => a.id - b.id) }
+}
+
 async function userRow(env, id) {
   if (!validOrganizationId(id)) throw invalid('用户号无效')
   const row = await env.MARKET_DB.prepare('SELECT id,name,created_at FROM market_users WHERE id=?').bind(id).first()
