@@ -151,6 +151,24 @@ export async function organizationPlugins(request, env, organizationId) {
   }
 }
 
+// Every restricted plugin one TokensAPI user holds, and through which term of decide(): a grant to
+// them by name, or one to their organization that the organization has not switched off or narrowed
+// past them. Public plugins reach everyone and Key grants belong to a Key rather than a person, so
+// neither is listed. A null organization (none, or TokensAPI could not say) counts user grants only.
+export async function userPlugins(request, env, userId, organizationId) {
+  const [roster, components, users, organization] = await Promise.all([
+    catalogRoster(env), productComponents(request, env), userGrants(env, { id: userId }),
+    organizationId ? organizationState(env, organizationId) : NO_ORGANIZATION,
+  ])
+  const builtin = builtinIdentities(components)
+  const base = { keys: new Set(), offered: new Set(), organization: NO_ORGANIZATION, users: new Set(), user: userId }
+  const byUser = { ...base, users }, byOrganization = { ...base, organization }
+  return roster.items
+    .filter(item => item.visibility !== 'public' && !isBuiltin(item, builtin))
+    .map(item => ({ id: item.id, displayName: item.displayName, user: decide(item, byUser), organization: decide(item, byOrganization) }))
+    .filter(item => item.user || item.organization)
+}
+
 // The organization administrator's two narrowing tools for one granted plugin: the switch, and
 // the member list (empty = every member). Either or both may be sent; a newly listed user must be
 // a member of the organization according to TokensAPI.

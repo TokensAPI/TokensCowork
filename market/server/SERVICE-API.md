@@ -88,6 +88,7 @@
 | GET | `/users/search?keyword=&page=` | ✗ |
 | GET / PUT / DELETE | `/users/:userId` | ✗ |
 | GET / PUT | `/users/:userId/grants` | ✗ |
+| GET | `/users/:userId/plugins` | ✗ |
 | GET / DELETE | `/session-logs` | ✗ |
 | GET / PUT | `/session-logs/settings` | ✗ |
 | GET / DELETE | `/session-logs/:sessionId/:formatVersion` | ✗ |
@@ -309,6 +310,7 @@ PUT /api/v1/users/102/grants
 | GET | `/users/:userId` | 单个用户，不存在 `404` |
 | PUT | `/users/:userId` | `{ name }`（最多 200 字），不存在时登记，存在时改名 |
 | DELETE | `/users/:userId` | 移除用户，**连同它的所有插件授权** |
+| GET | `/users/:userId/plugins` | 只读：用户实际拥有的受限插件及来源 → `{ id, name, registered, organization, notice, items: [{ id, displayName, sources: [{ kind: 'user' } \| { kind: 'organization', id, name }] }] }`。组织授权按访问判定（组织启用、没关掉、没指定成员或名单里有他）；用户不必登记，所属组织向 TokensAPI 查询、不落库。TokensAPI 查不到时已登记用户只列单独授权并在 `notice` 说明，未登记用户 `503`，两边都没有 `404` |
 
 ### 会话日志
 

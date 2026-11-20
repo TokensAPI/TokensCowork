@@ -143,7 +143,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 32)
+  assert.equal(paths.length, 33)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -157,7 +157,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 45)
+  assert.equal(checked, 46)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -250,6 +250,9 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['PUT', '/users/102/grants', '/users/{userId}/grants', 200, { plugins: ['beta'] }],
     ['GET', '/users/102/grants', '/users/{userId}/grants', 200],
     ['GET', '/users/999/grants', '/users/{userId}/grants', 404],
+    ['GET', '/users/102/plugins', '/users/{userId}/plugins', 200],
+    ['GET', '/users/999/plugins', '/users/{userId}/plugins', 404],
+    ['GET', '/users/102/plugins', '/users/{userId}/plugins', 403, undefined, tenant],
     ['GET', '/plugins/beta', '/plugins/{pluginId}', 200],
     ['DELETE', '/users/103', '/users/{userId}', 200],
     ['GET', '/session-logs', '/session-logs', 200],

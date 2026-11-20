@@ -2155,6 +2155,154 @@
         }
       }
     },
+    "/users/{userId}/plugins": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/userId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "用户"
+        ],
+        "summary": "用户实际拥有的插件",
+        "description": "只读。按访问判定列出这个用户实际拥有的受限插件和每项的来源：单独授权给他，或授予他所在的组织（组织已启用、组织管理员没关掉、没指定成员或名单里有他）。公开插件和按 Key 的授权不列。用户不必在市场登记，所属组织向 TokensAPI 查询，不落库。TokensAPI 查不到时，已登记用户只列单独授权并在 `notice` 说明；未登记用户返回 `503`；TokensAPI 和市场都没有这个用户返回 `404`。",
+        "responses": {
+          "200": {
+            "description": "实际授权",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "name",
+                    "registered",
+                    "organization",
+                    "notice",
+                    "items"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "已登记用市场里的显示名，否则用 TokensAPI 的。"
+                    },
+                    "registered": {
+                      "type": "boolean",
+                      "description": "是否已在市场用户名录登记。"
+                    },
+                    "organization": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "TokensAPI 里的所属组织；没有组织或 TokensAPI 查不到时为 null。",
+                      "required": [
+                        "id",
+                        "name",
+                        "registered",
+                        "enabled"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "市场登记的组织名，未登记为 null。"
+                        },
+                        "registered": {
+                          "type": "boolean"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "notice": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "TokensAPI 查不到时的说明，此时组织授权未计入。"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "displayName",
+                          "sources"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "kind"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "user",
+                                    "organization"
+                                  ]
+                                },
+                                "id": {
+                                  "type": "integer",
+                                  "description": "组织号，仅 organization。"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "组织名，仅 organization。"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/audit": {
       "get": {
         "tags": [

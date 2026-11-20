@@ -3,14 +3,42 @@
  * the user to every Key they own. TokensAPI keeps the accounts; the market only records the user
  * number and the name shown here.
  */
-export function usersView({ $, node, button, rowActions, confirmAction, json, action, reload, pluginName, grants }) {
+export function usersView({ $, node, badge, button, rowActions, confirmAction, json, action, reload, pluginName, grants }) {
   let items = [],
     searchReady = false,
-    editing = null
+    editing = null,
+    // Each listed user's effective plugins, asked once per load and drawn in when they arrive, so a
+    // slow TokensAPI never holds up the page.
+    access = new Map()
   const byId = (id) => items.find((user) => user.id === id)
   const label = (id) => {
     const user = byId(Number(id))
     return user ? `${user.name} (#${id})` : `用户 #${id}`
+  }
+  const orgName = (org) => org.name || `组织 #${org.id}`
+
+  // One user's restricted plugins, each with where it comes from, and TokensAPI's notice if any.
+  function holdings(view) {
+    const box = node('div')
+    for (const plugin of view.items) {
+      const line = node('div', '', 'd-flex flex-wrap align-items-center gap-1')
+      line.append(node('span', plugin.displayName || pluginName(plugin.id), 'text-break'),
+        ...plugin.sources.map((source) => source.kind === 'user' ? badge('单独授权', 'azure') : badge(`组织：${orgName(source)}`, 'yellow')))
+      box.append(line)
+    }
+    if (!view.items.length) box.append(node('span', '—', 'text-secondary'))
+    if (view.notice) box.append(node('div', view.notice, 'text-warning small'))
+    return box
+  }
+  function fill(cell, user) {
+    if (!access.has(user.id)) access.set(user.id, json(`/api/v1/users/${user.id}/plugins`).catch((error) => ({ error })))
+    cell.replaceChildren(node('span', '正在读取…', 'text-secondary'))
+    access.get(user.id).then((view) => {
+      if (!view.error) return cell.replaceChildren(holdings(view))
+      // The user's own grants are known locally; only what the organization adds could not be read.
+      cell.replaceChildren(node('div', user.plugins.length ? user.plugins.map(pluginName).join('、') : '—'),
+        node('div', `实际授权读取失败：${view.error.message}`, 'text-danger small'))
+    })
   }
 
   function render() {
@@ -32,7 +60,8 @@ export function usersView({ $, node, button, rowActions, confirmAction, json, ac
           })
         } },
       ]))
-      const plugins = node('td', user.plugins.length ? user.plugins.map(pluginName).join('、') : '—', 'text-break')
+      const plugins = node('td', '', 'text-break')
+      fill(plugins, user)
       row.append(node('td', user.name, 'fw-medium text-break'), node('td', String(user.id), 'font-monospace'), plugins, cell)
       return row
     }))
@@ -88,17 +117,38 @@ export function usersView({ $, node, button, rowActions, confirmAction, json, ac
   $('new-user').onclick = () => edit()
   $('user-directory-search').oninput = render
 
+  // Any TokensAPI user by number, registered here or not: read-only, nothing is added to the list.
+  $('user-access-form').onsubmit = (event) => {
+    event.preventDefault()
+    const id = Number($('user-access-id').value)
+    action(async () => {
+      const view = await json(`/api/v1/users/${id}/plugins`)
+      $('user-access-title').textContent = `${view.name} (#${view.id})`
+      $('user-access-registered').textContent = view.registered ? '已登记' : '未登记（只查看，不会登记）'
+      const org = view.organization
+      $('user-access-org').textContent = !org
+        ? (view.notice ? '未知' : '无')
+        : `${org.name ? `${org.name} (#${org.id})` : orgName(org)}${!org.registered ? ' · 市场未登记' : !org.enabled ? ' · 已停用' : ''}`
+      $('user-access-plugins').replaceChildren(holdings(view))
+      $('user-access-dialog').showModal()
+    })
+  }
+  $('close-user-access').onclick = () => $('user-access-dialog').close()
+
   return {
     all: () => items,
     label,
     set(list) {
       items = list.items
       searchReady = list.searchReady
+      access = new Map()
       render()
     },
     clear() {
       items = []
       editing = null
+      access = new Map()
+      $('user-access-dialog').close()
       $('user-dialog').close()
       $('user-list').replaceChildren()
       $('user-lookup-results').replaceChildren()

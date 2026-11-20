@@ -116,12 +116,17 @@ export async function searchOrganizationMembers(env, organizationId, keyword) {
     more: (result.total ?? 0) > result.items.length,
   }
 }
-// Whether one user belongs to the organization, asked by user number (TokensAPI matches a numeric
-// keyword against the id exactly). Null when TokensAPI does not place the user there.
-export async function organizationMember(env, organizationId, userId) {
+// One TokensAPI user and the organization TokensAPI places them in, asked by user number
+// (TokensAPI matches a numeric keyword against the id exactly). Null when TokensAPI has no such user.
+export async function tokensApiUser(env, userId) {
   const result = await lookupUsers(env, String(userId), 1, 100)
-  const user = result.items.find(item => item.id === userId && item.organizationId === organizationId)
-  return user ? { id: user.id, name: user.name } : null
+  const user = result.items.find(item => item.id === userId)
+  return user ? { id: user.id, name: user.name, organizationId: user.organizationId ?? null } : null
+}
+// Whether one user belongs to the organization. Null when TokensAPI does not place the user there.
+export async function organizationMember(env, organizationId, userId) {
+  const user = await tokensApiUser(env, userId)
+  return user && user.organizationId === organizationId ? { id: user.id, name: user.name } : null
 }
 
 // The two console-login lookups. The forwarded site cookie lives only for the duration of these

@@ -6,7 +6,7 @@ import { pluginRows, pluginRow, pluginView, pluginGrants, pluginPage, pluginInde
 import { listOrganizations, getOrganization, saveOrganization, syncOrganizations, organizationProviderReady, organizationSessionReady, searchUsers, searchOrganizationMembers } from '../services/organizations.js'
 import { organizationPlugins, setOrganizationPlugin } from '../services/access.js'
 import { listKeys, getKey, addKey, updateKey, deleteKey } from '../services/keys.js'
-import { listUsers, getUser, saveUser, deleteUser } from '../services/users.js'
+import { listUsers, getUser, saveUser, deleteUser, userAccess } from '../services/users.js'
 import { auditLog, environment } from '../services/audit.js'
 import { listSessionLogs, sessionLogDetail, sessionLogRaw, deleteSessionLog, deleteSessionLogs, annotateSessionLog, sessionLogSettings, saveSessionLogSettings } from '../services/session-logs.js'
 import { npmPackage } from '../integrations/npm-registry.js'
@@ -238,6 +238,10 @@ async function dispatch(request, env, url, principal) {
       return deleteUser(env, id, actor)
     }
     if (third === 'grants' && !fourth) return grants(request, env, method, 'user', id, actor)
+    if (third === 'plugins' && !fourth) {
+      methods(method, ['GET'])
+      return userAccess(request, env, id)
+    }
   }
 
   // Raw, unredacted session logs: the platform administrator only, and every read is audited.

@@ -340,11 +340,14 @@
 
               <section id="users-panel" data-panel="users" hidden>
                 <div class="card">
-                  <div class="card-body border-bottom py-3">
-                    <div class="input-icon">
+                  <div class="card-body border-bottom py-3 d-flex flex-wrap gap-2">
+                    <div class="input-icon flex-grow-1">
                       <span class="input-icon-addon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></span
                       ><input id="user-directory-search" class="form-control" type="search" placeholder="搜索用户名称或 ID" aria-label="搜索用户名录" />
                     </div>
+                    <form id="user-access-form" class="input-group w-auto">
+                      <input id="user-access-id" class="form-control" type="number" min="1" max="9007199254740991" step="1" required placeholder="任意用户 ID" aria-label="按用户 ID 查看授权" /><button class="btn" type="submit">查看授权</button>
+                    </form>
                   </div>
                   <div class="table-responsive">
                     <table class="table card-table table-vcenter">
@@ -681,6 +684,28 @@
           </div>
           <div class="modal-footer"><button class="btn btn-primary" type="submit">保存</button></div>
         </form>
+      </div>
+    </dialog>
+
+    <dialog id="user-access-dialog" class="modal" aria-labelledby="user-access-title">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="min-w-0">
+              <div class="text-secondary small">实际拥有的授权</div>
+              <h2 id="user-access-title" class="modal-title text-break">用户</h2>
+            </div>
+            <button id="close-user-access" class="btn-close" type="button" aria-label="关闭用户授权"></button>
+          </div>
+          <div class="modal-body">
+            <dl class="row mb-3">
+              <dt class="col-4">市场名录</dt><dd id="user-access-registered" class="col-8"></dd>
+              <dt class="col-4">所属组织</dt><dd id="user-access-org" class="col-8 text-break"></dd>
+            </dl>
+            <div id="user-access-plugins"></div>
+            <div class="form-hint mt-3">只列受限插件；公开插件所有人可见，按 Key 的单独授权不归属于用户，均不列出。</div>
+          </div>
+        </div>
       </div>
     </dialog>
 

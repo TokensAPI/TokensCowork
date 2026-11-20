@@ -1,6 +1,7 @@
 import { auditStatements } from './audit.js'
 import { invalid } from './plugins.js'
-import { validOrganizationId, userSearchReady } from './organizations.js'
+import { validOrganizationId, userSearchReady, tokensApiUser } from './organizations.js'
+import { userPlugins } from './access.js'
 
 // The user directory: TokensAPI users an administrator grants plugins to directly. TokensAPI owns
 // the accounts; the market keeps only the user number and a display name for the console, and a
@@ -34,6 +35,41 @@ async function userRow(env, id) {
 
 export async function getUser(env, id) {
   return view(await userRow(env, id), await grantsByUser(env, id))
+}
+
+// What one TokensAPI user actually holds, registered here or not: their name, the organization
+// TokensAPI places them in, and each restricted plugin with where it comes from. Nothing is stored.
+// When TokensAPI cannot answer, a registered user's own grants are still listed with a notice that
+// organization grants are missing; an unregistered user cannot be looked up at all.
+export async function userAccess(request, env, id) {
+  if (!validOrganizationId(id)) throw invalid('用户号无效')
+  const row = await env.MARKET_DB.prepare('SELECT id,name FROM market_users WHERE id=?').bind(id).first()
+  let account = null, notice = null
+  try { account = await tokensApiUser(env, id) }
+  catch (error) {
+    if (!row) throw error
+    notice = `${error.message}，查不到所属组织，经组织获得的授权未列出。`
+  }
+  if (!row && !account) throw invalid(`TokensAPI 中没有用户 #${id}`, 404)
+  if (row && !account && !notice) notice = 'TokensAPI 中查不到该用户，只列出单独授权。'
+  const organizationId = account?.organizationId ?? null
+  const [org, plugins] = await Promise.all([
+    organizationId ? env.MARKET_DB.prepare('SELECT name,enabled FROM market_organizations WHERE id=?').bind(organizationId).first() : null,
+    userPlugins(request, env, id, organizationId),
+  ])
+  const organization = organizationId
+    ? { id: organizationId, name: org?.name ?? null, registered: !!org, enabled: org?.enabled === 1 }
+    : null
+  return {
+    id, name: row?.name ?? account.name, registered: !!row, organization, notice,
+    items: plugins.map(item => ({
+      id: item.id, displayName: item.displayName,
+      sources: [
+        ...(item.user ? [{ kind: 'user' }] : []),
+        ...(item.organization ? [{ kind: 'organization', id: organizationId, name: organization.name }] : []),
+      ],
+    })),
+  }
 }
 
 // Adding a user to the directory, or refreshing the name shown for them.

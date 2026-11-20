@@ -480,6 +480,60 @@ test('an organization grant reaches every member until the organization names me
   assert.equal((await call('/api/v1/organizations/7/members?keyword=a', 'admin-secret')).status, 503)
 })
 
+test('a user\'s effective plugins name each source, follow the organization rules and need no registration', async t => {
+  const { env, db, access, organization, admin } = fixture(t)
+  const own = { ...metadata, id: 'own-tool', package: '@example/own', displayName: '单独工具' }
+  seedTestPlugin(db, own)
+  await organization(7); await organization(8)
+  const directory = [[102, 'Alice', 7], [103, 'Bob', 7], [105, 'Dave', 8], [106, 'Eve', null]]
+  env.MARKET_ORGANIZATIONS = {
+    searchUsers: async keyword => {
+      const items = directory.filter(([id]) => String(id) === keyword).map(([id, name, organizationId]) => ({ id, name, username: name.toLowerCase(), organizationId }))
+      return { items, total: items.length }
+    },
+  }
+  assert.equal((await access({ organizations: [7] })).status, 200)
+  assert.equal((await access({}, own.id)).status, 200)
+  assert.equal((await admin('/users/102', { name: 'Alice' })).status, 200)
+  assert.equal((await admin('/users/102/grants', { plugins: [own.id] })).status, 200)
+  const view = async id => (await admin(`/users/${id}/plugins`)).json()
+  const held = async id => (await view(id)).items.map(item => [item.id, item.sources.map(s => s.kind === 'user' ? 'user' : `org:${s.id}:${s.name}`)])
+  const fromOrg = [metadata.id, ['org:7:Org 7']], fromUser = [own.id, ['user']]
+  assert.deepEqual(await view(102), { id: 102, name: 'Alice', registered: true, notice: null,
+    organization: { id: 7, name: 'Org 7', registered: true, enabled: true },
+    items: [{ id: own.id, displayName: own.displayName, sources: [{ kind: 'user' }] },
+      { id: metadata.id, displayName: metadata.displayName, sources: [{ kind: 'organization', id: 7, name: 'Org 7' }] }] })
+  // An unregistered member is looked up by number and shown, never added to the directory.
+  assert.deepEqual([(await view(103)).registered, (await view(103)).name, await held(103)], [false, 'Bob', [fromOrg]])
+  assert.deepEqual((await (await admin('/users')).json()).items.map(u => u.id), [102])
+  assert.deepEqual([await held(105), await held(106)], [[], []])
+  assert.equal((await admin('/users/999/plugins')).status, 404)
+  assert.equal((await admin('/users/0/plugins')).status, 400)
+  // Members named for the plugin narrow it; the switch and a disabled organization withdraw it.
+  assert.equal((await admin(`/organizations/7/plugins/${metadata.id}`, { members: [102] })).status, 200)
+  assert.deepEqual([await held(102), await held(103)], [[fromUser, fromOrg], []])
+  assert.equal((await admin(`/organizations/7/plugins/${metadata.id}`, { enabled: false })).status, 200)
+  assert.deepEqual(await held(102), [fromUser])
+  assert.equal((await admin(`/organizations/7/plugins/${metadata.id}`, { enabled: true, members: [] })).status, 200)
+  assert.equal((await organization(7, false)).status, 200)
+  assert.deepEqual([await held(102), (await view(102)).organization.enabled], [[fromUser], false])
+  assert.equal((await organization(7)).status, 200)
+  // A plugin both granted by name and through the organization names both; public plugins are not listed.
+  assert.equal((await admin('/users/102/grants', { plugins: [own.id, metadata.id] })).status, 200)
+  assert.deepEqual((await held(102)).find(([id]) => id === metadata.id), [metadata.id, ['user', 'org:7:Org 7']])
+  assert.equal((await access({ visibility: 'public' }, own.id)).status, 200)
+  assert.deepEqual((await held(102)).map(([id]) => id), [metadata.id])
+  // When TokensAPI cannot answer, a registered user keeps their own grants with a notice; nobody else can be looked up.
+  env.MARKET_ORGANIZATIONS.searchUsers = async () => { throw new Error('down') }
+  const degraded = await view(102)
+  assert.deepEqual([degraded.organization, degraded.items.map(i => [i.id, i.sources.map(s => s.kind)])], [null, [[metadata.id, ['user']]]])
+  assert.match(degraded.notice, /TokensAPI 用户搜索暂不可用.*经组织获得的授权未列出/u)
+  assert.equal((await admin('/users/103/plugins')).status, 503)
+  // The lookup only reads.
+  assert.equal((await admin('/users/102/plugins', {})).status, 405)
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_users').get().n, 1)
+})
+
 test('an organization administrator names members of its own organization only', async t => {
   const { env, db, access, organization, visible } = fixture(t)
   await organization(7); await organization(8)
