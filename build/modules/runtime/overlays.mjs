@@ -1,7 +1,7 @@
 /* ====================================================================
  * runtime 覆盖登记表
  * DSH 版本、打包 pnpm 版本、首次启动、stderr、测试适配、外部浏览器登录桥、RPC 作用域、
- * 摘要压缩、联网搜索设置。字段说明见 build/modules/README.md。
+ * 摘要压缩、输出上限、联网搜索设置。字段说明见 build/modules/README.md。
  * ==================================================================== */
 import { desktopFiles as d, desktopInstalled, installedOverlay, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
 import { alignCompactionSummary } from './compaction-overlay.mjs'
@@ -14,6 +14,7 @@ import {
 } from './desktop-runtime-overlay.mjs'
 import { alignDiagnosticsSpec, keepErrorCodesReadable } from './mask-secrets-overlay.mjs'
 import { addDesktopOpenExternal } from './open-external-overlay.mjs'
+import { keepConfiguredOutputLimit } from './output-limit-overlay.mjs'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { keepDshRuntimeSeries } from './profile-package-overlay.mjs'
@@ -214,6 +215,16 @@ export default [
       'compaction-basic is not installed; run yarn install first'),
     why: '真实压缩曾返回 ACK / 拒绝式文本并替换历史；摘要改为独立系统任务、历史作为引用数据，并校验八段 checkpoint，无效摘要保留历史。',
     retireWhen: '上游提供等效隔离与无效输出保护，并通过 ACK、拒绝、截断、失败保留历史及真实压缩回归后删除；不能只按版本号删除。',
+  },
+  {
+    id: 'runtime.output-limit',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'workaround',
+    ...installedOverlay('@earendil-works/pi-ai', keepConfiguredOutputLimit,
+      'pi-ai is not installed; run yarn install first', 'dist/api/simple-options.js'),
+    why: 'pi-ai 把每次请求的 max_tokens 压到「窗口 − 估算 − 4096」；DSH 交给它的历史用量恒为空，估算退化成整段对话按 3.5 字符/token 粗估并计入从不发送的历史思考，长会话里实际用量 69% 时估算已超窗口，输出上限被压到 907 再到 1，「继续」永远截断（T0095，会话 14d7fdc4）。没有上报用量时改为发送配置的输出上限：DSH 的压缩阈值本就按完整输出上限预留空间，DSH 自带的 DeepSeek 适配器也不做估算。',
+    retireWhen: 'DSH 的 pi-ai 适配器向 pi-ai 传入真实用量，或 pi-ai 不再用纯字符估算压低输出上限，并以同一会话数字（估算 257141 / 258116、窗口 262144）回归得到配置上限后删除。',
   },
   {
     id: 'runtime.web-search-settings',

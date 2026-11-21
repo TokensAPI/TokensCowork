@@ -104,6 +104,12 @@
     }
     ,{
       "overlays": [
+        "runtime.output-limit"
+      ],
+      "verified": "2026-11-21（T0095）：用户会话 14d7fdc4（deepseek-v4.1-flash、窗口 262144、151 步、37 张图）第 18 轮输出 907 个 token、第 19 轮（发「继续」）输出 1 个 token 即 stopReason length，上游统计输入 181942 / 181943，界面显示上下文 69%。直连 TokensAPI 复现不出：纯文本 27.8 万、带图 29 万、18.8 万文本 ×4 并发、18 万文本 + 30 张 1500×1120 图全部正常结束。定位：DSH dsh-llm-pi-ai 把历史 assistant 的 usage 全部填空（emptyPiUsage），pi-ai 1.3.0 clampMaxTokensToContext 于是按整段 chars/3.5 估算（含从不发送的历史思考约 7.8 万）。用构建目录真实 pi-ai openai-completions 代码 + 拦截 fetch 实测：估算 257141 → 请求 max_tokens 907，再加上一轮 3409 字思考与「继续」→ 1，与日志一致；带真实用量或去掉估算时为 32768。pi 仓库 #11236、#11988 报过同一现象，被自动关闭未修；最新 DSH 0.2.2-rc.5 / pi-ai 1.3.0 仍如此。覆盖：lastUsageIndex 为 null（无上报用量）时直接发送配置的输出上限，有上报用量时与上游一致。用例对照 pi-ai 1.3.0 原文复现 907 / 1、修复后 32768、带用量时逐值与上游相同、重复执行 / CRLF / 锚点漂移失败，并在存在 staging 时校验已安装文件。test:build 239 项、overlay-doctor --check 109 条无漂移；真机验证待用户本地确认。"
+    }
+    ,{
+      "overlays": [
         "runtime.pnpm-version",
         "runtime.test-pnpm-version"
       ],
