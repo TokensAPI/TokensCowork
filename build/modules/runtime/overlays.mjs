@@ -223,7 +223,7 @@ export default [
     kind: 'workaround',
     ...installedOverlay('@earendil-works/pi-ai', keepConfiguredOutputLimit,
       'pi-ai is not installed; run yarn install first', 'dist/api/simple-options.js'),
-    why: 'pi-ai 把每次请求的 max_tokens 压到「窗口 − 估算 − 4096」；DSH 交给它的历史用量恒为空，估算退化成整段对话按 3.5 字符/token 粗估并计入从不发送的历史思考，长会话里实际用量 69% 时估算已超窗口，输出上限被压到 907 再到 1，「继续」永远截断（T0095，会话 14d7fdc4）。没有上报用量时改为发送配置的输出上限：DSH 的压缩阈值本就按完整输出上限预留空间，DSH 自带的 DeepSeek 适配器也不做估算。',
+    why: 'pi-ai 把每次请求的 max_tokens 压到「窗口 − 估算 − 4096」；DSH 交给它的历史用量恒为空，估算退化成整段对话按 3.5 字符/token 粗估并计入历史思考（回放为 reasoning 字段，TokensAPI 不计入输入），长会话里实际用量 69% 时估算已超窗口，输出上限被压到 907 再到 1，「继续」永远截断（T0095，会话 14d7fdc4）。没有上报用量时改为发送配置的输出上限：压缩阈值 = min(窗口×0.8, 窗口 − 路由声明的 maxTokens（未声明为 0）− headroom 65536)，输入至少比窗口低 65536，容得下本产品发送的 32768；单步越界时 TokensAPI 返回 maximum context length 报错，pi-ai 识别为溢出并由 DSH 压缩恢复。未声明的输出上限若超过 headroom（DSH 0.2.2 默认 128K）须重新评估。',
     retireWhen: 'DSH 的 pi-ai 适配器向 pi-ai 传入真实用量，或 pi-ai 不再用纯字符估算压低输出上限，并以同一会话数字（估算 257141 / 258116、窗口 262144）回归得到配置上限后删除。',
   },
   {
