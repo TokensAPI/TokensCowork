@@ -22,7 +22,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const args = process.argv.slice(2)
   if (args.some(arg => arg !== '--apply')) throw new Error('Expected optional --apply; default is dry-run')
   const root = resolve(import.meta.dirname, '..')
-  const releases = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/releases?per_page=100`, '--paginate', '--slurp'], { encoding: 'utf8' })).flat()
+  const releases = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/releases?per_page=100`, '--paginate', '--slurp'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })).flat()
   const directory = resolve(root, 'docs/releases')
   const plan = retentionPlan(releases, readdirSync(directory))
   console.log(JSON.stringify(plan, null, 2))

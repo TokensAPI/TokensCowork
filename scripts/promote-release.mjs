@@ -44,7 +44,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     throw new Error('Usage: node scripts/promote-release.mjs v<x.y.z> [--apply]; default is dry-run')
   }
   const repository = 'TokensAPI/TokensCowork'
-  const releases = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/releases?per_page=100`, '--paginate', '--slurp'], { encoding: 'utf8' })).flat()
+  const releases = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/releases?per_page=100`, '--paginate', '--slurp'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })).flat()
   const release = releases.find(item => item.tag_name === tag)
   if (!release) throw new Error(`Release not found: ${tag}`)
   const notes = readFileSync(resolve(import.meta.dirname, `../docs/releases/${tag}.md`), 'utf8')
