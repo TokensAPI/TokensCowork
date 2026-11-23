@@ -1,0 +1,90 @@
+/*
+ * The console is drawn with Tabler (the shared /admin/assets/vendor/tabler/tabler.min.css). This
+ * file holds only what Tabler has no component for, taken from /admin/'s market-admin.css as the
+ * pages that need it move here: Tabler's modal look on the native <dialog>, the toast's place, the
+ * brand name, and lists that scroll inside their card. Colours come from Tabler's variables, so
+ * the light and dark themes (data-bs-theme) both follow.
+ */
+/* `hidden` wins over Tabler's display utilities (.d-flex and the like are !important too). */
+[hidden] {
+  display: none !important;
+}
+.min-w-0 {
+  min-width: 0;
+}
+.brand-name {
+  margin-inline-start: 0.5rem;
+  font-family: var(--font-brand);
+  font-weight: 700;
+}
+.environment-badge {
+  max-width: 16rem;
+}
+/* A page still in the console at /admin/: the sidebar marks the way out. */
+.legacy-mark {
+  display: inline-flex;
+  opacity: 0.6;
+}
+.legacy-mark .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Tabler's modal markup on a native <dialog>: showModal() supplies the top layer, the focus trap and
+   Esc, so no Bootstrap Modal instance is needed. The dialog plays the part of Bootstrap's .modal
+   wrapper; the browser's own dialog box is cleared away. */
+dialog.modal {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  color: inherit;
+}
+dialog.modal[open] {
+  display: block;
+}
+dialog.modal::backdrop {
+  background: rgba(24, 36, 51, 0.56);
+}
+
+/* The toast sits above dialogs (popover top layer), in the bottom corner. */
+#message {
+  position: fixed;
+  inset: auto 1rem 1rem auto;
+  margin: 0;
+  width: min(28rem, calc(100vw - 2rem));
+  box-shadow: var(--tblr-box-shadow-dropdown);
+}
+
+/* On a narrow screen a table keeps readable columns and scrolls inside its card instead. */
+.table-responsive > .card-table {
+  min-width: 48rem;
+}
+/* The hidden 「操作」 header text is absolutely positioned; anchored here, it stays inside the
+   scrolling box instead of widening the page. */
+.table-responsive {
+  position: relative;
+}
+/* While a list reloads only the table dims; the rest of the page stays usable. */
+.list-loading {
+  margin-bottom: -0.25rem;
+}
+.table-responsive[aria-busy="true"] {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+tr[aria-busy="true"] {
+  opacity: 0.55;
+}
+.grant-list {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+/* The app's mount point takes no box of its own, so Tabler's full-height .page sits under <body> as
+   it does at /admin/ (and the footer stays at the bottom of a short page). */
+#app {
+  display: contents;
+}
