@@ -27,9 +27,6 @@
 .environment-badge {
   max-width: 16rem;
 }
-.retention-input {
-  width: 7rem;
-}
 
 /* Tabler's modal markup on a native <dialog>: showModal() supplies the top layer, the focus trap and
    Esc, so no Bootstrap Modal instance is needed. The dialog plays the part of Bootstrap's .modal
@@ -109,10 +106,24 @@ dialog.modal::backdrop {
   overflow-y: auto;
 }
 
-/* Session-log list. */
+/* Session-log list: one filter row, then a table that scrolls sideways inside its card on a narrow
+   screen (eleven columns need more room than the generic card-table minimum). */
+.log-search {
+  min-width: 16rem;
+}
+.log-model {
+  width: 13rem;
+}
+.table-responsive > .card-table.log-table {
+  min-width: 72rem;
+}
+.log-session {
+  min-width: 12rem;
+  max-width: 22rem;
+}
 .log-annotation {
-  min-width: 9rem;
-  max-width: 15rem;
+  min-width: 6rem;
+  max-width: 12rem;
 }
 .log-confirm-list {
   max-height: 14rem;

@@ -1,12 +1,15 @@
-import { sessionLogDetailView } from './market-session-log-detail.js'
+import { sessionLogDetailView, downloadSessionLog } from './market-session-log-detail.js'
+import { TIME_PRESETS, classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName } from './market-session-log-format.js'
 
 /**
- * The session-log page: the index of sessions the desktop plugin uploaded, paged on the server,
- * with filters, ticked-row and date-range deletion (each confirmed in a dialog first), a note and
- * tags per session, and the retention setting; one opened session is shown by
- * market-session-log-detail.js. Platform administrators only. Every byte shown here is user content
- * (files, commands, secrets), so it is only ever placed with textContent, and each opened session
- * and each download is recorded by the server.
+ * The session-log page: the index of sessions the desktop plugin uploaded, paged on the server.
+ * One search box (account, session id or Key, told apart by classifySearch), the organization,
+ * model and time pickers, 「更多筛选」 for the rest, and the applied filters as removable tags; the
+ * totals of what the filters match; ticked-row and date-range deletion, each confirmed in a dialog
+ * first; a note and tags per session; and the retention setting in its own dialog. One opened
+ * session is shown by market-session-log-detail.js. Platform administrators only. Every byte shown
+ * here is user content (files, commands, secrets), so it is only ever placed with textContent, and
+ * each opened session and each download is recorded by the server.
  *
  * The pager and the bulk buttons are rebuilt on every load rather than toggled: action() puts every
  * control it disabled back the way it found it, which used to undo the prev/next states a load had
@@ -18,23 +21,32 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     pageSize = 50,
     filters = {},
     total = 0,
-    items = []
+    items = [],
+    retentionDays = null
   // The ticked rows of the page on screen, by `${id}:${formatVersion}`. Cleared whenever the page
   // or the filters change, so a deletion only ever names rows the administrator can see.
   const selected = new Map()
+  // Every model seen on a loaded page, offered as suggestions by the model picker.
+  const models = new Set()
   const short = (value, length = 12) => (value ? value.slice(0, length) : '')
-  const bytes = (value) => (value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${value ? Math.max(1, Math.round(value / 1024)) : 0} KB`)
   const time = (value) => (value ? formatTime(value) : '—')
   const nameOf = (item) => `${item.id}:${item.formatVersion}`
   const titleOf = (item) => item.title || '未命名会话'
   const filtering = () => Object.values(filters).some(Boolean)
   // The Key in full when the server kept it (sealed); otherwise only its fingerprint is known.
+  // The detail page shows it this way; the list shortens it (keyCell).
   function keyLines(target, { key, fingerprint, label }) {
     if (label) target.append(node('div', label))
     if (key) target.append(node('div', key, 'font-monospace small text-break user-select-all'))
     else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'font-monospace small text-secondary'))
   }
-  const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
+  const clientText = (client) => [client.product, client.version, platformName(client.platform)].filter(Boolean).join(' ') || '—'
+  async function copy(text) {
+    if (!navigator.clipboard?.writeText) throw new Error('浏览器不允许复制，请打开会话详情复制。')
+    await navigator.clipboard.writeText(text)
+  }
+
+  // ── Names and organizations ────────────────────────────────────────────────
   // Names, and the organization each account belongs to now, for the account ids the clients
   // report, asked once per id for a whole page and drawn in when they arrive, so the list never
   // waits on TokensAPI. An id nobody can name stays a bare id and an organization TokensAPI could
@@ -63,12 +75,17 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     if (org === undefined) return null
     return org ? org.name || `#${org.id}` : '无组织'
   }
+  // The name on top and 「ID 535」 under it once the name arrives; the bare id until then.
   function accountCell(id) {
-    const cell = node('td', id || '—', id ? 'text-break' : 'text-secondary')
-    if (id) accountUser(id).then((user) => {
+    const cell = node('td')
+    if (!id) return cell.append(node('span', '—', 'text-secondary')), cell
+    const top = node('div', id, 'text-break'), under = node('div', '', 'text-secondary small')
+    cell.append(top, under)
+    accountUser(id).then((user) => {
       if (!user) return
-      cell.textContent = `${id} · ${user.name}`
-      cell.title = '名称按客户端上报的 ID 查得，ID 未核验'
+      top.textContent = user.name
+      under.textContent = `ID ${id}`
+      cell.title = '客户端上报的账号 ID，未核验；名称按此 ID 查得'
     })
     return cell
   }
@@ -83,8 +100,8 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     })
     return cell
   }
-  // The filter offers the organizations registered here (the API's organization=none is kept for
-  // clean-ups but not offered); the choice survives a refill.
+  // The organization picker offers the organizations registered here (the API's organization=none
+  // is kept for clean-ups but not offered); the choice survives a refill.
   function fillOrganizations() {
     const select = $('session-log-organization'), chosen = select.value
     const options = organizations.all().map((org) => {
@@ -94,6 +111,13 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     })
     select.replaceChildren(select.options[0], ...options)
     select.value = [...select.options].some((option) => option.value === chosen) ? chosen : ''
+  }
+  function fillModels() {
+    $('session-log-models').replaceChildren(...[...models].sort().map((model) => {
+      const option = document.createElement('option')
+      option.value = model
+      return option
+    }))
   }
   const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack: back })
 
@@ -113,59 +137,163 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     })
   }
 
-  // ── List ───────────────────────────────────────────────────────────────────
+  // ── Filters ────────────────────────────────────────────────────────────────
+  // The search box fills exactly one of account / session / key; a preset time reaches back from
+  // now, a custom one is the two dates under 「更多筛选」 (end date inclusive).
   function readFilters() {
     const day = (id, offset = 0) => {
       const value = $(id).value
       return value ? String(new Date(value + 'T00:00:00').getTime() + offset) : ''
     }
+    const search = classifySearch($('session-log-search').value)
+    const choice = $('session-log-time').value
+    const preset = TIME_PRESETS[choice]
     return {
-      account: $('session-log-account').value.trim(), session: $('session-log-session').value.trim(),
-      key: $('session-log-key').value.trim(), tag: $('session-log-tag').value.trim(),
-      clientVersion: $('session-log-version').value.trim(), model: $('session-log-model').value.trim(),
-      from: day('session-log-from'), to: day('session-log-to', DAY), organization: $('session-log-organization').value,
+      account: search?.field === 'account' ? search.value : '', session: search?.field === 'session' ? search.value : '',
+      key: search?.field === 'key' ? search.value : '', organization: $('session-log-organization').value,
+      model: $('session-log-model').value.trim(), clientVersion: $('session-log-version').value.trim(), tag: $('session-log-tag').value.trim(),
+      from: preset ? String(Date.now() - preset) : choice === 'custom' ? day('session-log-from') : '',
+      to: choice === 'custom' ? day('session-log-to', DAY) : '',
     }
   }
+  function apply() {
+    filters = readFilters()
+    page = 1
+    action(loadList)
+  }
+  function showMore(open) {
+    $('session-log-more-filters').hidden = !open
+    $('session-log-more').setAttribute('aria-expanded', String(open))
+    $('session-log-more').classList.toggle('active', open)
+  }
+  // The applied filters as tags; ✕ clears that one control and reloads.
+  function renderChips() {
+    const choice = $('session-log-time').value
+    const select = $('session-log-organization')
+    const searchLabel = { account: '账号', session: '会话', key: 'Key' }
+    const day = (value) => new Date(Number(value)).toLocaleDateString('zh-CN')
+    const chips = []
+    const chip = (label, clear) => {
+      const tag = node('span', '', 'tag')
+      const close = button('', () => { clear(); apply() }, 'btn-close')
+      close.setAttribute('aria-label', `去掉筛选 ${label}`)
+      tag.append(node('span', label), close)
+      chips.push(tag)
+    }
+    const search = classifySearch($('session-log-search').value)
+    if (search && filters[search.field]) chip(`${searchLabel[search.field]}：${search.value}`, () => { $('session-log-search').value = '' })
+    if (filters.organization) chip(`组织：${select.selectedOptions[0]?.textContent ?? filters.organization}`, () => { select.value = '' })
+    if (filters.model) chip(`模型：${filters.model}`, () => { $('session-log-model').value = '' })
+    if (filters.from || filters.to) {
+      const text = choice === 'custom'
+        ? `${filters.from ? day(filters.from) : '最早'} 至 ${filters.to ? day(Number(filters.to) - DAY) : '现在'}`
+        : $('session-log-time').selectedOptions[0].textContent
+      chip(`时间：${text}`, () => { $('session-log-time').value = ''; $('session-log-from').value = ''; $('session-log-to').value = '' })
+    }
+    if (filters.clientVersion) chip(`版本：${filters.clientVersion}`, () => { $('session-log-version').value = '' })
+    if (filters.tag) chip(`标签：${filters.tag}`, () => { $('session-log-tag').value = '' })
+    $('session-log-chips').replaceChildren(...(chips.length ? [node('span', '已筛选：', 'text-secondary small'), ...chips] : []))
+    $('session-log-chips').hidden = !chips.length
+  }
+
+  // ── List ───────────────────────────────────────────────────────────────────
   async function loadList() {
     const query = new URLSearchParams({ ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
       page: String(page), pageSize: String(pageSize) })
     const result = await json('/api/v1/session-logs?' + query)
     total = result.total
     // Everything the filters match, not only this page.
-    $('session-log-summary').textContent = `${filtering() ? '符合筛选的' : '共'} ${total} 个会话 · ${bytes(result.storedBytes)}`
+    $('session-log-summary').textContent = `${filtering() ? '符合筛选的' : '共'} ${total} 个会话 · ${sizeText(result.storedBytes)}`
     // The server answers a page past the end with the last page; follow it.
     page = result.page
     pageSize = result.pageSize
     items = result.items
     selected.clear()
+    for (const item of items) for (const model of item.models) models.add(model)
+    fillModels()
     lookupNames(items.map((item) => item.accountId))
     $('session-log-list').replaceChildren(...items.map(row))
     $('session-log-empty').hidden = items.length > 0
     $('session-log-empty').firstElementChild.textContent = filtering() ? '没有符合条件的会话' : '暂无会话日志'
     $('session-log-key-note').hidden = result.keyDisplayReady
     pager({ info: $('session-log-page'), list: $('session-log-pager'), size: $('session-log-page-size'), page, pageSize, total, unit: '个会话', go: goTo })
+    renderChips()
     renderSelection()
   }
   function goTo(target) {
     page = target
     action(loadList)
   }
-  // The selection count and the two bulk deletions, rebuilt whenever the selection changes.
+  // The bulk area, rebuilt whenever the selection changes: 「已选 N 个 · 删除所选」 only while rows are
+  // ticked, and the 「⋯」 menu with deletion by date always.
   function renderSelection() {
     const boxes = [...$('session-log-list').querySelectorAll('input[type=checkbox]')]
     const all = $('session-log-select-all')
     all.checked = boxes.length > 0 && selected.size === boxes.length
     all.indeterminate = selected.size > 0 && selected.size < boxes.length
     all.disabled = !boxes.length
-    $('session-log-selected').textContent = selected.size ? `已选 ${selected.size} 个会话（本页）` : '勾选会话后可批量删除；翻页或改筛选会清空勾选。'
-    const remove = button(`删除所选${selected.size ? `（${selected.size}）` : ''}`, removeSelected, 'btn btn-outline-danger')
-    remove.disabled = !selected.size
-    const range = button('删除筛选日期内的会话', removeRange, 'btn btn-ghost-danger')
-    range.title = '按「创建于…至…」删除，只能和日期一起用'
-    $('session-log-bulk-actions').replaceChildren(remove, range)
+    const parts = []
+    if (selected.size) parts.push(node('span', `已选 ${selected.size} 个`, 'text-secondary'), button('删除所选', removeSelected, 'btn btn-outline-danger btn-sm'))
+    parts.push(menu('会话日志', [{ label: '按日期删除…', danger: true, run: removeRange }]))
+    $('session-log-bulk-actions').replaceChildren(...parts)
+  }
+  // The console's row menu, shown as 「⋯」.
+  function menu(name, entries) {
+    const box = rowActions(name, null, entries)
+    const toggle = box.querySelector('.dropdown-toggle')
+    toggle.textContent = '⋯'
+    toggle.className = 'btn btn-ghost-secondary btn-sm px-2'
+    toggle.title = '更多操作'
+    return box
+  }
+  function sessionCell(item) {
+    const cell = node('td', '', 'log-session')
+    const title = button(titleOf(item), () => action(() => open(item.id, item.formatVersion)), 'btn btn-link p-0 text-reset fw-medium text-start text-break')
+    const meta = [item.client.version, platformName(item.client.platform)].filter(Boolean).join(' · ') || '—'
+    cell.append(title, node('div', meta + (item.parentSession ? ' · 子代理会话' : ''), 'text-secondary small'))
+    return cell
+  }
+  // The Key's note when it has one, otherwise the Key shortened; 「复制」 copies the whole Key.
+  function keyCell(item) {
+    const cell = node('td', '', 'text-nowrap')
+    if (!item.keyFingerprint) return cell.append(node('span', '匿名', 'text-secondary')), cell
+    if (item.keyLabel) cell.append(badge(item.keyLabel))
+    else if (item.key) cell.append(node('code', shortKey(item.key)))
+    else cell.append(node('code', `指纹 ${short(item.keyFingerprint, 8)}`, 'text-secondary'))
+    cell.title = item.keyLabel && item.key ? shortKey(item.key) : ''
+    if (item.key) cell.append(button('复制', () => action(() => copy(item.key), { success: 'Key 已复制。' }), 'btn btn-link btn-sm p-0 ms-2'))
+    return cell
+  }
+  function modelCell(item) {
+    const cell = node('td', '', 'text-nowrap')
+    if (!item.models.length) return cell.append(node('span', '—', 'text-secondary')), cell
+    cell.append(node('span', item.models[0]))
+    if (item.models.length > 1) {
+      const more = badge(`+${item.models.length - 1}`)
+      more.classList.add('ms-1')
+      cell.append(more)
+      cell.title = item.models.join('、')
+    }
+    return cell
+  }
+  function tagsCell(item) {
+    const cell = node('td', '', 'log-annotation')
+    if (item.tags.length) {
+      const chips = node('div', '', 'badges-list')
+      chips.append(...item.tags.map((tag) => badge(tag)))
+      cell.append(chips)
+    }
+    if (item.note) {
+      const note = node('div', item.note, 'text-secondary small text-truncate')
+      note.title = item.note
+      cell.append(note)
+    }
+    if (!item.tags.length && !item.note) cell.append(node('span', '—', 'text-secondary'))
+    return cell
   }
   function row(item) {
     const tr = document.createElement('tr')
+    tr.className = 'cursor-pointer'
     const check = node('td')
     const box = document.createElement('input')
     box.type = 'checkbox'
@@ -178,37 +306,26 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       renderSelection()
     }
     check.append(box)
-    const name = node('td')
-    name.append(node('div', titleOf(item), 'fw-medium text-break'), node('div', item.id, 'font-monospace small text-secondary text-break'),
-      node('div', clientText(item.client) + (item.parentSession ? ' · 子代理会话' : ''), 'text-secondary small'))
-    const key = node('td')
-    if (item.keyFingerprint) keyLines(key, { key: item.key, fingerprint: item.keyFingerprint, label: item.keyLabel })
-    else key.append(node('span', '未带 Key（匿名）', 'text-secondary'))
-    const usage = node('td')
-    usage.append(node('div', item.models.join('、') || '—'))
-    if (item.tokens.total) usage.append(node('div', `${item.tokens.total.toLocaleString('zh-CN')} token`, 'text-secondary small'))
-    const events = node('td', `${item.eventCount} 条 · ${bytes(item.storedBytes)}${item.missingEvents ? ` · 缺 ${item.missingEvents} 条` : ''}`)
-    const notes = node('td', '', 'log-annotation')
-    if (item.tags.length) {
-      const chips = node('div', '', 'badges-list mb-1')
-      chips.append(...item.tags.map((tag) => badge(tag)))
-      notes.append(chips)
-    }
-    if (item.note) {
-      const note = node('div', item.note, 'text-secondary small log-clamp')
-      note.title = item.note
-      notes.append(note)
-    }
-    if (!item.tags.length && !item.note) notes.append(node('span', '—', 'text-secondary'))
-    const when = node('td', '', 'text-nowrap small')
-    when.append(node('div', `创建 ${time(item.createdAt ?? item.firstReceivedAt)}`), node('div', `最近上传 ${time(item.lastReceivedAt)}`, 'text-secondary'))
-    const cell = document.createElement('td')
-    cell.append(rowActions(titleOf(item), { label: '查看', run: () => action(() => open(item.id, item.formatVersion)) }, [
-      { label: '备注与标签', run: () => editNote(item) },
+    const events = node('td', '', 'text-end text-nowrap')
+    events.append(node('div', `${item.eventCount} 条 · ${sizeText(item.storedBytes)}`))
+    if (item.missingEvents) events.append(node('div', `缺 ${item.missingEvents} 条`, 'text-warning small'))
+    const when = node('td', relativeTime(item.lastReceivedAt), 'text-nowrap')
+    when.title = `创建 ${time(item.createdAt ?? item.firstReceivedAt)} · 最近上传 ${time(item.lastReceivedAt)}`
+    const actions = node('td')
+    actions.append(menu(titleOf(item), [
+      { label: '查看', run: () => action(() => open(item.id, item.formatVersion)) },
+      { label: '下载 JSON', run: () => action(() => downloadSessionLog(item.id, item.formatVersion, 'json'), { success: 'JSON 已下载，已写入操作记录。' }) },
+      { label: '编辑备注与标签', run: () => editNote(item) },
       'divider',
       { label: '删除', danger: true, run: () => removeOne(item) },
     ]))
-    tr.append(check, name, accountCell(item.accountId), organizationCell(item.accountId), key, usage, events, notes, when, cell)
+    tr.append(check, sessionCell(item), accountCell(item.accountId), organizationCell(item.accountId), keyCell(item), modelCell(item),
+      node('td', tokenText(item.tokens.total), 'text-end text-nowrap'), events, tagsCell(item), when, actions)
+    // The whole row opens the session, except where a click means something of its own.
+    tr.onclick = (event) => {
+      if (event.target.closest('input, button, a, label, .dropdown-menu') || getSelection()?.toString()) return
+      action(() => open(item.id, item.formatVersion))
+    }
     return tr
   }
 
@@ -230,11 +347,13 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       feedback(`已删除 ${result.count} 个会话${result.missing ? `（${result.missing} 个已不存在）` : ''}。`)
     })
   }
-  // A date range deletes every account's sessions in it, so it is refused while any other filter
-  // is applied: what the list shows and what would be deleted must be the same set.
+  // A date range deletes every account's sessions in it, so it needs both dates of a custom range
+  // and is refused while any other filter is applied: what the list shows and what would be deleted
+  // must be the same set.
   async function removeRange() {
     const { from, to, ...others } = filters
-    if (!from || !to) return action(async () => { throw new Error('请先在「创建于…至…」选好起止日期并点「筛选」。') })
+    if (!from || !to || $('session-log-time').value !== 'custom')
+      return action(async () => { throw new Error('请先在「时间」选「自定义」，在「更多筛选」填好起止日期并应用筛选。') })
     if (Object.values(others).some(Boolean))
       return action(async () => { throw new Error('按日期删除会删掉该时段内所有账号的会话：请先清空其他筛选条件，或勾选后用「删除所选」。') })
     const span = `${new Date(Number(from)).toLocaleDateString('zh-CN')} 至 ${new Date(Number(to) - DAY).toLocaleDateString('zh-CN')}`
@@ -269,6 +388,27 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     }, { success: '备注已保存。', errorTarget: 'session-log-note-error' })
   }
 
+  // ── Retention setting ──────────────────────────────────────────────────────
+  function showRetention() {
+    $('session-log-settings-open').textContent = `设置 · 保留天数：${retentionDays ? `${retentionDays} 天` : '永久'}`
+  }
+  $('session-log-settings-open').onclick = () => {
+    $('session-log-retention').value = retentionDays ?? ''
+    $('session-log-settings-error').textContent = ''
+    $('session-log-settings-dialog').showModal()
+  }
+  $('session-log-settings-cancel').onclick = () => $('session-log-settings-dialog').close()
+  $('session-log-settings').onsubmit = (event) => {
+    event.preventDefault()
+    const value = $('session-log-retention').value.trim()
+    action(async () => {
+      const saved = await json('/api/v1/session-logs/settings', { retentionDays: value ? Number(value) : null })
+      retentionDays = saved.retentionDays ?? null
+      showRetention()
+      $('session-log-settings-dialog').close()
+    }, { success: value ? `保留期已设为 ${value} 天。` : '已改为永久保留。', errorTarget: 'session-log-settings-error' })
+  }
+
   // ── Detail ─────────────────────────────────────────────────────────────────
   async function open(id, formatVersion) {
     await detail.open(id, formatVersion)
@@ -283,12 +423,25 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   }
 
   // ── Controls ───────────────────────────────────────────────────────────────
+  // Text fields apply on Enter (the form's submit); pickers apply as soon as they change.
   $('session-log-filters').onsubmit = (event) => {
     event.preventDefault()
-    filters = readFilters()
-    page = 1
-    action(loadList)
+    apply()
   }
+  $('session-log-search').addEventListener('search', () => { if (!$('session-log-search').value) apply() })
+  for (const id of ['session-log-organization', 'session-log-model']) $(id).onchange = apply
+  $('session-log-time').onchange = () => {
+    if ($('session-log-time').value === 'custom') return showMore(true)
+    $('session-log-from').value = ''
+    $('session-log-to').value = ''
+    apply()
+  }
+  // Picking a date is a custom range, applied once both ends or either end is set.
+  for (const id of ['session-log-from', 'session-log-to']) $(id).onchange = () => {
+    $('session-log-time').value = 'custom'
+    apply()
+  }
+  $('session-log-more').onclick = () => showMore($('session-log-more-filters').hidden)
   $('session-log-reset').onclick = () => {
     $('session-log-filters').reset()
     filters = {}
@@ -307,14 +460,6 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     }
     renderSelection()
   }
-  $('session-log-settings').onsubmit = (event) => {
-    event.preventDefault()
-    const value = $('session-log-retention').value.trim()
-    action(async () => {
-      const saved = await json('/api/v1/session-logs/settings', { retentionDays: value ? Number(value) : null })
-      $('session-log-retention').value = saved.retentionDays ?? ''
-    }, { success: value ? `保留期已设为 ${value} 天。` : '已改为永久保留。' })
-  }
 
   return {
     // Loaded when the page is opened, not with the rest of the console: it is the one page that
@@ -323,7 +468,8 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       if (detail.isOpen()) return
       fillOrganizations()
       const settings = await json('/api/v1/session-logs/settings')
-      $('session-log-retention').value = settings.retentionDays ?? ''
+      retentionDays = settings.retentionDays ?? null
+      showRetention()
       await loadList()
     },
     clear() {
@@ -332,14 +478,21 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       page = 1
       pageSize = 50
       items = []
+      retentionDays = null
       selected.clear()
+      models.clear()
       editing = null
-      for (const id of ['session-log-confirm-dialog', 'session-log-note-dialog']) if ($(id).open) $(id).close()
+      for (const id of ['session-log-confirm-dialog', 'session-log-note-dialog', 'session-log-settings-dialog']) if ($(id).open) $(id).close()
       $('session-log-filters').reset()
+      showMore(false)
       $('session-log-page-size').value = '50'
       $('session-log-list').replaceChildren()
       $('session-log-pager').replaceChildren()
       $('session-log-bulk-actions').replaceChildren()
+      $('session-log-chips').replaceChildren()
+      $('session-log-chips').hidden = true
+      $('session-log-models').replaceChildren()
+      showRetention()
     },
   }
 }

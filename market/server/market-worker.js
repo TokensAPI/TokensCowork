@@ -167,6 +167,7 @@ export default {
       '/admin/assets/market-session-logs.js',
       '/admin/assets/market-session-log-detail.js',
       '/admin/assets/market-session-log-replay.js',
+      '/admin/assets/market-session-log-format.js',
       '/admin/assets/market-markdown.js',
       // The plugin documentation center (page at /docs) and the console's docs page.
       '/admin/assets/market-docs.js',

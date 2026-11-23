@@ -10,6 +10,25 @@ import { renderMarkdown } from './market-markdown.js'
  * market-markdown.js, which builds elements and text nodes only; long content is built only when
  * unfolded, so a large session stays responsive.
  */
+/** One whole session as a file, the same request the server records as a download. */
+export async function downloadSessionLog(id, formatVersion, format) {
+  const response = await fetch(`/api/v1/session-logs/${encodeURIComponent(id)}/${formatVersion}/raw?format=${format}`,
+    { credentials: 'same-origin', cache: 'no-store', redirect: 'error' })
+  if (!response.ok) {
+    let message = '下载失败，请稍后重试。'
+    try { message = (await response.json()).error || message } catch {}
+    throw new Error(message)
+  }
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${id}.${format}`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
 export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack }) {
   const PAGE = 1000
   const RAW_CHUNK = 256 * 1024
@@ -283,23 +302,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       observer.observe($('session-log-raw-sentinel'))
     }
   }
-  async function download(format) {
-    const response = await fetch(`/api/v1/session-logs/${encodeURIComponent(current.id)}/${current.formatVersion}/raw?format=${format}`,
-      { credentials: 'same-origin', cache: 'no-store', redirect: 'error' })
-    if (!response.ok) {
-      let message = '下载失败，请稍后重试。'
-      try { message = (await response.json()).error || message } catch {}
-      throw new Error(message)
-    }
-    const url = URL.createObjectURL(await response.blob())
-    const link = node('a')
-    link.href = url
-    link.download = `${current.id}.${format}`
-    document.body.append(link)
-    link.click()
-    link.remove()
-    setTimeout(() => URL.revokeObjectURL(url), 60000)
-  }
+  const download = (format) => downloadSessionLog(current.id, current.formatVersion, format)
   async function copy(text) {
     if (!navigator.clipboard?.writeText) throw new Error('浏览器不允许复制，请改用下载。')
     await navigator.clipboard.writeText(text)

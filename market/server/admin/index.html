@@ -145,7 +145,13 @@
               <div class="row g-2 align-items-center">
                 <div class="col">
                   <div class="page-pretitle">插件市场</div>
-                  <h2 id="page-title" class="page-title">插件</h2>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <h2 id="page-title" class="page-title">插件</h2>
+                    <span id="session-log-badge" class="badge bg-orange-lt cursor-help" data-actions="session-logs" hidden tabindex="0"
+                      title="日志不脱敏，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情、每次下载都会写一条操作记录。上报账号和组织是客户端自己报的，未核验。"
+                      >未脱敏 · 仅平台管理员</span
+                    >
+                  </div>
                   <div id="page-description" class="text-secondary mt-1"></div>
                 </div>
                 <div class="col-12 col-md-auto ms-auto d-print-none">
@@ -172,10 +178,9 @@
                     <button id="docs-open-center" class="btn" type="button">打开文档中心</button
                     ><button id="docs-upload" class="btn btn-primary" type="button">上传 Markdown</button>
                   </div>
-                  <form id="session-log-settings" class="d-flex align-items-center gap-2" data-actions="session-logs" hidden>
-                    <label for="session-log-retention" class="text-secondary text-nowrap">保留天数</label
-                    ><input id="session-log-retention" class="form-control retention-input" type="number" min="1" max="36500" step="1" placeholder="永久" aria-describedby="session-log-retention-note" /><button type="submit" class="btn">保存</button>
-                  </form>
+                  <div class="btn-list" data-actions="session-logs" hidden>
+                    <button id="session-log-settings-open" class="btn" type="button">设置</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -412,26 +417,32 @@
 
               <section id="session-logs-panel" data-panel="session-logs" hidden>
                 <div id="session-log-browser">
-                  <div class="alert alert-warning">
-                    日志<b>不脱敏</b>，含用户的文件内容与密钥：只有平台管理员能看，每次打开会话详情都会写一条操作记录。
-                    「上报账号」是客户端自己报的，<b>未核验</b>；上传所带的 Key 加密保存，这里显示完整 Key。
-                    <span id="session-log-key-note" hidden><b>未配置 Key 加密，未保存原文</b>（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹。</span>
-                    <span id="session-log-retention-note">保留天数留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话。</span>
-                  </div>
                   <div class="card">
-                    <form id="session-log-filters" class="card-body border-bottom py-3">
-                      <div class="row g-2">
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-account" class="form-control" type="search" placeholder="上报账号 ID" aria-label="按上报账号筛选" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-session" class="form-control" type="search" placeholder="会话 ID（完整）" aria-label="按会话 ID 筛选" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-key" class="form-control" type="search" placeholder="Key（可只填开头）" aria-label="按 Key 筛选" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-tag" class="form-control" type="search" placeholder="标签" aria-label="按标签筛选" maxlength="32" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-version" class="form-control" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-model" class="form-control" type="search" placeholder="模型" aria-label="按模型筛选" /></div>
-                        <div class="col-12 col-sm-6 col-xl-3">
-                          <select id="session-log-organization" class="form-select" aria-label="按上报账号当前所属组织筛选" title="按上报账号当前所属组织筛选（未核验）">
-                            <option value="">全部组织</option>
-                          </select>
+                    <form id="session-log-filters" class="card-body py-3" novalidate>
+                      <div class="d-flex flex-wrap align-items-center gap-2">
+                        <div class="input-icon flex-grow-1 log-search">
+                          <span class="input-icon-addon"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></span
+                          ><input id="session-log-search" class="form-control" type="search" maxlength="300" placeholder="搜索账号 ID、会话 ID（session-…）、Key（sk-… 或开头）" aria-label="按账号 ID、会话 ID 或 Key 搜索" />
                         </div>
+                        <select id="session-log-organization" class="form-select w-auto" aria-label="按上报账号当前所属组织筛选" title="按上报账号当前所属组织筛选（未核验）">
+                          <option value="">全部组织</option>
+                        </select>
+                        <input id="session-log-model" class="form-select w-auto log-model" list="session-log-models" maxlength="200" placeholder="全部模型" aria-label="按模型筛选" title="按模型筛选：可从列表选，也可输入完整模型名" />
+                        <datalist id="session-log-models"></datalist>
+                        <select id="session-log-time" class="form-select w-auto" aria-label="按会话创建时间筛选">
+                          <option value="">全部时间</option>
+                          <option value="24h">近 24 小时</option>
+                          <option value="7d">近 7 天</option>
+                          <option value="30d">近 30 天</option>
+                          <option value="custom">自定义</option>
+                        </select>
+                        <button id="session-log-more" class="btn" type="button" aria-expanded="false" aria-controls="session-log-more-filters">更多筛选</button
+                        ><button id="session-log-reset" type="button" class="btn btn-ghost-secondary">重置</button
+                        ><button type="submit" class="visually-hidden" tabindex="-1">筛选</button>
+                      </div>
+                      <div id="session-log-more-filters" class="row g-2 mt-1" hidden>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-version" class="form-control" type="search" placeholder="客户端版本，如 0.7.19" aria-label="按客户端版本筛选" /></div>
+                        <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-tag" class="form-control" type="search" placeholder="标签" aria-label="按标签筛选" maxlength="32" /></div>
                         <div class="col-12 col-sm-6 col-xl-3">
                           <div class="input-group">
                             <span class="input-group-text">创建于</span><input id="session-log-from" class="form-control" type="date" aria-label="会话创建时间起（含）" />
@@ -442,33 +453,31 @@
                             <span class="input-group-text">至</span><input id="session-log-to" class="form-control" type="date" aria-label="会话创建时间止（含）" />
                           </div>
                         </div>
-                        <div class="col-12 d-flex flex-wrap gap-2">
-                          <button type="submit" class="btn btn-primary">筛选</button
-                          ><button id="session-log-reset" type="button" class="btn">重置</button>
-                          <span class="ms-auto d-flex flex-wrap align-items-center gap-2">
-                            <span id="session-log-selected" class="text-secondary" aria-live="polite"></span>
-                            <span id="session-log-bulk-actions" class="btn-list"></span>
-                          </span>
-                        </div>
                       </div>
+                      <div id="session-log-chips" class="tags-list align-items-center mt-2" hidden></div>
                     </form>
-                    <div class="card-body border-bottom py-2 text-secondary" aria-live="polite">
-                      <span id="session-log-summary" class="fw-medium text-body"></span>
-                      <span class="small">· 大小为压缩后实际写入的字节数</span>
+                    <div class="card-body border-top border-bottom py-2 d-flex flex-wrap align-items-center gap-2">
+                      <div class="me-auto" aria-live="polite">
+                        <span id="session-log-summary" class="fw-medium"></span>
+                        <span class="text-secondary small ms-2">大小为压缩后实际写入的大小</span>
+                        <span id="session-log-key-note" class="text-warning small ms-2" hidden>未配置 Key 加密（服务端缺 MARKET_KEY_ENCRYPTION_SECRET），只能看到 Key 指纹</span>
+                      </div>
+                      <span id="session-log-bulk-actions" class="d-flex flex-wrap align-items-center gap-2"></span>
                     </div>
                     <div class="table-responsive">
-                      <table class="table card-table table-vcenter">
+                      <table class="table card-table table-vcenter table-hover log-table">
                         <thead>
                           <tr>
-                            <th scope="col" class="w-1"><input id="session-log-select-all" class="form-check-input m-0 align-middle" type="checkbox" aria-label="全选本页" /></th>
+                            <th scope="col" class="w-1"><input id="session-log-select-all" class="form-check-input m-0 align-middle" type="checkbox" aria-label="全选本页" title="勾选后可批量删除；翻页或改筛选会清空勾选" /></th>
                             <th scope="col">会话</th>
-                            <th scope="col">上报账号（未核验）</th>
-                            <th scope="col" title="按上报账号查到的当前归属，不一定是上传时的，未核验">组织（当前，未核验）</th>
+                            <th scope="col" title="客户端上报的账号，未核验；名称按此 ID 查得">账号</th>
+                            <th scope="col" title="按上报账号查到的当前归属，不一定是上传时的，未核验">组织</th>
                             <th scope="col">Key</th>
-                            <th scope="col">模型 · token</th>
-                            <th scope="col">事件</th>
-                            <th scope="col">标签 · 备注</th>
-                            <th scope="col">时间</th>
+                            <th scope="col">模型</th>
+                            <th scope="col" class="text-end">Token</th>
+                            <th scope="col" class="text-end">事件 · 大小</th>
+                            <th scope="col">标签</th>
+                            <th scope="col">最近上传</th>
                             <th scope="col" class="w-1"><span class="visually-hidden">操作</span></th>
                           </tr>
                         </thead>
@@ -797,6 +806,24 @@
             <button value="cancel" type="submit" class="btn" autofocus>取消</button
             ><button id="session-log-confirm-ok" value="ok" type="submit" class="btn btn-danger">确认删除</button>
           </div>
+        </form>
+      </div>
+    </dialog>
+
+    <dialog id="session-log-settings-dialog" class="modal" aria-labelledby="session-log-settings-title">
+      <div class="modal-dialog modal-sm modal-dialog-centered">
+        <form id="session-log-settings" class="modal-content">
+          <div class="modal-header">
+            <h2 id="session-log-settings-title" class="modal-title">会话日志设置</h2>
+            <button id="session-log-settings-cancel" class="btn-close" type="button" aria-label="关闭会话日志设置"></button>
+          </div>
+          <div class="modal-body">
+            <label class="form-label" for="session-log-retention">保留天数</label
+            ><input id="session-log-retention" class="form-control" type="number" min="1" max="36500" step="1" placeholder="永久" aria-describedby="session-log-retention-note" />
+            <div id="session-log-retention-note" class="form-hint">留空为永久保留；设置后每小时清理一次最近上传早于该天数的会话，删除后不可恢复。</div>
+            <output id="session-log-settings-error" class="d-block text-danger mt-3" role="alert"></output>
+          </div>
+          <div class="modal-footer"><button class="btn btn-primary" type="submit">保存</button></div>
         </form>
       </div>
     </dialog>
