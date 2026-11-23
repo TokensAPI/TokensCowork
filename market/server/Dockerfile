@@ -10,6 +10,8 @@ WORKDIR /build/admin-web
 COPY admin-web/package.json admin-web/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY admin-web/ ./
+# The DOM-free modules the console shares with the docs center (the Markdown renderer and friends).
+COPY admin/assets/ ../admin/assets/
 RUN npm run typecheck && npm run build
 
 FROM node:24-alpine
