@@ -45,6 +45,11 @@ async function docsRoute(request, env, url) {
   }
 }
 
+// The new console (admin-web/, built into admin/next/ by the Docker image): its page, the theme
+// script that runs before it paints, and the build's own files, which are named by their content
+// hash. Only names the build gives are served; anything else under /admin/next/ is a 404.
+export const NEXT_CONSOLE = /^\/admin\/next\/(?:|index\.html|theme\.js|assets\/[A-Za-z0-9_-]{1,64}-[A-Za-z0-9_-]{8}\.(?:js|css|svg))$/u
+
 const publicHeaders = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, OPTIONS',
@@ -177,7 +182,8 @@ export default {
       '/admin/assets/market-docs.css',
       '/admin/assets/market-docs-admin.js',
     ])
-    if (!assets.has(url.pathname)) return reply({ error: 'not found' }, 404)
+    if (url.pathname === '/admin/next') return Response.redirect(new URL('/admin/next/', url), 308)
+    if (!assets.has(url.pathname) && !NEXT_CONSOLE.test(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')
       return new Response(null, { status: 204, headers: publicHeaders })
     const response = await env.ASSETS.fetch(request)

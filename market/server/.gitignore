@@ -1,0 +1,3 @@
+# The new console (admin-web/) is built into admin/next/ by its own install; neither is committed.
+/admin/next/
+/admin-web/node_modules/

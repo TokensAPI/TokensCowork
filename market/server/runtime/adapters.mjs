@@ -56,9 +56,12 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 // The security block Pages applied from market/server/_headers to /admin/*. The console's own files
 // are revalidated on every load (no-cache + ETag, so an unchanged file costs a 304 and a release is
 // picked up at once); the third-party files under vendor/ keep their names across versions, so
-// they are cached for a day and then revalidated the same way.
+// they are cached for a day and then revalidated the same way. The new console's build files
+// (/admin/next/assets/) are named by their content hash: a name never changes content, so they are
+// kept for a year without asking again; its page and theme script are revalidated like the rest.
 const ADMIN_CACHE = 'no-cache'
 const VENDOR_CACHE = 'public, max-age=86400'
+const HASHED_CACHE = 'public, max-age=31536000, immutable'
 const adminHeaders = {
   'cache-control': ADMIN_CACHE,
   'x-frame-options': 'DENY',
@@ -264,6 +267,7 @@ export function createAssets(root) {
       const headers = {
         'content-type': type, ...adminHeaders, etag: file.etag,
         ...(decoded.startsWith('/admin/assets/vendor/') ? { 'cache-control': VENDOR_CACHE } : {}),
+        ...(decoded.startsWith('/admin/next/assets/') ? { 'cache-control': HASHED_CACHE } : {}),
         ...(compressible ? { vary: 'Accept-Encoding' } : {}),
       }
       if (matches(request?.headers.get('if-none-match'), file.etag)) return new Response(null, { status: 304, headers })

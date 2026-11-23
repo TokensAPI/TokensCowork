@@ -5,7 +5,9 @@ const root=resolve(import.meta.dirname,'..')
 function files(directory){
   return readdirSync(directory,{withFileTypes:true}).flatMap(entry=>{
     const path=resolve(directory,entry.name)
-    if(entry.name==='vendor')return []
+    // Third-party code, installed packages and the new console's build output (admin-web/ is
+    // type-checked by vue-tsc instead) are not this service's source.
+    if(['vendor','node_modules'].includes(entry.name)||path===resolve(root,'admin/next'))return []
     return entry.isDirectory()?files(path):/\.(?:m?js)$/u.test(path)?[path]:[]
   })
 }
