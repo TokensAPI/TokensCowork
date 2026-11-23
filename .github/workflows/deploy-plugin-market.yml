@@ -40,7 +40,7 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: market/server/admin-web/package-lock.json
-      # The new console (/admin/next/): locked dependencies, no install scripts; type check, tests and
+      # The console (/admin/): locked dependencies, no install scripts; type check, tests and
       # build must all pass before anything deploys. The build is then served to the market tests below.
       - name: 准备 · 安装后台前端依赖
         run: npm --prefix market/server/admin-web ci --ignore-scripts --no-audit --no-fund
@@ -56,34 +56,36 @@ jobs:
         run: bash -n market/deploy/deploy.sh
       # The image the server will build, built here first from the same Dockerfile: stage 1 runs on
       # Alpine and installs the console's native build binaries (musl), so a problem there shows up
-      # in CI, not on deploy. It must build, carry admin/next/, start, and serve /admin/next/ and its
-      # entry script. Built only, never pushed; the server still builds its own image on deploy.
+      # in CI, not on deploy. It must build, carry admin/console/, start, and serve the console at
+      # /admin/ with its entry script, the docs center at /docs and the API reference. Built only, never pushed; the server still builds its own image on deploy.
       - name: 检查 · 市场镜像构建与启动
         shell: bash
         run: |
           set -euo pipefail
           image="tokenscowork-market-ci:$GITHUB_SHA"
           docker build --pull -t "$image" market/server
-          docker run --rm --entrypoint sh "$image" -c 'test -s admin/next/index.html && test ! -e admin-web'
+          docker run --rm --entrypoint sh "$image" -c 'test -s admin/console/index.html && test ! -e admin-web'
           # A placeholder origin: the container only answers loopback requests here and contacts nothing.
           container=$(docker run -d -e MARKET_HOST_PUBLIC_ORIGIN=https://market.example -p 127.0.0.1:18080:8080 "$image")
           trap 'docker logs "$container" || true; docker rm -f "$container" > /dev/null || true' EXIT
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --output /dev/null http://127.0.0.1:18080/admin/next/; then break; fi
+            if curl --fail --silent --output /dev/null http://127.0.0.1:18080/admin/ ; then break; fi
             if [[ $(docker inspect --format '{{.State.Running}}' "$container") != true ]]; then
-              echo '::error::The market container exited before serving /admin/next/.'
+              echo '::error::The market container exited before serving /admin/.'
               exit 1
             fi
             sleep 1
           done
-          curl --fail --silent --show-error http://127.0.0.1:18080/admin/next/ -o "$RUNNER_TEMP/admin-next.html"
-          entry=$(grep -o '/admin/next/assets/index-[A-Za-z0-9_-]*\.js' "$RUNNER_TEMP/admin-next.html" | head -n 1)
+          curl --fail --silent --show-error http://127.0.0.1:18080/admin/ -o "$RUNNER_TEMP/admin.html"
+          entry=$(grep -o '/admin/console/assets/index-[A-Za-z0-9_-]*\.js' "$RUNNER_TEMP/admin.html" | head -n 1)
           if [[ -z "$entry" ]]; then
-            echo '::error::/admin/next/ does not load the console entry script.'
+            echo '::error::/admin/ does not load the console entry script.'
             exit 1
           fi
           curl --fail --silent --show-error "http://127.0.0.1:18080$entry" -o /dev/null
-          echo "Market image built and served /admin/next/ ($entry)" >> "$GITHUB_STEP_SUMMARY"
+          curl --fail --silent --show-error http://127.0.0.1:18080/docs -o /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:18080/admin/api-docs.html -o /dev/null
+          echo "Market image built and served /admin/ ($entry), /docs and the API reference" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     name: 部署 · 市场服务
@@ -130,8 +132,8 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/ -o /dev/null
-          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/assets/market-keys.js -o /dev/null
-          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/next/ -o /dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/docs -o /dev/null
+          curl --fail --silent --show-error --retry 3 --max-time 30 https://market.tokensapi.ai/admin/api-docs.html -o /dev/null
           echo "Market server deployed commit $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: 清理 · 删除临时 SSH 凭据
         if: always()

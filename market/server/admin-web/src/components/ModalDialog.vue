@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 /**
- * Tabler's modal on a native <dialog>, as everywhere at /admin/: showModal() gives the top layer,
+ * Tabler's modal on a native <dialog>: showModal() gives the top layer,
  * the focus trap and Esc. `open` drives it; every way of closing (Esc, the X, a form with
  * method="dialog") ends in `close`. While `locked` (a save in flight) Esc does nothing.
  */

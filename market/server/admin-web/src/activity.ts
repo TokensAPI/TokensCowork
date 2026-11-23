@@ -2,7 +2,7 @@ import { formatTime } from './shell'
 import { STATE_NAMES } from './plugins'
 
 /**
- * The activity log's wording, as at /admin/ (market-admin.js): what each change is called, who made
+ * The activity log's wording: what each change is called, who made
  * it, what it was made to, and the facts its details carry. DOM-free, so it is tested directly.
  */
 export interface AuditEvent {

@@ -8,7 +8,7 @@ import worker from '../_worker.js'
 import { createAssets } from '../runtime/adapters.mjs'
 import { resetTestCatalog, seedTestPlugin } from './catalog-fixture.mjs'
 import { MAX_DOC_IMAGE_BYTES } from '../services/doc-images.js'
-import { imageReferences, replaceImageReferences, imageFileName } from '../admin/assets/market-docs-admin.js'
+import { imageReferences, replaceImageReferences, imageFileName } from '../admin-web/src/lib/doc-upload.js'
 
 // Documentation images: uploaded by the platform administrator, read only by those who may read
 // the plugin's pages. Independent fixtures: no production credentials, npm or organization requests.

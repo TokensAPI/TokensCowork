@@ -10,7 +10,7 @@ import type { Organization, MarketUser } from '../../directory'
 import type { MarketKey } from '../../pages/KeysPage.vue'
 
 /**
- * A plugin's access scope, as at /admin/ (market-plugins.js): public, or restricted to the ticked
+ * A plugin's access scope: public, or restricted to the ticked
  * organizations, Keys and users -- saved in one write against the plugin's revision. Closing it with
  * changes asks first (and so does leaving the page; see dirty()).
  */

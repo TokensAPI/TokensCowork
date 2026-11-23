@@ -3,4 +3,4 @@
 *.tgz
 **/node_modules
 # Built inside the image (Dockerfile stage 1), never copied from a checkout.
-/admin/next
+/admin/console

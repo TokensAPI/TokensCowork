@@ -4,10 +4,10 @@ import FormDialog from './FormDialog.vue'
 import { ApiError, request } from '../api'
 import { runAction } from '../feedback'
 import { confirmAction } from '../confirm'
-import { prepareIcon } from '../../../admin/assets/market-plugin-icon.js'
+import { prepareIcon } from '../lib/icon.js'
 
 /**
- * The plugin icon dialog, as at /admin/ (market-plugin-icon.js), opened from the plugin page and the
+ * The plugin icon dialog, opened from the plugin page and the
  * documentation page. There is one icon per plugin, served at /v1/icons/{id}: the console, the docs
  * center and the desktop market's cards all draw that same image. The server keeps only PNG, JPEG or
  * WebP up to 256 KB; any other image the browser can draw, or one too large, is redrawn here into a

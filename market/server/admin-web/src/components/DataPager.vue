@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 /**
- * The pager every paged list shares, as at /admin/ (market-ui.js pager()): 「第 x-y 个 · 共 N 个」
+ * The pager every paged list shares): 「第 x-y 个 · 共 N 个」
  * on the left, then 「‹ 1 … 4 5 [6] 7 8 … 20 ›」 and the page size. Goes in a card's footer.
  */
 const props = withDefaults(

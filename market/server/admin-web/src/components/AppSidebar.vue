@@ -4,13 +4,13 @@ import { useRoute } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import { allowedViews, isPlatform } from '../session'
 import { shell } from '../shell'
-import { ICONS, VIEWS, legacyHref } from '../views'
+import { ICONS, VIEWS } from '../views'
 
 /**
- * The sidebar, as at /admin/: the pages this account may open, then the API reference. A page
- * drawn here is a router link; one still in the old console links there (marked ↗). On a narrow
- * screen it is a collapsed menu; picking a page closes it.
+ * The sidebar: the pages this account may open, then the API reference. The directories carry
+ * their counts (「—」 until known). On a narrow screen it is a collapsed menu; picking a page closes it.
  */
+const COUNTED = ['plugins', 'organizations', 'users', 'keys']
 const route = useRoute()
 const expanded = ref(false)
 watch(() => route.fullPath, () => (expanded.value = false))
@@ -20,8 +20,8 @@ const entries = computed(() =>
     ...view,
     title: view.id === 'organizations' && !isPlatform.value ? '我的组织' : view.title,
     // An organization administrator has exactly one organization; a count means nothing there.
-    count: view.id === 'organizations' && !isPlatform.value ? undefined : shell.counts[view.id],
-    active: String(route.meta.view || route.params.view || '') === view.id,
+    count: !COUNTED.includes(view.id) || !isPlatform.value ? undefined : String(shell.counts[view.id] ?? '—'),
+    active: String(route.meta.view || '') === view.id,
   })),
 )
 </script>
@@ -36,16 +36,11 @@ const entries = computed(() =>
       <div id="sidebar-menu" :class="['collapse', 'navbar-collapse', expanded && 'show']">
         <ul class="navbar-nav pt-lg-3" aria-label="后台导航">
           <li v-for="entry in entries" :key="entry.id" class="nav-item">
-            <RouterLink v-if="entry.migrated" :to="{ name: entry.id }" :class="['nav-link', entry.active && 'active']" :aria-current="entry.active ? 'page' : undefined">
+            <RouterLink :to="{ name: entry.id }" :class="['nav-link', entry.active && 'active']" :aria-current="entry.active ? 'page' : undefined">
               <span class="nav-link-icon"><AppIcon :paths="entry.icon" /></span>
               <span class="nav-link-title">{{ entry.title }}</span>
               <span v-if="entry.count !== undefined" class="badge badge-sm ms-auto">{{ entry.count }}</span>
             </RouterLink>
-            <a v-else class="nav-link" :href="legacyHref(entry.id)" :title="`「${entry.title}」页还在旧后台，点击前往`">
-              <span class="nav-link-icon"><AppIcon :paths="entry.icon" /></span>
-              <span class="nav-link-title">{{ entry.title }}</span>
-              <span class="ms-auto legacy-mark" aria-label="旧后台"><AppIcon :paths="ICONS.external" /></span>
-            </a>
           </li>
         </ul>
         <ul class="navbar-nav mt-lg-auto pb-lg-3">

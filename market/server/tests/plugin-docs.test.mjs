@@ -193,7 +193,7 @@ test('the documentation center lives at /docs with the console security headers'
     assert.match(await response.text(), /<title>TokensCowork · 插件文档<\/title>/u)
     assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'self'/u)
   }
-  for (const path of ['/admin/assets/market-docs.js', '/admin/assets/market-docs.css', '/admin/assets/market-docs-admin.js'])
+  for (const path of ['/admin/assets/market-docs.js', '/admin/assets/market-docs.css', '/admin/assets/market-markdown.js', '/admin/assets/market-theme.js'])
     assert.equal((await call(path)).status, 200, path)
   // One address only: the page file itself is not served under the console.
   for (const path of ['/admin/docs.html', '/docs/index.html', '/docs.html']) assert.equal((await call(path)).status, 404, path)
@@ -201,7 +201,7 @@ test('the documentation center lives at /docs with the console security headers'
 })
 
 test('an uploaded page is titled by its first heading, else by its file name', async () => {
-  const { docTitle } = await import('../admin/assets/market-docs-admin.js')
+  const { docTitle } = await import('../admin-web/src/lib/doc-upload.js')
   assert.equal(docTitle('前言\n\n# 快速开始 #\n\n## 小节', 'readme.md'), '快速开始')
   assert.equal(docTitle('## 只有二级标题', '常见问题.md'), '常见问题')
   assert.equal(docTitle('正文', 'Guide.MARKDOWN'), 'Guide')

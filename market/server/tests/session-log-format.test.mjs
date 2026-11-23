@@ -1,10 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName, TIME_PRESETS } from '../admin/assets/market-session-log-format.js'
+import { classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName, TIME_PRESETS } from '../admin-web/src/lib/session-log-format.js'
 
-// The session-log list's wording (admin/assets/market-session-log-format.js) and the page structure
-// its script relies on.
+// The session-log list's wording (admin-web/src/lib/session-log-format.js).
 
 test('one search box stands for an account, a session or a Key', () => {
   assert.equal(classifySearch('   '), null)
@@ -37,17 +35,4 @@ test('upload times are relative to now', () => {
   assert.equal(relativeTime(at(2025, 11, 31, 23, 0), now), '2025/12/31')
   // Just after midnight, last night beyond the hour is 「昨天」, not hours ago.
   assert.equal(relativeTime(at(2026, 10, 22, 23, 0), at(2026, 10, 23, 0, 30)), '昨天 23:00')
-})
-
-test('every element the session-log scripts reach for exists on the page', () => {
-  const page = readFileSync(new URL('../admin/index.html', import.meta.url), 'utf8')
-  const ids = new Set([...page.matchAll(/\bid="([\w-]+)"/gu)].map(match => match[1]))
-  for (const file of ['market-session-logs.js', 'market-session-log-detail.js']) {
-    const source = readFileSync(new URL(`../admin/assets/${file}`, import.meta.url), 'utf8')
-    for (const [, id] of source.matchAll(/\$\('([\w-]+)'\)/gu)) assert.ok(ids.has(id), `${file} uses #${id}, missing from index.html`)
-  }
-  // The retired layout is gone: no standing warning, no separate account / session / Key boxes.
-  for (const id of ['session-log-account', 'session-log-session', 'session-log-key', 'session-log-selected'])
-    assert.ok(!ids.has(id), `#${id} should be gone`)
-  assert.ok(!/<div class="alert alert-warning">\s*日志<b>不脱敏<\/b>/u.test(page))
 })

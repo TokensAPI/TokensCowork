@@ -38,9 +38,13 @@ function fixture(t) {
 
 test('admin pages and public assets are served; source files and old routes are not', async t => {
   const { call } = fixture(t)
-  for (const path of ['/admin/', '/admin/index.html', '/admin/access.html', '/admin/assets/market-admin.js', '/admin/assets/market-ui.js', '/admin/assets/market-plugins.js', '/admin/assets/market-api.js', '/admin/assets/market-plugin-icon.js', '/admin/assets/market-session-log-format.js', '/admin/assets/market-admin.css', '/admin/assets/vendor/tabler/tabler.min.css', '/admin/assets/vendor/tabler/tabler.min.js', '/source.json'])
+  // The console's page itself is its build (tests/admin-console.test.mjs); these are the files beside it.
+  for (const path of ['/admin/access.html', '/admin/api-docs.html', '/admin/assets/vendor/tabler/tabler.min.css', '/admin/assets/market-docs.js', '/admin/assets/market-markdown.js', '/source.json'])
     assert.equal((await call(path)).status, 200, path)
-  for (const path of ['/admin/organization-ui.js', '/admin/assets/unknown.js', '/%73erver/services/auth.js', '/scripts/schema.sql', '/tests/access.test.mjs', '/%73cripts/schema.sql',
+  // The retired console's own scripts and styles are gone for good, and so is anything never listed.
+  for (const path of ['/admin/assets/market-admin.js', '/admin/assets/market-ui.js', '/admin/assets/market-plugins.js', '/admin/assets/market-api.js',
+    '/admin/assets/market-plugin-icon.js', '/admin/assets/market-session-log-format.js', '/admin/assets/market-admin.css', '/admin/assets/vendor/tabler/tabler.min.js',
+    '/admin/assets/market-docs-admin.js', '/admin/organization-ui.js', '/admin/assets/unknown.js', '/%73erver/services/auth.js', '/scripts/schema.sql', '/tests/access.test.mjs', '/%73cripts/schema.sql',
     '/server/market-worker.js', '/server/security/key-vault.js', '/database/migrations/001-market-access.sql', '/ops/market-copy-admin-token.ps1',
     '/legacy/admin/market-access.js', '/roster-not-public.json', '/package.json', '/README.md', '/source.config.json', '/downloads/private-tool'])
     assert.equal((await call(path)).status, 404, path)

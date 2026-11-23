@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { groupConversation, turnEnding, argumentSummary, contentText, splitTurn, processSummary, durationText } from '../admin/assets/market-session-log-replay.js'
+import { groupConversation, turnEnding, argumentSummary, contentText, splitTurn, processSummary, durationText } from '../admin-web/src/lib/session-log-replay.js'
 import { demoSessionBatches, DEMO_PARENT, DEMO_CHILD } from '../ops/session-log-demo.mjs'
 
 // The console's conversation view, read from the made-up demo sessions (ops/session-log-demo.mjs).

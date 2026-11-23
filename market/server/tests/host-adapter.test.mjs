@@ -101,7 +101,7 @@ test('the archive cache answers a repeat download itself and keeps only verified
 
 test('the assets adapter serves admin pages with the security headers and confines paths', async t => {
   const assets = createAssets(resolve(import.meta.dirname, '..'))
-  const page = await assets.fetch('https://market.example/admin/')
+  const page = await assets.fetch('https://market.example/admin/docs.html')
   assert.equal(page.status, 200)
   assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8')
   assert.equal(page.headers.get('cache-control'), 'no-cache')
@@ -137,13 +137,13 @@ test('console files are compressed for browsers that accept it, and each says so
   const gzipped = Buffer.from(await gzip.arrayBuffer())
   assert.deepEqual(gunzipSync(gzipped), original)
   assert.ok(gzipped.length < original.length / 4, `gzip ${gzipped.length} of ${original.length}`)
-  const br = await get(assets, '/admin/assets/market-admin.js', { 'accept-encoding': 'gzip, deflate, br, zstd' })
+  const br = await get(assets, '/admin/assets/market-docs.js', { 'accept-encoding': 'gzip, deflate, br, zstd' })
   assert.equal(br.headers.get('content-encoding'), 'br')
-  assert.deepEqual(brotliDecompressSync(Buffer.from(await br.arrayBuffer())), readFileSync(resolve(import.meta.dirname, '../admin/assets/market-admin.js')))
-  // The page and the docs center page too; their security headers are untouched by compression.
-  const page = await get(assets, '/admin/index.html', { 'accept-encoding': 'gzip' })
+  assert.deepEqual(brotliDecompressSync(Buffer.from(await br.arrayBuffer())), readFileSync(resolve(import.meta.dirname, '../admin/assets/market-docs.js')))
+  // The docs center page too; its security headers are untouched by compression.
+  const page = await get(assets, '/admin/docs.html', { 'accept-encoding': 'gzip' })
   assert.deepEqual([page.headers.get('content-encoding'), page.headers.get('content-type')], ['gzip', 'text/html; charset=utf-8'])
-  assert.deepEqual(security(page), security(await get(assets, '/admin/index.html')))
+  assert.deepEqual(security(page), security(await get(assets, '/admin/docs.html')))
   // Images and fonts are already compressed and are sent as they are.
   const font = await get(assets, '/admin/assets/fonts/Quicksand-Variable.ttf', { 'accept-encoding': 'gzip' })
   assert.deepEqual([font.headers.get('content-encoding'), font.headers.get('vary')], [null, null])

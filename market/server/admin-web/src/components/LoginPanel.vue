@@ -4,7 +4,7 @@ import { notify, runAction } from '../feedback'
 import { signInWithPassphrase, signInWithTokensApi, state } from '../session'
 
 /**
- * Sign-in, as at /admin/: by default with a TokensAPI organization administrator's account (the
+ * Sign-in: by default with a TokensAPI organization administrator's account (the
  * access token from its TokensAPI settings plus the account id TokensAPI requires beside it; the
  * market asks TokensAPI who that is and never stores the token), or with the back-office
  * passphrase. The secret field is emptied as soon as it is sent.

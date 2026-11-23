@@ -4,7 +4,7 @@ type NavigationCallback = Parameters<RouterHistory['listen']>[0]
 type NavigationInformation = Parameters<NavigationCallback>[2]
 
 /**
- * Hash addresses written the way the console at /admin/ writes them: `#keys`, `#session-logs/<id>/4`
+ * Hash addresses written the way the console always wrote them: `#keys`, `#session-logs/<id>/4`
  * -- no slash after the '#', which vue-router's own hash history always adds. A route '/keys' is
  * the address '#keys' and back; an old link or bookmark opens the same page in either console.
  *

@@ -8,14 +8,14 @@ import { groupConversation, rawDocument, type TurnGroup } from './replay'
 import { request } from '../../api'
 import { runAction } from '../../feedback'
 import { formatTime } from '../../shell'
-import { platformName } from '../../../../admin/assets/market-session-log-format.js'
+import { platformName } from '../../lib/session-log-format.js'
 import {
   accountOf, copyText, downloadSessionLog, lookupNames, organizationText, sessionPath,
   type SessionEvent, type SessionKey, type SessionList, type SessionPage, type SessionSummary,
 } from '../../sessionLogs'
 
 /**
- * One session's detail, as at /admin/ (market-session-log-detail.js): an overview, then two tabs --
+ * One session's detail: an overview, then two tabs --
  * 「对话」 (each turn: what the user typed, a fold with everything in between, the final answer) and
  * 「原始 JSON」 (the whole session in the upload format, shown a piece at a time, with downloads and
  * copy). Every byte is user content and is only ever placed as text; final answers go through the

@@ -2,7 +2,7 @@
 import { nextTick, onBeforeUnmount, ref } from 'vue'
 
 /**
- * A row's actions, as at /admin/: one button, then 「更多」 with the rest. The menu is Tabler's
+ * A row's actions: one button, then 「更多」 with the rest. The menu is Tabler's
  * dropdown, opened here rather than by Bootstrap's script, and placed `fixed` under its toggle so a
  * scrolling table never clips it (above the toggle when there is no room below), following it when
  * the page scrolls or resizes. Esc or a click elsewhere closes it. `name` labels each control for assistive technology.

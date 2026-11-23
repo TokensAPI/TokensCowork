@@ -90,12 +90,12 @@ test('the image builds the new console in its own stage; the service keeps zero 
   assert.match(build, /npm run typecheck && npm run build/u)
   // The runtime stage installs nothing and takes only the built folder from the first stage.
   assert.doesNotMatch(runtime, /npm (?:ci|install)/u)
-  assert.match(runtime, /COPY --from=admin-web \/build\/admin\/next \.\/admin\/next/u)
-  assert.match(runtime, /test -s admin\/next\/index\.html/u)
+  assert.match(runtime, /COPY --from=admin-web \/build\/admin\/console \.\/admin\/console/u)
+  assert.match(runtime, /test -s admin\/console\/index\.html/u)
   assert.match(read('../server/.dockerignore'), /^\*\*\/node_modules$/mu)
-  assert.match(read('../server/.dockerignore'), /^\/admin\/next$/mu)
-  // A deploy whose console is missing fails its health check and rolls back.
-  assert.match(read('deploy.sh'), /await get\('\/admin\/next\/'\)/u)
+  assert.match(read('../server/.dockerignore'), /^\/admin\/console$/mu)
+  // A deploy whose console, docs center or API reference is missing fails its health check and rolls back.
+  for (const path of ['/admin/', '/docs', '/admin/api-docs.html']) assert.ok(read('deploy.sh').includes(`await get('${path}')`), path)
 })
 
 test('CI type-checks, tests and builds the new console before anything deploys', () => {
@@ -105,16 +105,17 @@ test('CI type-checks, tests and builds the new console before anything deploys',
   const at = steps.map(step => job.indexOf(step))
   assert.ok(at.every(index => index > 0), JSON.stringify(at))
   assert.deepEqual([...at].sort((a, b) => a - b), at)
-  assert.match(workflow, /market\.tokensapi\.ai\/admin\/next\//u)
+  for (const path of ['/admin/', '/docs', '/admin/api-docs.html']) assert.ok(workflow.includes(`https://market.tokensapi.ai${path} `), path)
+  assert.doesNotMatch(workflow, /admin\/next|market-keys\.js/u)
 })
 
 test('CI builds and starts the real image before deploying, and never pushes it', () => {
   const workflow = read('../../.github/workflows/deploy-plugin-market.yml')
   const job = workflow.slice(workflow.indexOf('  test:'), workflow.indexOf('  deploy:'))
   assert.match(job, /docker build --pull -t "\$image" market\/server/u)
-  assert.match(job, /test -s admin\/next\/index\.html/u)
+  assert.match(job, /test -s admin\/console\/index\.html/u)
   assert.match(job, /docker run -d [^\n]*-p 127\.0\.0\.1:18080:8080/u)
-  assert.match(job, /curl --fail [^\n]*http:\/\/127\.0\.0\.1:18080\/admin\/next\//u)
+  assert.match(job, /curl --fail [^\n]*http:\/\/127\.0\.0\.1:18080\/admin\/ /u)
   assert.match(job, /docker rm -f/u)
   assert.doesNotMatch(workflow, /docker (?:push|login)|docker\/build-push-action/u)
 })

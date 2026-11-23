@@ -2,7 +2,7 @@ import { reactive } from 'vue'
 import { errorText } from './api'
 
 /**
- * The console's one toast, as at /admin/: a success fades after five seconds, an error stays until
+ * The console's one toast: a success fades after five seconds, an error stays until
  * it is closed or the next operation starts.
  */
 export const toast = reactive({ message: '', kind: 'success' as 'success' | 'error', serial: 0 })

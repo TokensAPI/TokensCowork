@@ -7,7 +7,7 @@ function files(directory){
     const path=resolve(directory,entry.name)
     // Third-party code, installed packages and the new console's build output (admin-web/ is
     // type-checked by vue-tsc instead) are not this service's source.
-    if(['vendor','node_modules'].includes(entry.name)||path===resolve(root,'admin/next'))return []
+    if(['vendor','node_modules'].includes(entry.name)||path===resolve(root,'admin/console'))return []
     return entry.isDirectory()?files(path):/\.(?:m?js)$/u.test(path)?[path]:[]
   })
 }

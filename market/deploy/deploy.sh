@@ -34,7 +34,7 @@ git -C "$repository" archive "$sha" market/server | tar -x -C "$release"
 chmod -R a+rX "$release/market/server"
 image="tokenscowork-market:$sha"
 # New code is built before stopping the current service. No registry/Nginx changes. The build
-# also installs the new console's locked npm dependencies and builds it (Dockerfile stage 1),
+# also installs the console's locked npm dependencies and builds it (Dockerfile stage 1),
 # so it needs the npm registry; if that or the build fails, the running service is left as is.
 docker build --label "org.opencontainers.image.revision=$sha" -t "$image" "$release/market/server"
 old_image=$(docker inspect --format '{{.Image}}' "$container")
@@ -117,9 +117,11 @@ const get = async (path, headers={}) => {
   if (!r.ok) throw Error(`Health check ${path}: ${r.status}`)
   return r
 }
+// The console is built inside the image; a missing build answers 404 here. The docs center and the
+// API reference are what TokensCowork and TokensAPI's people open.
 await get('/admin/')
-// The new console is built inside the image; a missing build would answer 404 here.
-await get('/admin/next/')
+await get('/docs')
+await get('/admin/api-docs.html')
 await get('/source.json')
 const headers={Authorization:'Bearer '+process.env.MARKET_ADMIN_TOKEN}
 await get('/api/v1/plugins',headers)

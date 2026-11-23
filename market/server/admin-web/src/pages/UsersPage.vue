@@ -18,7 +18,7 @@ import GrantsDialog from '../components/GrantsDialog.vue'
 import UserHoldings, { type UserAccess } from '../components/UserHoldings.vue'
 
 /**
- * The Users page, as at /admin/#users (market-users.js): TokensAPI users the platform grants plugins
+ * The Users page (#users): TokensAPI users the platform grants plugins
  * to one by one. A user grant follows the user to every Key they own. TokensAPI keeps the accounts;
  * the market only records the user number and the name shown here. Each listed user's effective
  * plugins are asked once per load and drawn in when they arrive, so a slow TokensAPI never holds up

@@ -16,7 +16,7 @@ import FormDialog from '../components/FormDialog.vue'
 import GrantsDialog from '../components/GrantsDialog.vue'
 
 /**
- * The Organizations page, as at /admin/#organizations (market-organizations.js). The platform
+ * The Organizations page (#organizations). The platform
  * administrator keeps the directory (sync, register, enable) and opens one organization to see what
  * its members are offered. An organization administrator lands straight on its own organization
  * (「我的组织」) and can only narrow its granted plugins: switch one off, or name the members who see

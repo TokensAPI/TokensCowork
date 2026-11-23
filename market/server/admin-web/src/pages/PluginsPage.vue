@@ -18,7 +18,7 @@ import CatalogDialog from '../components/plugins/CatalogDialog.vue'
 import LifecycleDialog, { type Operation } from '../components/plugins/LifecycleDialog.vue'
 
 /**
- * The plugin page, as at /admin/#plugins (market-plugins.js): status tabs with their counts, the
+ * The plugin page (#plugins): status tabs with their counts, the
  * filter bar (search, type, scope, reset), one server page shown as a table (default) or as cards,
  * and the pager. 「全部」 holds the product's built-in components (read-only) as well as the market's
  * own plugins, so 全部 = 内置 + 已上架 + 草稿 + 已下架. Editing the metadata, the access scope, the

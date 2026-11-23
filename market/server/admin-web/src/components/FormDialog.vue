@@ -2,7 +2,7 @@
 import ModalDialog from './ModalDialog.vue'
 
 /**
- * A dialog that edits something and saves it, in /admin/'s markup: the header (title, with a kicker
+ * A dialog that edits something and saves it, in Tabler's markup: the header (title, with a kicker
  * above it or a subtitle under it, and the X), the fields, the error line, and the save button.
  * While `pending` its controls are disabled, the save button spins and it cannot be closed; the page
  * decides when it closes (on success) and whether a close with unsaved edits asks first.

@@ -1,5 +1,5 @@
 // Runs before styles paint, so a dark theme never flashes light first. The same preference as the
-// console at /admin/ (localStorage 'tokenscowork-market-theme': light, dark or system); the page's
+// docs center (localStorage 'tokenscowork-market-theme': light, dark or system); the page's
 // theme control (src/theme.ts) takes over once it is running. No account or credential data here.
 ;(() => {
   let preference = 'system'

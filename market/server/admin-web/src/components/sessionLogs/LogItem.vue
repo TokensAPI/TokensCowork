@@ -5,7 +5,7 @@ import { argumentSummary, contextLabel, pretty, type LogItem } from './replay'
 import { formatTime } from '../../shell'
 
 /**
- * One entry of a turn, as at /admin/ (market-session-log-detail.js renderItem): what the user typed,
+ * One entry of a turn: what the user typed,
  * injected context, a model step, a tool call with its result, a note, or an internal / unknown
  * event. Long content is built only when unfolded. 「JSON」 shows the raw events behind it.
  */

@@ -6,7 +6,7 @@ import { runAction } from '../feedback'
 import { grantable, type PluginIndexEntry } from '../plugins'
 
 /**
- * The per-subject grant dialog, as at /admin/ (market-grants.js): every plugin one organization,
+ * The per-subject grant dialog: every plugin one organization,
  * Key or user holds, ticked on one list and saved as a whole. `subject` is
  * /api/v1/{organizations|keys|users}/{id}; `who` titles the dialog and the success message. The
  * page opens it once the subject's grants are read (see open()) and reloads itself on `saved`.

@@ -1,6 +1,6 @@
 /**
  * The console's one way to call /api/v1: same-origin, bounded, never retried automatically, with
- * the market's own error text. The same contract as the console at /admin/ (market-api.js): a
+ * the market's own error text. A
  * request with data is a PUT unless another method is named; a DELETE may carry no data.
  *
  * A 401 on anything but the session itself means the sign-in has expired: the registered handler

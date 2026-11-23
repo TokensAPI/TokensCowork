@@ -10,10 +10,10 @@ import PageHeader from '../components/PageHeader.vue'
 import ListCard from '../components/ListCard.vue'
 import RowActions from '../components/RowActions.vue'
 import IconDialog from '../components/IconDialog.vue'
-import { docTitle, imageFileName, imageReferences, replaceImageReferences } from '../../../admin/assets/market-docs-admin.js'
+import { docTitle, imageFileName, imageReferences, replaceImageReferences } from '../lib/doc-upload.js'
 
 /**
- * The plugin documentation page, as at /admin/#docs (market-docs-admin.js): pick a plugin, upload
+ * The plugin documentation page (#docs): pick a plugin, upload
  * Markdown files written elsewhere -- with the images they use, whose relative paths are pointed at
  * the uploaded addresses (T0102) -- replace or delete them, edit the plugin's icon, and open the docs
  * center as the administrator (/docs?admin). No editor on purpose. Readers see the pages at /docs,

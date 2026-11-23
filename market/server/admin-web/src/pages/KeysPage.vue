@@ -17,8 +17,7 @@ import GrantsDialog from '../components/GrantsDialog.vue'
 /**
  * The Key page: the directory of `sk-` Keys the platform grants plugins to one by one, from here
  * or from a plugin's access dialog. A Key grant stands on its own: organizations, their switches
- * and user grants never add to or take away from it. The same page as /admin/#keys
- * (market-keys.js), on the same /api/v1/keys routes.
+ * and user grants never add to or take away from it (#keys, on the /api/v1/keys routes).
  */
 export interface MarketKey {
   fingerprint: string

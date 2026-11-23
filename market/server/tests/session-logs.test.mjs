@@ -359,7 +359,7 @@ test('the whole session downloads as JSON and JSON Lines, merged by seq, and eve
   const second = (await api(`/session-logs/${SESSION_ID}/4?after=${first.next}&limit=2`)).json
   assert.equal('header' in second, false)
   // The console builds its raw view from the detail pages; it must be byte-for-byte this file.
-  const { rawDocument } = await import('../admin/assets/market-session-log-replay.js')
+  const { rawDocument } = await import('../admin-web/src/lib/session-log-replay.js')
   const pages = [...first.events, ...second.events, ...(await api(`/session-logs/${SESSION_ID}/4?after=${second.next}`)).json.events]
   assert.equal(rawDocument(first.header, pages, 4, SESSION_ID), json.text)
 

@@ -217,17 +217,15 @@ test('Key fingerprints in the directory are keyed, never the raw value', async t
   assert.ok(!JSON.stringify(db.prepare('SELECT * FROM market_keys').all()).includes('sk-directory'))
 })
 
-test('every console module the page loads is on the asset allowlist', async t => {
+test('every file the docs center and the API reference load is on the asset allowlist', async t => {
   const { call } = fixture(t)
   const read = name => readFileSync(new URL('../admin/' + name, import.meta.url), 'utf8')
-  // The console is an ES module graph, so a new panel reaches the browser only if its file is
-  // both imported and allowlisted in market-worker.js. Walk the graph instead of trusting a list.
-  const page = read('index.html')
+  // The docs center is an ES module graph, so a file reaches the browser only if it is both imported
+  // and allowlisted in market-worker.js. Walk the graph instead of trusting a list. (The console at
+  // /admin/ is a build of its own; tests/admin-console.test.mjs checks what it loads.)
+  const page = read('docs.html')
   const pending = [...page.matchAll(/(?:src|href)="\/admin\/assets\/([\w./-]+)"/gu)].map(m => m[1])
-  // The console's Tabler styles and scripts are vendored and served from here, never from a CDN
-  // (the /admin/* CSP only allows 'self').
-  for (const name of ['vendor/tabler/tabler.min.css', 'vendor/tabler/tabler.min.js']) assert.ok(pending.includes(name), name)
-  for (const [, reference] of page.matchAll(/(?:src|href)="([^"#]+)"/gu)) assert.ok(reference.startsWith('/'), `index.html loads ${reference} from another origin`)
+  for (const [, reference] of page.matchAll(/(?:src|href)="([^"#]+)"/gu)) assert.ok(reference.startsWith('/'), `docs.html loads ${reference} from another origin`)
   assert.doesNotMatch(page, /<script(?![^>]*\ssrc=)[^>]*>|<style|\sstyle="/u)
   const seen = new Set()
   while (pending.length) {
@@ -237,10 +235,13 @@ test('every console module the page loads is on the asset allowlist', async t =>
     if (!name.endsWith('.js')) continue
     for (const match of read('assets/' + name).matchAll(/from '\.\/([\w.-]+)'/gu)) pending.push(match[1])
   }
-  for (const name of ['market-admin.js', 'market-ui.js', 'market-plugins.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-catalog-editor.js']) assert.ok(seen.has(name), name)
+  for (const name of ['market-docs.js', 'market-markdown.js', 'market-theme.js', 'market-docs.css']) assert.ok(seen.has(name), name)
   for (const name of seen) {
     assert.equal((await call('/admin/assets/' + name)).status, 200, name)
   }
+  // The console's Tabler styles are vendored and served from here, never from a CDN (the /admin/* CSP
+  // only allows 'self').
+  assert.equal((await call('/admin/assets/vendor/tabler/tabler.min.css')).status, 200)
   // CSS 字体资源不会进入 JS 导入图，单独验证公开路由及生产 MIME，避免上线后静默回退。
   for (const [name, type] of [
     ['logo-mark.svg', 'image/svg+xml'],

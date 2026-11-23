@@ -9,12 +9,12 @@
  * and nothing in the repository is written: the pictures go to a temporary folder, printed at
  * the end. The browser and the server it started are stopped by their process ids.
  *
- * The new console (/admin/next/, built from admin-web/ into admin/next/) is captured beside the
- * old one: `next-<page>` next to `<page>`, and `-menu` / `-dialog` with a row's 「更多」 menu or the
- * page's add dialog open. The local server sends the console's real security headers, so every
- * page is also checked for Content-Security-Policy violations; any one fails the run.
+ * The console is the build in admin/console/ (npm --prefix admin-web run build). `-menu`, `-dialog`
+ * and the like are a page with a menu or dialog open. The local server sends the real security
+ * headers, so every page is also checked for Content-Security-Policy violations and uncaught
+ * errors; any one fails the run.
  *
- * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only keys,next-keys]
+ * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only keys,session-logs]
  * Browser: MARKET_SCREENSHOT_BROWSER, else Edge, else Chrome at their usual Windows paths.
  */
 import { spawn, spawnSync } from 'node:child_process'
@@ -38,63 +38,39 @@ const VARIANTS = [
   { name: 'dark', width: 1440, height: 900, scheme: 'dark', mobile: false },
   { name: 'narrow', width: 400, height: 860, scheme: 'light', mobile: true },
 ]
-// Each page, and what has to be on screen before it counts as drawn.
-const consoleReady = page => `!document.body.classList.contains('session-pending') && !document.getElementById('workspace').hidden
-  && !document.querySelector('[data-panel="${page}"]').hidden`
-const keysReady = `${consoleReady('keys')} && document.querySelectorAll('#key-list tr').length > 0`
-// The new console is drawn once its page title is the page's and its list has rows.
-const nextReady = title => `document.querySelector('main .page-title')?.textContent === ${JSON.stringify(title)} && document.querySelectorAll('main tbody tr').length > 0`
-const openMenu = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="更多操作"]`)}).click()`
-// Clicks the visible button that reads `text` (the same words in both consoles).
-const clickText = text => `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && b.offsetParent).click()`
+// Each page, and what has to be on screen before it counts as drawn: the console's pages (at /admin/,
+// the addresses they have always had), a few of them with a menu or a dialog open (`action`), the
+// docs center as the administrator opens it and as TokensCowork opens it (a one-time code), and the
+// API reference.
+const pageReady = title => `document.querySelector('main .page-title')?.textContent === ${JSON.stringify(title)}`
+const rowsReady = title => `${pageReady(title)} && document.querySelectorAll('main tbody tr').length > 0`
 const clickFirst = selector => `document.querySelector(${JSON.stringify(selector)}).click()`
-const nextDetailReady = `document.querySelectorAll('main .log-turn').length > 0`
-const openGrants = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="授权插件"]`)}).click()`
+// Clicks the visible button that reads `text`.
+const clickText = text => `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && b.offsetParent).click()`
+const detailReady = `document.querySelectorAll('main .log-turn').length > 0`
 function pages(origin, docs) {
+  const admin = `${origin}/admin/`
+  const row = label => clickFirst(`main tbody button[aria-label$=" ${label}"]`)
   return [
-    { name: 'plugins', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0` },
-    { name: 'next-plugins', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件') },
-    { name: 'plugins-access', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 访问范围"]') },
-    { name: 'next-plugins-access', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 访问范围"]') },
-    { name: 'plugins-catalog', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 编辑资料"]') },
-    { name: 'next-plugins-catalog', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 编辑资料"]') },
-    { name: 'plugins-icon', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 图标"]') },
-    { name: 'next-plugins-icon', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 图标"]') },
-    { name: 'plugins-lifecycle', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 下架"]') },
-    { name: 'next-plugins-lifecycle', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 下架"]') },
-    { name: 'organizations', url: `${origin}/admin/#organizations`, ready: `${consoleReady('organizations')} && document.querySelectorAll('#organization-list tr').length > 0` },
-    { name: 'keys', url: `${origin}/admin/#keys`, ready: keysReady },
-    { name: 'keys-menu', url: `${origin}/admin/#keys`, ready: keysReady, action: openMenu('#key-list tr') },
-    { name: 'keys-dialog', url: `${origin}/admin/#keys`, ready: keysReady, action: `document.getElementById('new-key').click()` },
-    { name: 'keys-grants', url: `${origin}/admin/#keys`, ready: keysReady, action: openGrants('#key-list tr') },
-    // The new console's Key page, drawn the same way.
-    { name: 'next-keys', url: `${origin}/admin/next/#keys`, ready: nextReady('Key') },
-    { name: 'next-keys-menu', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: openMenu('main tbody tr') },
-    { name: 'next-keys-dialog', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: `document.querySelector('.page-header .btn-primary').click()` },
-    { name: 'next-keys-grants', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: openGrants('main tbody tr') },
-    { name: 'next-legacy', url: `${origin}/admin/next/#plugins`, ready: `document.querySelector('main .empty-title')?.textContent.includes('插件')` },
-    { name: 'users', url: `${origin}/admin/#users`, ready: `${consoleReady('users')} && document.querySelectorAll('#user-list tr').length > 0` },
-    { name: 'next-users', url: `${origin}/admin/next/#users`, ready: nextReady('用户') },
-    { name: 'organizations-detail', url: `${origin}/admin/#organizations`, ready: `${consoleReady('organizations')} && document.querySelectorAll('#organization-list tr').length > 0`, action: clickFirst('#organization-list tr button[aria-label$="查看插件"]') },
-    { name: 'next-organizations', url: `${origin}/admin/next/#organizations`, ready: nextReady('组织') },
-    { name: 'next-organizations-detail', url: `${origin}/admin/next/#organizations`, ready: nextReady('组织'), action: clickFirst('main tbody tr button[aria-label$="查看插件"]') },
-    { name: 'activity', url: `${origin}/admin/#activity`, ready: `${consoleReady('activity')} && document.querySelectorAll('#activity-list tr').length > 0` },
-    { name: 'next-activity', url: `${origin}/admin/next/#activity`, ready: nextReady('操作记录') },
-    { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
-    { name: 'next-docs', url: `${origin}/admin/next/#docs`, ready: nextReady('插件文档') },
-    { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
-    { name: 'session-logs-menu', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0`, action: openMenu('#session-log-list tr') },
-    { name: 'session-log-detail', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
-      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0` },
-    { name: 'session-log-detail-open', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
-      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0`, action: clickText('全部展开') },
-    { name: 'session-log-raw', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
-      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0`, action: clickText('原始 JSON') },
-    { name: 'next-session-logs', url: `${origin}/admin/next/#session-logs`, ready: nextReady('会话日志') },
-    { name: 'next-session-logs-menu', url: `${origin}/admin/next/#session-logs`, ready: nextReady('会话日志'), action: openMenu('main tbody tr') },
-    { name: 'next-session-log-detail', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady },
-    { name: 'next-session-log-detail-open', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('全部展开') },
-    { name: 'next-session-log-raw', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('原始 JSON') },
+    { name: 'plugins', url: `${admin}#plugins`, ready: rowsReady('插件') },
+    { name: 'plugins-access', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('访问范围') },
+    { name: 'plugins-catalog', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('编辑资料') },
+    { name: 'plugins-icon', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('图标') },
+    { name: 'plugins-lifecycle', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('下架') },
+    { name: 'organizations', url: `${admin}#organizations`, ready: rowsReady('组织') },
+    { name: 'organizations-detail', url: `${admin}#organizations`, ready: rowsReady('组织'), action: row('查看插件') },
+    { name: 'users', url: `${admin}#users`, ready: rowsReady('用户') },
+    { name: 'keys', url: `${admin}#keys`, ready: rowsReady('Key') },
+    { name: 'keys-menu', url: `${admin}#keys`, ready: rowsReady('Key'), action: clickFirst('main tbody tr button[aria-label$="更多操作"]') },
+    { name: 'keys-dialog', url: `${admin}#keys`, ready: rowsReady('Key'), action: clickFirst('.page-header .btn-primary') },
+    { name: 'keys-grants', url: `${admin}#keys`, ready: rowsReady('Key'), action: row('授权插件') },
+    { name: 'docs', url: `${admin}#docs`, ready: rowsReady('插件文档') },
+    { name: 'session-logs', url: `${admin}#session-logs`, ready: rowsReady('会话日志') },
+    { name: 'session-logs-menu', url: `${admin}#session-logs`, ready: rowsReady('会话日志'), action: clickFirst('main tbody tr button[aria-label$="更多操作"]') },
+    { name: 'session-log-detail', url: `${admin}#session-logs/${DEMO_PARENT}/4`, ready: detailReady },
+    { name: 'session-log-detail-open', url: `${admin}#session-logs/${DEMO_PARENT}/4`, ready: detailReady, action: clickText('全部展开') },
+    { name: 'session-log-raw', url: `${admin}#session-logs/${DEMO_PARENT}/4`, ready: detailReady, action: clickText('原始 JSON') },
+    { name: 'activity', url: `${admin}#activity`, ready: rowsReady('操作记录') },
     { name: 'api-docs', url: `${origin}/admin/api-docs.html`, ready: `document.querySelectorAll('.swagger-ui .opblock').length > 0` },
     // As TokensCowork opens it: a one-time code made with the reader's own Key (the fixture's sk-test-direct).
     { name: 'docs-center-code', url: async () => {
@@ -276,8 +252,8 @@ async function stopServer(server) {
 let server, browser
 const shots = []
 
-if ((!only.size || [...only].some(name => name.startsWith('next-'))) && !existsSync(join(root, 'admin/next/index.html')))
-  throw new Error('The new console is not built: run `npm --prefix admin-web ci --ignore-scripts && npm --prefix admin-web run build` in market/server first.')
+if (!existsSync(join(root, 'admin/console/index.html')))
+  throw new Error('The console is not built: run `npm --prefix admin-web ci --ignore-scripts && npm --prefix admin-web run build` in market/server first.')
 try {
   mkdirSync(out, { recursive: true })
   server = await startServer()

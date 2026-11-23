@@ -6,7 +6,7 @@ import { durationText, processSummary, splitTurn, turnEnding, type TurnGroup } f
 import { formatTime } from '../../shell'
 
 /**
- * One turn, as at /admin/: what the person typed → one fold holding everything in between (closed
+ * One turn: what the person typed → one fold holding everything in between (closed
  * by default, built only when opened) → the turn's last answer as Markdown, then a grey line for how
  * the turn ended unless it simply completed. The internal-events switch only changes what is inside
  * the fold. `open` is kept by the detail page, so 「全部展开 / 全部收起」 and re-renders keep it.

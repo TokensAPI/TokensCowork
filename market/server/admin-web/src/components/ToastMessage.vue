@@ -4,7 +4,7 @@ import { notify, toast } from '../feedback'
 
 /**
  * The toast, in the top layer (popover) so it shows above an open dialog, bottom right -- the same
- * element and classes as /admin/'s #message.
+ * element the console has always used (#message).
  */
 const box = ref<HTMLOutputElement>()
 watch(

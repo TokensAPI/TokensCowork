@@ -1,6 +1,6 @@
 /**
- * The new console, served at /admin/next/. The build lands in ../admin/next/ (not committed; the
- * Docker image builds it), every file under assets/ is named by its content hash, and nothing is
+ * The console, served at /admin/ from its build in ../admin/console/ (not committed; the Docker
+ * image builds it). Every file under assets/ is named by its content hash, and nothing is
  * inlined: the console's CSP allows only same-origin scripts and styles (script-src 'self';
  * style-src 'self'), so no inline <script>, no inline <style> and no module-preload polyfill.
  *
@@ -23,11 +23,11 @@ const proxy: ProxyOptions = {
 }
 
 export default defineConfig({
-  base: '/admin/next/',
+  base: '/admin/console/',
   // /admin/assets/... in a template is the shared console files at run time, not a module to bundle.
   plugins: [vue({ template: { transformAssetUrls: { includeAbsolute: false } } })],
   build: {
-    outDir: fileURLToPath(new URL('../admin/next', import.meta.url)),
+    outDir: fileURLToPath(new URL('../admin/console', import.meta.url)),
     emptyOutDir: true,
     assetsDir: 'assets',
     // Everything is a file of its own: an inlined data: script or style would be refused by the CSP.
@@ -40,7 +40,7 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
-    // The pure modules shared with the docs center live beside the console, in ../admin/assets.
+    // The docs center's Markdown renderer, which the console shares, lives in ../admin/assets.
     fs: { allow: ['..'] },
     proxy: { '/api': proxy, '/admin/assets': proxy },
   },

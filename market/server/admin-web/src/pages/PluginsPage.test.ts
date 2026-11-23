@@ -106,7 +106,7 @@ describe('the plugin page', () => {
   })
 
   it('reads an npm package into a new plugin and keeps the id it suggested', async () => {
-    market((path) =>
+    const { calls } = market((path) =>
       path.startsWith('/api/v1/npm-package?')
         ? { body: { package: '@example/new', suggestedId: 'example-new', version: '1.2.0', displayName: '新插件', summary: '简介', repository: 'https://github.com/example/new', license: 'MIT', readmeSummary: 'README 里的简介' } }
         : undefined)
@@ -121,5 +121,11 @@ describe('the plugin page', () => {
     expect(dialog.find('output[role="alert"]').text()).toBe('已读取，可核对资料后保存草稿。npm 许可证：MIT。上架前仍须完成完整生产依赖许可证检查。下方提供 README 简介建议，可点击采用。')
     await dialog.find('.alert-secondary .btn').trigger('click')
     expect((dialog.find('#catalog-summary').element as HTMLTextAreaElement).value).toBe('README 里的简介')
+    // An id typed by hand is kept on the next read; nothing is saved until 保存插件.
+    await dialog.find('#catalog-id').setValue('my-own-id')
+    await dialog.find('.input-group .btn').trigger('click')
+    await settle()
+    expect((dialog.find('#catalog-id').element as HTMLInputElement).value).toBe('my-own-id')
+    expect(calls.some((call) => call.method === 'POST' || call.method === 'PATCH')).toBe(false)
   })
 })

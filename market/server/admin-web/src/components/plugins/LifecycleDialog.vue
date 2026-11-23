@@ -6,7 +6,7 @@ import { runAction } from '../../feedback'
 import type { MarketPlugin } from '../../plugins'
 
 /**
- * A plugin's state change, as at /admin/ (market-catalog-editor.js transition()): publish, archive,
+ * A plugin's state change): publish, archive,
  * move to the bin, restore as a draft, or purge -- each explained first. Publishing a public plugin
  * needs its box ticked; purging needs the plugin's id typed out.
  */

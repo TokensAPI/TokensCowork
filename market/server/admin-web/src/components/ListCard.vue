@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * A list page's card, in /admin/'s markup: a table that scrolls sideways inside the card on a
+ * A list page's card, in Tabler's markup: a table that scrolls sideways inside the card on a
  * narrow screen, its empty state, and a footer (a note, or a DataPager). While a read is in flight
  * a thin bar runs along the top and the rows dim, but stay; the first read shows 「正在加载…」. A
  * read that failed with nothing to show says so, with 重试.

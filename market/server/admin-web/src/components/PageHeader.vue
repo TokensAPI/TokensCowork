@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** A page's header, as at /admin/: 「插件市场」, the title and what the page is for, its actions right. */
+/** A page's header: 「插件市场」, the title and what the page is for, its actions right. */
 defineProps<{ title: string; description: string }>()
 </script>
 

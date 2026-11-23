@@ -40,6 +40,24 @@ describe('request()', () => {
     expect(expired).toHaveBeenCalledTimes(1)
   })
 
+  it('reads are same-origin and never cached; a request still unanswered after 25 seconds is abandoned and says to check before retrying', async () => {
+    vi.useFakeTimers()
+    try {
+      let seen: RequestInit = {}
+      vi.stubGlobal('fetch', vi.fn((_: unknown, init: RequestInit) => {
+        seen = init
+        return new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
+      }))
+      const pending = request('/api/v1/keys', { label: 'x' }, 'PATCH').catch((error: unknown) => error)
+      expect([seen.credentials, seen.cache, seen.redirect]).toEqual(['same-origin', 'no-store', 'error'])
+      await vi.advanceTimersByTimeAsync(25000)
+      expect(((await pending) as Error).message).toBe('请求超时。若刚才正在保存，请先刷新核对结果，再决定是否重试。')
+      expect(fetch).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a network failure or a page that is not JSON reads as such', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
     await expect(request('/api/v1/keys')).rejects.toThrow('网络连接失败，请检查网络后重试。')

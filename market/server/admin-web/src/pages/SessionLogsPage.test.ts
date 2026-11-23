@@ -38,7 +38,7 @@ function market(sessions = [SESSION]) {
   })
 }
 async function start(hash: string) {
-  history.replaceState(null, '', `/admin/next/${hash}`)
+  history.replaceState(null, '', `/admin/${hash}`)
   router = createConsoleRouter(legacyHashHistory())
   wrapper = mount({ render: () => [h(RouterView), h(ConfirmDialog)] }, { global: { plugins: [router] }, attachTo: document.body })
   await router.isReady()

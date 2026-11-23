@@ -14,14 +14,14 @@ import FormDialog from '../components/FormDialog.vue'
 import SessionLogDetail from '../components/sessionLogs/SessionLogDetail.vue'
 import {
   TIME_PRESETS, classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName, sessionRoute, parseSessionRoute,
-} from '../../../admin/assets/market-session-log-format.js'
+} from '../lib/session-log-format.js'
 import {
   accountOf, copyText, downloadSessionLog, lookupNames, organizationText, sessionPath, titleOf,
   type SessionList, type SessionSummary,
 } from '../sessionLogs'
 
 /**
- * The session-log page, as at /admin/#session-logs (market-session-logs.js, the T0100 layout): the
+ * The session-log page (#session-logs): the
  * index of sessions the desktop plugin uploaded, paged on the server. One search box (account,
  * session id or Key, told apart by classifySearch), the organization, model and time pickers,
  * 「更多筛选」 for the rest, and the applied filters as removable tags; the totals of what the

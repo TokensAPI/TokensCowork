@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 
 /**
- * Light, dark or the system's: the same setting as the console at /admin/ and the docs center
+ * Light, dark or the system's: the same setting as the docs center
  * (market-theme.js), under the same storage key, so choosing it in one changes all of them, open
  * tabs included. public/theme.js applies it before the first paint; this keeps it applied.
  */

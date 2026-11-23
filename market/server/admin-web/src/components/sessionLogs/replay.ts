@@ -2,7 +2,7 @@
  * The conversation view's model, read from the shared replay module (market-session-log-replay.js,
  * DOM-free and tested on its own): the shapes it produces, typed for the components.
  */
-import * as replay from '../../../../admin/assets/market-session-log-replay.js'
+import * as replay from '../../lib/session-log-replay.js'
 import type { SessionEvent } from '../../sessionLogs'
 
 export interface Usage {

@@ -8,7 +8,7 @@ import { state as session } from '../../session'
 import type { MarketPlugin } from '../../plugins'
 
 /**
- * A plugin's metadata, as at /admin/ (market-catalog-editor.js): create a draft or edit one, filled
+ * A plugin's metadata: create a draft or edit one, filled
  * by hand or read from npm (「读取并自动填写」, with a README summary to adopt). An npm package
  * follows the registry's stable latest; a fixed Git commit is pinned. Closing it with changes asks
  * first (and so does leaving the page; see dirty()).

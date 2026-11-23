@@ -1,5 +1,5 @@
-tabler.min.css and tabler.min.js are copied unmodified from the npm package
-@tabler/core@1.7.5 (dist/css/tabler.min.css, dist/js/tabler.min.js).
+tabler.min.css is copied unmodified from the npm package
+@tabler/core@1.7.5 (dist/css/tabler.min.css).
 The console's inline SVG icons are taken from @tabler/icons@3.52.0 (icons/outline).
 
 MIT License

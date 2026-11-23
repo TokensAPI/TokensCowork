@@ -326,11 +326,13 @@ async function smoke() {
       assert.equal(response.status, 200, args[0])
       return response.json()
     }
-    assert.equal((await call('/admin/')).status, 200)
-    for (const asset of ['vendor/tabler/tabler.min.css', 'vendor/tabler/tabler.min.js', 'market-ui.js', 'market-plugins.js', 'market-admin.js', 'market-organizations.js', 'market-keys.js', 'market-users.js', 'market-grants.js', 'market-plugin-icon.js', 'market-session-logs.js',
-      'market-session-log-detail.js', 'market-session-log-replay.js', 'market-session-log-format.js', 'market-markdown.js', 'market-admin.css']) {
+    // The console's page is its build (npm --prefix admin-web run build); the docs center and the
+    // API reference are files of their own.
+    if (existsSync(resolve(root, 'admin/console/index.html'))) assert.equal((await call('/admin/')).status, 200)
+    for (const asset of ['vendor/tabler/tabler.min.css', 'market-docs.js', 'market-docs.css', 'market-markdown.js', 'market-theme.js', 'api-docs.js', 'brand.css']) {
       assert.equal((await call('/admin/assets/' + asset)).status, 200, asset)
     }
+    assert.equal((await call('/docs')).status, 200)
     assert.equal((await call('/api/v1/audit')).status, 401)
     assert.equal((await read('/api/v1/session')).authenticated, false)
     // The API reference pre-authorizes from this QA-only path, and what it gets must really work.

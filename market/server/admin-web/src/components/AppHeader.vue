@@ -1,20 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import AppIcon from './AppIcon.vue'
 import { environmentLabel, isPlatform, signOut, state } from '../session'
 import { runAction } from '../feedback'
 import { shell } from '../shell'
 import { chooseTheme, themePreference } from '../theme'
-import { ICONS, legacyHref } from '../views'
+import { ICONS } from '../views'
 
 /**
- * The top bar, as at /admin/: the environment, 刷新 and 退出登录 once signed in, and the theme.
- * 「返回旧后台」 opens the page being looked at in the console at /admin/.
+ * The top bar: the environment, 刷新 and 退出登录 once signed in, and the theme.
  */
-const route = useRoute()
 const pending = ref<'' | 'refresh' | 'logout'>('')
-const back = computed(() => legacyHref(route.fullPath.replace(/^\/+/u, '')))
 const environmentTitle = computed(() => (isPlatform.value ? state.session?.environment?.origin || '尚未配置 TokensAPI 地址' : environmentLabel.value))
 
 async function refresh() {
@@ -35,9 +31,6 @@ async function logout() {
   <header class="navbar navbar-expand d-print-none">
     <div class="container-fluid">
       <div class="navbar-nav flex-row align-items-center gap-2 ms-auto">
-        <a class="btn btn-ghost-secondary" :href="state.session ? back : '/admin/'" title="在旧后台打开这一页">
-          <AppIcon :paths="ICONS.back" /><span class="d-none d-sm-inline">返回旧后台</span>
-        </a>
         <div v-if="state.session" class="d-flex align-items-center gap-2">
           <span class="badge bg-green-lt text-truncate environment-badge" :title="environmentTitle">{{ environmentLabel }}</span>
           <button :class="['btn', pending === 'refresh' && 'btn-loading']" type="button" aria-label="刷新" :disabled="!!pending || !shell.refresh" @click="refresh">

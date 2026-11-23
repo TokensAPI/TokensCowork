@@ -45,10 +45,10 @@ async function docsRoute(request, env, url) {
   }
 }
 
-// The new console (admin-web/, built into admin/next/ by the Docker image): its page, the theme
-// script that runs before it paints, and the build's own files, which are named by their content
-// hash. Only names the build gives are served; anything else under /admin/next/ is a 404.
-export const NEXT_CONSOLE = /^\/admin\/next\/(?:|index\.html|theme\.js|assets\/[A-Za-z0-9_-]{1,64}-[A-Za-z0-9_-]{8}\.(?:js|css|svg))$/u
+// The console (admin-web/, built into admin/console/ by the Docker image): the theme script that runs
+// before it paints, and the build's own files, which are named by their content hash. Its page is
+// /admin/ (below). Only names the build gives are served; anything else under /admin/console/ is a 404.
+export const CONSOLE_FILES = /^\/admin\/console\/(?:theme\.js|assets\/[A-Za-z0-9_-]{1,64}-[A-Za-z0-9_-]{8}\.(?:js|css|svg))$/u
 
 const publicHeaders = {
   'access-control-allow-origin': '*',
@@ -73,6 +73,14 @@ export default {
       const segments = url.pathname.split('/').filter(Boolean)
       return segments.length === 3 ? servePluginIcon(env, decodeURIComponent(segments[2])) : reply({ error: 'not found' }, 404)
     }
+    // The console's page, from its build (admin/console/index.html), at the address it has always had.
+    if (url.pathname === '/admin/' || url.pathname === '/admin/index.html') {
+      if (!['GET', 'HEAD'].includes(request.method)) return reply({ error: 'method not allowed' }, 405)
+      return env.ASSETS.fetch(new Request(new URL('/admin/console/index.html', url), { method: request.method, headers: request.headers }))
+    }
+    // The preview address of the rebuilt console while it was being moved; its pages are /admin/ now
+    // (the browser keeps the #page across the redirect).
+    if (url.pathname === '/admin/next' || url.pathname.startsWith('/admin/next/')) return Response.redirect(new URL('/admin/', url), 308)
     // The documentation center's page. It is served from the console's folder so it carries the
     // console's security headers, but its address is /docs.
     if (url.pathname === '/docs' || url.pathname === '/docs/') {
@@ -144,8 +152,6 @@ export default {
     // No static plugin snapshot: outages must never resurrect unpublished entries.
     const assets = new Set([
       '/source.json',
-      '/admin/',
-      '/admin/index.html',
       '/admin/access.html',
       '/admin/api-docs.html',
       '/admin/assets/brand.css',
@@ -159,31 +165,13 @@ export default {
       '/admin/assets/vendor/swagger-ui-bundle.js',
       // The console is drawn with Tabler (@tabler/core, MIT; see vendor/tabler/LICENSE), served from here.
       '/admin/assets/vendor/tabler/tabler.min.css',
-      '/admin/assets/vendor/tabler/tabler.min.js',
-      '/admin/assets/market-admin.js',
-      '/admin/assets/market-ui.js',
-      '/admin/assets/market-plugins.js',
-      '/admin/assets/market-api.js',
-      '/admin/assets/market-plugin-icon.js',
-      '/admin/assets/market-admin.css',
-      '/admin/assets/market-theme.js',
-      '/admin/assets/market-catalog-editor.js',
-      '/admin/assets/market-organizations.js',
-      '/admin/assets/market-keys.js',
-      '/admin/assets/market-users.js',
-      '/admin/assets/market-grants.js',
-      '/admin/assets/market-session-logs.js',
-      '/admin/assets/market-session-log-detail.js',
-      '/admin/assets/market-session-log-replay.js',
-      '/admin/assets/market-session-log-format.js',
-      '/admin/assets/market-markdown.js',
-      // The plugin documentation center (page at /docs) and the console's docs page.
+      // The plugin documentation center (page at /docs): its script, styles, Markdown renderer and theme.
       '/admin/assets/market-docs.js',
       '/admin/assets/market-docs.css',
-      '/admin/assets/market-docs-admin.js',
+      '/admin/assets/market-markdown.js',
+      '/admin/assets/market-theme.js',
     ])
-    if (url.pathname === '/admin/next') return Response.redirect(new URL('/admin/next/', url), 308)
-    if (!assets.has(url.pathname) && !NEXT_CONSOLE.test(url.pathname)) return reply({ error: 'not found' }, 404)
+    if (!assets.has(url.pathname) && !CONSOLE_FILES.test(url.pathname)) return reply({ error: 'not found' }, 404)
     if (url.pathname === '/source.json' && request.method === 'OPTIONS')
       return new Response(null, { status: 204, headers: publicHeaders })
     const response = await env.ASSETS.fetch(request)

@@ -11,7 +11,7 @@ import PageHeader from '../components/PageHeader.vue'
 import ListCard from '../components/ListCard.vue'
 
 /**
- * The activity log, as at /admin/#activity: the latest management changes, each with what it was
+ * The activity log (#activity): the latest management changes, each with what it was
  * made to (named from the directories, read alongside), its facts, who made it and when.
  */
 const view = viewById('activity')!

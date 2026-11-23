@@ -3,7 +3,7 @@ import type { MarketKey } from './pages/KeysPage.vue'
 
 /**
  * The market's directories as the console reads them, and how each subject is named on screen --
- * the same wording as /admin/ (an organization 「名称 (#7)」, a user 「名称 (#102)」, a Key by its
+ * worded as the console always has (an organization 「名称 (#7)」, a user 「名称 (#102)」, a Key by its
  * note, else its value). A page reads the directories it needs itself; nothing here is cached.
  */
 export interface Organization {

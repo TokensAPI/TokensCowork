@@ -13,17 +13,17 @@ export interface Session {
 }
 
 /**
- * Who is signed in, shared by the whole console. The same sign-in as /admin/: one session cookie
- * for both consoles, with the back-office passphrase or a TokensAPI organization administrator's
- * account. `pending` holds while the cookie is being checked on load.
+ * Who is signed in, shared by the whole console: one session cookie (also read by the docs center
+ * opened as the administrator), from the back-office passphrase or a TokensAPI organization
+ * administrator's account. `pending` holds while the cookie is being checked on load.
  */
 export const state = reactive({ pending: true, session: null as Session | null })
 
 export const isPlatform = computed(() => state.session?.role === 'platform')
-/** The pages this account may open, as /admin/'s allowedViews(): all, or its own organization. */
+/** The pages this account may open, all, or its own organization. */
 export const allowedViews = computed(() => (isPlatform.value ? VIEWS.map((view) => view.id) : state.session ? ['organizations'] : []))
 
-/** The environment badge, worded as at /admin/. */
+/** The environment badge. */
 export const environmentLabel = computed(() => {
   const session = state.session
   if (!session) return ''
