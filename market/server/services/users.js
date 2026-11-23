@@ -54,6 +54,23 @@ async function upstreamUser(env, id) {
   cache.set(id, { user: value, expires: Date.now() + NAME_TTL })
   return value
 }
+// The organization TokensAPI currently places each of these accounts in, for filtering by it:
+// id -> organization id, null for "belongs to none", undefined for "TokensAPI has no such user".
+// Same lookup, cache and concurrency as the names. Unlike a name, a filter cannot be half right, so
+// any account TokensAPI cannot answer for fails the whole question with 503 instead of guessing.
+export const ORGANIZATION_FILTER_LIMIT = 200
+export async function accountOrganizations(env, ids) {
+  if (!userSearchReady(env)) throw invalid('未配置 TokensAPI 用户搜索，无法按组织筛选', 503)
+  const owners = new Map()
+  for (let i = 0; i < ids.length; i += NAME_CONCURRENCY) {
+    const batch = ids.slice(i, i + NAME_CONCURRENCY)
+    const found = await Promise.all(batch.map(id => upstreamUser(env, id)))
+    if (found.includes(undefined)) throw invalid('暂时查不到组织归属，稍后再试', 503)
+    batch.forEach((id, j) => owners.set(id, found[j] ? found[j].organizationId ?? null : undefined))
+  }
+  return owners
+}
+
 export async function userNames(env, ids) {
   if (!Array.isArray(ids) || !ids.length || ids.length > NAME_LIMIT || !ids.every(validOrganizationId))
     throw invalid(`ids 须为 1-${NAME_LIMIT} 个用户号，以逗号分隔`)

@@ -463,6 +463,59 @@ test('the list reports the stored size of everything the filters match, from the
   assert.deepEqual(await list('account=nobody').then(r => [r.total, r.storedBytes]), [0, 0])
 })
 
+test('the organization filter follows each account\'s current organization, with the totals', async t => {
+  const { env, upload, api, rows, index } = await fixture(t)
+  // Accounts 9000, 9001, 9002 three sessions each (session-page-00 … -08, one hour apart), plus an
+  // anonymous session and one whose account is not a user number.
+  await seedMany(upload, 9)
+  await upload(batch([event(0)], { id: 'session-anonymous', account: null }), { key: null })
+  await upload(batch([event(0)], { id: 'session-odd-account', account: { id: 'abc' } }))
+  // TokensAPI today: 9000 in organization 7 (registered), 9001 in 8 (not registered), 9002 in none.
+  const placed = { 9000: 7, 9001: 8, 9002: null }
+  let searches = []
+  env.MARKET_ORGANIZATIONS.searchUsers = async keyword => {
+    searches.push(keyword)
+    const items = keyword in placed ? [{ id: Number(keyword), name: 'U' + keyword, username: 'u' + keyword, organizationId: placed[keyword] }] : []
+    return { items, total: items.length }
+  }
+  const list = async query => (await api('/session-logs?' + query)).json
+  const accountsOf = result => [...new Set(result.items.map(item => item.accountId))]
+  const bytesOf = account => rows(`SELECT stored_bytes FROM session_log_sessions WHERE account_id='${account}'`).reduce((sum, row) => sum + row.stored_bytes, 0)
+  // One organization: only its accounts' sessions, and the totals follow. Every numeric account is
+  // resolved once; the anonymous and non-numeric ones are never asked about.
+  const seven = await list('organization=7')
+  assert.deepEqual([seven.total, seven.storedBytes, accountsOf(seven)], [3, bytesOf('9000'), ['9000']])
+  assert.deepEqual(searches.sort(), ['9000', '9001', '9002'])
+  // Within five minutes later filters ask TokensAPI nothing more.
+  const eight = await list('organization=8'), none = await list('organization=none')
+  assert.deepEqual([accountsOf(eight), accountsOf(none), none.storedBytes], [['9001'], ['9002'], bytesOf('9002')])
+  assert.equal(searches.length, 3)
+  // Nobody there: empty, totals 0. Anonymous and non-numeric accounts match no choice.
+  assert.deepEqual(await list('organization=99').then(r => [r.total, r.storedBytes, r.items.length]), [0, 0, 0])
+  const shown = new Set([seven, eight, none].flatMap(r => r.items.map(item => item.id)))
+  assert.ok(!shown.has('session-anonymous') && !shown.has('session-odd-account'))
+  assert.equal((await list('')).total, 11)
+  // Combined with other filters, and paged without changing the totals.
+  assert.equal((await list(`organization=7&from=${CREATED}&to=${CREATED + 4 * 3600000}`)).total, 2)
+  assert.equal((await list('organization=7&account=9001')).total, 0)
+  assert.deepEqual(await list('organization=7&pageSize=10&page=2').then(r => [r.page, r.total, r.storedBytes]), [1, 3, bytesOf('9000')])
+  for (const bad of ['abc', '0', '-1', '1.5']) assert.equal((await api('/session-logs?organization=' + bad)).status, 400, bad)
+  // TokensAPI failing or missing is an error, never a partial list.
+  env.MARKET_ORGANIZATIONS = { ...env.MARKET_ORGANIZATIONS, searchUsers: async () => { throw new Error('down') } }
+  const failed = await api('/session-logs?organization=7')
+  assert.deepEqual([failed.status, failed.json.error], [503, '暂时查不到组织归属，稍后再试'])
+  env.MARKET_ORGANIZATIONS = { resolveAccount: env.MARKET_ORGANIZATIONS.resolveAccount }
+  assert.equal((await api('/session-logs?organization=none')).status, 503)
+  assert.equal((await list('account=9000')).total, 3, 'other filters still work without TokensAPI')
+  // Beyond 200 numeric accounts the filter is refused instead of fanning out upstream.
+  index.database.exec("CREATE TEMP TABLE spare AS SELECT * FROM session_log_sessions WHERE session_id='session-page-00'")
+  for (let i = 0; i < 198; i++)
+    index.database.exec(`UPDATE spare SET session_id='session-extra-${i}',account_id='${20000 + i}'; INSERT INTO session_log_sessions SELECT * FROM spare`)
+  const crowded = await api('/session-logs?organization=7')
+  assert.equal(crowded.status, 409)
+  assert.match(crowded.json.error, /超过 200 个（当前 201 个）/u)
+})
+
 test('a batch delete removes the ticked sessions, objects and index, and records each one', async t => {
   const { upload, api, rows, objects } = await fixture(t)
   await seedMany(upload, 5)

@@ -2575,6 +2575,16 @@
             }
           },
           {
+            "name": "organization",
+            "in": "query",
+            "required": false,
+            "description": "上报账号**当前**所属的组织（按账号向 TokensAPI 查，未核验，不一定是上传时的归属）：组织号，或 `none` 表示无组织。索引里出现过的全部数字账号都会解析（5 分钟缓存，4 个并发），再按 `account_id IN (…)` 过滤；匿名会话、非数字账号和 TokensAPI 查无此人的账号都不匹配。账号超过 200 个时回 `409`；TokensAPI 未配置或有任何账号查不到时回 `503`，不返回不完整的结果。`total`、`storedBytes` 跟随此筛选。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "6"
+          },
+          {
             "name": "from",
             "in": "query",
             "required": false,
@@ -2636,6 +2646,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "503": {
             "$ref": "#/components/responses/Unavailable"

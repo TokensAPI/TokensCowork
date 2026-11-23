@@ -4,6 +4,7 @@ import { fingerprint } from '../security/key-fingerprint.js'
 import { openKey, sealKey } from '../security/key-vault.js'
 import { auditStatements } from './audit.js'
 import { invalid } from './plugins.js'
+import { accountOrganizations, ORGANIZATION_FILTER_LIMIT } from './users.js'
 
 // Session logs uploaded by the built-in @tokensapi/dsh-session-log plugin
 // (agent-hub/docs/session-log-upload-contract.md). Two bindings carry them:
@@ -306,6 +307,29 @@ function timestamp(value, name) {
 }
 const sessionTime = 'COALESCE(created_at,first_received_at)'
 
+// `organization=<id>` or `organization=none`: the organization each reported account belongs to
+// now, as the console's column shows it -- not where it was when the log was uploaded. Every
+// distinct numeric account in the index is resolved through TokensAPI (cached five minutes, four at
+// a time) and the filter becomes account_id IN (the matching accounts). Anonymous sessions, accounts
+// that are not user numbers and users TokensAPI does not know match neither an organization nor
+// "none". Beyond ORGANIZATION_FILTER_LIMIT accounts the filter is refused (409) rather than
+// sending that many upstream calls at once; TokensAPI failing is a 503, never a partial answer.
+const ACCOUNT_NUMBER = /^[1-9][0-9]{0,15}$/u
+async function organizationFilter(env, value, where, values) {
+  if (!value) return
+  const wanted = value === 'none' ? null : ACCOUNT_NUMBER.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : 0
+  if (wanted === 0) throw invalid('筛选条件 organization 无效')
+  const { results } = await env.MARKET_SESSION_LOG_DB.prepare('SELECT DISTINCT account_id FROM session_log_sessions WHERE account_id IS NOT NULL').all()
+  const accounts = results.map(row => row.account_id).filter(id => ACCOUNT_NUMBER.test(id) && Number.isSafeInteger(Number(id))).map(Number)
+  if (accounts.length > ORGANIZATION_FILTER_LIMIT)
+    throw invalid(`上报账号超过 ${ORGANIZATION_FILTER_LIMIT} 个（当前 ${accounts.length} 个），暂不支持按组织筛选，请改用账号筛选`, 409)
+  const owners = await accountOrganizations(env, accounts)
+  const matched = accounts.filter(id => owners.get(id) === wanted).map(String)
+  if (!matched.length) { where.push('0'); return }
+  where.push(`account_id IN (${marks(matched)})`)
+  values.push(...matched)
+}
+
 export async function listSessionLogs(env, url) {
   ready(env)
   const where = [], values = []
@@ -338,6 +362,7 @@ export async function listSessionLogs(env, url) {
   if (!Number.isSafeInteger(requested) || requested < 1 || requested > 100000) throw invalid('页码无效')
   const pageSize = Number(url.searchParams.get('pageSize') || PAGE_SIZE)
   if (!PAGE_SIZES.includes(pageSize)) throw invalid(`每页条数应为 ${PAGE_SIZES.join('、')} 之一`)
+  await organizationFilter(env, url.searchParams.get('organization')?.trim(), where, values)
   const clause = where.length ? ' WHERE ' + where.join(' AND ') : ''
   const db = env.MARKET_SESSION_LOG_DB
   // The size is what the index recorded per session -- gzip bytes actually written -- summed in the

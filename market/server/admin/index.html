@@ -428,6 +428,12 @@
                         <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-version" class="form-control" type="search" placeholder="客户端版本" aria-label="按客户端版本筛选" /></div>
                         <div class="col-12 col-sm-6 col-xl-3"><input id="session-log-model" class="form-control" type="search" placeholder="模型" aria-label="按模型筛选" /></div>
                         <div class="col-12 col-sm-6 col-xl-3">
+                          <select id="session-log-organization" class="form-select" aria-label="按上报账号当前所属组织筛选" title="按上报账号当前所属组织筛选（未核验）">
+                            <option value="">全部组织</option>
+                            <option value="none">无组织</option>
+                          </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-xl-3">
                           <div class="input-group">
                             <span class="input-group-text">创建于</span><input id="session-log-from" class="form-control" type="date" aria-label="会话创建时间起（含）" />
                           </div>
@@ -458,6 +464,7 @@
                             <th scope="col" class="w-1"><input id="session-log-select-all" class="form-check-input m-0 align-middle" type="checkbox" aria-label="全选本页" /></th>
                             <th scope="col">会话</th>
                             <th scope="col">上报账号（未核验）</th>
+                            <th scope="col" title="按上报账号查到的当前归属，不一定是上传时的，未核验">组织（当前，未核验）</th>
                             <th scope="col">Key</th>
                             <th scope="col">模型 · token</th>
                             <th scope="col">事件</th>

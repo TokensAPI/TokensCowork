@@ -104,7 +104,7 @@ const shared = { $, ...kit, json, action, reload, feedback, formatTime, pluginNa
 const organizations = organizationsView(shared)
 const keys = keysView(shared)
 const users = usersView(shared)
-const sessionLogs = sessionLogsView(shared)
+const sessionLogs = sessionLogsView({ ...shared, organizations })
 const icons = iconDialog({ $, json, action, isBusy: () => busy, confirmAction: kit.confirmAction })
 const docs = docsAdminView({ ...shared, plugins: () => plugins, icons })
 const pluginPage = pluginsView({ ...shared, isSignedIn: () => !!session, organizations, keys, users, editor: () => editor, icons })

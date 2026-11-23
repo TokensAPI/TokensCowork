@@ -12,7 +12,7 @@ import { sessionLogDetailView } from './market-session-log-detail.js'
  * control it disabled back the way it found it, which used to undo the prev/next states a load had
  * just set (page 2 of 3 kept 「上一页」 disabled, and 「下一页」 ran past the last page).
  */
-export function sessionLogsView({ $, node, button, badge, rowActions, pager, json, action, feedback, formatTime }) {
+export function sessionLogsView({ $, node, button, badge, rowActions, pager, json, action, feedback, formatTime, organizations }) {
   const DAY = 24 * 60 * 60 * 1000
   let page = 1,
     pageSize = 50,
@@ -37,41 +37,64 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
   // Names, and the organization each account belongs to now, for the account ids the clients
   // report, asked once per id for a whole page and drawn in when they arrive, so the list never
-  // waits on TokensAPI. An id nobody can name stays a bare id; an organization TokensAPI could not
-  // tell is left out; a failed request is forgotten so the next load asks again.
+  // waits on TokensAPI. An id nobody can name stays a bare id and an organization TokensAPI could
+  // not tell stays 「—」; a failed request is forgotten so the next load asks again.
   const accountNames = new Map()
   const numericId = (value) => (/^[1-9][0-9]{0,15}$/u.test(value ?? '') ? value : '')
   function lookupNames(ids) {
     const missing = [...new Set(ids.map(numericId).filter((id) => id && !accountNames.has(id)))]
     if (!missing.length) return
     const request = json('/api/v1/users/names?ids=' + missing.join(','))
-      .then((result) => new Map(result.items.map((user) => [String(user.id), accountText(user)])))
+      .then((result) => new Map(result.items.map((user) => [String(user.id), user])))
       .catch(() => {
         for (const id of missing) accountNames.delete(id)
         return new Map()
       })
     for (const id of missing) accountNames.set(id, request.then((found) => found.get(id) ?? null))
   }
-  // 「Runzhou · 组织 Runzhou」, 「Runzhou · 无组织」, or the name alone when the organization is unknown.
-  function accountText(user) {
-    const org = user.organization
-    if (org === undefined) return user.name
-    return `${user.name} · ${org ? `组织 ${org.name || '#' + org.id}` : '无组织'}`
-  }
-  function accountName(id) {
+  // The name and organization for one reported id: { name, organization? } or null.
+  function accountUser(id) {
     lookupNames([id])
     return accountNames.get(numericId(id)) ?? Promise.resolve(null)
   }
+  // 「Runzhou」, 「#9」 (not registered here), 「无组织」, or null when TokensAPI could not tell.
+  function organizationText(user) {
+    const org = user?.organization
+    if (org === undefined) return null
+    return org ? org.name || `#${org.id}` : '无组织'
+  }
   function accountCell(id) {
     const cell = node('td', id || '—', id ? 'text-break' : 'text-secondary')
-    if (id) accountName(id).then((name) => {
-      if (!name) return
-      cell.textContent = `${id} · ${name}`
-      cell.title = '名称和组织按客户端上报的 ID 查得：ID 未核验，组织是该账号当前的归属，不一定是上传时的'
+    if (id) accountUser(id).then((user) => {
+      if (!user) return
+      cell.textContent = `${id} · ${user.name}`
+      cell.title = '名称按客户端上报的 ID 查得，ID 未核验'
     })
     return cell
   }
-  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountName, onBack: back })
+  function organizationCell(id) {
+    const cell = node('td', '—', 'text-break text-secondary')
+    if (id) accountUser(id).then((user) => {
+      const text = organizationText(user)
+      if (!text) return
+      cell.textContent = text
+      cell.className = 'text-break' + (user.organization ? '' : ' text-secondary')
+      cell.title = '按上报账号查到的当前归属，不一定是上传时的，未核验'
+    })
+    return cell
+  }
+  // The filter offers the organizations registered here, plus 「无组织」; the choice survives a refill.
+  function fillOrganizations() {
+    const select = $('session-log-organization'), chosen = select.value
+    const options = organizations.all().map((org) => {
+      const option = node('option', `${org.name} (#${org.id})`)
+      option.value = String(org.id)
+      return option
+    })
+    select.replaceChildren(select.options[0], select.querySelector('option[value="none"]'), ...options)
+    select.value = [...select.options].some((option) => option.value === chosen) ? chosen : ''
+  }
+  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack: back })
 
   // ── Confirmation ───────────────────────────────────────────────────────────
   // Every deletion asks here first: what goes, how many, and that it cannot be undone.
@@ -99,7 +122,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       account: $('session-log-account').value.trim(), session: $('session-log-session').value.trim(),
       key: $('session-log-key').value.trim(), tag: $('session-log-tag').value.trim(),
       clientVersion: $('session-log-version').value.trim(), model: $('session-log-model').value.trim(),
-      from: day('session-log-from'), to: day('session-log-to', DAY),
+      from: day('session-log-from'), to: day('session-log-to', DAY), organization: $('session-log-organization').value,
     }
   }
   async function loadList() {
@@ -184,7 +207,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       'divider',
       { label: '删除', danger: true, run: () => removeOne(item) },
     ]))
-    tr.append(check, name, accountCell(item.accountId), key, usage, events, notes, when, cell)
+    tr.append(check, name, accountCell(item.accountId), organizationCell(item.accountId), key, usage, events, notes, when, cell)
     return tr
   }
 
@@ -297,6 +320,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     // may be unconfigured, and it should not keep the others from loading.
     async show() {
       if (detail.isOpen()) return
+      fillOrganizations()
       const settings = await json('/api/v1/session-logs/settings')
       $('session-log-retention').value = settings.retentionDays ?? ''
       await loadList()
