@@ -107,3 +107,14 @@ test('CI type-checks, tests and builds the new console before anything deploys',
   assert.deepEqual([...at].sort((a, b) => a - b), at)
   assert.match(workflow, /market\.tokensapi\.ai\/admin\/next\//u)
 })
+
+test('CI builds and starts the real image before deploying, and never pushes it', () => {
+  const workflow = read('../../.github/workflows/deploy-plugin-market.yml')
+  const job = workflow.slice(workflow.indexOf('  test:'), workflow.indexOf('  deploy:'))
+  assert.match(job, /docker build --pull -t "\$image" market\/server/u)
+  assert.match(job, /test -s admin\/next\/index\.html/u)
+  assert.match(job, /docker run -d [^\n]*-p 127\.0\.0\.1:18080:8080/u)
+  assert.match(job, /curl --fail [^\n]*http:\/\/127\.0\.0\.1:18080\/admin\/next\//u)
+  assert.match(job, /docker rm -f/u)
+  assert.doesNotMatch(workflow, /docker (?:push|login)|docker\/build-push-action/u)
+})
