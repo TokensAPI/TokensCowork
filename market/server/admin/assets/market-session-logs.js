@@ -83,7 +83,8 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     })
     return cell
   }
-  // The filter offers the organizations registered here, plus 「无组织」; the choice survives a refill.
+  // The filter offers the organizations registered here (the API's organization=none is kept for
+  // clean-ups but not offered); the choice survives a refill.
   function fillOrganizations() {
     const select = $('session-log-organization'), chosen = select.value
     const options = organizations.all().map((org) => {
@@ -91,7 +92,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       option.value = String(org.id)
       return option
     })
-    select.replaceChildren(select.options[0], select.querySelector('option[value="none"]'), ...options)
+    select.replaceChildren(select.options[0], ...options)
     select.value = [...select.options].some((option) => option.value === chosen) ? chosen : ''
   }
   const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack: back })
