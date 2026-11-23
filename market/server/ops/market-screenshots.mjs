@@ -95,6 +95,13 @@ function pages(origin, docs) {
     { name: 'next-session-log-detail', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady },
     { name: 'next-session-log-detail-open', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('全部展开') },
     { name: 'next-session-log-raw', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('原始 JSON') },
+    { name: 'api-docs', url: `${origin}/admin/api-docs.html`, ready: `document.querySelectorAll('.swagger-ui .opblock').length > 0` },
+    // As TokensCowork opens it: a one-time code made with the reader's own Key (the fixture's sk-test-direct).
+    { name: 'docs-center-code', url: async () => {
+      const response = await fetch(`${origin}/v1/docs/codes`, { method: 'POST', headers: { Authorization: 'Bearer sk-test-direct' } })
+      const { code } = await response.json()
+      return `${origin}/docs?code=${code}#/${encodeURIComponent(docs.pluginId)}/${docs.docId}`
+    }, ready: `document.getElementById('docs-article')?.children.length > 0 && !location.search.includes('code=')` },
     { name: 'docs-center', url: `${origin}/docs?admin#/${encodeURIComponent(docs.pluginId)}/${docs.docId}`,
       ready: `document.getElementById('docs-article')?.children.length > 0 && !document.querySelector('#docs-article img.md-image:not([src])')` },
   ].filter(page => !only.size || only.has(page.name))
@@ -286,7 +293,8 @@ try {
     await tab.send('Emulation.setDeviceMetricsOverride', { width: variant.width, height: variant.height, deviceScaleFactor: 1, mobile: variant.mobile })
     await tab.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: variant.scheme }] })
     for (const page of pages(server.origin, docs)) {
-      const { drawn, problems } = await tab.visit(page.url, page.ready, page.action)
+      const url = typeof page.url === 'function' ? await page.url() : page.url
+      const { drawn, problems } = await tab.visit(url, page.ready, page.action)
       const file = join(out, `${page.name}-${variant.name}.png`)
       await capture(tab, file, variant)
       shots.push({ file, drawn, problems })
