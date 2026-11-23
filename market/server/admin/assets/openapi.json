@@ -1940,7 +1940,7 @@
           "用户"
         ],
         "summary": "按用户号查显示名",
-        "description": "只读。后台给会话日志的上报账号配名称用。先取市场用户名录里的名称，名录里没有的按用户号向 TokensAPI 查，每个结果在进程内缓存 5 分钟，不落库。查不到或 TokensAPI 不可用的用户号不出现在结果里，不报错。",
+        "description": "只读。后台给会话日志的上报账号配名称和所属组织用。名称先取市场用户名录，名录外的用 TokensAPI 的；每个用户号都按号向 TokensAPI 查当前所属组织，组织名取市场登记的名称。每个结果在进程内缓存 5 分钟，不落库。TokensAPI 查不到或不可用时：名录内用户照常返回名称、不带 `organization`；名录外用户不出现在结果里。不报错。",
         "responses": {
           "200": {
             "description": "查到名称的用户",
@@ -1975,6 +1975,29 @@
                               "tokensapi"
                             ],
                             "description": "directory 为市场用户名录，tokensapi 为按用户号向 TokensAPI 查得。"
+                          },
+                          "organization": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "description": "TokensAPI 里该用户当前所属的组织；null 为不属于任何组织；TokensAPI 说不出时不带此字段。",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "市场登记的组织名，市场未登记该组织时为 null。"
+                              }
+                            }
                           }
                         }
                       }

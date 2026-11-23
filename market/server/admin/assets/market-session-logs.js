@@ -35,21 +35,28 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     else target.append(node('div', `未保存原文 · 指纹 ${short(fingerprint, 16)}`, 'font-monospace small text-secondary'))
   }
   const clientText = (client) => [client.product, client.version, client.platform].filter(Boolean).join(' ') || '—'
-  // Names for the account ids the clients report, asked once per id for a whole page and drawn in
-  // when they arrive, so the list never waits on TokensAPI. An id nobody can name stays a bare id;
-  // a failed request is forgotten so the next load asks again.
+  // Names, and the organization each account belongs to now, for the account ids the clients
+  // report, asked once per id for a whole page and drawn in when they arrive, so the list never
+  // waits on TokensAPI. An id nobody can name stays a bare id; an organization TokensAPI could not
+  // tell is left out; a failed request is forgotten so the next load asks again.
   const accountNames = new Map()
   const numericId = (value) => (/^[1-9][0-9]{0,15}$/u.test(value ?? '') ? value : '')
   function lookupNames(ids) {
     const missing = [...new Set(ids.map(numericId).filter((id) => id && !accountNames.has(id)))]
     if (!missing.length) return
     const request = json('/api/v1/users/names?ids=' + missing.join(','))
-      .then((result) => new Map(result.items.map((user) => [String(user.id), user.name])))
+      .then((result) => new Map(result.items.map((user) => [String(user.id), accountText(user)])))
       .catch(() => {
         for (const id of missing) accountNames.delete(id)
         return new Map()
       })
     for (const id of missing) accountNames.set(id, request.then((found) => found.get(id) ?? null))
+  }
+  // 「Runzhou · 组织 Runzhou」, 「Runzhou · 无组织」, or the name alone when the organization is unknown.
+  function accountText(user) {
+    const org = user.organization
+    if (org === undefined) return user.name
+    return `${user.name} · ${org ? `组织 ${org.name || '#' + org.id}` : '无组织'}`
   }
   function accountName(id) {
     lookupNames([id])
@@ -60,7 +67,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     if (id) accountName(id).then((name) => {
       if (!name) return
       cell.textContent = `${id} · ${name}`
-      cell.title = '名称按客户端上报的 ID 查得，ID 未核验'
+      cell.title = '名称和组织按客户端上报的 ID 查得：ID 未核验，组织是该账号当前的归属，不一定是上传时的'
     })
     return cell
   }

@@ -534,31 +534,41 @@ test('a user\'s effective plugins name each source, follow the organization rule
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM market_users').get().n, 1)
 })
 
-test('reported account ids are named from the directory first, then TokensAPI once, and an unknown id stays unnamed', async t => {
+test('reported account ids are named from the directory first, then TokensAPI once, with the organization they belong to now', async t => {
   const { env, admin } = fixture(t)
-  const directory = { 102: 'Alice (TokensAPI)', 531: 'Runzhou' }
+  // TokensAPI: user number -> [name, organization]; organization 6 is registered here, 9 is not.
+  const directory = { 102: ['Alice (TokensAPI)', 6], 531: ['Runzhou', 6], 533: ['Visitor', 9], 535: ['Solo', null] }
   let searches = []
   env.MARKET_ORGANIZATIONS = {
     searchUsers: async keyword => {
       searches.push(keyword)
-      const items = directory[keyword] ? [{ id: Number(keyword), name: directory[keyword], username: 'u' + keyword, organizationId: 6 }] : []
+      const found = directory[keyword]
+      const items = found ? [{ id: Number(keyword), name: found[0], username: 'u' + keyword, organizationId: found[1] }] : []
       return { items, total: items.length }
     },
   }
+  assert.equal((await admin('/organizations/6', { name: 'Runzhou', enabled: true })).status, 200)
   assert.equal((await admin('/users/102', { name: 'Alice' })).status, 200)
   const names = async ids => (await (await admin('/users/names?ids=' + ids)).json()).items
-  const expected = [{ id: 102, name: 'Alice', source: 'directory' }, { id: 531, name: 'Runzhou', source: 'tokensapi' }]
-  // Duplicates are asked once; the directory user is never asked of TokensAPI.
-  assert.deepEqual(await names('531,102,999,531'), expected)
-  assert.deepEqual(searches.sort(), ['531', '999'])
+  const runzhou = { id: 6, name: 'Runzhou' }
+  const expected = [
+    { id: 102, name: 'Alice', source: 'directory', organization: runzhou },
+    { id: 531, name: 'Runzhou', source: 'tokensapi', organization: runzhou },
+    { id: 533, name: 'Visitor', source: 'tokensapi', organization: { id: 9, name: null } },
+    { id: 535, name: 'Solo', source: 'tokensapi', organization: null },
+  ]
+  // The directory name wins, every number is asked once for its organization, an unknown one is left out.
+  assert.deepEqual(await names('531,102,999,531,533,535'), expected)
+  assert.deepEqual(searches.sort(), ['102', '531', '533', '535', '999'])
   // Within five minutes the same ids, found or not, are answered without TokensAPI.
-  assert.deepEqual(await names('999,531,102'), expected)
-  assert.equal(searches.length, 2)
-  // A failing or missing TokensAPI only leaves ids unnamed; the directory still answers.
+  assert.deepEqual(await names('999,535,533,531,102'), expected)
+  assert.equal(searches.length, 5)
+  // A failing or missing TokensAPI leaves the organization out and the others unnamed; the directory still answers.
+  const nameOnly = { id: 102, name: 'Alice', source: 'directory' }
   env.MARKET_ORGANIZATIONS = { searchUsers: async () => { throw new Error('down') } }
-  assert.deepEqual(await names('102,531'), [expected[0]])
+  assert.deepEqual(await names('102,531'), [nameOnly])
   env.MARKET_ORGANIZATIONS = {}
-  assert.deepEqual(await names('102,531'), [expected[0]])
+  assert.deepEqual(await names('102,531'), [nameOnly])
   for (const bad of ['', 'abc', '0', '1,x', Array.from({ length: 101 }, (_, i) => i + 1).join(',')])
     assert.equal((await admin('/users/names?ids=' + bad)).status, 400, bad.slice(0, 10))
 })

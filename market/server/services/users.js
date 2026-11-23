@@ -26,10 +26,12 @@ export async function listUsers(env) {
   return { items: results.map(row => view(row, grants)), searchReady: userSearchReady(env) }
 }
 
-// Display names for user numbers seen elsewhere in the console (the account a session log reports).
-// The directory's name wins; the rest are asked of TokensAPI one by one, a few at a time, and each
-// answer -- a name or "no such user" -- is kept for five minutes per process. A failed lookup is
-// not kept and simply leaves that number unnamed: a name is a convenience, never a reason to fail.
+// Display names, and the organization TokensAPI currently places each user in, for user numbers
+// seen elsewhere in the console (the account a session log reports). The directory's name wins;
+// every number is asked of TokensAPI one by one, a few at a time, for its organization (and, outside
+// the directory, its name), and each answer -- a user or "no such user" -- is kept for five minutes
+// per process. A failed lookup is not kept: a directory user keeps their name with the organization
+// left out, anyone else stays unnamed. A name is a convenience, never a reason to fail.
 const NAME_TTL = 5 * 60_000, NAME_LIMIT = 100, NAME_CONCURRENCY = 4
 const names = new WeakMap()
 function nameCache(env) {
@@ -40,27 +42,45 @@ function nameCache(env) {
   }
   return cache.entries
 }
-async function upstreamName(env, id) {
+// The TokensAPI user ({ name, organizationId }), null for "no such user", undefined when TokensAPI
+// could not answer.
+async function upstreamUser(env, id) {
   const cache = nameCache(env), hit = cache.get(id)
-  if (hit && hit.expires > Date.now()) return hit.name
+  if (hit && hit.expires > Date.now()) return hit.user
   let user
-  try { user = await tokensApiUser(env, id) } catch { return null }
+  try { user = await tokensApiUser(env, id) } catch { return undefined }
   if (cache.size >= 4096) cache.clear()
-  cache.set(id, { name: user?.name || null, expires: Date.now() + NAME_TTL })
-  return user?.name || null
+  const value = user ? { name: user.name || null, organizationId: user.organizationId } : null
+  cache.set(id, { user: value, expires: Date.now() + NAME_TTL })
+  return value
 }
 export async function userNames(env, ids) {
   if (!Array.isArray(ids) || !ids.length || ids.length > NAME_LIMIT || !ids.every(validOrganizationId))
     throw invalid(`ids 须为 1-${NAME_LIMIT} 个用户号，以逗号分隔`)
   const wanted = [...new Set(ids)]
   const { results } = await env.MARKET_DB.prepare(`SELECT id,name FROM market_users WHERE id IN (${wanted.map(() => '?').join(',')})`).bind(...wanted).all()
-  const items = results.map(row => ({ id: row.id, name: row.name, source: 'directory' }))
-  const known = new Set(items.map(item => item.id))
-  const rest = userSearchReady(env) ? wanted.filter(id => !known.has(id)) : []
-  for (let i = 0; i < rest.length; i += NAME_CONCURRENCY) {
-    const batch = rest.slice(i, i + NAME_CONCURRENCY)
-    const found = await Promise.all(batch.map(id => upstreamName(env, id)))
-    batch.forEach((id, j) => { if (found[j]) items.push({ id, name: found[j], source: 'tokensapi' }) })
+  const directory = new Map(results.map(row => [row.id, row.name]))
+  const upstream = new Map()
+  if (userSearchReady(env)) {
+    for (let i = 0; i < wanted.length; i += NAME_CONCURRENCY) {
+      const batch = wanted.slice(i, i + NAME_CONCURRENCY)
+      const found = await Promise.all(batch.map(id => upstreamUser(env, id)))
+      batch.forEach((id, j) => upstream.set(id, found[j]))
+    }
+  }
+  const orgIds = [...new Set([...upstream.values()].map(user => user?.organizationId).filter(Boolean))]
+  const { results: orgs } = orgIds.length
+    ? await env.MARKET_DB.prepare(`SELECT id,name FROM market_organizations WHERE id IN (${orgIds.map(() => '?').join(',')})`).bind(...orgIds).all()
+    : { results: [] }
+  const orgNames = new Map(orgs.map(row => [row.id, row.name]))
+  const items = []
+  for (const id of wanted) {
+    const user = upstream.get(id), name = directory.get(id) ?? user?.name
+    if (!name) continue
+    // `organization` is null for "belongs to none" and left out when TokensAPI could not say.
+    const organization = user === undefined || user === null ? undefined
+      : user.organizationId ? { id: user.organizationId, name: orgNames.get(user.organizationId) ?? null } : null
+    items.push({ id, name, source: directory.has(id) ? 'directory' : 'tokensapi', ...(organization === undefined ? {} : { organization }) })
   }
   return { items: items.sort((a, b) => a.id - b.id) }
 }

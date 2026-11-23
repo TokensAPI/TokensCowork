@@ -218,7 +218,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     const accountId = current.accountId
     const account = node('span', accountId ? `${accountId}（客户端上报，未核验）` : '—')
     if (accountId) accountName(accountId).then((name) => {
-      if (name) account.textContent = `${accountId} · ${name}（客户端上报，未核验；名称按此 ID 查得）`
+      if (name) account.textContent = `${accountId} · ${name}（客户端上报，未核验；名称和组织按此 ID 查得，组织为当前归属）`
     })
     fact('上报账号', account)
     const keys = node('div')
