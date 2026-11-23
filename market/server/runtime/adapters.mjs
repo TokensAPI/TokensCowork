@@ -10,6 +10,7 @@ import { open, readFile, readdir, rename, stat, unlink } from 'node:fs/promises'
 import { resolve, sep, extname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { Readable } from 'node:stream'
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 import { migrate } from '../database/migrate.mjs'
 
 const runStatement = Symbol('run local prepared statement')
@@ -52,9 +53,14 @@ export function createD1Database(path, migrationsDir) {
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8' }
-// The security block Pages applied from market/server/_headers to /admin/*.
+// The security block Pages applied from market/server/_headers to /admin/*. The console's own files
+// are revalidated on every load (no-cache + ETag, so an unchanged file costs a 304 and a release is
+// picked up at once); the third-party files under vendor/ keep their names across versions, so
+// they are cached for a day and then revalidated the same way.
+const ADMIN_CACHE = 'no-cache'
+const VENDOR_CACHE = 'public, max-age=86400'
 const adminHeaders = {
-  'cache-control': 'no-store',
+  'cache-control': ADMIN_CACHE,
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
@@ -194,22 +200,76 @@ export function createTarballCache(dir, { maxBytes = 2 * 1024 ** 3, maxEntryByte
 }
 
 /** ASSETS-compatible static file server rooted at the deployed market/server copy. */
+const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt'])
+
+/** The encoding to answer with, from Accept-Encoding: brotli, else gzip, else none (q=0 refuses one). */
+export function chooseEncoding(header) {
+  const accepted = new Map()
+  for (const part of String(header ?? '').toLowerCase().split(',')) {
+    const [name, ...params] = part.trim().split(';')
+    if (!name) continue
+    const q = params.map(param => /^\s*q=([0-9.]+)\s*$/u.exec(param)?.[1]).find(Boolean)
+    accepted.set(name, q === undefined ? 1 : Number(q))
+  }
+  const allows = name => (accepted.get(name) ?? (accepted.has('*') ? accepted.get('*') : 0)) > 0
+  return allows('br') ? 'br' : allows('gzip') ? 'gzip' : ''
+}
+/** Whether If-None-Match names this entity (weak comparison, as RFC 9110 asks for GET). */
+const matches = (header, etag) => {
+  const value = String(header ?? '').trim()
+  if (value === '*') return true
+  const bare = etag.replace(/^W\//u, '')
+  return value.split(',').some(tag => tag.trim().replace(/^W\//u, '') === bare)
+}
+
+/**
+ * Static files. Under /admin/ (the console, its scripts and the docs center page) each answer
+ * carries a validator and, for text, a compressed body: one file is read, hashed and compressed
+ * once per change (keyed on its size and modification time), so repeat visits cost a 304 and a
+ * first visit a fraction of the bytes. Everything else is served as before.
+ */
 export function createAssets(root) {
+  const cache = new Map()
+  async function entry(path) {
+    const info = await stat(path)
+    if (!info.isFile()) throw new Error('not a file')
+    const known = cache.get(path)
+    if (known && known.size === info.size && known.mtimeMs === info.mtimeMs) return known
+    const data = await readFile(path)
+    const fresh = { size: info.size, mtimeMs: info.mtimeMs, data,
+      etag: `W/"${createHash('sha256').update(data).digest('base64url').slice(0, 27)}"`, encoded: new Map() }
+    cache.set(path, fresh)
+    return fresh
+  }
+  const encode = (file, encoding) => {
+    if (!file.encoded.has(encoding)) file.encoded.set(encoding, encoding === 'br'
+      ? brotliCompressSync(file.data, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 9, [zlibConstants.BROTLI_PARAM_SIZE_HINT]: file.data.length } })
+      : gzipSync(file.data, { level: 9 }))
+    return file.encoded.get(encoding)
+  }
   return {
     fetch: async input => {
-      const url = new URL(input instanceof Request ? input.url : input)
+      const request = input instanceof Request ? input : null
+      const url = new URL(request ? request.url : input)
       const pathname = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname
       let decoded
       try { decoded = decodeURIComponent(pathname) } catch { return new Response('Invalid path', { status: 400 }) }
       const path = resolve(root, '.' + decoded)
       if (!path.startsWith(root + sep)) return new Response('Not found', { status: 404 })
-      try {
-        const data = await readFile(path)
-        return new Response(data, { headers: {
-          'content-type': MIME[extname(path)] ?? 'application/octet-stream',
-          ...(decoded.startsWith('/admin/') ? adminHeaders : {}),
-        } })
-      } catch { return new Response('Not found', { status: 404 }) }
+      let file
+      try { file = await entry(path) } catch { return new Response('Not found', { status: 404 }) }
+      const type = MIME[extname(path)] ?? 'application/octet-stream'
+      if (!decoded.startsWith('/admin/')) return new Response(file.data, { headers: { 'content-type': type } })
+      const compressible = COMPRESSIBLE.has(extname(path)) && file.data.length >= 256
+      const headers = {
+        'content-type': type, ...adminHeaders, etag: file.etag,
+        ...(decoded.startsWith('/admin/assets/vendor/') ? { 'cache-control': VENDOR_CACHE } : {}),
+        ...(compressible ? { vary: 'Accept-Encoding' } : {}),
+      }
+      if (matches(request?.headers.get('if-none-match'), file.etag)) return new Response(null, { status: 304, headers })
+      const encoding = compressible ? chooseEncoding(request?.headers.get('accept-encoding')) : ''
+      if (!encoding) return new Response(file.data, { headers })
+      return new Response(encode(file, encoding), { headers: { ...headers, 'content-encoding': encoding } })
     },
   }
 }

@@ -1,13 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createD1Database, createAssets, createTarballCache } from '../runtime/adapters.mjs'
+import { gunzipSync, brotliDecompressSync } from 'node:zlib'
+import { createD1Database, createAssets, createTarballCache, chooseEncoding } from '../runtime/adapters.mjs'
 
 const migrations = resolve(import.meta.dirname, '../database/migrations')
 
+function mkdirs(root, dir) { mkdirSync(join(root, dir), { recursive: true }) }
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'market-host-'))
   // node:test runs after-hooks in FIFO order, so close database handles in the
@@ -102,7 +104,7 @@ test('the assets adapter serves admin pages with the security headers and confin
   const page = await assets.fetch('https://market.example/admin/')
   assert.equal(page.status, 200)
   assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8')
-  assert.equal(page.headers.get('cache-control'), 'no-store')
+  assert.equal(page.headers.get('cache-control'), 'no-cache')
   const csp = page.headers.get('content-security-policy')
   assert.ok(csp.includes("default-src 'self'"))
   // The self-hosted server and the Pages _headers file must send the same policy. data: and blob:
@@ -116,4 +118,77 @@ test('the assets adapter serves admin pages with the security headers and confin
   assert.equal((await manifest.json()).manifestVersion, '1.0.0')
   assert.equal((await assets.fetch('https://market.example/%2e%2e/registry/config.yaml')).status, 404)
   assert.equal((await assets.fetch('https://market.example/package.json')).status, 200)
+})
+
+const ADMIN = 'https://market.example'
+const get = (assets, path, headers = {}) => assets.fetch(new Request(ADMIN + path, { headers }))
+// What each answer sends that the console's security depends on; caching must not change any of it.
+const security = response => ['x-frame-options', 'x-content-type-options', 'referrer-policy', 'content-security-policy'].map(name => response.headers.get(name))
+
+test('console files are compressed for browsers that accept it, and each says so', async () => {
+  const assets = createAssets(resolve(import.meta.dirname, '..'))
+  const original = readFileSync(resolve(import.meta.dirname, '../admin/assets/vendor/tabler/tabler.min.css'))
+  const plain = await get(assets, '/admin/assets/vendor/tabler/tabler.min.css')
+  assert.equal(plain.headers.get('content-encoding'), null)
+  assert.deepEqual(Buffer.from(await plain.arrayBuffer()), original)
+  const gzip = await get(assets, '/admin/assets/vendor/tabler/tabler.min.css', { 'accept-encoding': 'gzip, deflate' })
+  assert.equal(gzip.headers.get('content-encoding'), 'gzip')
+  assert.equal(gzip.headers.get('vary'), 'Accept-Encoding')
+  const gzipped = Buffer.from(await gzip.arrayBuffer())
+  assert.deepEqual(gunzipSync(gzipped), original)
+  assert.ok(gzipped.length < original.length / 4, `gzip ${gzipped.length} of ${original.length}`)
+  const br = await get(assets, '/admin/assets/market-admin.js', { 'accept-encoding': 'gzip, deflate, br, zstd' })
+  assert.equal(br.headers.get('content-encoding'), 'br')
+  assert.deepEqual(brotliDecompressSync(Buffer.from(await br.arrayBuffer())), readFileSync(resolve(import.meta.dirname, '../admin/assets/market-admin.js')))
+  // The page and the docs center page too; their security headers are untouched by compression.
+  const page = await get(assets, '/admin/index.html', { 'accept-encoding': 'gzip' })
+  assert.deepEqual([page.headers.get('content-encoding'), page.headers.get('content-type')], ['gzip', 'text/html; charset=utf-8'])
+  assert.deepEqual(security(page), security(await get(assets, '/admin/index.html')))
+  // Images and fonts are already compressed and are sent as they are.
+  const font = await get(assets, '/admin/assets/fonts/Quicksand-Variable.ttf', { 'accept-encoding': 'gzip' })
+  assert.deepEqual([font.headers.get('content-encoding'), font.headers.get('vary')], [null, null])
+  // Files outside the console keep their old answer.
+  const manifest = await get(assets, '/source.json', { 'accept-encoding': 'gzip' })
+  assert.deepEqual([manifest.headers.get('content-encoding'), manifest.headers.get('etag'), manifest.headers.get('cache-control')], [null, null, null])
+  assert.deepEqual([chooseEncoding(''), chooseEncoding('gzip;q=0, br;q=0'), chooseEncoding('gzip, br;q=0'), chooseEncoding('*'), chooseEncoding('identity')],
+    ['', '', 'gzip', 'br', ''])
+})
+
+test('the console revalidates its own files, keeps vendor files a day, and answers 304 when nothing changed', async t => {
+  const root = scratch(t)
+  mkdirs(root, 'admin/assets/vendor/lib')
+  writeFileSync(join(root, 'admin/index.html'), '<!doctype html><main>' + 'console '.repeat(100) + '</main>')
+  writeFileSync(join(root, 'admin/assets/app.js'), 'export const app = 1\n'.repeat(40))
+  writeFileSync(join(root, 'admin/assets/vendor/lib/lib.css'), 'body{color:red}\n'.repeat(40))
+  const assets = createAssets(root)
+  const own = await get(assets, '/admin/assets/app.js')
+  const vendor = await get(assets, '/admin/assets/vendor/lib/lib.css')
+  assert.equal(own.headers.get('cache-control'), 'no-cache')
+  assert.equal(vendor.headers.get('cache-control'), 'public, max-age=86400')
+  assert.match(own.headers.get('etag'), /^W\/"[A-Za-z0-9_-]{27}"$/u)
+  // The same file, compressed or not, has one validator; an unchanged file is a 304 with no body
+  // and the same caching and security headers.
+  const etag = own.headers.get('etag')
+  assert.equal((await get(assets, '/admin/assets/app.js', { 'accept-encoding': 'gzip' })).headers.get('etag'), etag)
+  for (const tag of [etag, etag.slice(2), `"other", ${etag}`, '*']) {
+    const again = await get(assets, '/admin/assets/app.js', { 'if-none-match': tag, 'accept-encoding': 'gzip' })
+    assert.equal(again.status, 304, tag)
+    assert.equal((await again.arrayBuffer()).byteLength, 0)
+    assert.deepEqual([again.headers.get('cache-control'), again.headers.get('etag')], ['no-cache', etag])
+    assert.deepEqual(security(again), security(own))
+  }
+  const vendor304 = await get(assets, '/admin/assets/vendor/lib/lib.css', { 'if-none-match': vendor.headers.get('etag') })
+  assert.deepEqual([vendor304.status, vendor304.headers.get('cache-control')], [304, 'public, max-age=86400'])
+  assert.equal((await get(assets, '/admin/assets/app.js', { 'if-none-match': 'W/"stale"' })).status, 200)
+  // A release changes the file: the old validator no longer matches and the new content is served.
+  writeFileSync(join(root, 'admin/assets/app.js'), 'export const app = 2\n'.repeat(40))
+  utimesSync(join(root, 'admin/assets/app.js'), new Date(), new Date(Date.now() + 5000))
+  const changed = await get(assets, '/admin/assets/app.js', { 'if-none-match': etag })
+  assert.equal(changed.status, 200)
+  assert.notEqual(changed.headers.get('etag'), etag)
+  assert.match(await changed.text(), /app = 2/u)
+  // The Pages _headers file says the same.
+  const rules = readFileSync(resolve(import.meta.dirname, '../_headers'), 'utf8')
+  assert.match(rules, /\/admin\/\*\s+Cache-Control: no-cache/u)
+  assert.match(rules, /\/admin\/assets\/vendor\/\*\s+Cache-Control: public, max-age=86400/u)
 })

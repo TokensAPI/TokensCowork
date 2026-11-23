@@ -1,0 +1,228 @@
+/**
+ * Screenshots of every console page, for looking at a layout before anyone else does.
+ *
+ * Starts the local QA server (ops/market-dev.mjs --offline: fictional fixtures, network blocked,
+ * memory only) on a free loopback port, adds one fictional documentation page with an image,
+ * then drives the Edge or Chrome already installed here, headless, over the DevTools protocol
+ * (Node's own WebSocket; no npm dependency). It signs in as the platform administrator and
+ * captures each page light, dark and narrow (400 px). Nothing outside this machine is contacted
+ * and nothing in the repository is written: the pictures go to a temporary folder, printed at
+ * the end. The browser and the server it started are stopped by their process ids.
+ *
+ * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only plugins,session-logs]
+ * Browser: MARKET_SCREENSHOT_BROWSER, else Edge, else Chrome at their usual Windows paths.
+ */
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { crc32, deflateSync } from 'node:zlib'
+import { randomBytes } from 'node:crypto'
+import { DEMO_PARENT } from './session-log-demo.mjs'
+
+const root = resolve(import.meta.dirname, '..')
+const argument = name => { const at = process.argv.indexOf(name); return at === -1 ? '' : process.argv[at + 1] ?? '' }
+const stamp = new Date().toISOString().replace(/[-:]/gu, '').replace(/\..*$/u, '').replace('T', '-')
+const out = resolve(argument('--out') || join(tmpdir(), `market-screenshots-${stamp}`))
+const only = new Set(argument('--only').split(',').filter(Boolean))
+const TOKEN = 'screenshots-' + randomBytes(12).toString('hex')
+const sleep = ms => new Promise(done => setTimeout(done, ms))
+
+const VARIANTS = [
+  { name: 'light', width: 1440, height: 900, scheme: 'light', mobile: false },
+  { name: 'dark', width: 1440, height: 900, scheme: 'dark', mobile: false },
+  { name: 'narrow', width: 400, height: 860, scheme: 'light', mobile: true },
+]
+// Each page, and what has to be on screen before it counts as drawn.
+const consoleReady = page => `!document.body.classList.contains('session-pending') && !document.getElementById('workspace').hidden
+  && !document.querySelector('[data-panel="${page}"]').hidden`
+function pages(origin, docs) {
+  return [
+    { name: 'plugins', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0` },
+    { name: 'organizations', url: `${origin}/admin/#organizations`, ready: consoleReady('organizations') },
+    { name: 'keys', url: `${origin}/admin/#keys`, ready: consoleReady('keys') },
+    { name: 'users', url: `${origin}/admin/#users`, ready: consoleReady('users') },
+    { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
+    { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
+    { name: 'session-log-detail', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
+      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0` },
+    { name: 'docs-center', url: `${origin}/docs?admin#/${encodeURIComponent(docs.pluginId)}/${docs.docId}`,
+      ready: `document.getElementById('docs-article')?.children.length > 0 && !document.querySelector('#docs-article img.md-image:not([src])')` },
+  ].filter(page => !only.size || only.has(page.name))
+}
+
+/* ── A tiny PNG, so the sample documentation page has a real image to show ── */
+function samplePng(width = 640, height = 220) {
+  const rows = []
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3)
+    for (let x = 0; x < width; x++) row.set([30 + (x * 160) / width, 110 + (y * 80) / height, 200 - (x * 90) / width].map(Math.round), 1 + x * 3)
+    rows.push(row)
+  }
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data])
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length)
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body))
+    return Buffer.concat([length, body, crc])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header.set([8, 2, 0, 0, 0], 8)
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(Buffer.concat(rows))), chunk('IEND', Buffer.alloc(0))])
+}
+
+/* ── The local QA server ─────────────────────────────── */
+async function startServer() {
+  const child = spawn(process.execPath, ['ops/market-dev.mjs', '--offline'], {
+    cwd: root, env: { ...process.env, MARKET_DEV_PORT: '0', MARKET_DEV_ADMIN_TOKEN: TOKEN, MARKET_DEV_DATA_DIR: '' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  })
+  let output = ''
+  const origin = await new Promise((done, fail) => {
+    const timer = setTimeout(() => fail(new Error('the local QA server did not start:\n' + output)), 30000)
+    const read = chunk => {
+      output += chunk
+      const found = /Local market QA ready: (http:\/\/127\.0\.0\.1:\d+)\/admin\//u.exec(output)
+      if (found) { clearTimeout(timer); done(found[1]) }
+    }
+    child.stdout.on('data', read)
+    child.stderr.on('data', read)
+    child.once('exit', code => { clearTimeout(timer); fail(new Error(`the local QA server exited (${code}):\n${output}`)) })
+  })
+  return { child, origin }
+}
+async function seedDocs(origin) {
+  const api = (path, init = {}) => fetch(origin + path, { ...init, headers: { Authorization: `Bearer ${TOKEN}`, ...init.headers } })
+  const { items } = await (await api('/api/v1/plugins?view=index')).json()
+  const plugin = items.find(item => item.category !== 'builtin' && item.state === 'published')
+  if (!plugin) throw new Error('no published fixture plugin to document')
+  const image = await (await api(`/api/v1/plugins/${plugin.id}/docs/images?name=sample.png`, { method: 'POST', body: samplePng(),
+    headers: { 'content-type': 'application/octet-stream' } })).json()
+  const body = ['# 快速开始（示例文档）', '', '这是截图脚本写进本地测试环境的虚构文档，用来看文档中心的版式。', '',
+    '## 安装', '', '1. 在插件市场找到插件。', '2. 点击「安装」，等待完成。', '', '> [!NOTE]', '> 安装后需要重启一次。', '',
+    `![示例截图](${image.url})`, '', '## 配置', '', '| 选项 | 说明 |', '| --- | --- |', '| 地址 | 服务地址 |', '| 密钥 | 你的 Key |', '',
+    '```bash', 'npm run dev', '```'].join('\n')
+  const doc = await (await api(`/api/v1/plugins/${plugin.id}/docs`, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: '快速开始', body }) })).json()
+  return { pluginId: plugin.id, docId: doc.id }
+}
+
+/* ── The browser, over the DevTools protocol ─────────── */
+function browserPath() {
+  const candidates = [process.env.MARKET_SCREENSHOT_BROWSER, 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe', 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].filter(Boolean)
+  const found = candidates.find(path => existsSync(path))
+  if (!found) throw new Error('no Edge or Chrome found; set MARKET_SCREENSHOT_BROWSER')
+  return found
+}
+async function startBrowser() {
+  const profile = mkdtempSync(join(tmpdir(), 'market-screenshots-profile-'))
+  const child = spawn(browserPath(), ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+    '--disable-background-networking', '--disable-sync', '--hide-scrollbars', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'],
+  { stdio: 'ignore' })
+  const portFile = join(profile, 'DevToolsActivePort')
+  for (let i = 0; i < 100 && !existsSync(portFile); i++) await sleep(100)
+  if (!existsSync(portFile)) throw Object.assign(new Error('the browser did not open its DevTools port'), { child, profile })
+  const [port, path] = readFileSync(portFile, 'utf8').trim().split(/\r?\n/u)
+  const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`)
+  await new Promise((done, fail) => { socket.onopen = done; socket.onerror = () => fail(new Error('DevTools connection failed')) })
+  let next = 0
+  const waiting = new Map(), listeners = []
+  socket.onmessage = ({ data }) => {
+    const message = JSON.parse(data)
+    if (message.id && waiting.has(message.id)) {
+      const { done, fail } = waiting.get(message.id)
+      waiting.delete(message.id)
+      message.error ? fail(new Error(`${message.error.message}`)) : done(message.result)
+    } else if (message.method) for (const listener of listeners) listener(message)
+  }
+  const send = (method, params = {}, sessionId) => new Promise((done, fail) => {
+    const id = ++next
+    waiting.set(id, { done, fail })
+    socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }))
+  })
+  return { child, profile, socket, send, on: listener => listeners.push(listener) }
+}
+
+async function openTab(browser) {
+  const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank' })
+  const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true })
+  const send = (method, params) => browser.send(method, params, sessionId)
+  await send('Page.enable')
+  await send('Runtime.enable')
+  const evaluate = async expression => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result?.value
+  async function visit(url, ready) {
+    await send('Page.navigate', { url: 'about:blank' })
+    await send('Page.navigate', { url })
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      try { if (await evaluate(`Boolean(document.readyState === 'complete' && (${ready}))`)) break } catch {}
+      await sleep(150)
+    }
+    // The names, organizations and images that arrive after the page has drawn.
+    await sleep(700)
+    return Date.now() < deadline
+  }
+  return { send, evaluate, visit }
+}
+
+// The whole page: the window is made as tall as the content (so fixed and full-height parts such
+// as the sidebar are laid out as they would be in a tall window), captured, and put back.
+async function capture(tab, file, variant) {
+  const metrics = { width: variant.width, deviceScaleFactor: 1, mobile: variant.mobile }
+  const { cssContentSize } = await tab.send('Page.getLayoutMetrics')
+  const height = Math.min(Math.max(variant.height, Math.ceil(cssContentSize.height)), 6000)
+  await tab.send('Emulation.setDeviceMetricsOverride', { ...metrics, height })
+  await sleep(250)
+  const { data } = await tab.send('Page.captureScreenshot', { format: 'png' })
+  await tab.send('Emulation.setDeviceMetricsOverride', { ...metrics, height: variant.height })
+  writeFileSync(file, Buffer.from(data, 'base64'))
+}
+
+async function stopBrowser(browser) {
+  if (!browser) return
+  try { await Promise.race([browser.send('Browser.close'), sleep(3000)]) } catch {}
+  for (let i = 0; i < 30 && browser.child.exitCode === null; i++) await sleep(100)
+  // Only the process this script started, by its id, with whatever it started under it.
+  if (browser.child.exitCode === null && process.platform === 'win32') spawnSync('taskkill', ['/PID', String(browser.child.pid), '/T', '/F'], { stdio: 'ignore' })
+  else if (browser.child.exitCode === null) browser.child.kill('SIGKILL')
+  for (let i = 0; i < 20; i++) { try { rmSync(browser.profile, { recursive: true, force: true }); break } catch { await sleep(250) } }
+}
+async function stopServer(server) {
+  if (!server || server.child.exitCode !== null) return
+  // A clean stop first, so the server removes its temporary folders; then by process id.
+  try { server.child.send('shutdown') } catch {}
+  for (let i = 0; i < 50 && server.child.exitCode === null; i++) await sleep(100)
+  if (server.child.exitCode === null) server.child.kill()
+  for (let i = 0; i < 30 && server.child.exitCode === null; i++) await sleep(100)
+  if (server.child.exitCode === null && process.platform === 'win32') spawnSync('taskkill', ['/PID', String(server.child.pid), '/T', '/F'], { stdio: 'ignore' })
+}
+
+let server, browser
+const shots = []
+try {
+  mkdirSync(out, { recursive: true })
+  server = await startServer()
+  const docs = await seedDocs(server.origin)
+  browser = await startBrowser()
+  const tab = await openTab(browser)
+  // Sign in once: the console session is a cookie this browser keeps for every page after.
+  await tab.visit(`${server.origin}/admin/`, `document.body && !document.body.classList.contains('session-pending')`)
+  const status = await tab.evaluate(`fetch('/api/v1/session', { method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ credential: ${JSON.stringify(TOKEN)} }) }).then(response => response.status)`)
+  if (status !== 200) throw new Error(`console sign-in failed (${status})`)
+  for (const variant of VARIANTS) {
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: variant.width, height: variant.height, deviceScaleFactor: 1, mobile: variant.mobile })
+    await tab.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: variant.scheme }] })
+    for (const page of pages(server.origin, docs)) {
+      const drawn = await tab.visit(page.url, page.ready)
+      const file = join(out, `${page.name}-${variant.name}.png`)
+      await capture(tab, file, variant)
+      shots.push({ file, drawn })
+      if (!drawn) process.stderr.write(`warning: ${page.name} (${variant.name}) did not finish drawing within 15 s; captured as it was\n`)
+    }
+  }
+} finally {
+  await stopBrowser(browser)
+  await stopServer(server)
+}
+process.stdout.write(`Screenshots (${shots.length}) in ${out}\n${shots.map(shot => '  ' + shot.file.slice(out.length + 1) + (shot.drawn ? '' : '  (not fully drawn)')).join('\n')}\n`)

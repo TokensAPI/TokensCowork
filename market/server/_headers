@@ -3,8 +3,10 @@
 /source.json
   Content-Type: application/json; charset=utf-8
 /admin/*
-  Cache-Control: no-store
+  Cache-Control: no-cache
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+/admin/assets/vendor/*
+  Cache-Control: public, max-age=86400

@@ -168,7 +168,11 @@ async function fixtureEnvironment() {
     env.ASSETS.fetch = async input => {
       const response = await assets(input)
       if (!(response.headers.get('content-type') || '').startsWith('text/html')) return response
-      return new Response((await response.text()).replace('<main>', '<main><p class="notice" role="status">生产数据快照 · 本地预览：保存仅影响本地内存，不会修改线上，重启后重置。</p>'), {status:response.status,headers:response.headers})
+      const plain = response.status === 200 && !response.headers.get('content-encoding') ? response
+        : await assets(new URL(input instanceof Request ? input.url : input).toString())
+      const headers = new Headers(plain.headers)
+      headers.delete('etag')
+      return new Response((await plain.text()).replace('<main>', '<main><p class="notice" role="status">生产数据快照 · 本地预览：保存仅影响本地内存，不会修改线上，重启后重置。</p>'), {status:plain.status,headers})
     }
   } else if (!persistent) {
     // Fixtures: three organizations, one restricted plugin granted to organization 101 and to
@@ -433,4 +437,7 @@ if (process.argv.includes('--smoke')) {
     console.log('All organizations, credentials and packages are TEST FIXTURES. Apart from that sign-in, external network is blocked; memory data resets on restart.')
   }
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { app.close().then(() => process.exit(0)) })
+  // A parent script (ops/market-screenshots.mjs) asks for the same clean stop over IPC, since Windows
+  // cannot deliver those signals to a child process.
+  process.on('message', message => { if (message === 'shutdown') app.close().then(() => process.exit(0)) })
 }
