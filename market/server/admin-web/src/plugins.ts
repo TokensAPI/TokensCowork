@@ -22,3 +22,9 @@ export const pluginName = (index: PluginIndexEntry[], id: string) => index.find(
  */
 export const grantable = (index: PluginIndexEntry[]) =>
   index.filter((plugin) => plugin.category !== 'builtin' && plugin.state !== 'deleted' && plugin.visibility !== 'public')
+
+/** A plugin's state as the console names and colours it (badge bg-<colour>-lt). */
+export const STATES: Record<string, [string, string]> = {
+  builtin: ['内置', 'azure'], draft: ['草稿', 'secondary'], published: ['已上架', 'green'], archived: ['已下架', 'yellow'], deleted: ['回收站', 'red'],
+}
+export const STATE_NAMES: Record<string, string> = Object.fromEntries(Object.entries(STATES).map(([state, [name]]) => [state, name]))

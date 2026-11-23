@@ -15,6 +15,8 @@ let router: Router | undefined
 function start(hash: string) {
   history.replaceState(null, '', `/admin/next/${hash}`)
   router = createConsoleRouter(legacyHashHistory())
+  // What installing it in the app does: the first navigation, to the address the page opened at.
+  void router.push(router.options.history.location)
   return router
 }
 async function signIn(session: object) {
@@ -57,8 +59,8 @@ describe('who sees which page', () => {
     await signIn(PLATFORM)
     expect(allowedViews.value).toEqual(['plugins', 'organizations', 'users', 'keys', 'docs', 'session-logs', 'activity'])
     await router.isReady()
-    expect(router.currentRoute.value.name).toBe('keys')
-    expect(location.hash).toBe('#keys')
+    expect(router.currentRoute.value.name).toBe('organizations')
+    expect(location.hash).toBe('#organizations')
   })
 
   it('an organization administrator sees only its own organization, even when asking for another page', async () => {
@@ -71,9 +73,7 @@ describe('who sees which page', () => {
     const sidebar = mount({ render: () => [h(AppSidebar), h(RouterView)] }, { global: { plugins: [router] } })
     await settle()
     // Its one page is still the old console's: the sidebar links there, the page says so.
-    expect(sidebar.findAll('#sidebar-menu .navbar-nav:first-child .nav-link').map((link) => [link.text(), link.attributes('href')])).toEqual([['我的组织', '/admin/#organizations']])
-    expect(sidebar.find('.empty-title').text()).toBe('「我的组织」页还在旧后台')
-    expect(sidebar.find('.empty-action a').attributes('href')).toBe('/admin/#organizations')
+    expect(sidebar.findAll('#sidebar-menu .navbar-nav:first-child .nav-link').map((link) => [link.text(), link.attributes('href')])).toEqual([['我的组织', '#organizations']])
     sidebar.unmount()
   })
 
@@ -86,12 +86,12 @@ describe('who sees which page', () => {
     const links = sidebar.findAll('#sidebar-menu .navbar-nav:first-child .nav-link').map((link) => [link.text(), link.attributes('href'), link.classes('active')])
     expect(links).toEqual([
       ['插件', '/admin/#plugins', false],
-      ['组织', '/admin/#organizations', false],
-      ['用户', '/admin/#users', false],
+      ['组织', '#organizations', false],
+      ['用户', '#users', false],
       ['Key', '#keys', true],
       ['插件文档', '/admin/#docs', false],
       ['会话日志', '#session-logs', false],
-      ['操作记录', '/admin/#activity', false],
+      ['操作记录', '#activity', false],
     ])
     sidebar.unmount()
   })

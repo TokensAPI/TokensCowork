@@ -5,12 +5,17 @@ import { VIEWS } from './views'
 import KeysPage from './pages/KeysPage.vue'
 import LegacyPage from './pages/LegacyPage.vue'
 import SessionLogsPage from './pages/SessionLogsPage.vue'
+import UsersPage from './pages/UsersPage.vue'
+import OrganizationsPage from './pages/OrganizationsPage.vue'
+import ActivityPage from './pages/ActivityPage.vue'
 
 /**
  * One route per page, at the old console's addresses (#keys). A page that has not moved here yet
  * is a short card pointing at /admin/#<page>; the sidebar links there directly.
  */
-const migrated: Record<string, unknown> = { keys: KeysPage, 'session-logs': SessionLogsPage }
+const migrated: Record<string, unknown> = {
+  keys: KeysPage, 'session-logs': SessionLogsPage, users: UsersPage, organizations: OrganizationsPage, activity: ActivityPage,
+}
 // A page's own route after its name: one session's detail is #session-logs/<session>/<format version>.
 // One record, so the list and an opened session are the same page and the list keeps its state.
 const paths: Record<string, string> = { 'session-logs': '/session-logs/:id?/:version?' }
@@ -25,7 +30,8 @@ export function createConsoleRouter(history: RouterHistory = legacyHashHistory()
   const router = createRouter({
     history,
     routes: [
-      { path: '/', redirect: () => homeFor(allowedViews.value) },
+      // Before anyone is signed in the address stays '/'; once signed in it is the account's home.
+      { path: '/', component: { render: () => null }, meta: { view: '' } },
       ...VIEWS.map((view) => ({
         path: paths[view.id] ?? `/${view.id}`,
         name: view.id,
@@ -47,11 +53,15 @@ export function createConsoleRouter(history: RouterHistory = legacyHashHistory()
   // the check waits for the session (onSessionChange re-runs it).
   router.beforeEach((to) => {
     if (!state.session) return true
+    if (to.path === '/') return homeFor(allowedViews.value)
     const view = String(to.meta.view || to.params.view || '')
     return allowedViews.value.includes(view) ? true : homeFor(allowedViews.value)
   })
-  onSessionChange((signedIn) => {
-    if (signedIn) void router.replace({ path: router.currentRoute.value.fullPath, force: true })
+  // After the first navigation (the address the page opened at), so that is the one re-checked.
+  onSessionChange(async (signedIn) => {
+    if (!signedIn) return
+    await router.isReady()
+    await router.replace({ path: router.currentRoute.value.fullPath, force: true })
   })
   return router
 }

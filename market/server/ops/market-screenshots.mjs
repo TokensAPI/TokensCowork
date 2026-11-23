@@ -47,12 +47,13 @@ const nextReady = title => `document.querySelector('main .page-title')?.textCont
 const openMenu = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="更多操作"]`)}).click()`
 // Clicks the visible button that reads `text` (the same words in both consoles).
 const clickText = text => `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && b.offsetParent).click()`
+const clickFirst = selector => `document.querySelector(${JSON.stringify(selector)}).click()`
 const nextDetailReady = `document.querySelectorAll('main .log-turn').length > 0`
 const openGrants = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="授权插件"]`)}).click()`
 function pages(origin, docs) {
   return [
     { name: 'plugins', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0` },
-    { name: 'organizations', url: `${origin}/admin/#organizations`, ready: consoleReady('organizations') },
+    { name: 'organizations', url: `${origin}/admin/#organizations`, ready: `${consoleReady('organizations')} && document.querySelectorAll('#organization-list tr').length > 0` },
     { name: 'keys', url: `${origin}/admin/#keys`, ready: keysReady },
     { name: 'keys-menu', url: `${origin}/admin/#keys`, ready: keysReady, action: openMenu('#key-list tr') },
     { name: 'keys-dialog', url: `${origin}/admin/#keys`, ready: keysReady, action: `document.getElementById('new-key').click()` },
@@ -63,7 +64,13 @@ function pages(origin, docs) {
     { name: 'next-keys-dialog', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: `document.querySelector('.page-header .btn-primary').click()` },
     { name: 'next-keys-grants', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: openGrants('main tbody tr') },
     { name: 'next-legacy', url: `${origin}/admin/next/#plugins`, ready: `document.querySelector('main .empty-title')?.textContent.includes('插件')` },
-    { name: 'users', url: `${origin}/admin/#users`, ready: consoleReady('users') },
+    { name: 'users', url: `${origin}/admin/#users`, ready: `${consoleReady('users')} && document.querySelectorAll('#user-list tr').length > 0` },
+    { name: 'next-users', url: `${origin}/admin/next/#users`, ready: nextReady('用户') },
+    { name: 'organizations-detail', url: `${origin}/admin/#organizations`, ready: `${consoleReady('organizations')} && document.querySelectorAll('#organization-list tr').length > 0`, action: clickFirst('#organization-list tr button[aria-label$="查看插件"]') },
+    { name: 'next-organizations', url: `${origin}/admin/next/#organizations`, ready: nextReady('组织') },
+    { name: 'next-organizations-detail', url: `${origin}/admin/next/#organizations`, ready: nextReady('组织'), action: clickFirst('main tbody tr button[aria-label$="查看插件"]') },
+    { name: 'activity', url: `${origin}/admin/#activity`, ready: `${consoleReady('activity')} && document.querySelectorAll('#activity-list tr').length > 0` },
+    { name: 'next-activity', url: `${origin}/admin/next/#activity`, ready: nextReady('操作记录') },
     { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
     { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
     { name: 'session-logs-menu', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0`, action: openMenu('#session-log-list tr') },
@@ -126,6 +133,10 @@ async function seedDocs(origin) {
   const { items } = await (await api('/api/v1/plugins?view=index')).json()
   const plugin = items.find(item => item.category !== 'builtin' && item.state === 'published')
   if (!plugin) throw new Error('no published fixture plugin to document')
+  // Two fictional users in the user directory (the fixture's TokensAPI knows them), so the users
+  // page has rows to draw.
+  for (const [id, name] of [[6001, '测试用户甲'], [6002, '测试用户乙']])
+    await api(`/api/v1/users/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })
   const image = await (await api(`/api/v1/plugins/${plugin.id}/docs/images?name=sample.png`, { method: 'POST', body: samplePng(),
     headers: { 'content-type': 'application/octet-stream' } })).json()
   const body = ['# 快速开始（示例文档）', '', '这是截图脚本写进本地测试环境的虚构文档，用来看文档中心的版式。', '',

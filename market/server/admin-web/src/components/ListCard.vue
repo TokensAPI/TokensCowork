@@ -13,6 +13,7 @@ const emit = defineEmits<{ retry: [] }>()
 
 <template>
   <div class="card">
+    <slot name="toolbar" />
     <div v-if="loading && ready" class="progress progress-sm rounded-0 list-loading" aria-hidden="true"><div class="progress-bar progress-bar-indeterminate"></div></div>
     <div v-show="count > 0" class="table-responsive" :aria-busy="loading || undefined">
       <table class="table card-table table-vcenter">
