@@ -11,6 +11,7 @@
     "noFallthroughCasesInSwitch": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "allowJs": true,
     "skipLibCheck": true,
     "noEmit": true,
     "jsx": "preserve"

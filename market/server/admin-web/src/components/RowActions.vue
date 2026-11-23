@@ -11,10 +11,17 @@ export interface RowAction {
   label: string
   run: () => void
   danger?: boolean
+  className?: string
 }
-const props = withDefaults(defineProps<{ name: string; primary?: RowAction | null; more?: (RowAction | 'divider')[]; disabled?: boolean }>(), {
-  primary: null, more: () => [], disabled: false,
-})
+/**
+ * `compact` draws the menu's toggle as a small 「⋯」 (the session-log rows and bulk bar);
+ * `busy` / `primaryBusy` spin that button while a change it started is saved, which also keeps a
+ * second click from sending it twice.
+ */
+const props = withDefaults(
+  defineProps<{ name: string; primary?: RowAction | null; more?: (RowAction | 'divider')[]; disabled?: boolean; compact?: boolean; busy?: boolean; primaryBusy?: boolean }>(),
+  { primary: null, more: () => [], disabled: false, compact: false, busy: false, primaryBusy: false },
+)
 
 const open = ref(false)
 const toggle = ref<HTMLButtonElement>()
@@ -73,18 +80,19 @@ onBeforeUnmount(close)
 
 <template>
   <div class="btn-list flex-nowrap justify-content-end">
-    <button v-if="primary" type="button" :class="['btn']" :disabled="disabled" :aria-label="`${name} ${primary.label}`" @click="pick(primary)">{{ primary.label }}</button>
+    <button v-if="primary" type="button" :class="[primary.className || 'btn', primaryBusy && 'btn-loading']" :disabled="disabled || primaryBusy" :aria-label="`${name} ${primary.label}`" @click="pick(primary)">{{ primary.label }}</button>
     <div v-if="more.length" class="dropdown">
       <button
         ref="toggle"
         type="button"
-        :class="['btn', 'dropdown-toggle', open && 'show']"
-        :disabled="disabled"
+        :class="[compact ? 'btn btn-ghost-secondary btn-sm px-2' : 'btn dropdown-toggle', open && 'show', busy && 'btn-loading']"
+        :disabled="disabled || busy"
+        :title="compact ? '更多操作' : undefined"
         :aria-expanded="open ? 'true' : 'false'"
         :aria-label="`${name} 更多操作`"
         @click="open ? close() : show()"
       >
-        更多
+        {{ compact ? '⋯' : '更多' }}
       </button>
       <div ref="menu" :class="['dropdown-menu', 'dropdown-menu-end', open && 'show']" :style="open ? place : undefined">
         <template v-for="(item, index) in more" :key="item === 'divider' ? `divider-${index}` : item.label">

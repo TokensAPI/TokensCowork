@@ -40,6 +40,8 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    // The pure modules shared with the docs center live beside the console, in ../admin/assets.
+    fs: { allow: ['..'] },
     proxy: { '/api': proxy, '/admin/assets': proxy },
   },
   test: {

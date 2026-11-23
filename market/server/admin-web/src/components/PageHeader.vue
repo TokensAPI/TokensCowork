@@ -11,6 +11,7 @@ defineProps<{ title: string; description: string }>()
           <div class="page-pretitle">插件市场</div>
           <div class="d-flex flex-wrap align-items-center gap-2">
             <h2 class="page-title">{{ title }}</h2>
+            <slot name="badge" />
           </div>
           <div class="text-secondary mt-1">{{ description }}</div>
         </div>

@@ -5,9 +5,10 @@ import { computed } from 'vue'
  * The pager every paged list shares, as at /admin/ (market-ui.js pager()): 「第 x-y 个 · 共 N 个」
  * on the left, then 「‹ 1 … 4 5 [6] 7 8 … 20 ›」 and the page size. Goes in a card's footer.
  */
-const props = withDefaults(defineProps<{ page: number; pageSize: number; total: number; unit?: string; label: string; sizes?: number[]; disabled?: boolean }>(), {
-  unit: '个', sizes: () => [10, 20, 50, 100], disabled: false,
-})
+const props = withDefaults(
+  defineProps<{ page: number; pageSize: number; total: number; unit?: string; sizeUnit?: string; sizeLabel?: string; label: string; sizes?: number[]; disabled?: boolean }>(),
+  { unit: '个', sizeUnit: '', sizeLabel: '', sizes: () => [10, 20, 50, 100], disabled: false },
+)
 const emit = defineEmits<{ go: [page: number]; size: [pageSize: number] }>()
 
 const pages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
@@ -51,9 +52,9 @@ const go = (page: number) => {
       </li>
     </ul>
     <label class="d-flex align-items-center gap-2 text-secondary text-nowrap">
-      每页<select class="form-select form-select-sm w-auto" :value="String(pageSize)" :disabled="disabled" :aria-label="`每页${unit}数`" @change="emit('size', Number(($event.target as HTMLSelectElement).value))">
+      每页<select class="form-select form-select-sm w-auto" :value="String(pageSize)" :disabled="disabled" :aria-label="sizeLabel || `每页${sizeUnit || unit}数`" @change="emit('size', Number(($event.target as HTMLSelectElement).value))">
         <option v-for="size in sizes" :key="size" :value="String(size)">{{ size }}</option>
-      </select>{{ unit }}
+      </select>{{ sizeUnit || unit }}
     </label>
   </div>
 </template>

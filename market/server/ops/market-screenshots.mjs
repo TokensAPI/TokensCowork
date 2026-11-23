@@ -45,6 +45,9 @@ const keysReady = `${consoleReady('keys')} && document.querySelectorAll('#key-li
 // The new console is drawn once its page title is the page's and its list has rows.
 const nextReady = title => `document.querySelector('main .page-title')?.textContent === ${JSON.stringify(title)} && document.querySelectorAll('main tbody tr').length > 0`
 const openMenu = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="更多操作"]`)}).click()`
+// Clicks the visible button that reads `text` (the same words in both consoles).
+const clickText = text => `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && b.offsetParent).click()`
+const nextDetailReady = `document.querySelectorAll('main .log-turn').length > 0`
 const openGrants = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="授权插件"]`)}).click()`
 function pages(origin, docs) {
   return [
@@ -63,8 +66,18 @@ function pages(origin, docs) {
     { name: 'users', url: `${origin}/admin/#users`, ready: consoleReady('users') },
     { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
     { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
+    { name: 'session-logs-menu', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0`, action: openMenu('#session-log-list tr') },
     { name: 'session-log-detail', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
       ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0` },
+    { name: 'session-log-detail-open', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
+      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0`, action: clickText('全部展开') },
+    { name: 'session-log-raw', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,
+      ready: `${consoleReady('session-logs')} && !document.getElementById('session-log-detail').hidden && document.getElementById('session-log-turns').children.length > 0`, action: clickText('原始 JSON') },
+    { name: 'next-session-logs', url: `${origin}/admin/next/#session-logs`, ready: nextReady('会话日志') },
+    { name: 'next-session-logs-menu', url: `${origin}/admin/next/#session-logs`, ready: nextReady('会话日志'), action: openMenu('main tbody tr') },
+    { name: 'next-session-log-detail', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady },
+    { name: 'next-session-log-detail-open', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('全部展开') },
+    { name: 'next-session-log-raw', url: `${origin}/admin/next/#session-logs/${DEMO_PARENT}/4`, ready: nextDetailReady, action: clickText('原始 JSON') },
     { name: 'docs-center', url: `${origin}/docs?admin#/${encodeURIComponent(docs.pluginId)}/${docs.docId}`,
       ready: `document.getElementById('docs-article')?.children.length > 0 && !document.querySelector('#docs-article img.md-image:not([src])')` },
   ].filter(page => !only.size || only.has(page.name))

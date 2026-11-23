@@ -6,7 +6,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * the focus trap and Esc. `open` drives it; every way of closing (Esc, the X, a form with
  * method="dialog") ends in `close`. While `locked` (a save in flight) Esc does nothing.
  */
-const props = withDefaults(defineProps<{ open: boolean; labelledby: string; describedby?: string; size?: '' | 'sm' | 'lg'; scrollable?: boolean; locked?: boolean }>(), {
+const props = withDefaults(defineProps<{ open: boolean; labelledby: string; describedby?: string; size?: '' | 'sm' | 'lg' | 'xl'; scrollable?: boolean; locked?: boolean }>(), {
   describedby: undefined, size: '', scrollable: false, locked: false,
 })
 const emit = defineEmits<{ close: [returnValue: string] }>()
@@ -24,8 +24,11 @@ watch(() => props.open, sync)
 onMounted(sync)
 onBeforeUnmount(() => dialog.value?.open && dialog.value.close())
 
+// Esc asks the page to close (it may keep the dialog open: a save in flight, or edits it asks about
+// first); the dialog itself closes only when `open` turns false.
 function onCancel(event: Event) {
-  if (props.locked) event.preventDefault()
+  event.preventDefault()
+  if (!props.locked) emit('close', '')
 }
 function onClose() {
   if (props.open) emit('close', dialog.value?.returnValue ?? '')
