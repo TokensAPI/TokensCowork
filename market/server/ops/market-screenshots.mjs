@@ -9,7 +9,12 @@
  * and nothing in the repository is written: the pictures go to a temporary folder, printed at
  * the end. The browser and the server it started are stopped by their process ids.
  *
- * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only plugins,session-logs]
+ * The new console (/admin/next/, built from admin-web/ into admin/next/) is captured beside the
+ * old one: `next-<page>` next to `<page>`, and `-menu` / `-dialog` with a row's 「更多」 menu or the
+ * page's add dialog open. The local server sends the console's real security headers, so every
+ * page is also checked for Content-Security-Policy violations; any one fails the run.
+ *
+ * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only keys,next-keys]
  * Browser: MARKET_SCREENSHOT_BROWSER, else Edge, else Chrome at their usual Windows paths.
  */
 import { spawn, spawnSync } from 'node:child_process'
@@ -36,11 +41,25 @@ const VARIANTS = [
 // Each page, and what has to be on screen before it counts as drawn.
 const consoleReady = page => `!document.body.classList.contains('session-pending') && !document.getElementById('workspace').hidden
   && !document.querySelector('[data-panel="${page}"]').hidden`
+const keysReady = `${consoleReady('keys')} && document.querySelectorAll('#key-list tr').length > 0`
+// The new console is drawn once its page title is the page's and its list has rows.
+const nextReady = title => `document.querySelector('main .page-title')?.textContent === ${JSON.stringify(title)} && document.querySelectorAll('main tbody tr').length > 0`
+const openMenu = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="更多操作"]`)}).click()`
+const openGrants = rows => `document.querySelector(${JSON.stringify(`${rows} button[aria-label$="授权插件"]`)}).click()`
 function pages(origin, docs) {
   return [
     { name: 'plugins', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0` },
     { name: 'organizations', url: `${origin}/admin/#organizations`, ready: consoleReady('organizations') },
-    { name: 'keys', url: `${origin}/admin/#keys`, ready: consoleReady('keys') },
+    { name: 'keys', url: `${origin}/admin/#keys`, ready: keysReady },
+    { name: 'keys-menu', url: `${origin}/admin/#keys`, ready: keysReady, action: openMenu('#key-list tr') },
+    { name: 'keys-dialog', url: `${origin}/admin/#keys`, ready: keysReady, action: `document.getElementById('new-key').click()` },
+    { name: 'keys-grants', url: `${origin}/admin/#keys`, ready: keysReady, action: openGrants('#key-list tr') },
+    // The new console's Key page, drawn the same way.
+    { name: 'next-keys', url: `${origin}/admin/next/#keys`, ready: nextReady('Key') },
+    { name: 'next-keys-menu', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: openMenu('main tbody tr') },
+    { name: 'next-keys-dialog', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: `document.querySelector('.page-header .btn-primary').click()` },
+    { name: 'next-keys-grants', url: `${origin}/admin/next/#keys`, ready: nextReady('Key'), action: openGrants('main tbody tr') },
+    { name: 'next-legacy', url: `${origin}/admin/next/#plugins`, ready: `document.querySelector('main .empty-title')?.textContent.includes('插件')` },
     { name: 'users', url: `${origin}/admin/#users`, ready: consoleReady('users') },
     { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
     { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
@@ -149,18 +168,34 @@ async function openTab(browser) {
   const send = (method, params) => browser.send(method, params, sessionId)
   await send('Page.enable')
   await send('Runtime.enable')
+  // Every page records what its Content-Security-Policy refused (DevTools' own script is exempt).
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__cspViolations = []
+    document.addEventListener('securitypolicyviolation', event => window.__cspViolations.push(
+      event.violatedDirective + ' ' + (event.blockedURI || 'inline') + (event.sourceFile ? ' at ' + event.sourceFile + ':' + event.lineNumber : '')), true)` })
+  const exceptions = []
+  browser.on(message => {
+    if (message.sessionId === sessionId && message.method === 'Runtime.exceptionThrown')
+      exceptions.push(message.params.exceptionDetails.exception?.description?.split('\n')[0] || message.params.exceptionDetails.text)
+  })
   const evaluate = async expression => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result?.value
-  async function visit(url, ready) {
+  async function visit(url, ready, action) {
     await send('Page.navigate', { url: 'about:blank' })
+    exceptions.length = 0
     await send('Page.navigate', { url })
     const deadline = Date.now() + 15000
+    let drawn = false
     while (Date.now() < deadline) {
-      try { if (await evaluate(`Boolean(document.readyState === 'complete' && (${ready}))`)) break } catch {}
+      try { if (await evaluate(`Boolean(document.readyState === 'complete' && (${ready}))`)) { drawn = true; break } } catch {}
       await sleep(150)
     }
     // The names, organizations and images that arrive after the page has drawn.
     await sleep(700)
-    return Date.now() < deadline
+    if (drawn && action) {
+      await evaluate(action)
+      await sleep(500)
+    }
+    const violations = (await evaluate('window.__cspViolations')) ?? []
+    return { drawn, problems: [...violations.map(text => 'CSP refused ' + text), ...exceptions.map(text => 'uncaught ' + text)] }
   }
   return { send, evaluate, visit }
 }
@@ -199,6 +234,9 @@ async function stopServer(server) {
 
 let server, browser
 const shots = []
+
+if ((!only.size || [...only].some(name => name.startsWith('next-'))) && !existsSync(join(root, 'admin/next/index.html')))
+  throw new Error('The new console is not built: run `npm --prefix admin-web ci --ignore-scripts && npm --prefix admin-web run build` in market/server first.')
 try {
   mkdirSync(out, { recursive: true })
   server = await startServer()
@@ -214,15 +252,20 @@ try {
     await tab.send('Emulation.setDeviceMetricsOverride', { width: variant.width, height: variant.height, deviceScaleFactor: 1, mobile: variant.mobile })
     await tab.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: variant.scheme }] })
     for (const page of pages(server.origin, docs)) {
-      const drawn = await tab.visit(page.url, page.ready)
+      const { drawn, problems } = await tab.visit(page.url, page.ready, page.action)
       const file = join(out, `${page.name}-${variant.name}.png`)
       await capture(tab, file, variant)
-      shots.push({ file, drawn })
+      shots.push({ file, drawn, problems })
       if (!drawn) process.stderr.write(`warning: ${page.name} (${variant.name}) did not finish drawing within 15 s; captured as it was\n`)
+      for (const problem of problems) process.stderr.write(`error: ${page.name} (${variant.name}): ${problem}\n`)
     }
   }
 } finally {
   await stopBrowser(browser)
   await stopServer(server)
 }
-process.stdout.write(`Screenshots (${shots.length}) in ${out}\n${shots.map(shot => '  ' + shot.file.slice(out.length + 1) + (shot.drawn ? '' : '  (not fully drawn)')).join('\n')}\n`)
+process.stdout.write(`Screenshots (${shots.length}) in ${out}\n${shots.map(shot => '  ' + shot.file.slice(out.length + 1)
+  + (shot.drawn ? '' : '  (not fully drawn)') + (shot.problems.length ? `  (${shot.problems.length} CSP/script errors)` : '')).join('\n')}\n`)
+const failed = shots.filter(shot => shot.problems.length).length
+process.stdout.write(failed ? `${failed} page(s) hit CSP violations or uncaught errors; see above.\n` : 'No CSP violations or uncaught errors on any page.\n')
+if (failed) process.exitCode = 1
