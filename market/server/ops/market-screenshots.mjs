@@ -81,6 +81,7 @@ function pages(origin, docs) {
     { name: 'activity', url: `${origin}/admin/#activity`, ready: `${consoleReady('activity')} && document.querySelectorAll('#activity-list tr').length > 0` },
     { name: 'next-activity', url: `${origin}/admin/next/#activity`, ready: nextReady('操作记录') },
     { name: 'docs', url: `${origin}/admin/#docs`, ready: `${consoleReady('docs')} && document.querySelectorAll('#docs-list tr').length > 0` },
+    { name: 'next-docs', url: `${origin}/admin/next/#docs`, ready: nextReady('插件文档') },
     { name: 'session-logs', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0` },
     { name: 'session-logs-menu', url: `${origin}/admin/#session-logs`, ready: `${consoleReady('session-logs')} && document.querySelectorAll('#session-log-list tr').length > 0`, action: openMenu('#session-log-list tr') },
     { name: 'session-log-detail', url: `${origin}/admin/#session-logs/${DEMO_PARENT}/4`,

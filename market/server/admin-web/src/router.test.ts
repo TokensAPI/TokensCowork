@@ -89,7 +89,7 @@ describe('who sees which page', () => {
       ['组织', '#organizations', false],
       ['用户', '#users', false],
       ['Key', '#keys', true],
-      ['插件文档', '/admin/#docs', false],
+      ['插件文档', '#docs', false],
       ['会话日志', '#session-logs', false],
       ['操作记录', '#activity', false],
     ])

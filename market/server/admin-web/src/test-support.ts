@@ -16,7 +16,7 @@ export function fakeMarket(route: Route) {
   const calls: { method: string; path: string; body: unknown }[] = []
   const fetch = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const path = String(input)
-    calls.push({ method: init.method ?? 'GET', path, body: init.body ? JSON.parse(String(init.body)) : undefined })
+    calls.push({ method: init.method ?? 'GET', path, body: typeof init.body === 'string' ? JSON.parse(init.body) : init.body ? '(binary)' : undefined })
     const reply = await route(path, init)
     return new Response(JSON.stringify(reply.body), { status: reply.status ?? 200, headers: { 'content-type': 'application/json', ...reply.headers } })
   })

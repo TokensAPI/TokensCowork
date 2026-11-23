@@ -9,13 +9,14 @@ import UsersPage from './pages/UsersPage.vue'
 import OrganizationsPage from './pages/OrganizationsPage.vue'
 import ActivityPage from './pages/ActivityPage.vue'
 import PluginsPage from './pages/PluginsPage.vue'
+import DocsPage from './pages/DocsPage.vue'
 
 /**
  * One route per page, at the old console's addresses (#keys). A page that has not moved here yet
  * is a short card pointing at /admin/#<page>; the sidebar links there directly.
  */
 const migrated: Record<string, unknown> = {
-  plugins: PluginsPage, keys: KeysPage, 'session-logs': SessionLogsPage, users: UsersPage, organizations: OrganizationsPage, activity: ActivityPage,
+  plugins: PluginsPage, keys: KeysPage, 'session-logs': SessionLogsPage, users: UsersPage, organizations: OrganizationsPage, activity: ActivityPage, docs: DocsPage,
 }
 // A page's own route after its name: one session's detail is #session-logs/<session>/<format version>.
 // One record, so the list and an opened session are the same page and the list keeps its state.
