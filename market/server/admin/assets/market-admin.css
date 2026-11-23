@@ -121,6 +121,14 @@ dialog.modal::backdrop {
   min-width: 12rem;
   max-width: 22rem;
 }
+/* While the list reloads only the table dims; the rest of the page stays usable. */
+.log-loading {
+  margin-bottom: -0.25rem;
+}
+.table-responsive[aria-busy="true"] {
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
 .log-annotation {
   min-width: 6rem;
   max-width: 12rem;

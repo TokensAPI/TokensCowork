@@ -4,6 +4,45 @@
  * pager every paged list shares. The dropdown is Bootstrap's, from tabler.min.js, driven by its
  * data attributes; it is positioned `fixed` so a scrolling table never clips the menu.
  */
+const CONTROLS = 'button,input,textarea,select'
+
+/**
+ * Disables only the given elements while one change is saved: a button (drawn as loading) or a
+ * whole dialog or form (every control in it). Returns release(), which puts each control back the
+ * way it was, or null when one of them is already locked -- the second click on a pending button
+ * does nothing. An empty list locks nothing, for reads that must not hold up the page.
+ */
+export function lockControls(roots) {
+  const list = [roots].flat().filter(Boolean)
+  if (list.some((root) => root.dataset?.pending)) return null
+  const controls = new Map()
+  for (const root of list) {
+    root.dataset.pending = 'true'
+    for (const el of root.matches?.(CONTROLS) ? [root] : [...(root.querySelectorAll?.(CONTROLS) ?? [])]) controls.set(el, el.disabled)
+    if (root.matches?.('button')) root.classList.add('btn-loading')
+    root.setAttribute?.('aria-busy', 'true')
+  }
+  controls.forEach((_, el) => { el.disabled = true })
+  return () => {
+    controls.forEach((disabled, el) => { el.disabled = disabled })
+    for (const root of list) {
+      delete root.dataset.pending
+      root.classList?.remove('btn-loading')
+      root.removeAttribute?.('aria-busy')
+    }
+  }
+}
+
+/**
+ * For reads that may be fired again before the last one answers (filters, pages, opening a
+ * session): each call of `next()` starts a new turn, and `current(turn)` says whether it is still
+ * the latest, so an answer that arrives late is dropped instead of replacing a newer one.
+ */
+export function latestOnly() {
+  let latest = 0
+  return { next: () => ++latest, current: (turn) => turn === latest }
+}
+
 export function consoleKit({ isBusy }) {
   const node = (tag, text = '', className = '') => {
     const el = document.createElement(tag)

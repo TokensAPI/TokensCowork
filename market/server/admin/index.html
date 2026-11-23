@@ -464,7 +464,8 @@
                       </div>
                       <span id="session-log-bulk-actions" class="d-flex flex-wrap align-items-center gap-2"></span>
                     </div>
-                    <div class="table-responsive">
+                    <div id="session-log-loading" class="progress progress-sm rounded-0 log-loading" hidden aria-hidden="true"><div class="progress-bar progress-bar-indeterminate"></div></div>
+                    <div id="session-log-table" class="table-responsive">
                       <table class="table card-table table-vcenter table-hover log-table">
                         <thead>
                           <tr>
@@ -499,15 +500,18 @@
                     </div>
                   </div>
                 </div>
-                <div id="session-log-detail" class="card" hidden>
+                <div id="session-log-detail" hidden>
+                  <div class="mb-2">
+                    <button id="session-log-back" type="button" class="btn btn-ghost-primary btn-sm px-2" title="返回列表（Esc），筛选和位置保持不变">← 会话日志</button>
+                  </div>
+                  <div class="card">
                   <div class="card-header flex-wrap gap-2">
                     <div class="min-w-0">
                       <h3 id="session-log-title" class="card-title">会话</h3>
                       <p id="session-log-meta" class="card-subtitle font-monospace text-break"></p>
                     </div>
                     <div class="card-actions btn-list">
-                      <button id="session-log-parent" type="button" class="btn" hidden>打开父会话</button
-                      ><button id="session-log-back" type="button" class="btn">返回列表</button>
+                      <button id="session-log-parent" type="button" class="btn" hidden>打开父会话</button>
                     </div>
                   </div>
                   <div id="session-log-overview" class="card-body border-bottom log-overview"></div>
@@ -545,6 +549,7 @@
                       <div id="session-log-raw-sentinel" aria-hidden="true"></div>
                       <button id="session-log-raw-more" type="button" class="btn" hidden>显示更多</button>
                     </div>
+                  </div>
                   </div>
                 </div>
               </section>

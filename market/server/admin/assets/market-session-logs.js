@@ -1,5 +1,6 @@
 import { sessionLogDetailView, downloadSessionLog } from './market-session-log-detail.js'
-import { TIME_PRESETS, classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName } from './market-session-log-format.js'
+import { TIME_PRESETS, classifySearch, sizeText, tokenText, relativeTime, shortKey, platformName, sessionRoute, parseSessionRoute } from './market-session-log-format.js'
+import { latestOnly } from './market-ui.js'
 
 /**
  * The session-log page: the index of sessions the desktop plugin uploaded, paged on the server.
@@ -11,9 +12,15 @@ import { TIME_PRESETS, classifySearch, sizeText, tokenText, relativeTime, shortK
  * here is user content (files, commands, secrets), so it is only ever placed with textContent, and
  * each opened session and each download is recorded by the server.
  *
- * The pager and the bulk buttons are rebuilt on every load rather than toggled: action() puts every
- * control it disabled back the way it found it, which used to undo the prev/next states a load had
- * just set (page 2 of 3 kept 「上一页」 disabled, and 「下一页」 ran past the last page).
+ * Nothing here locks the page. Reads (filters, pages, opening a session, copying) run through
+ * read(), which disables nothing; only the latest list or session asked for is shown, so a late
+ * answer never replaces a newer one, and while the list reloads only the table dims. A change
+ * (deleting, a note, the retention setting) locks just the button or dialog it came from. An opened
+ * session has its own address (#session-logs/<session>/<format version>): the browser's back
+ * button, 「← 会话日志」 and Esc return to the list as it was left -- filters, page and scroll.
+ *
+ * The pager and the bulk buttons are rebuilt on every load rather than toggled, so no disabled
+ * state left behind by an earlier operation survives a load.
  */
 export function sessionLogsView({ $, node, button, badge, rowActions, pager, json, action, feedback, formatTime, organizations }) {
   const DAY = 24 * 60 * 60 * 1000
@@ -22,7 +29,13 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     filters = {},
     total = 0,
     items = [],
-    retentionDays = null
+    retentionDays = null,
+    listLoaded = false,
+    // Where the list was scrolled when a session was opened from it.
+    returnTo = null
+  const listTurns = latestOnly(), detailTurns = latestOnly()
+  // A read: reports errors like any operation but disables nothing.
+  const read = (fn, options = {}) => action(fn, { ...options, lock: [] })
   // The ticked rows of the page on screen, by `${id}:${formatVersion}`. Cleared whenever the page
   // or the filters change, so a deletion only ever names rows the administrator can see.
   const selected = new Map()
@@ -119,7 +132,8 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       return option
     }))
   }
-  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack: back })
+  const detail = sessionLogDetailView({ $, node, button, json, action, formatTime },
+    { keyLines, clientText, accountUser, organizationText, onBack: leaveDetail, openSession: (id, formatVersion) => openSession(id, formatVersion, { push: true }) })
 
   // ── Confirmation ───────────────────────────────────────────────────────────
   // Every deletion asks here first: what goes, how many, and that it cannot be undone.
@@ -159,7 +173,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   function apply() {
     filters = readFilters()
     page = 1
-    action(loadList)
+    read(loadList)
   }
   function showMore(open) {
     $('session-log-more-filters').hidden = !open
@@ -197,10 +211,25 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   }
 
   // ── List ───────────────────────────────────────────────────────────────────
+  function listLoading(on) {
+    $('session-log-loading').hidden = !on
+    if (on) $('session-log-table').setAttribute('aria-busy', 'true')
+    else $('session-log-table').removeAttribute('aria-busy')
+  }
   async function loadList() {
+    const turn = listTurns.next()
     const query = new URLSearchParams({ ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
       page: String(page), pageSize: String(pageSize) })
-    const result = await json('/api/v1/session-logs?' + query)
+    listLoading(true)
+    let result
+    try {
+      result = await json('/api/v1/session-logs?' + query)
+    } finally {
+      if (listTurns.current(turn)) listLoading(false)
+    }
+    // A newer filter or page was asked for meanwhile; its answer is the one to show.
+    if (!listTurns.current(turn)) return
+    listLoaded = true
     total = result.total
     // Everything the filters match, not only this page.
     $('session-log-summary').textContent = `${filtering() ? '符合筛选的' : '共'} ${total} 个会话 · ${sizeText(result.storedBytes)}`
@@ -222,7 +251,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   }
   function goTo(target) {
     page = target
-    action(loadList)
+    read(loadList)
   }
   // The bulk area, rebuilt whenever the selection changes: 「已选 N 个 · 删除所选」 only while rows are
   // ticked, and the 「⋯」 menu with deletion by date always.
@@ -233,8 +262,12 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     all.indeterminate = selected.size > 0 && selected.size < boxes.length
     all.disabled = !boxes.length
     const parts = []
-    if (selected.size) parts.push(node('span', `已选 ${selected.size} 个`, 'text-secondary'), button('删除所选', removeSelected, 'btn btn-outline-danger btn-sm'))
-    parts.push(menu('会话日志', [{ label: '按日期删除…', danger: true, run: removeRange }]))
+    if (selected.size) {
+      const remove = button('删除所选', () => removeSelected(remove), 'btn btn-outline-danger btn-sm')
+      parts.push(node('span', `已选 ${selected.size} 个`, 'text-secondary'), remove)
+    }
+    const more = menu('会话日志', [{ label: '按日期删除…', danger: true, run: () => removeRange(more.querySelector('.dropdown-toggle')) }])
+    parts.push(more)
     $('session-log-bulk-actions').replaceChildren(...parts)
   }
   // The console's row menu, shown as 「⋯」.
@@ -248,7 +281,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   }
   function sessionCell(item) {
     const cell = node('td', '', 'log-session')
-    const title = button(titleOf(item), () => action(() => open(item.id, item.formatVersion)), 'btn btn-link p-0 text-reset fw-medium text-start text-break')
+    const title = button(titleOf(item), () => showSession(item), 'btn btn-link p-0 text-reset fw-medium text-start text-break')
     const meta = [item.client.version, platformName(item.client.platform)].filter(Boolean).join(' · ') || '—'
     cell.append(title, node('div', meta + (item.parentSession ? ' · 子代理会话' : ''), 'text-secondary small'))
     return cell
@@ -261,7 +294,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     else if (item.key) cell.append(node('code', shortKey(item.key)))
     else cell.append(node('code', `指纹 ${short(item.keyFingerprint, 8)}`, 'text-secondary'))
     cell.title = item.keyLabel && item.key ? shortKey(item.key) : ''
-    if (item.key) cell.append(button('复制', () => action(() => copy(item.key), { success: 'Key 已复制。' }), 'btn btn-link btn-sm p-0 ms-2'))
+    if (item.key) cell.append(button('复制', () => read(() => copy(item.key), { success: 'Key 已复制。' }), 'btn btn-link btn-sm p-0 ms-2'))
     return cell
   }
   function modelCell(item) {
@@ -312,32 +345,36 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     const when = node('td', relativeTime(item.lastReceivedAt), 'text-nowrap')
     when.title = `创建 ${time(item.createdAt ?? item.firstReceivedAt)} · 最近上传 ${time(item.lastReceivedAt)}`
     const actions = node('td')
-    actions.append(menu(titleOf(item), [
-      { label: '查看', run: () => action(() => open(item.id, item.formatVersion)) },
-      { label: '下载 JSON', run: () => action(() => downloadSessionLog(item.id, item.formatVersion, 'json'), { success: 'JSON 已下载，已写入操作记录。' }) },
+    // A change started from the menu locks the menu's own button while it runs.
+    const rowMenu = menu(titleOf(item), [
+      { label: '查看', run: () => showSession(item) },
+      { label: '下载 JSON', run: () => action(() => downloadSessionLog(item.id, item.formatVersion, 'json'), { success: 'JSON 已下载，已写入操作记录。', lock: rowMenu.querySelector('.dropdown-toggle') }) },
       { label: '编辑备注与标签', run: () => editNote(item) },
       'divider',
-      { label: '删除', danger: true, run: () => removeOne(item) },
-    ]))
+      { label: '删除', danger: true, run: () => removeOne(item, rowMenu.querySelector('.dropdown-toggle')) },
+    ])
+    actions.append(rowMenu)
     tr.append(check, sessionCell(item), accountCell(item.accountId), organizationCell(item.accountId), keyCell(item), modelCell(item),
       node('td', tokenText(item.tokens.total), 'text-end text-nowrap'), events, tagsCell(item), when, actions)
     // The whole row opens the session, except where a click means something of its own.
     tr.onclick = (event) => {
       if (event.target.closest('input, button, a, label, .dropdown-menu') || getSelection()?.toString()) return
-      action(() => open(item.id, item.formatVersion))
+      showSession(item)
     }
     return tr
   }
 
   // ── Deletion ───────────────────────────────────────────────────────────────
-  async function removeOne(item) {
+  // Each deletion locks only the control it was started from (`lock`), which also stops a second
+  // click from sending it twice.
+  async function removeOne(item, lock) {
     if (!(await confirmDelete(`删除这个会话的全部日志（${item.eventCount} 条事件）？`, [item]))) return
     action(async () => {
       await json(`/api/v1/session-logs/${encodeURIComponent(item.id)}/${item.formatVersion}`, undefined, 'DELETE')
       await loadList()
-    }, { success: '会话日志已删除。' })
+    }, { success: '会话日志已删除。', lock })
   }
-  async function removeSelected() {
+  async function removeSelected(lock) {
     const sessions = [...selected.values()]
     if (!sessions.length) return
     if (!(await confirmDelete(`删除勾选的 ${sessions.length} 个会话的全部日志？`, sessions))) return
@@ -345,24 +382,24 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       const result = await json('/api/v1/session-logs', { sessions: sessions.map(({ id, formatVersion }) => ({ id, formatVersion })) }, 'DELETE')
       await loadList()
       feedback(`已删除 ${result.count} 个会话${result.missing ? `（${result.missing} 个已不存在）` : ''}。`)
-    })
+    }, { lock })
   }
   // A date range deletes every account's sessions in it, so it needs both dates of a custom range
   // and is refused while any other filter is applied: what the list shows and what would be deleted
   // must be the same set.
-  async function removeRange() {
+  async function removeRange(lock) {
     const { from, to, ...others } = filters
     if (!from || !to || $('session-log-time').value !== 'custom')
-      return action(async () => { throw new Error('请先在「时间」选「自定义」，在「更多筛选」填好起止日期并应用筛选。') })
+      return read(async () => { throw new Error('请先在「时间」选「自定义」，在「更多筛选」填好起止日期并应用筛选。') })
     if (Object.values(others).some(Boolean))
-      return action(async () => { throw new Error('按日期删除会删掉该时段内所有账号的会话：请先清空其他筛选条件，或勾选后用「删除所选」。') })
+      return read(async () => { throw new Error('按日期删除会删掉该时段内所有账号的会话：请先清空其他筛选条件，或勾选后用「删除所选」。') })
     const span = `${new Date(Number(from)).toLocaleDateString('zh-CN')} 至 ${new Date(Number(to) - DAY).toLocaleDateString('zh-CN')}`
     if (!(await confirmDelete(`删除创建于 ${span} 的全部 ${total} 个会话日志？`, total <= items.length ? items : []))) return
     action(async () => {
       const result = await json('/api/v1/session-logs', { from: Number(from), to: Number(to) }, 'DELETE')
       await loadList()
       feedback(`已按日期删除 ${result.count} 个会话。`)
-    })
+    }, { lock })
   }
 
   // ── Note and tags ──────────────────────────────────────────────────────────
@@ -385,7 +422,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       await json(`/api/v1/session-logs/${encodeURIComponent(item.id)}/${item.formatVersion}`, { note: $('session-log-note-text').value, tags }, 'PATCH')
       $('session-log-note-dialog').close()
       await loadList()
-    }, { success: '备注已保存。', errorTarget: 'session-log-note-error' })
+    }, { success: '备注已保存。', errorTarget: 'session-log-note-error', lock: $('session-log-note-form') })
   }
 
   // ── Retention setting ──────────────────────────────────────────────────────
@@ -406,21 +443,51 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       retentionDays = saved.retentionDays ?? null
       showRetention()
       $('session-log-settings-dialog').close()
-    }, { success: value ? `保留期已设为 ${value} 天。` : '已改为永久保留。', errorTarget: 'session-log-settings-error' })
+    }, { success: value ? `保留期已设为 ${value} 天。` : '已改为永久保留。', errorTarget: 'session-log-settings-error', lock: $('session-log-settings') })
   }
 
   // ── Detail ─────────────────────────────────────────────────────────────────
-  async function open(id, formatVersion) {
-    await detail.open(id, formatVersion)
+  // Opening a session from the list remembers where the list was and gives the session its own
+  // history entry, so the browser's back button returns to the list. `depth` counts the sessions
+  // opened in a row (a parent, then a child), so 「← 会话日志」 goes back past all of them at once.
+  const showSession = (item) => read(() => openSession(item.id, item.formatVersion, { push: true }))
+  async function openSession(id, formatVersion, { push }) {
+    const turn = detailTurns.next()
+    const fromList = !$('session-log-browser').hidden
+    const scroll = { y: window.scrollY, x: $('session-log-table').scrollLeft }
+    if (!(await detail.open(id, formatVersion, () => detailTurns.current(turn)))) return
+    if (fromList) returnTo = scroll
+    const route = '#' + sessionRoute(id, formatVersion)
+    if (push && location.hash !== route) history.pushState({ sessionLogDepth: (history.state?.sessionLogDepth ?? 0) + 1 }, '', route)
     $('session-log-browser').hidden = true
     $('session-log-detail').hidden = false
     $('session-log-detail').scrollIntoView?.({ block: 'start' })
   }
+  // The list exactly as it was left; it is not asked for again.
   function back() {
+    detailTurns.next()
     detail.close()
     $('session-log-detail').hidden = true
     $('session-log-browser').hidden = false
+    if (returnTo) {
+      window.scrollTo(0, returnTo.y)
+      $('session-log-table').scrollLeft = returnTo.x
+    }
   }
+  // 「← 会话日志」 and Esc: through history when the sessions were opened here, so the back button
+  // stays in step; a session opened from a link has no list behind it, so the list is loaded.
+  function leaveDetail() {
+    const depth = history.state?.sessionLogDepth ?? 0
+    if (depth > 0) return history.go(-depth)
+    history.replaceState(null, '', '#session-logs')
+    back()
+    if (!listLoaded) read(refresh)
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || $('session-log-detail').hidden || $('session-logs-panel').hidden) return
+    if (document.querySelector('dialog[open], .dropdown-menu.show') || event.target.closest?.('input, textarea, select, [contenteditable="true"]')) return
+    leaveDetail()
+  })
 
   // ── Controls ───────────────────────────────────────────────────────────────
   // Text fields apply on Enter (the form's submit); pickers apply as soon as they change.
@@ -446,12 +513,12 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     $('session-log-filters').reset()
     filters = {}
     page = 1
-    action(loadList)
+    read(loadList)
   }
   $('session-log-page-size').onchange = () => {
     pageSize = Number($('session-log-page-size').value)
     page = 1
-    action(loadList)
+    read(loadList)
   }
   $('session-log-select-all').onchange = () => {
     const on = $('session-log-select-all').checked
@@ -461,19 +528,39 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
     renderSelection()
   }
 
+  // The organizations, the retention setting and the list, as the page is opened.
+  async function refresh() {
+    fillOrganizations()
+    const settings = await json('/api/v1/session-logs/settings')
+    retentionDays = settings.retentionDays ?? null
+    showRetention()
+    await loadList()
+  }
+
   return {
     // Loaded when the page is opened, not with the rest of the console: it is the one page that
-    // may be unconfigured, and it should not keep the others from loading.
+    // may be unconfigured, and it should not keep the others from loading. The address decides:
+    // a session's address opens it (a link works on its own); a malformed one falls back to the
+    // list; coming back from a session shows the list as it was left, without asking again.
     async show() {
-      if (detail.isOpen()) return
-      fillOrganizations()
-      const settings = await json('/api/v1/session-logs/settings')
-      retentionDays = settings.retentionDays ?? null
-      showRetention()
-      await loadList()
+      const target = parseSessionRoute(location.hash)
+      if (target) {
+        if (!detail.shows(target.id, target.formatVersion)) await openSession(target.id, target.formatVersion, { push: false })
+        return
+      }
+      if (location.hash.startsWith('#session-logs/')) history.replaceState(null, '', '#session-logs')
+      if (detail.isOpen() || !$('session-log-detail').hidden) {
+        back()
+        if (listLoaded) return
+      }
+      await refresh()
     },
     clear() {
       back()
+      returnTo = null
+      listLoaded = false
+      listTurns.next()
+      listLoading(false)
       filters = {}
       page = 1
       pageSize = 50

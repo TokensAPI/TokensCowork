@@ -29,7 +29,7 @@ export async function downloadSessionLog(id, formatVersion, format) {
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
 
-export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack }) {
+export function sessionLogDetailView({ $, node, button, json, action, formatTime }, { keyLines, clientText, accountUser, organizationText, onBack, openSession }) {
   const PAGE = 1000
   const RAW_CHUNK = 256 * 1024
   const DIALOG_LIMIT = 2 * 1024 * 1024
@@ -135,7 +135,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
       case 'note': {
         const line = node('div', '', 'log-note' + (item.tone ? ' ' + item.tone : ''))
         line.append(node('span', item.text, 'log-note-text'), node('time', time(item.events[0]?.time), 'text-secondary log-time'))
-        if (item.childId) line.append(button('打开子会话', () => action(() => openBySession(item.childId, '子会话的日志不在这里（可能未上传或已删除）。')), 'btn btn-sm log-toggle'))
+        if (item.childId) line.append(button('打开子会话', () => action(() => openBySession(item.childId, '子会话的日志不在这里（可能未上传或已删除）。'), { lock: [] }), 'btn btn-sm log-toggle'))
         line.append(jsonButton(item))
         if (!item.detail) return line
         const box = node('div', '', 'log-note-box')
@@ -312,7 +312,7 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     const full = text
     if (text.length > DIALOG_LIMIT) text = text.slice(0, DIALOG_LIMIT) + `\n…（共 ${size(full.length)}，只显示前 ${size(DIALOG_LIMIT)}；完整内容请用「复制」或下载）`
     $('session-log-json-text').textContent = text
-    $('session-log-json-copy').onclick = () => action(() => copy(full), { success: '已复制。' })
+    $('session-log-json-copy').onclick = () => action(() => copy(full), { success: '已复制。', lock: [] })
     $('session-log-json-dialog').showModal()
   }
 
@@ -343,8 +343,11 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     } while (after !== null)
     return { ...first, events: loaded }
   }
-  async function open(id, formatVersion) {
+  // `isCurrent` says whether this is still the session asked for last; a later click wins and an
+  // earlier answer that arrives after it is dropped.
+  async function open(id, formatVersion, isCurrent = () => true) {
     const result = await loadAll(id, formatVersion)
+    if (!isCurrent()) return false
     current = { ...result.session, keys: result.keys }
     header = result.header ?? null
     events = result.events
@@ -357,12 +360,13 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
     $('session-log-parent').hidden = !current.parentSession
     renderConversation()
     selectTab('conversation')
+    return true
   }
+  // A parent or child session opens like any other: through its own address, so 「返回」 comes back.
   async function openBySession(sessionId, missing) {
     const found = await json('/api/v1/session-logs?' + new URLSearchParams({ session: sessionId }))
     if (!found.items.length) throw new Error(missing)
-    await open(found.items[0].id, found.items[0].formatVersion)
-    $('session-log-detail').scrollIntoView?.({ block: 'start' })
+    await openSession(found.items[0].id, found.items[0].formatVersion)
   }
   function close() {
     observer?.disconnect()
@@ -382,12 +386,13 @@ export function sessionLogDetailView({ $, node, button, json, action, formatTime
   $('session-log-expand-all').onclick = () => setAllFolds(true)
   $('session-log-collapse-all').onclick = () => setAllFolds(false)
   $('session-log-raw-more').onclick = showMoreRaw
-  $('session-log-download-json').onclick = () => action(() => download('json'), { success: 'JSON 已下载，已写入操作记录。' })
-  $('session-log-download-jsonl').onclick = () => action(() => download('jsonl'), { success: 'JSONL 已下载，已写入操作记录。' })
-  $('session-log-copy').onclick = () => action(() => copy(rawText()), { success: '整个会话的 JSON 已复制。' })
+  // Reads lock nothing but their own button, so a second click cannot start a second download.
+  $('session-log-download-json').onclick = () => action(() => download('json'), { success: 'JSON 已下载，已写入操作记录。', lock: $('session-log-download-json') })
+  $('session-log-download-jsonl').onclick = () => action(() => download('jsonl'), { success: 'JSONL 已下载，已写入操作记录。', lock: $('session-log-download-jsonl') })
+  $('session-log-copy').onclick = () => action(() => copy(rawText()), { success: '整个会话的 JSON 已复制。', lock: [] })
   $('session-log-json-close').onclick = () => $('session-log-json-dialog').close()
   $('session-log-back').onclick = onBack
-  $('session-log-parent').onclick = () => action(() => openBySession(current.parentSession, '父会话的日志不在这里（可能未上传或已删除）。'))
+  $('session-log-parent').onclick = () => action(() => openBySession(current.parentSession, '父会话的日志不在这里（可能未上传或已删除）。'), { lock: $('session-log-parent') })
 
-  return { open, close, isOpen: () => current !== null }
+  return { open, close, isOpen: () => current !== null, shows: (id, formatVersion) => current?.id === id && current?.formatVersion === formatVersion }
 }

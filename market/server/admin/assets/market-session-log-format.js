@@ -4,6 +4,24 @@
  */
 const DAY = 24 * 60 * 60 * 1000
 
+const SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/u
+
+/** The address of one session's detail page: `session-logs/<session id>/<format version>`. */
+export function sessionRoute(id, formatVersion) {
+  return `session-logs/${encodeURIComponent(id)}/${formatVersion}`
+}
+/**
+ * The session a hash points at, or null for the list -- including any hash that is not a
+ * well-formed detail address, which falls back to the list rather than failing.
+ */
+export function parseSessionRoute(hash) {
+  const [page, id, version, ...rest] = String(hash ?? '').replace(/^#/u, '').split('/')
+  if (page !== 'session-logs' || id === undefined || rest.length || !/^[0-9]{1,6}$/u.test(version ?? '')) return null
+  let decoded
+  try { decoded = decodeURIComponent(id) } catch { return null }
+  return SESSION_ID.test(decoded) ? { id: decoded, formatVersion: Number(version) } : null
+}
+
 /** The time presets of the filter bar, as how far back from now they reach. */
 export const TIME_PRESETS = { '24h': DAY, '7d': 7 * DAY, '30d': 30 * DAY }
 

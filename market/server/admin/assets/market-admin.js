@@ -1,4 +1,4 @@
-import { consoleKit } from './market-ui.js'
+import { consoleKit, lockControls } from './market-ui.js'
 import { catalogEditor } from './market-catalog-editor.js'
 import { pluginsView, STATE_NAMES } from './market-plugins.js'
 import { organizationsView } from './market-organizations.js'
@@ -65,7 +65,12 @@ async function json(path, data, method) {
     throw error
   }
 }
-async function action(fn, { errorTarget, success, silent401 = false } = {}) {
+// Runs one console operation and reports its outcome. By default the whole page is locked until it
+// finishes, as every page has always done. With `lock` only those elements are (see lockControls;
+// [] locks nothing), and other operations stay possible meanwhile: the session-log page uses it so
+// reading never freezes the page and a save holds only its own button or dialog.
+async function action(fn, { errorTarget, success, silent401 = false, lock } = {}) {
+  if (lock !== undefined) return lockedAction(fn, { errorTarget, success, silent401, lock })
   if (busy) return
   busy = true
   const controls = new Map([...document.querySelectorAll('button,input,textarea,select')].map((el) => [el, el.disabled]))
@@ -91,6 +96,23 @@ async function action(fn, { errorTarget, success, silent401 = false } = {}) {
     document.body.removeAttribute('aria-busy')
   }
 }
+async function lockedAction(fn, { errorTarget, success, silent401, lock }) {
+  const release = lockControls(lock)
+  if (!release) return
+  if (errorTarget) $(errorTarget).textContent = ''
+  feedback()
+  try {
+    await fn()
+    if (success) feedback(success)
+  } catch (error) {
+    if (!(silent401 && error.status === 401)) {
+      feedback(error.message + (error.retryAfter ? `（约 ${error.retryAfter} 秒后可重试）` : ''), 'error')
+      if (errorTarget && session) $(errorTarget).textContent = error.message
+    }
+  } finally {
+    release()
+  }
+}
 async function reload(message) {
   try {
     await load()
@@ -109,9 +131,12 @@ const icons = iconDialog({ $, json, action, isBusy: () => busy, confirmAction: k
 const docs = docsAdminView({ ...shared, plugins: () => plugins, icons })
 const pluginPage = pluginsView({ ...shared, isSignedIn: () => !!session, organizations, keys, users, editor: () => editor, icons })
 
+// `view` is the hash without '#'. A page may carry a route after a slash (the session-log detail,
+// `session-logs/<session>/<format version>`); the page itself reads it from location.hash.
 function navigate(view) {
   const open = allowedViews()
-  currentView = open.includes(view) ? view : open[0]
+  const page = String(view ?? '').split('/')[0]
+  currentView = open.includes(page) ? page : open[0]
   for (const panel of document.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== currentView
   // An organization administrator sees its own organization only: no directory actions.
   for (const group of document.querySelectorAll('[data-actions]')) group.hidden = group.dataset.actions !== currentView || !platform()
