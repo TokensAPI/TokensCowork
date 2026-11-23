@@ -7,7 +7,7 @@ import { registryRoute } from './private-registry/routes.js'
 import { selectCatalogSources } from './services/catalog-source-service.js'
 import { localizeCatalog } from './services/catalog-locale-service.js'
 import { sessionLogUpload } from './services/session-logs.js'
-import { createDocsCode, readerPluginDocs, readerPlugins, redeemDocsCode } from './services/docs.js'
+import { createDocsCode, readerDocImage, readerPluginDocs, readerPlugins, redeemDocsCode } from './services/docs.js'
 import { body } from './http/request.js'
 import { iconPath, iconVersions, servePluginIcon } from './services/icons.js'
 
@@ -17,6 +17,7 @@ const readerHeaders = { 'cache-control': 'no-store', vary: 'Authorization, Cooki
 
 /**
  * GET /v1/docs: the plugins this reader may see; GET /v1/docs/{pluginId}: that plugin's pages;
+ * GET /v1/docs/{pluginId}/images/{imageId}: one image of those pages, under the same check;
  * POST /v1/docs/codes and /v1/docs/codes/redeem: the one-time sign-in code TokensCowork opens with.
  */
 async function docsRoute(request, env, url) {
@@ -24,8 +25,10 @@ async function docsRoute(request, env, url) {
   const codeRoute = ['/v1/docs/codes', '/v1/docs/codes/redeem'].includes(url.pathname)
   if (request.method !== (codeRoute ? 'POST' : 'GET')) return reply({ error: 'method not allowed' }, 405, readerHeaders)
   const segments = url.pathname.split('/').filter(Boolean).slice(2)
-  if (!codeRoute && segments.length > 1) return reply({ error: 'not found' }, 404, readerHeaders)
+  const imageRoute = segments.length === 3 && segments[1] === 'images'
+  if (!codeRoute && segments.length > 1 && !imageRoute) return reply({ error: 'not found' }, 404, readerHeaders)
   try {
+    if (imageRoute) return await readerDocImage(request, env, decodeURIComponent(segments[0]), segments[2])
     if (url.pathname === '/v1/docs/codes') return reply(await createDocsCode(request, env), 200, readerHeaders)
     if (codeRoute) {
       let data

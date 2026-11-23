@@ -389,9 +389,12 @@
                         <button id="docs-icon-edit" class="btn" type="button">编辑图标</button>
                       </div>
                     </div>
-                    <input id="docs-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+                    <input id="docs-file" type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" hidden />
                     <p class="form-hint mb-0 mt-2">
                       插件图标会显示在 TokensCowork 插件市场的卡片和文档中心里。文档上传在别处写好的 Markdown 文件（.md），每个插件可以有多篇；标题取文件里第一个一级标题，没有就用文件名。用户在文档中心（/docs）用自己的 TokensAPI Key 登录，只看到有权限的插件；「打开文档中心」以管理员身份查看全部插件。
+                    </p>
+                    <p class="form-hint mb-0 mt-1">
+                      带图片的文档：选文件时把 .md 和它引用的图片（PNG、JPEG、WebP，单张不超过 1000 KB）一起选上，正文里的相对路径（如 <code>images/step-1.png</code>）会按文件名换成上传后的地址。图片和文档一样只给有权限的人看。
                     </p>
                   </div>
                   <div class="table-responsive">

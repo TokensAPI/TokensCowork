@@ -58,7 +58,7 @@ const adminHeaders = {
   'x-frame-options': 'DENY',
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'no-referrer',
-  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 }
 
 /** 缓存文件名：路由传来的键已校验过包名与版本，这里再按白名单复核一次。 */

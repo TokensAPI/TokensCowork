@@ -72,6 +72,8 @@
 | PUT / DELETE | `/plugins/:id/icon` | ✗ |
 | GET / POST | `/plugins/:id/docs` | ✗ |
 | PUT / DELETE | `/plugins/:id/docs/:docId` | ✗ |
+| GET / POST | `/plugins/:id/docs/images` | ✗ |
+| DELETE | `/plugins/:id/docs/images/:imageId` | ✗ |
 | GET | `/organizations` | ✗ |
 | POST | `/organizations/sync` | ✗ |
 | GET | `/organizations/:orgId` | ✓（限本组织） |
@@ -239,16 +241,23 @@ PUT /api/v1/users/102/grants
 - `PUT /plugins/:id/docs/:docId` 同样的字段，整篇替换；`DELETE` 删除。文档只能通过它所属的插件访问，换个插件号访问同一篇返回 `404`。
 - 删除插件（`purge`）时它的文档一并删除。每次新增、修改、删除写一条操作记录（`plugin.doc.saved` / `plugin.doc.deleted`，目标是 `插件号:文档号`）。
 
+**文档图片**（平台管理员上传，读者按文档同样的权限读取，**不是公开地址**）：
+
+- `POST /plugins/:id/docs/images?name=<文件名>`，请求体就是图片文件本身（不是 JSON、不是 base64）。只收 PNG、JPEG、WebP，按文件头判断，不看文件名和 Content-Type，伪装的文件 `400`；单张不超过 1000 KB（市场的前端代理和 Node 服务都把请求体限制在 1 MiB，原样上传正好放得下，文档截图通常 150-450 KB），超过 `400`；每个插件最多 200 张，超过 `409`。→ `{ id, name, contentType, bytes, url, createdAt, existing }`，`url` 即正文里该写的地址 `/v1/docs/:pluginId/images/:imageId`（`imageId` 为 32 位随机十六进制）。同一插件再次上传相同内容（按 SHA-256）返回已有的那张，`existing: true`。
+- `GET /plugins/:id/docs/images` → `{ items: [...] }`（不含图片内容，新的在前）；`DELETE /plugins/:id/docs/images/:imageId` 删除，仍引用它的文档只显示图片说明文字。
+- 图片存在市场数据库（`market_plugin_doc_images`，与插件图标同样以 BLOB 存放），删除插件时一并删除。上传、删除写操作记录（`plugin.doc.image.uploaded` / `plugin.doc.image.deleted`，目标是 `插件号:图片号`）。
+
 **读者接口**（不在 `/api/v1` 下，用读者自己的 TokensAPI Key 作 Bearer，与桌面端读插件目录用的是同一个 Key）：
 
 - `GET /v1/docs?locale=` → `{ items: [{ id, displayName, summary, docs: [{ id, title }] }] }`：这个 Key 能看到的全部插件及各自的文档标题（没有文档的插件 `docs` 为空）。
 - `GET /v1/docs/:pluginId` → `{ pluginId, items: [{ id, title, body, position, updatedAt }] }`：一个插件的全部文档正文。
+- `GET /v1/docs/:pluginId/images/:imageId` → 图片本身：与 `/v1/docs/:pluginId` 同样的读者校验和插件权限（平台管理员的后台登录也可读），看不到的插件、别的插件的图片、不存在的图片都是 `404`。响应带真实的 `Content-Type`、`X-Content-Type-Options: nosniff`、`Content-Security-Policy: default-src 'none'; sandbox`、`Cross-Origin-Resource-Policy: same-origin`；图片按编号内容不变，`Cache-Control: private, max-age=31536000, immutable`、`Vary: Authorization, Cookie`，只进读者自己的浏览器缓存，不进公共缓存。
 - 能看到哪些插件与插件目录完全一致（同一个访问判定，见上文「访问判定」）；看不到的插件和不存在的插件一样返回 `404`。
 - 没带 Key 或 Key 不认识返回 `401`：Key 必须在市场登记过，或能在 TokensAPI 解析出组织或用户。TokensAPI 暂时连不上返回 `503`。响应 `Cache-Control: no-store`。
-- 网页入口：`/docs`，用 Key 登录（只存在当前浏览器标签页），左侧列出能看到的插件，右侧渲染 Markdown。
+- 网页入口：`/docs`，用 Key 登录（只存在当前浏览器标签页），左侧列出能看到的插件，右侧渲染 Markdown。正文里 `![说明](/v1/docs/<本插件>/images/<图片号>)` 显示为图片：页面用读者的 Key 取图、以 blob 地址显示（后台 CSP 的 `img-src` 因此放行 `blob:`），宽度不超过正文，点击在页面内看原图，取不到时显示说明文字和「图片加载失败」。其他地址的图片（外链、别的插件、相对路径）仍按原样显示成链接或文字；会话日志的 Markdown 渲染不变。
 - **一次性登录码**（TokensCowork 从插件市场跳转文档时用，Key 不进网址）：`POST /v1/docs/codes`（Bearer 读者 Key）→ `{ code, expiresIn: 60 }`；`POST /v1/docs/codes/redeem { code }` → `{ key }`，只能换一次，过期、用过或不存在都返回 `404`。登录码只保存在市场服务进程的内存里，重启即作废。桌面端打开 `/docs?code=…#/<插件ID>`，页面换回 Key 后立刻把登录码从地址栏去掉。
 - 管理员入口：后台「插件文档」页的「打开文档中心」打开 `/docs?admin`，用平台管理员的后台登录读取，显示全部已上架插件；组织管理员的会话不放行，带 Key 时仍按 Key 判定。
-- 后台入口：左侧导航「插件文档」，选插件后上传在别处写好的 `.md` 文件，可替换、删除；标题取文件里第一个一级标题，没有就用文件名。
+- 后台入口：左侧导航「插件文档」，选插件后上传在别处写好的 `.md` 文件，可替换、删除；标题取文件里第一个一级标题，没有就用文件名。选文件时可以把 `.md` 和它引用的图片一起选上：正文里的相对路径（如 `images/step-1.png`）按文件名（不分大小写）换成上传后的地址；正文引用了但没选的图片会在上传前列出来确认。
 
 ### 组织
 

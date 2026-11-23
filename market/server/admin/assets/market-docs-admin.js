@@ -4,6 +4,39 @@
  * uploaded as files. Readers see them at /docs, limited to the plugins they may use.
  */
 const MAX_LENGTH = 200_000
+/** Largest image the market accepts (services/doc-images.js MAX_DOC_IMAGE_BYTES). */
+const MAX_IMAGE_BYTES = 1000 * 1024
+const IMAGE_FILE = /\.(png|jpe?g|webp)$/iu
+// `![alt](target "title")`: the target as written, angle brackets included, and what follows it.
+const IMAGE = /!\[([^\]\n]*)\]\(\s*(<[^>\n]+>|[^\s)]+)((?:\s+"[^"\n]*")?\s*)\)/gu
+// A target with a scheme, a root or only a fragment is not a file beside the page.
+const relative = target => !/^(?:[a-z][a-z0-9+.-]*:|\/|#)/iu.test(target)
+const unwrap = target => target.replace(/^<(.*)>$/u, '$1')
+/** The file a relative target names, compared case-blind: `./images/Step%201.png` → `step 1.png`. */
+export function imageFileName(target) {
+  const last = unwrap(target).split(/[?#]/u)[0].split('/').pop()
+  try { return decodeURIComponent(last).toLowerCase() } catch { return last.toLowerCase() }
+}
+
+/** The relative images a page points at, each file once, in order: [{ target, name }]. */
+export function imageReferences(text) {
+  const seen = new Map()
+  for (const [, , target] of String(text).matchAll(IMAGE)) {
+    if (!relative(unwrap(target))) continue
+    const name = imageFileName(target)
+    if (name && !seen.has(name)) seen.set(name, { target: unwrap(target), name })
+  }
+  return [...seen.values()]
+}
+
+/** The page with every relative image whose file was uploaded pointed at its new address (`uploaded`: name → url). */
+export function replaceImageReferences(text, uploaded) {
+  return String(text).replace(IMAGE, (whole, alt, target, rest) => {
+    if (!relative(unwrap(target))) return whole
+    const url = uploaded.get(imageFileName(target))
+    return url ? `![${alt}](${url}${rest})` : whole
+  })
+}
 
 /** A page's title: the file's first level-one heading, else its file name without the extension. */
 export function docTitle(text, fileName) {
@@ -74,30 +107,63 @@ export function docsAdminView({ $, node, rowActions, confirmAction, json, action
     if (plugin) icons.open(plugin, onIconSaved)
   }
 
-  // One hidden file input serves both uploading a new page and replacing one.
+  // One image, sent as the file itself; the answer carries the address the page should use.
+  async function uploadImage(file) {
+    const response = await fetch(`/api/v1/plugins/${encodeURIComponent(pluginId)}/docs/images?name=${encodeURIComponent(file.name)}`, {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+      headers: { 'content-type': 'application/octet-stream' }, body: file,
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(`图片「${file.name}」：${data.error || '上传失败，请稍后重试。'}`)
+    return data.url
+  }
+
+  // One hidden file input serves both uploading a new page and replacing one. Together with the
+  // page the administrator may pick the images it uses; anything it points at that was not picked
+  // is named before uploading, and the page is saved only after every picked image is in.
   function pick(target) {
     pending = target
     $('docs-file').value = ''
     $('docs-file').click()
   }
-  $('docs-file').onchange = () => {
-    const file = $('docs-file').files?.[0]
+  const refuse = message => action(async () => { throw new Error(message) })
+  $('docs-file').onchange = async () => {
+    const files = [...($('docs-file').files ?? [])]
     const target = pending
     pending = null
-    if (!file || !pluginId) return
+    if (!files.length || !pluginId) return
+    const pictures = files.filter(file => IMAGE_FILE.test(file.name))
+    const pages = files.filter(file => !IMAGE_FILE.test(file.name))
+    if (pages.length !== 1) return refuse(pages.length ? '一次只能上传一篇文档，图片可以多张。' : '请同时选上要上传的 Markdown 文件。')
+    const file = pages[0]
+    const names = new Map()
+    for (const picture of pictures) {
+      if (picture.size > MAX_IMAGE_BYTES) return refuse(`图片「${picture.name}」超过 ${MAX_IMAGE_BYTES / 1024} KB，请压缩后再上传。`)
+      const name = imageFileName(picture.name)
+      if (names.has(name)) return refuse(`选了两张同名的图片「${picture.name}」，请改名后再上传。`)
+      names.set(name, picture)
+    }
+    const text = await file.text()
+    if (!text.trim()) return refuse('文件是空的。')
+    if (text.length > MAX_LENGTH) return refuse(`文档超过 ${MAX_LENGTH} 字，请拆成多篇。`)
+    const missing = imageReferences(text).filter(ref => !names.has(ref.name))
+    if (missing.length && !(await confirmAction({ title: `正文引用的 ${missing.length} 张图片没有选`, ok: '仍然上传', danger: false,
+      text: `${missing.slice(0, 10).map(ref => ref.target).join('、')}${missing.length > 10 ? ` 等 ${missing.length} 张` : ''}。`
+        + '这些图片在文档中心只会显示成文字。可以取消后连同图片一起重新选择。' }))) return
     action(async () => {
-      const text = await file.text()
-      if (!text.trim()) throw new Error('文件是空的。')
-      if (text.length > MAX_LENGTH) throw new Error(`文档超过 ${MAX_LENGTH} 字，请拆成多篇。`)
+      const uploaded = new Map()
+      for (const [name, picture] of names) uploaded.set(name, await uploadImage(picture))
+      const body = replaceImageReferences(text, uploaded)
+      if (body.length > MAX_LENGTH) throw new Error(`文档超过 ${MAX_LENGTH} 字，请拆成多篇。`)
       if (target?.replace) {
         const doc = target.replace
-        await json(`/api/v1/plugins/${pluginId}/docs/${doc.id}`, { title: docTitle(text, file.name), body: text, position: doc.position }, 'PUT')
+        await json(`/api/v1/plugins/${pluginId}/docs/${doc.id}`, { title: docTitle(text, file.name), body, position: doc.position }, 'PUT')
       } else {
         const position = items.reduce((max, doc) => Math.max(max, doc.position + 1), 0)
-        await json(`/api/v1/plugins/${pluginId}/docs`, { title: docTitle(text, file.name), body: text, position: Math.min(position, 10_000) }, 'POST')
+        await json(`/api/v1/plugins/${pluginId}/docs`, { title: docTitle(text, file.name), body, position: Math.min(position, 10_000) }, 'POST')
       }
       await load()
-    }, { success: target?.replace ? '文档已替换。' : '文档已上传。' })
+    }, { success: `${target?.replace ? '文档已替换' : '文档已上传'}${names.size ? `，含 ${names.size} 张图片` : ''}。` })
   }
   $('docs-upload').onclick = () => pick({})
   // The docs center reads this console session as the administrator and shows every plugin.

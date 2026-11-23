@@ -7,6 +7,7 @@ import { isPlatform, resolvePrincipal } from './auth.js'
 import { resolveIdentity } from './organizations.js'
 import { catalogRoster, invalid, pluginRow, productComponents } from './plugins.js'
 import { iconPath, iconVersions } from './icons.js'
+import { docImageRow } from './doc-images.js'
 
 // Plugin documentation: Markdown pages a platform administrator attaches to a plugin. Who may read
 // a page is never stored with it — a reader sees the pages of exactly the plugins the catalog shows
@@ -165,12 +166,38 @@ export function redeemDocsCode(data) {
   return { key: entry.key }
 }
 
-/** One plugin's pages in full. A plugin the reader may not see answers exactly like one that does not exist. */
-export async function readerPluginDocs(request, env, pluginId) {
+/** Whether this reader may see the plugin's documentation; a plugin they may not see is a 404. */
+async function readerSees(request, env, pluginId) {
   const reader = await requireReader(request, env)
   if (!/^[a-z0-9][a-z0-9-]{0,79}$/u.test(pluginId)) throw invalid('not found', 404)
   const visible = reader.admin ? (await allPlugins(request, env)).some(item => item.id === pluginId) : await allowed(request, env, pluginId)
   if (!visible) throw invalid('not found', 404)
+}
+
+/** One plugin's pages in full. A plugin the reader may not see answers exactly like one that does not exist. */
+export async function readerPluginDocs(request, env, pluginId) {
+  await readerSees(request, env, pluginId)
   const { results } = await env.MARKET_DB.prepare('SELECT * FROM market_plugin_docs WHERE plugin_id=? ORDER BY position,id').bind(pluginId).all()
   return { pluginId, items: results.map(view) }
+}
+
+/**
+ * GET /v1/docs/{pluginId}/images/{imageId}: one image of a plugin's pages, to exactly the readers
+ * who may read those pages -- a plugin they may not see and an image that does not exist are the
+ * same 404. An image never changes under its id, so the reader's browser may keep it, but only in
+ * its own cache (private): the answer depends on who is asking.
+ */
+export async function readerDocImage(request, env, pluginId, imageId) {
+  await readerSees(request, env, pluginId)
+  const row = await docImageRow(env, pluginId, imageId)
+  if (!row) throw invalid('not found', 404)
+  return new Response(row.data, { status: 200, headers: {
+    'content-type': row.content_type,
+    'content-length': String(row.bytes),
+    'cache-control': 'private, max-age=31536000, immutable',
+    vary: 'Authorization, Cookie',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; sandbox",
+    'cross-origin-resource-policy': 'same-origin',
+  } })
 }

@@ -105,10 +105,11 @@ test('the assets adapter serves admin pages with the security headers and confin
   assert.equal(page.headers.get('cache-control'), 'no-store')
   const csp = page.headers.get('content-security-policy')
   assert.ok(csp.includes("default-src 'self'"))
-  // The self-hosted server and the Pages _headers file must send the same policy. data: is allowed
-  // for images only (Swagger UI's icons); scripts and styles stay same-origin.
+  // The self-hosted server and the Pages _headers file must send the same policy. data: and blob:
+  // are allowed for images only (Swagger UI's icons; documentation images the docs center fetches
+  // with the reader's Key and shows as blob URLs); scripts and styles stay same-origin.
   assert.equal(csp, /Content-Security-Policy: (.+)/u.exec(readFileSync(resolve(import.meta.dirname, '../_headers'), 'utf8'))[1].trim())
-  assert.match(csp, /img-src 'self' data:;/u)
+  assert.match(csp, /img-src 'self' data: blob:;/u)
   assert.match(csp, /script-src 'self';.*style-src 'self';/u)
   const manifest = await assets.fetch('https://market.example/source.json')
   assert.equal(manifest.headers.get('content-type'), 'application/json; charset=utf-8')

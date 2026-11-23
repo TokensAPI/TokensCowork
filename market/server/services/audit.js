@@ -17,6 +17,10 @@ const ACTIONS = {
   // A plugin's documentation page, addressed by plugin and page id together.
   'plugin.doc.saved': [/^[a-z0-9][a-z0-9-]{0,79}:[1-9][0-9]*$/u, d => ({ created: d.created === true })],
   'plugin.doc.deleted': [/^[a-z0-9][a-z0-9-]{0,79}:[1-9][0-9]*$/u, () => ({})],
+  // A documentation image, addressed by plugin and image id together.
+  'plugin.doc.image.uploaded': [/^[a-z0-9][a-z0-9-]{0,79}:[a-f0-9]{32}$/u, d => ({ bytes: Number.isSafeInteger(d.bytes) ? d.bytes : null,
+    contentType: ['image/png', 'image/jpeg', 'image/webp'].includes(d.contentType) ? d.contentType : null })],
+  'plugin.doc.image.deleted': [/^[a-z0-9][a-z0-9-]{0,79}:[a-f0-9]{32}$/u, () => ({})],
   'plugin.icon.updated': [PLUGIN, d => ({ bytes: Number.isSafeInteger(d.bytes) ? d.bytes : null })],
   'plugin.icon.deleted': [PLUGIN, () => ({})],
   'plugin.access.updated': [PLUGIN, d => ({ visibility: d.visibility === 'restricted' ? 'restricted' : 'public',

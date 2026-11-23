@@ -3276,6 +3276,169 @@
         }
       }
     },
+    "/plugins/{pluginId}/docs/images": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "列出文档图片",
+        "description": "这个插件文档用的全部图片，新的在前，不含图片内容。",
+        "responses": {
+          "200": {
+            "description": "图片",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DocImage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "上传文档图片",
+        "description": "请求体就是图片文件本身（不是 JSON、不是 base64）。只收 PNG、JPEG、WebP，按文件头判断，不看文件名和 Content-Type；单张不超过 1000 KB（市场前端代理与服务都限制请求体 1 MiB），每个插件最多 200 张。同一插件再次上传相同内容时返回已有的那张（`existing: true`）。返回的 `url` 就是文档正文里该写的地址：`/v1/docs/{pluginId}/images/{imageId}`，读者按文档同样的权限读取，不是公开地址。写一条 `plugin.doc.image.uploaded` 操作记录。",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "原文件名，只作显示（取最后一段，最多 200 字）。",
+            "schema": {
+              "type": "string"
+            },
+            "example": "step-1.png"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存（或已存在）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/DocImage"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "existing"
+                      ],
+                      "properties": {
+                        "existing": {
+                          "type": "boolean",
+                          "description": "同样的内容此前已上传过，返回的是那一张。"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/docs/images/{imageId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        },
+        {
+          "$ref": "#/components/parameters/imageId"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "插件文档"
+        ],
+        "summary": "删除文档图片",
+        "description": "仍引用它的文档在文档中心只显示图片说明文字。写一条 `plugin.doc.image.deleted` 操作记录。",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/plugins/{pluginId}/icon": {
       "parameters": [
         {
@@ -3440,6 +3603,16 @@
         "schema": {
           "type": "integer",
           "minimum": 1
+        }
+      },
+      "imageId": {
+        "name": "imageId",
+        "in": "path",
+        "required": true,
+        "description": "文档图片编号（32 位十六进制）",
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
         }
       }
     },
@@ -3791,6 +3964,45 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "DocImage": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "contentType",
+          "bytes",
+          "url",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{32}$"
+          },
+          "name": {
+            "type": "string",
+            "description": "上传时的文件名，只作显示。"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "description": "文档正文里写的地址 `/v1/docs/{pluginId}/images/{imageId}`；读者用文档中心的凭据读取，与文档同样受权限限制。"
+          },
+          "createdAt": {
+            "type": "integer"
           }
         }
       },

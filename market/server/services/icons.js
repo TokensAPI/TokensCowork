@@ -17,6 +17,9 @@ const SIGNATURES = {
   'image/webp': bytes => bytes.length > 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP',
 }
 
+/** What an image really is, from its first bytes: PNG, JPEG, WebP, or null for anything else. */
+export const imageType = bytes => Object.keys(SIGNATURES).find(type => SIGNATURES[type](bytes)) ?? null
+
 function decode(data) {
   const contentType = data?.contentType
   if (!Object.hasOwn(SIGNATURES, contentType)) throw invalid('图标只支持 PNG、JPEG 或 WebP')

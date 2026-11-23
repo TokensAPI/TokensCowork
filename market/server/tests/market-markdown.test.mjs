@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseMarkdown, inline, safeHref, renderMarkdown } from '../admin/assets/market-markdown.js'
+import { parseMarkdown, inline, safeHref, renderMarkdown, isDocImageUrl } from '../admin/assets/market-markdown.js'
 
 // The session-log console renders model answers with this subset. A tiny stand-in document is
 // enough to check the DOM it builds: only elements and text nodes, never parsed HTML.
@@ -76,4 +76,25 @@ test('the parser has no DOM and returns plain blocks', () => {
   ])
   assert.deepEqual(inline('a `b` c'), [{ type: 'text', text: 'a ' }, { type: 'code', text: 'b' }, { type: 'text', text: ' c' }])
   assert.deepEqual(parseMarkdown(''), [])
+})
+
+test("the docs center draws only its own plugin's images; everything else stays a link", () => {
+  const id = 'a'.repeat(32)
+  const own = `/v1/docs/report-tool/images/${id}`
+  const docs = text => html(renderMarkdown(text, fakeDocument(), { image: url => isDocImageUrl(url, 'report-tool') }))
+  // An image of this plugin becomes an <img> the page fetches with the reader's Key; nothing is loaded here.
+  assert.equal(docs(`![第一步](${own})`), `<p><img class="md-image" alt="第一步" data-src="${own}"></img></p>`)
+  assert.equal(docs(`![带标题](${own} "说明")`), `<p><img class="md-image" alt="带标题" data-src="${own}"></img></p>`)
+  // Another plugin's image, a look-alike address, an outside image and a relative path are not drawn.
+  assert.equal(docs(`![别的](/v1/docs/other-tool/images/${id})`), '<p>[图片：别的]</p>')
+  assert.equal(docs(`![短](/v1/docs/report-tool/images/abc)`), '<p>[图片：短]</p>')
+  assert.equal(docs(`![外](${own}?x=1)`), '<p>[图片：外]</p>')
+  assert.equal(docs('![外链](https://example.com/i.png)'),
+    '<p><a href="https://example.com/i.png" target="_blank" rel="noopener noreferrer">[图片：外链]</a></p>')
+  assert.equal(docs('![相对](images/a.png)'), '<p>[图片：相对]</p>')
+  assert.equal(isDocImageUrl(`https://market.example${own}`, 'report-tool'), false)
+  // The session-log console passes no option: its own image addresses stay links or text, as before.
+  assert.equal(render(`![第一步](${own})`), '<p>[图片：第一步]</p>')
+  assert.equal(render('![图](https://example.com/i.png)'),
+    '<p><a href="https://example.com/i.png" target="_blank" rel="noopener noreferrer">[图片：图]</a></p>')
 })

@@ -219,6 +219,8 @@ const ACTIONS = {
   'plugin.icon.deleted': '移除插件图标',
   'plugin.doc.saved': '保存插件文档',
   'plugin.doc.deleted': '删除插件文档',
+  'plugin.doc.image.uploaded': '上传文档图片',
+  'plugin.doc.image.deleted': '删除文档图片',
 }
 function actorText(actor) {
   if (actor?.kind === 'tenant') return `组织管理员 · 用户 ${actor.id}${actor.organizationId ? ` · 组织 #${actor.organizationId}` : ''}`
@@ -265,6 +267,7 @@ function renderActivity() {
       facts.push(d.tags?.length ? `标签：${d.tags.join('、')}` : '无标签', d.note ? '有备注' : '无备注')
     if (event.action === 'plugin.icon.updated' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
     if (event.action === 'plugin.doc.saved') facts.push(d.created ? '新增' : '替换')
+    if (event.action === 'plugin.doc.image.uploaded' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
     if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
     if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')
     if (d.memberCount != null) facts.push(d.memberCount ? `指定 ${d.memberCount} 位成员可见` : '全员可见')

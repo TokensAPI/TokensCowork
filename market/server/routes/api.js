@@ -1,5 +1,5 @@
 import { reply } from '../http/response.js'
-import { body, bearer } from '../http/request.js'
+import { body, bearer, bytes } from '../http/request.js'
 import { resolvePrincipal, isPlatform, login, logout } from '../services/auth.js'
 import { adminLoginWait, recordAdminLoginFailure, clearAdminLoginFailures } from '../security/admin-login-limit.js'
 import { pluginRows, pluginRow, pluginView, pluginGrants, pluginPage, pluginIndex, noGrants, createPlugin, changePlugin, setPluginAccess, subjectGrants, setSubjectGrants, productComponents, publisher, invalid } from '../services/plugins.js'
@@ -15,6 +15,7 @@ import { resolveNpmVersions } from '../services/npm-version-service.js'
 import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
 import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon, iconVersions, iconPath } from '../services/icons.js'
+import { MAX_DOC_IMAGE_BYTES, listDocImages, uploadDocImage, deleteDocImage } from '../services/doc-images.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -121,9 +122,11 @@ async function sync(env, principal) {
 
 async function dispatch(request, env, url, principal) {
   const segments = url.pathname.slice('/api/v1/'.length).split('/').filter(Boolean)
-  // No route is deeper than four segments; a longer path must not match a shorter route.
-  if (segments.length > 4) throw invalid('not found', 404)
-  const [head, second, third, fourth] = segments
+  // No route is deeper than four segments but one image of a plugin's docs
+  // (plugins/{id}/docs/images/{imageId}); a longer path must not match a shorter route.
+  const docImage = segments.length === 5 && segments[0] === 'plugins' && segments[2] === 'docs' && segments[3] === 'images'
+  if (segments.length > 4 && !docImage) throw invalid('not found', 404)
+  const [head, second, third, fourth, fifth] = segments
   const method = request.method
   const actor = principal.actor
 
@@ -151,6 +154,20 @@ async function dispatch(request, env, url, principal) {
     if (third === 'icon' && !fourth) {
       methods(method, ['PUT', 'DELETE'])
       return method === 'PUT' ? setPluginIcon(env, second, await payload(request, ICON_BODY_LIMIT), actor) : deletePluginIcon(env, second, actor)
+    }
+    // Images for those pages, sent as the raw file; readers get them through /v1/docs as well.
+    if (third === 'docs' && fourth === 'images') {
+      if (!fifth) {
+        methods(method, ['GET', 'POST'])
+        if (method === 'GET') return listDocImages(env, second)
+        let file
+        try { file = await bytes(request, MAX_DOC_IMAGE_BYTES) } catch (error) {
+          throw invalid(error.message === 'body too large' ? `图片不能超过 ${MAX_DOC_IMAGE_BYTES / 1024} KB` : '请上传图片文件')
+        }
+        return uploadDocImage(env, second, url.searchParams.get('name'), file, actor)
+      }
+      methods(method, ['DELETE'])
+      return deleteDocImage(env, second, fifth, actor)
     }
     // The plugin's Markdown documentation pages; readers get them through /v1/docs.
     if (third === 'docs' && !fourth) {

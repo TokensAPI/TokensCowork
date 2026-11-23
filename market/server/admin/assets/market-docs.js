@@ -1,4 +1,4 @@
-import { renderMarkdown } from './market-markdown.js'
+import { renderMarkdown, isDocImageUrl } from './market-markdown.js'
 
 // The plugin documentation center at /docs. The reader signs in with their TokensAPI Key, kept for
 // this tab (sessionStorage) or, when they ask to be remembered, on this computer (localStorage),
@@ -100,6 +100,47 @@ async function read(path) {
   if (!response.ok) throw Object.assign(new Error(data.error || '请求失败'), { status: response.status })
   return data
 }
+// A page's images are as private as the page: each is fetched with the reader's own Key (or the
+// console session) and shown from a blob URL, kept for this tab so revisiting a page is instant.
+const images = new Map()
+function imageUrl(path) {
+  if (!images.has(path)) {
+    const loading = fetch(path, { headers: ADMIN ? {} : { Authorization: 'Bearer ' + storedKey() } })
+      .then(async response => {
+        if (!response.ok) throw new Error('image ' + response.status)
+        return URL.createObjectURL(await response.blob())
+      })
+    loading.catch(() => images.delete(path))
+    images.set(path, loading)
+  }
+  return images.get(path)
+}
+function forgetImages() {
+  for (const loading of images.values()) loading.then(url => URL.revokeObjectURL(url), () => {})
+  images.clear()
+}
+function loadImages(article) {
+  for (const image of article.querySelectorAll('img.md-image[data-src]')) {
+    image.onclick = () => openImage(image)
+    imageUrl(image.dataset.src).then(url => { image.src = url }, () => {
+      const failed = el('span', 'md-image-failed', `${image.alt ? image.alt + ' · ' : ''}图片加载失败`)
+      image.replaceWith(failed)
+    })
+  }
+}
+function openImage(image) {
+  if (!image.src) return
+  $('image-viewer-img').src = image.src
+  $('image-viewer-img').alt = image.alt
+  $('image-viewer').hidden = false
+  $('image-viewer-close').focus()
+}
+function closeImage() {
+  $('image-viewer').hidden = true
+  $('image-viewer-img').removeAttribute('src')
+}
+$('image-viewer').onclick = closeImage
+
 async function pagesOf(plugin) {
   if (!state.pages.has(plugin.id)) state.pages.set(plugin.id, (await read('/v1/docs/' + encodeURIComponent(plugin.id))).items)
   return state.pages.get(plugin.id)
@@ -339,7 +380,8 @@ async function renderPage() {
   const doc = pages[index]
   if (!doc) return showEmpty('这个插件还没有文档', '管理员上传后会显示在这里。')
   const article = $('docs-article')
-  article.replaceChildren(renderMarkdown(doc.body))
+  article.replaceChildren(renderMarkdown(doc.body, document, { image: url => isDocImageUrl(url, plugin.id) }))
+  loadImages(article)
   // A page without its own top heading gets its title as one.
   if (article.firstElementChild?.tagName !== 'H1') article.prepend(el('h1', '', doc.title))
   upgradeCallouts(article)
@@ -389,6 +431,8 @@ function signOut(message = '') {
   storeKey('')
   Object.assign(state, { plugins: [], pluginId: '', docId: 0, section: '' })
   state.pages.clear()
+  forgetImages()
+  closeImage()
   state.open.clear()
   spy?.disconnect()
   closeSearch()
@@ -522,6 +566,8 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
     $('search-dialog').hidden ? openSearch() : closeSearch()
+  } else if (event.key === 'Escape' && !$('image-viewer').hidden) {
+    closeImage()
   } else if (event.key === 'Escape' && !$('search-dialog').hidden) {
     closeSearch()
   } else if (event.key === '/' && $('search-dialog').hidden && !/^(INPUT|TEXTAREA|SELECT)$/u.test(document.activeElement?.tagName ?? '')) {

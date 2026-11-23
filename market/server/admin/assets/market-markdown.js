@@ -5,6 +5,12 @@
  * built with createElement/createTextNode only, so a model answer cannot inject markup or script.
  * Links keep only http(s) and mailto targets and open with rel="noopener noreferrer"; images are
  * shown as links, never loaded. Parsing (`parseMarkdown`) has no DOM, so it is tested on its own.
+ *
+ * The documentation center reuses it with one addition: `renderMarkdown(text, doc, { image })`
+ * draws `![alt](url)` as an image when `image(url)` allows it -- only that plugin's own image
+ * addresses (isDocImageUrl) -- leaving an <img class="md-image" data-src> for the page to fetch
+ * with the reader's Key; nothing is loaded here. Without the option (the session-log console),
+ * every image stays a link, exactly as before.
  */
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)[^`]*$/u
@@ -22,6 +28,13 @@ export function safeHref(url) {
   // Control characters and whitespace have no place in a URL and are how filters get split.
   if (/[\u0000- \u007f]/u.test(value)) return null
   return value
+}
+
+/** Whether `url` is one of this plugin's documentation images, written as the market hands it out. */
+export function isDocImageUrl(url, pluginId) {
+  const value = String(url ?? '').trim()
+  const prefix = `/v1/docs/${encodeURIComponent(pluginId)}/images/`
+  return value.startsWith(prefix) && /^[a-f0-9]{32}$/u.test(value.slice(prefix.length))
 }
 
 /** Markdown text → a list of blocks (headings, paragraphs, lists, quotes, code, rules, tables). */
@@ -112,7 +125,7 @@ function list(lines, start, out) {
   return index
 }
 
-/** Inline text → a list of nodes: text, br, code, strong, em, del, link. */
+/** Inline text → a list of nodes: text, br, code, strong, em, del, link, image. */
 export function inline(text, links = true) {
   const out = []
   let buffer = ''
@@ -141,10 +154,8 @@ export function inline(text, links = true) {
     if (links && char === '!' && text[index + 1] === '[') {
       const link = linkAt(text, index + 1)
       if (link) {
-        const href = safeHref(link.url)
-        const label = `[图片${link.label ? `：${link.label}` : ''}]`
-        if (href) push({ type: 'link', href, children: [{ type: 'text', text: label }] })
-        else buffer += label
+        // Kept as an image; whether it is drawn or stays a link is the renderer's choice.
+        push({ type: 'image', url: link.url.trim(), alt: link.label, href: safeHref(link.url) })
         index = link.end
         continue
       }
@@ -218,9 +229,9 @@ function emphasisAt(text, index) {
 }
 
 /** Markdown text → a DocumentFragment built from elements and text nodes only. */
-export function renderMarkdown(text, doc = document) {
+export function renderMarkdown(text, doc = document, options = {}) {
   const fragment = doc.createDocumentFragment()
-  for (const block of parseMarkdown(text)) fragment.append(renderBlock(block, doc))
+  for (const block of parseMarkdown(text)) fragment.append(renderBlock(block, doc, options))
   return fragment
 }
 
@@ -231,12 +242,12 @@ function element(doc, tag, children = [], className = '') {
   return node
 }
 
-function renderBlock(block, doc) {
+function renderBlock(block, doc, options) {
   switch (block.type) {
-    case 'heading': return element(doc, `h${block.level}`, renderInline(block.inline, doc))
-    case 'paragraph': return element(doc, 'p', renderInline(block.inline, doc))
+    case 'heading': return element(doc, `h${block.level}`, renderInline(block.inline, doc, options))
+    case 'paragraph': return element(doc, 'p', renderInline(block.inline, doc, options))
     case 'rule': return element(doc, 'hr')
-    case 'quote': return element(doc, 'blockquote', block.blocks.map(child => renderBlock(child, doc)))
+    case 'quote': return element(doc, 'blockquote', block.blocks.map(child => renderBlock(child, doc, options)))
     case 'code': {
       const code = element(doc, 'code', [doc.createTextNode(block.text)], block.lang ? `language-${block.lang}` : '')
       return element(doc, 'pre', [code])
@@ -244,15 +255,15 @@ function renderBlock(block, doc) {
     case 'list': {
       const list = element(doc, block.ordered ? 'ol' : 'ul', block.items.map(item => {
         // A one-paragraph item is written inline; anything richer keeps its blocks.
-        if (item.length === 1 && item[0].type === 'paragraph') return element(doc, 'li', renderInline(item[0].inline, doc))
-        return element(doc, 'li', item.map(child => renderBlock(child, doc)))
+        if (item.length === 1 && item[0].type === 'paragraph') return element(doc, 'li', renderInline(item[0].inline, doc, options))
+        return element(doc, 'li', item.map(child => renderBlock(child, doc, options)))
       }))
       if (block.ordered && block.start !== 1) list.setAttribute('start', String(block.start))
       return list
     }
     case 'table': {
       const cell = (tag, nodes, column) => {
-        const node = element(doc, tag, renderInline(nodes, doc))
+        const node = element(doc, tag, renderInline(nodes, doc, options))
         if (block.align[column]) node.className = `md-align-${block.align[column]}`
         return node
       }
@@ -264,15 +275,30 @@ function renderBlock(block, doc) {
   return doc.createTextNode('')
 }
 
-function renderInline(nodes, doc) {
+function renderInline(nodes, doc, options) {
   return nodes.map(node => {
     switch (node.type) {
       case 'text': return doc.createTextNode(node.text)
       case 'br': return doc.createElement('br')
       case 'code': return element(doc, 'code', [doc.createTextNode(node.text)])
-      case 'strong': case 'em': case 'del': return element(doc, node.type, renderInline(node.children, doc))
+      case 'strong': case 'em': case 'del': return element(doc, node.type, renderInline(node.children, doc, options))
       case 'link': {
-        const link = element(doc, 'a', renderInline(node.children, doc))
+        const link = element(doc, 'a', renderInline(node.children, doc, options))
+        link.setAttribute('href', node.href)
+        link.setAttribute('target', '_blank')
+        link.setAttribute('rel', 'noopener noreferrer')
+        return link
+      }
+      case 'image': {
+        if (options.image?.(node.url)) {
+          const image = element(doc, 'img', [], 'md-image')
+          image.setAttribute('alt', node.alt)
+          image.setAttribute('data-src', node.url)
+          return image
+        }
+        const label = doc.createTextNode(`[图片${node.alt ? `：${node.alt}` : ''}]`)
+        if (!node.href) return label
+        const link = element(doc, 'a', [label])
         link.setAttribute('href', node.href)
         link.setAttribute('target', '_blank')
         link.setAttribute('rel', 'noopener noreferrer')
