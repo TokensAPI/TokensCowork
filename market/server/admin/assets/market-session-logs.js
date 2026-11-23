@@ -23,7 +23,7 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
   // or the filters change, so a deletion only ever names rows the administrator can see.
   const selected = new Map()
   const short = (value, length = 12) => (value ? value.slice(0, length) : '')
-  const bytes = (value) => (value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`)
+  const bytes = (value) => (value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${value ? Math.max(1, Math.round(value / 1024)) : 0} KB`)
   const time = (value) => (value ? formatTime(value) : '—')
   const nameOf = (item) => `${item.id}:${item.formatVersion}`
   const titleOf = (item) => item.title || '未命名会话'
@@ -107,6 +107,8 @@ export function sessionLogsView({ $, node, button, badge, rowActions, pager, jso
       page: String(page), pageSize: String(pageSize) })
     const result = await json('/api/v1/session-logs?' + query)
     total = result.total
+    // Everything the filters match, not only this page.
+    $('session-log-summary').textContent = `${filtering() ? '符合筛选的' : '共'} ${total} 个会话 · ${bytes(result.storedBytes)}`
     // The server answers a page past the end with the last page; follow it.
     page = result.page
     pageSize = result.pageSize

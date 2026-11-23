@@ -4360,6 +4360,7 @@
         "required": [
           "items",
           "total",
+          "storedBytes",
           "page",
           "pageSize",
           "keyDisplayReady"
@@ -4373,6 +4374,10 @@
           },
           "total": {
             "type": "integer"
+          },
+          "storedBytes": {
+            "type": "integer",
+            "description": "符合筛选条件的全部会话（不只本页）已写入的大小之和，单位字节，为压缩后实际写入的大小；只按索引统计。无结果时为 0。"
           },
           "page": {
             "type": "integer"

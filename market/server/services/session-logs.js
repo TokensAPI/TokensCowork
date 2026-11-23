@@ -340,7 +340,10 @@ export async function listSessionLogs(env, url) {
   if (!PAGE_SIZES.includes(pageSize)) throw invalid(`每页条数应为 ${PAGE_SIZES.join('、')} 之一`)
   const clause = where.length ? ' WHERE ' + where.join(' AND ') : ''
   const db = env.MARKET_SESSION_LOG_DB
-  const total = (await db.prepare('SELECT COUNT(*) AS total FROM session_log_sessions' + clause).bind(...values).first()).total
+  // The size is what the index recorded per session -- gzip bytes actually written -- summed in the
+  // same query as the count, so no object store is touched.
+  const { total, storedBytes } = await db.prepare('SELECT COUNT(*) AS total,COALESCE(SUM(stored_bytes),0) AS storedBytes FROM session_log_sessions' + clause)
+    .bind(...values).first()
   // A page past the end (the last rows of the last page were just deleted, or a stale link) is
   // answered with the last page, so the console never shows "page 4 of 3" with nothing on it.
   const page = Math.min(requested, Math.max(1, Math.ceil(total / pageSize)))
@@ -348,7 +351,7 @@ export async function listSessionLogs(env, url) {
   const { results } = await db.prepare(`SELECT * FROM session_log_sessions${clause} ORDER BY last_received_at DESC,session_id,format_version LIMIT ? OFFSET ?`)
     .bind(...values, pageSize, (page - 1) * pageSize).all()
   const keys = await describeKeys(env, results.map(row => row.key_fingerprint))
-  return { items: results.map(row => sessionView(row, keys)), total, page, pageSize, keyDisplayReady: keyDisplayReady(env) }
+  return { items: results.map(row => sessionView(row, keys)), total, storedBytes, page, pageSize, keyDisplayReady: keyDisplayReady(env) }
 }
 
 function address(id, version) {

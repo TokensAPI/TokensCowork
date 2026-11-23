@@ -438,6 +438,31 @@ test('filters: account, creation-time range, session id and tag', async t => {
   assert.equal(await total('tag=' + encodeURIComponent('待')), 0)
 })
 
+test('the list reports the stored size of everything the filters match, from the index alone', async t => {
+  const { upload, api, rows } = await fixture(t)
+  await seedMany(upload, 7)
+  // A second, larger batch for one session, so the sessions differ in size.
+  await upload(batch([event(1), event(2, 'assistant/message', { text: 'x'.repeat(5000) })], { id: 'session-page-03', account: { id: '9000' } }))
+  const sizes = rows('SELECT account_id,stored_bytes FROM session_log_sessions')
+  const sum = list => list.reduce((total, row) => total + row.stored_bytes, 0)
+  const list = async query => (await api('/session-logs?' + query)).json
+  // Unfiltered: every session.
+  const all = await list('pageSize=10')
+  assert.deepEqual([all.total, all.storedBytes], [7, sum(sizes)])
+  assert.ok(all.storedBytes > 0)
+  // Paging changes the rows, never the totals.
+  const pages = await Promise.all(['pageSize=10&page=2', 'pageSize=20', 'pageSize=50&page=3'].map(list))
+  assert.deepEqual(pages.map(page => [page.total, page.storedBytes]), Array(3).fill([7, all.storedBytes]))
+  const small = await list('pageSize=10&page=1')
+  assert.ok(small.items.reduce((total, item) => total + item.storedBytes, 0) === all.storedBytes)
+  // A filter counts only the sessions it matches.
+  const one = await list('account=9000')
+  assert.deepEqual([one.total, one.storedBytes], [3, sum(sizes.filter(row => row.account_id === '9000'))])
+  assert.ok(one.storedBytes < all.storedBytes)
+  // Nothing matched is 0, not null.
+  assert.deepEqual(await list('account=nobody').then(r => [r.total, r.storedBytes]), [0, 0])
+})
+
 test('a batch delete removes the ticked sessions, objects and index, and records each one', async t => {
   const { upload, api, rows, objects } = await fixture(t)
   await seedMany(upload, 5)
