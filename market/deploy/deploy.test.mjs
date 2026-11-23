@@ -81,3 +81,29 @@ for (const count of [1, 3, 7]) {
     }
   })
 }
+
+test('the image builds the new console in its own stage; the service keeps zero runtime dependencies', () => {
+  const docker = read('../server/Dockerfile')
+  const [build, runtime] = docker.split(/^FROM /mu).slice(1)
+  assert.match(build, /^node:24-alpine AS admin-web/u)
+  assert.match(build, /npm ci --ignore-scripts/u)
+  assert.match(build, /npm run typecheck && npm run build/u)
+  // The runtime stage installs nothing and takes only the built folder from the first stage.
+  assert.doesNotMatch(runtime, /npm (?:ci|install)/u)
+  assert.match(runtime, /COPY --from=admin-web \/build\/admin\/next \.\/admin\/next/u)
+  assert.match(runtime, /test -s admin\/next\/index\.html/u)
+  assert.match(read('../server/.dockerignore'), /^\*\*\/node_modules$/mu)
+  assert.match(read('../server/.dockerignore'), /^\/admin\/next$/mu)
+  // A deploy whose console is missing fails its health check and rolls back.
+  assert.match(read('deploy.sh'), /await get\('\/admin\/next\/'\)/u)
+})
+
+test('CI type-checks, tests and builds the new console before anything deploys', () => {
+  const workflow = read('../../.github/workflows/deploy-plugin-market.yml')
+  const job = workflow.slice(workflow.indexOf('  test:'), workflow.indexOf('  deploy:'))
+  const steps = ['admin-web ci --ignore-scripts', 'admin-web run typecheck', 'admin-web test', 'admin-web run build', 'corepack yarn test:market']
+  const at = steps.map(step => job.indexOf(step))
+  assert.ok(at.every(index => index > 0), JSON.stringify(at))
+  assert.deepEqual([...at].sort((a, b) => a - b), at)
+  assert.match(workflow, /market\.tokensapi\.ai\/admin\/next\//u)
+})

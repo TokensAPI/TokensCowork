@@ -62,6 +62,9 @@ Registry 域名继续代理到 4873。TLS、DNS 和 Nginx 由运维维护，不�
 业务 Secret 只存服务器 `.env`，不得提交或输出。特别是 HMAC 和 Key 加密密钥，
 更新、恢复或搬机都必须沿用已有值；更换会使已授权 Key 指纹及加密数据失效。
 市场运行时无安装 npm 依赖的步骤，所有插件压缩包从独立 Registry 获取。
+镜像构建分两段：第一段按 `admin-web/package-lock.json` 安装新后台（`/admin/next/`）的前端依赖
+（`npm ci --ignore-scripts`，需要能访问 npm 官方源）、做类型检查并构建；第二段只拷贝构建产物
+`admin/next/`，运行时仍零依赖。构建失败不替换服务。
 
 数据卷里的 `tarball-cache/` 是已验证归档的缓存：只保存摘要与 Registry 的 `integrity`
 核对通过的完整包，同一版本的后续下载不再回源。它可以随时整目录删除（下次下载重新

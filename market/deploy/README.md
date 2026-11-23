@@ -70,6 +70,10 @@ docker compose -f <绝对路径>/rollback-compose.yml up -d --no-build --no-deps
 
 ## 本地检查
 
+    npm --prefix market/server/admin-web ci --ignore-scripts
+    npm --prefix market/server/admin-web run typecheck
+    npm --prefix market/server/admin-web test
+    npm --prefix market/server/admin-web run build
     npm --prefix market/server run verify
     node --test market/deploy/*.test.mjs
 

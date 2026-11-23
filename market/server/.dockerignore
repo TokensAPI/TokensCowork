@@ -1,4 +1,6 @@
 .env
 /market-d1-export.sql
 *.tgz
-node_modules
+**/node_modules
+# Built inside the image (Dockerfile stage 1), never copied from a checkout.
+/admin/next

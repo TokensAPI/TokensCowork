@@ -33,7 +33,9 @@ git -C "$repository" archive "$sha" market/server | tar -x -C "$release"
 # Docker's non-root node user after COPY (which assigns root ownership).
 chmod -R a+rX "$release/market/server"
 image="tokenscowork-market:$sha"
-# New code is built before stopping the current service. No registry/Nginx changes.
+# New code is built before stopping the current service. No registry/Nginx changes. The build
+# also installs the new console's locked npm dependencies and builds it (Dockerfile stage 1),
+# so it needs the npm registry; if that or the build fails, the running service is left as is.
 docker build --label "org.opencontainers.image.revision=$sha" -t "$image" "$release/market/server"
 old_image=$(docker inspect --format '{{.Image}}' "$container")
 [[ $(docker inspect --format '{{.State.Running}}' "$container") == true ]]
@@ -116,6 +118,8 @@ const get = async (path, headers={}) => {
   return r
 }
 await get('/admin/')
+// The new console is built inside the image; a missing build would answer 404 here.
+await get('/admin/next/')
 await get('/source.json')
 const headers={Authorization:'Bearer '+process.env.MARKET_ADMIN_TOKEN}
 await get('/api/v1/plugins',headers)
