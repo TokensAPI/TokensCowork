@@ -53,6 +53,15 @@ const openGrants = rows => `document.querySelector(${JSON.stringify(`${rows} but
 function pages(origin, docs) {
   return [
     { name: 'plugins', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0` },
+    { name: 'next-plugins', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件') },
+    { name: 'plugins-access', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 访问范围"]') },
+    { name: 'next-plugins-access', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 访问范围"]') },
+    { name: 'plugins-catalog', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 编辑资料"]') },
+    { name: 'next-plugins-catalog', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 编辑资料"]') },
+    { name: 'plugins-icon', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 图标"]') },
+    { name: 'next-plugins-icon', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 图标"]') },
+    { name: 'plugins-lifecycle', url: `${origin}/admin/#plugins`, ready: `${consoleReady('plugins')} && document.querySelectorAll('#plugins-panel tbody tr, #plugins-panel .card .card-body').length > 0`, action: clickFirst('#plugin-rows button[aria-label$=" 下架"]') },
+    { name: 'next-plugins-lifecycle', url: `${origin}/admin/next/#plugins`, ready: nextReady('插件'), action: clickFirst('main tbody button[aria-label$=" 下架"]') },
     { name: 'organizations', url: `${origin}/admin/#organizations`, ready: `${consoleReady('organizations')} && document.querySelectorAll('#organization-list tr').length > 0` },
     { name: 'keys', url: `${origin}/admin/#keys`, ready: keysReady },
     { name: 'keys-menu', url: `${origin}/admin/#keys`, ready: keysReady, action: openMenu('#key-list tr') },

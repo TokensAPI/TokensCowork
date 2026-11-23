@@ -28,3 +28,28 @@ export const STATES: Record<string, [string, string]> = {
   builtin: ['内置', 'azure'], draft: ['草稿', 'secondary'], published: ['已上架', 'green'], archived: ['已下架', 'yellow'], deleted: ['回收站', 'red'],
 }
 export const STATE_NAMES: Record<string, string> = Object.fromEntries(Object.entries(STATES).map(([state, [name]]) => [state, name]))
+
+/** One plugin as the plugin page lists it (GET /api/v1/plugins): its metadata, state, scope and grants. */
+export interface MarketPlugin extends PluginIndexEntry {
+  summary?: string
+  version: string
+  productVersion?: string
+  npm?: boolean
+  npmLatestVersion?: string | null
+  registry?: string | null
+  repository?: string
+  versionMode?: string
+  installSource?: { kind?: string; commit?: string } | null
+  revision: number
+  icon?: string | null
+  access?: { organizations: number[]; keys: string[]; users: number[] }
+}
+export interface PluginCounts {
+  all: number
+  builtin: number
+  market: number
+  published: number
+  draft: number
+  archived: number
+  deleted: number
+}

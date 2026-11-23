@@ -59,8 +59,8 @@ describe('who sees which page', () => {
     await signIn(PLATFORM)
     expect(allowedViews.value).toEqual(['plugins', 'organizations', 'users', 'keys', 'docs', 'session-logs', 'activity'])
     await router.isReady()
-    expect(router.currentRoute.value.name).toBe('organizations')
-    expect(location.hash).toBe('#organizations')
+    expect(router.currentRoute.value.name).toBe('plugins')
+    expect(location.hash).toBe('#plugins')
   })
 
   it('an organization administrator sees only its own organization, even when asking for another page', async () => {
@@ -85,7 +85,7 @@ describe('who sees which page', () => {
     await settle()
     const links = sidebar.findAll('#sidebar-menu .navbar-nav:first-child .nav-link').map((link) => [link.text(), link.attributes('href'), link.classes('active')])
     expect(links).toEqual([
-      ['插件', '/admin/#plugins', false],
+      ['插件', '#plugins', false],
       ['组织', '#organizations', false],
       ['用户', '#users', false],
       ['Key', '#keys', true],

@@ -13,7 +13,7 @@ export interface View {
 }
 
 export const VIEWS: View[] = [
-  { id: 'plugins', title: '插件', description: '管理插件资料、上架状态和访问范围。', migrated: false,
+  { id: 'plugins', title: '插件', description: '管理插件资料、上架状态和访问范围。', migrated: true,
     icon: ['M4 7h3a1 1 0 0 0 1 -1v-1a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h1a2 2 0 0 1 0 4h-1a1 1 0 0 0 -1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-1a2 2 0 0 0 -4 0v1a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h1a2 2 0 0 0 0 -4h-1a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1'] },
   { id: 'organizations', title: '组织', description: '同步 TokensAPI 组织，查看每个组织能用的插件。', migrated: true,
     icon: ['M8 9l5 5v7h-5v-4m0 4h-5v-7l5 -5m1 1v-6a1 1 0 0 1 1 -1h10a1 1 0 0 1 1 1v17h-8', 'M13 7l0 .01', 'M17 7l0 .01', 'M17 11l0 .01', 'M17 15l0 .01'] },
@@ -33,6 +33,8 @@ export const VIEWS: View[] = [
 export const MY_ORGANIZATION = { title: '我的组织', description: '平台提供给本组织的插件；受限插件可以对本组织关闭，或指定只给哪些成员。' }
 
 export const ICONS = {
+  table: ['M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14', 'M3 10h18', 'M10 3v18'],
+  cards: ['M4 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4', 'M14 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4', 'M4 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4', 'M14 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4'],
   search: ['M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0', 'M21 21l-6 -6'],
   plus: ['M12 5l0 14', 'M5 12l14 0'],
   refresh: ['M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4', 'M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4'],
