@@ -116,12 +116,25 @@ export async function searchOrganizationMembers(env, organizationId, keyword) {
     more: (result.total ?? 0) > result.items.length,
   }
 }
-// One TokensAPI user and the organization TokensAPI places them in, asked by user number
-// (TokensAPI matches a numeric keyword against the id exactly). Null when TokensAPI has no such user.
+// TokensAPI's user search matches the keyword anywhere (user 3 is searched as 「3」, which also
+// matches 13, 30, 103 …), so the exact user may sit past the first page. Pages of 100 are read until
+// the id itself turns up or every match has been seen, at most this many.
+export const USER_LOOKUP_PAGES = 10
+const USER_LOOKUP_SIZE = 100
+// One TokensAPI user and the organization TokensAPI places them in, asked by user number. Null when
+// TokensAPI has no such user, or when it was not found within USER_LOOKUP_PAGES pages (logged, as a
+// keyword that broad is a sign the limit needs a look). An upstream failure throws, never null.
 export async function tokensApiUser(env, userId) {
-  const result = await lookupUsers(env, String(userId), 1, 100)
-  const user = result.items.find(item => item.id === userId)
-  return user ? { id: user.id, name: user.name, organizationId: user.organizationId ?? null } : null
+  for (let page = 1; page <= USER_LOOKUP_PAGES; page++) {
+    const result = await lookupUsers(env, String(userId), page, USER_LOOKUP_SIZE)
+    const user = result.items.find(item => item.id === userId)
+    if (user) return { id: user.id, name: user.name, organizationId: user.organizationId ?? null }
+    const seen = (page - 1) * USER_LOOKUP_SIZE + result.items.length
+    const total = Number.isSafeInteger(result.total) ? result.total : seen
+    if (!result.items.length || result.items.length < USER_LOOKUP_SIZE || seen >= total) return null
+  }
+  console.warn(`TokensAPI user ${userId} not found within ${USER_LOOKUP_PAGES} pages of ${USER_LOOKUP_SIZE} matches; treated as not found`)
+  return null
 }
 // Whether one user belongs to the organization. Null when TokensAPI does not place the user there.
 export async function organizationMember(env, organizationId, userId) {

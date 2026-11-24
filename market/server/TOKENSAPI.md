@@ -47,7 +47,7 @@
 **2. `GET /api/manage/users/search?keyword=&p=&page_size=`**
 
 用与 `/api/organizations/all` 相同的服务端 Token（`MARKET_ORGANIZATIONS_TOKEN`，`Authorization: Bearer`）鉴权，
-按用户名 / 邮箱 / 显示名模糊匹配，纯数字时也精确匹配用户 ID；`p` 从 1 开始，市场「用户」页每次取 `page_size=20`，搜索组织成员时取 `page_size=100`：
+按用户名 / 邮箱 / 显示名模糊匹配，纯数字关键词同样是模糊匹配（「3」也匹配 13、30、103…）；`p` 从 1 开始，市场「用户」页每次取 `page_size=20`，搜索组织成员时取 `page_size=100`。按用户 ID 查一个人时（名录外用户的名称与组织、会话日志的组织、用户的实际授权、组织成员确认），市场以该 ID 为关键词每页取 100 条，第一页没有 `id` 完全相等的用户就继续翻页，直到找到或已读完全部匹配，最多 10 页；10 页内仍没找到按「查不到」处理并记一条日志，接口出错则按出错处理，不当作「查不到」：
 
 ```json
 { "success": true, "data": { "page": 1, "page_size": 20, "total": 1,
