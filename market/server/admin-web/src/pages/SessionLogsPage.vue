@@ -420,7 +420,7 @@ const accountTitle = (id?: string | null) => (accountOf(id) ? '客户端上报�
                   <option value="">全部组织</option>
                   <option v-for="org in organizations" :key="org.id" :value="String(org.id)">{{ org.name }} (#{{ org.id }})</option>
                 </select>
-                <input v-model="form.model" class="form-select w-auto log-model" list="session-log-models" maxlength="200" placeholder="全部模型" aria-label="按模型筛选" title="按模型筛选：可从列表选，也可输入完整模型名" @change="apply" />
+                <input v-model="form.model" class="form-select w-auto log-model-filter" list="session-log-models" maxlength="200" placeholder="全部模型" aria-label="按模型筛选" title="按模型筛选：可从列表选，也可输入完整模型名" @change="apply" />
                 <datalist id="session-log-models"><option v-for="model in modelList" :key="model" :value="model"></option></datalist>
                 <select v-model="form.time" class="form-select w-auto" aria-label="按会话创建时间筛选" @change="onTime">
                   <option value="">全部时间</option>

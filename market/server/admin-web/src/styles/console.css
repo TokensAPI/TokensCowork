@@ -120,7 +120,9 @@ tr[aria-busy="true"] {
 .log-search {
   min-width: 16rem;
 }
-.log-model {
+/* The model picker of the filter bar. (Not `.log-model`: that is a model step's block, which must
+   stay as wide as the turn.) */
+.log-model-filter {
   width: 13rem;
 }
 .table-responsive > .card-table.log-table {
@@ -355,6 +357,7 @@ tr[aria-busy="true"] {
   font-size: 1.125rem;
 }
 .log-md pre {
+  overflow: auto;
   padding: 0.625rem 0.75rem;
   border: var(--tblr-border-width) solid var(--tblr-border-color);
   border-radius: var(--tblr-border-radius);
@@ -367,6 +370,10 @@ tr[aria-busy="true"] {
   padding-inline-start: 0.75rem;
   border-inline-start: 3px solid var(--tblr-border-color);
   color: var(--tblr-secondary);
+}
+.log-md img {
+  max-width: 100%;
+  height: auto;
 }
 .log-md .md-table {
   overflow-x: auto;

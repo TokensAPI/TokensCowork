@@ -14,7 +14,7 @@
  * headers, so every page is also checked for Content-Security-Policy violations and uncaught
  * errors; any one fails the run.
  *
- * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only keys,session-logs]
+ * Usage: node ops/market-screenshots.mjs [--out <folder>] [--only keys,session-logs] [--variants wide-light,wide-dark,light,dark,narrow]
  * Browser: MARKET_SCREENSHOT_BROWSER, else Edge, else Chrome at their usual Windows paths.
  */
 import { spawn, spawnSync } from 'node:child_process'
@@ -33,11 +33,16 @@ const only = new Set(argument('--only').split(',').filter(Boolean))
 const TOKEN = 'screenshots-' + randomBytes(12).toString('hex')
 const sleep = ms => new Promise(done => setTimeout(done, ms))
 
-const VARIANTS = [
+// The default three, plus a wide screen (1920 px) on request: --variants wide-light,wide-dark,light,…
+const ALL_VARIANTS = [
+  { name: 'wide-light', width: 1920, height: 1080, scheme: 'light', mobile: false },
+  { name: 'wide-dark', width: 1920, height: 1080, scheme: 'dark', mobile: false },
   { name: 'light', width: 1440, height: 900, scheme: 'light', mobile: false },
   { name: 'dark', width: 1440, height: 900, scheme: 'dark', mobile: false },
   { name: 'narrow', width: 400, height: 860, scheme: 'light', mobile: true },
 ]
+const chosenVariants = new Set(argument('--variants').split(',').filter(Boolean))
+const VARIANTS = ALL_VARIANTS.filter(variant => chosenVariants.size ? chosenVariants.has(variant.name) : !variant.name.startsWith('wide-'))
 // Each page, and what has to be on screen before it counts as drawn: the console's pages (at /admin/,
 // the addresses they have always had), a few of them with a menu or a dialog open (`action`), the
 // docs center as the administrator opens it and as TokensCowork opens it (a one-time code), and the
