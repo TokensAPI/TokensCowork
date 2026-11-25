@@ -20,7 +20,7 @@ const pages: Record<string, unknown> = {
 }
 // A page's own route after its name: one session's detail is #session-logs/<session>/<format version>.
 // One record, so the list and an opened session are the same page and the list keeps its state.
-const paths: Record<string, string> = { 'session-logs': '/session-logs/:id?/:version?' }
+const paths: Record<string, string> = { 'session-logs': '/session-logs/:id?/:version?', 'app-releases': '/app-releases/:release?' }
 
 /** Where an account lands: its first page (the plugins for the platform, its organization otherwise). */
 export function homeFor(allowed: string[]): RouteLocationRaw {

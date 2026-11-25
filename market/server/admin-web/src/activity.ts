@@ -106,6 +106,7 @@ export function factsText(event: AuditEvent) {
     if (status) facts.push(status)
     if (d.percent != null) facts.push(`比例 ${d.percent}%`)
     facts.push(`先发 ${d.earlyCount ?? 0} 个组织`, `暂缓 ${d.holdCount ?? 0} 个组织`)
+    if (d.earlyUserCount != null || d.holdUserCount != null) facts.push(`先发 ${d.earlyUserCount ?? 0} 个用户`, `暂缓 ${d.holdUserCount ?? 0} 个用户`)
   }
   if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
   if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')

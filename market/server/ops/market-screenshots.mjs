@@ -53,6 +53,7 @@ const clickFirst = selector => `document.querySelector(${JSON.stringify(selector
 // Clicks the visible button that reads `text`.
 const clickText = text => `[...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)} && b.offsetParent).click()`
 const detailReady = `document.querySelectorAll('main .log-turn').length > 0`
+const releaseReady = `!!document.querySelector(".scope-early") && !document.querySelector("section[aria-labelledby=release-info-title] [role=status]")`
 function pages(origin, docs) {
   const admin = `${origin}/admin/`
   const row = label => clickFirst(`main tbody button[aria-label$=" ${label}"]`)
@@ -76,7 +77,10 @@ function pages(origin, docs) {
     { name: 'session-log-detail-open', url: `${admin}#session-logs/${DEMO_PARENT}/4`, ready: detailReady, action: clickText('全部展开') },
     { name: 'session-log-raw', url: `${admin}#session-logs/${DEMO_PARENT}/4`, ready: detailReady, action: clickText('原始 JSON') },
     { name: 'app-releases', url: `${admin}#app-releases`, ready: rowsReady('版本发布') },
-    { name: 'app-releases-dialog', url: `${admin}#app-releases`, ready: rowsReady('版本发布'), action: clickFirst('main tbody button[aria-label="0.8.0 编辑"]') },
+    { name: 'app-release-rolling', url: `${admin}#app-releases/0.8.0`, ready: releaseReady },
+    { name: 'app-release-draft', url: `${admin}#app-releases/0.8.1`, ready: releaseReady },
+    { name: 'app-release-add', url: `${admin}#app-releases/0.8.0`, ready: releaseReady, action: clickFirst('.scope-hold button') },
+    { name: 'app-release-confirm', url: `${admin}#app-releases/0.8.1`, ready: releaseReady, action: clickText('开始发布') },
     { name: 'app-releases-create', url: `${admin}#app-releases`, ready: rowsReady('版本发布'), action: clickFirst('.page-header .btn-primary') },
     { name: 'activity', url: `${admin}#activity`, ready: rowsReady('操作记录') },
     { name: 'api-docs', url: `${origin}/admin/api-docs.html`, ready: `document.querySelectorAll('.swagger-ui .opblock').length > 0` },
@@ -135,7 +139,8 @@ async function seedReleases(origin) {
   const api = (path, method, data) => fetch(origin + '/api/v1' + path, { method, headers: { Authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify(data) })
   for (const version of ['0.7.19', '0.8.0', '0.8.1']) await api('/app-releases', 'POST', { version, note: version === '0.8.0' ? '先给北辰研发试用一周' : '' })
   await api('/app-releases/0.7.19', 'PATCH', { status: 'full' })
-  await api('/app-releases/0.8.0', 'PATCH', { status: 'rolling', percent: 20, early: [101], hold: [102] })
+  await api('/app-releases/0.8.0', 'PATCH', { status: 'rolling', percent: 20, early: [101], hold: [102], earlyUsers: [6001], holdUsers: [6003] })
+  await api('/app-releases/0.8.1', 'PATCH', { percent: 10, early: [101], earlyUsers: [6002] })
   const check = (version, key) => fetch(`${origin}/v1/app/update?version=${version}&platform=win32&arch=x64`, { headers: { 'X-Installation-Id': randomUUID(), ...(key ? { Authorization: `Bearer ${key}` } : {}) } })
   for (const [version, count, key] of [['0.7.19', 26], ['0.7.18', 9], ['0.7.16', 5], ['0.8.0', 4, 'sk-test-org'], ['0.7.19', 3, 'sk-test-org']])
     for (let i = 0; i < count; i++) await check(version, key)

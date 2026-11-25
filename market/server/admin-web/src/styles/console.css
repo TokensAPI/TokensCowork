@@ -430,3 +430,46 @@ tr[aria-busy="true"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* 版本发布: the list rows open a version; its scope is three boxes -- 先发, 其余按比例, 暂缓. */
+.release-row {
+  cursor: pointer;
+}
+.release-cell {
+  min-width: 14rem;
+}
+.release-summary {
+  max-width: 38rem;
+}
+.release-state {
+  min-width: min(18rem, 100%);
+}
+.scope-box {
+  height: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--tblr-border-color);
+  border-top: 3px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+}
+.scope-early {
+  border-top-color: var(--tblr-green);
+}
+.scope-rest {
+  border-top-color: var(--tblr-blue);
+}
+.scope-hold {
+  border-top-color: var(--tblr-orange);
+}
+.scope-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.scope-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.scope-item + .scope-item {
+  margin-top: 0.375rem;
+}
