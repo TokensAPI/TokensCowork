@@ -68,10 +68,10 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: 准备 · 上传下载页
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: .pages
 
       - name: 部署 · 下载页
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
