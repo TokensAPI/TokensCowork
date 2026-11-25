@@ -4,6 +4,7 @@ const PLUGIN = /^[a-z0-9][a-z0-9-]{0,79}$/u
 const ORGANIZATION = /^[1-9][0-9]*$/u
 const FINGERPRINT = /^[a-f0-9]{64}$/u
 const SESSION_LOG = /^[A-Za-z0-9._-]{1,128}:[0-9]{1,6}$/u
+const APP_VERSION = /^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})$/u
 // Every action the market records, the target it names, and the only details it may keep.
 // Explicit allowlists prevent a later call site from accidentally auditing a credential.
 const ACTIONS = {
@@ -52,6 +53,15 @@ const ACTIONS = {
   })],
   'session-log.settings': [/^retention$/u, d => ({ retentionDays: Number.isSafeInteger(d.retentionDays) ? d.retentionDays : null })],
   'session-log.purged': [/^retention$/u, d => ({ count: d.count, retentionDays: d.retentionDays })],
+  // An app version's staged rollout, addressed by the version.
+  'app-release.created': [APP_VERSION, () => ({})],
+  'app-release.updated': [APP_VERSION, d => ({
+    status: ['draft', 'rolling', 'paused', 'full'].includes(d.status) ? d.status : null,
+    percent: Number.isSafeInteger(d.percent) ? d.percent : null,
+    earlyCount: Number.isSafeInteger(d.earlyCount) ? d.earlyCount : 0,
+    holdCount: Number.isSafeInteger(d.holdCount) ? d.holdCount : 0,
+  })],
+  'app-release.deleted': [APP_VERSION, () => ({})],
 }
 // The platform administrator is the default for call sites with no principal to hand.
 export const ROOT_ACTOR = Object.freeze({ kind: 'root', id: 'token', organizationId: null })

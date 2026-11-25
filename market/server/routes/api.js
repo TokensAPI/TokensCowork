@@ -16,6 +16,7 @@ import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
 import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon, iconVersions, iconPath } from '../services/icons.js'
 import { MAX_DOC_IMAGE_BYTES, listDocImages, uploadDocImage, deleteDocImage } from '../services/doc-images.js'
+import { listAppReleases, createAppRelease, changeAppRelease, deleteAppRelease, availableAppReleases } from '../services/app-releases.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -287,6 +288,23 @@ async function dispatch(request, env, url, principal) {
     if (third && fourth === 'raw') {
       methods(method, ['GET'])
       return sessionLogRaw(env, [second, third], url, actor)
+    }
+  }
+
+  // Staged rollout of desktop app versions; the app itself asks /v1/app/update.
+  if (head === 'app-releases') {
+    onlyPlatform(principal)
+    if (!second) {
+      methods(method, ['GET', 'POST'])
+      return method === 'GET' ? listAppReleases(env) : createAppRelease(env, await payload(request), actor)
+    }
+    if (second === 'available' && !third) {
+      methods(method, ['GET'])
+      return availableAppReleases()
+    }
+    if (!third) {
+      methods(method, ['PATCH', 'DELETE'])
+      return method === 'PATCH' ? changeAppRelease(env, second, await payload(request), actor) : deleteAppRelease(env, second, actor)
     }
   }
 

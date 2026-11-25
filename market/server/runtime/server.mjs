@@ -14,6 +14,7 @@ import worker from '../_worker.js'
 import { createAssets, createD1Database, createTarballCache } from './adapters.mjs'
 import { createSessionLogBindings } from './session-log-storage.mjs'
 import { SESSION_LOG_BODY_LIMIT, purgeExpiredSessionLogs } from '../services/session-logs.js'
+import { purgeStaleInstallations } from '../services/app-releases.js'
 
 const serverRoot = resolve(import.meta.dirname, '..')
 const dataDir = process.env.MARKET_HOST_DATA_DIR || '/data'
@@ -52,6 +53,10 @@ const env = {
 const purgeSessionLogs = () => purgeExpiredSessionLogs(env).catch(error => console.error('session-log retention failed:', error?.code ?? error?.name))
 setInterval(purgeSessionLogs, 60 * 60 * 1000).unref()
 void purgeSessionLogs()
+// App installations not seen for 90 days are forgotten, on the same hourly beat.
+const purgeInstallations = () => purgeStaleInstallations(env).catch(error => console.error('app installation cleanup failed:', error?.code ?? error?.name))
+setInterval(purgeInstallations, 60 * 60 * 1000).unref()
+void purgeInstallations()
 
 const server = createServer(async (incoming, outgoing) => {
   try {

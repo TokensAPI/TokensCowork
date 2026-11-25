@@ -10,6 +10,7 @@ import { sessionLogUpload } from './services/session-logs.js'
 import { createDocsCode, readerDocImage, readerPluginDocs, readerPlugins, redeemDocsCode } from './services/docs.js'
 import { body } from './http/request.js'
 import { iconPath, iconVersions, servePluginIcon } from './services/icons.js'
+import { appUpdateRoute } from './services/app-releases.js'
 
 // The documentation center reads with the reader's own Key (or the administrator's console session)
 // and must never be cached or shared.
@@ -66,6 +67,8 @@ export default {
       return api
     }
     if (url.pathname === '/v1/session-logs') return sessionLogUpload(request, env)
+    // Which desktop app version this installation is offered (services/app-releases.js).
+    if (url.pathname === '/v1/app/update') return appUpdateRoute(request, env, url)
     if (url.pathname === '/v1/docs' || url.pathname.startsWith('/v1/docs/')) return docsRoute(request, env, url)
     if (url.pathname.startsWith('/v1/icons/')) {
       if (!['GET', 'HEAD'].includes(request.method)) return reply({ error: 'method not allowed' }, 405)

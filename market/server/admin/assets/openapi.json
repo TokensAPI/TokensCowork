@@ -48,6 +48,10 @@
     {
       "name": "插件文档",
       "description": "插件的 Markdown 使用文档。平台管理员在这里增删改；用户凭自己的 TokensAPI Key 通过 `GET /v1/docs` 阅读，只看到自己有权限的插件（不在本文档内，见 SERVICE-API.md）。"
+    },
+    {
+      "name": "版本发布",
+      "description": "桌面应用新版本的灰度发布：先发 / 暂缓组织、放量比例、暂停，以及各版本安装数。平台管理员专用。应用调用的 `GET /v1/app/update`（回答「给这台安装哪个版本」）不在本文档内，见 SERVICE-API.md。"
     }
   ],
   "paths": {
@@ -3543,6 +3547,284 @@
           }
         }
       }
+    },
+    "/app-releases": {
+      "get": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "版本列表与安装数",
+        "description": "全部灰度版本（含先发 / 暂缓组织、已提供 / 已升级数量）和各版本安装数，计数只算最近 7 天检查过更新的安装。",
+        "responses": {
+          "200": {
+            "description": "版本列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "新建版本",
+        "description": "新建为草稿（比例 0，谁都看不到）。版本号须为稳定版 `x.y.z`（可带前缀 `v`），重复 `409`。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "version"
+                ],
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "version": "0.8.0",
+                    "note": "先给内部组织"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已新建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "version"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/app-releases/available": {
+      "get": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "可选的版本",
+        "description": "从 GitHub 发布列表（`https://tokensapi.github.io/TokensCowork/releases.json`）读出的稳定格式版本，新的在前，最多 50 个；读不到 `503`，后台改为手填。",
+        "responses": {
+          "200": {
+            "description": "版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "version",
+                          "prerelease",
+                          "publishedAt"
+                        ],
+                        "properties": {
+                          "version": {
+                            "type": "string"
+                          },
+                          "prerelease": {
+                            "type": "boolean"
+                          },
+                          "publishedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/app-releases/{version}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "patch": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "改状态、比例、备注或组织名单",
+        "description": "只改给出的字段；`early` / `hold` 各自整体替换，同一组织不能同时在两份名单里，组织须已登记。`status: full` 时比例固定为 100；已开始发布的版本不能改回 `draft`（`409`）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/AppReleaseStatus"
+                  },
+                  "percent": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "early": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "hold": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "status": "rolling",
+                    "percent": 10,
+                    "early": [
+                      101
+                    ],
+                    "hold": []
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "删除草稿",
+        "description": "只有草稿可以删除，其他状态 `409`（请暂停）。",
+        "responses": {
+          "200": {
+            "description": "已删除",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3613,6 +3895,16 @@
         "schema": {
           "type": "string",
           "pattern": "^[a-f0-9]{32}$"
+        }
+      },
+      "version": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "description": "应用版本号（稳定版 x.y.z）",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
         }
       }
     },
@@ -5049,6 +5341,129 @@
                 },
                 "visibility": {
                   "$ref": "#/components/schemas/Visibility"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AppReleaseStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "rolling",
+          "paused",
+          "full"
+        ],
+        "description": "`draft` 草稿（谁都看不到）、`rolling` 发布中（按规则放量）、`paused` 已暂停（谁都不再提供）、`full` 全量（比例 100）。"
+      },
+      "AppRelease": {
+        "type": "object",
+        "required": [
+          "version",
+          "status",
+          "percent",
+          "note",
+          "early",
+          "hold",
+          "offered",
+          "upgraded",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "examples": [
+              "0.8.0"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AppReleaseStatus"
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-100。先发名单之外的安装按「安装标识 + 版本号」的固定分组（0-99）小于它即提供。"
+          },
+          "note": {
+            "type": "string"
+          },
+          "early": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "先发组织号：不看比例直接提供。"
+          },
+          "hold": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "暂缓组织号：不提供，手动检查也不提供。"
+          },
+          "offered": {
+            "type": "integer",
+            "description": "已提供：最近 7 天检查过更新、正在运行这个版本或最近一次检查得到这个版本的安装数。"
+          },
+          "upgraded": {
+            "type": "integer",
+            "description": "已升级：最近 7 天检查过更新、正在运行这个版本的安装数。"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        }
+      },
+      "AppReleaseList": {
+        "type": "object",
+        "required": [
+          "items",
+          "installations"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppRelease"
+            },
+            "description": "按版本号从高到低。"
+          },
+          "installations": {
+            "type": "object",
+            "required": [
+              "days",
+              "total",
+              "versions"
+            ],
+            "description": "各版本安装数：最近 `days` 天检查过更新的安装，按当前版本分组。",
+            "properties": {
+              "days": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "versions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "version",
+                    "count"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
                 }
               }
             }

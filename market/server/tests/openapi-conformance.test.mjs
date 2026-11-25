@@ -12,6 +12,7 @@ import { gzipSync } from 'node:zlib'
 import { createAssets, createD1Database } from '../runtime/adapters.mjs'
 import { createLocalObjectStore } from '../runtime/session-log-storage.mjs'
 import { fingerprint } from '../security/key-fingerprint.js'
+import { APP_RELEASES_URL } from '../services/app-releases.js'
 
 // The published OpenAPI document is a second description of the management API, so it can drift away
 // from the router silently. These tests pin it from three sides: every documented operation must
@@ -87,6 +88,15 @@ async function fixture(t) {
   db.prepare("INSERT INTO market_organizations(id,name,enabled) VALUES(7,'Seven',1),(9,'Nine',1)").run()
   db.prepare("INSERT INTO market_grants(plugin_id,kind,subject) VALUES('beta','org','7')").run()
   db.prepare("INSERT INTO market_users(id,name) VALUES(102,'Alice')").run()
+  // One app version in rollout and one installation that checked for updates; the GitHub release
+  // list is answered here, never fetched.
+  db.prepare("INSERT INTO app_release_rollouts(version,status,percent,note,created_at,updated_at) VALUES('0.8.0','draft',0,'',1,1)").run()
+  db.prepare("INSERT INTO app_installations(installation_id,version,offered_version,first_seen_at,last_seen_at) VALUES(?,?,?,?,?)")
+    .run('00000000-0000-4000-8000-000000000000', '0.7.19', null, Date.now(), Date.now())
+  const realFetch = globalThis.fetch
+  t.mock.method(globalThis, 'fetch', (input, init) => String(input) === APP_RELEASES_URL
+    ? Promise.resolve(Response.json([{ tag_name: 'v0.8.0', prerelease: true, draft: false, published_at: '2026-11-25T00:00:00Z' }]))
+    : realFetch(input, init))
   // One uploaded session log, so its console routes have something real to answer with.
   const objects = await mkdtemp(resolvePath(tmpdir(), 'market-openapi-session-logs-'))
   const sessionLogs = createD1Database(':memory:', resolvePath(fileURLToPath(new URL('../database/session-log-migrations', import.meta.url))))
@@ -143,11 +153,11 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 36)
+  assert.equal(paths.length, 39)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
-      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4').replace('{docId}', '1')
+      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4').replace('{docId}', '1').replace('{version}', '0.8.0')
     for (const method of Object.keys(item).filter(name => name !== 'parameters')) {
       // Deleting the fixture Key or the session is a real change rather than a probe. Every plugin
       // write carries a stale revision, so the optimistic lock rejects it without changing anything.
@@ -157,7 +167,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 49)
+  assert.equal(checked, 53)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -283,6 +293,20 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['DELETE', '/session-logs', '/session-logs', 200, { sessions: [{ id: 'session-none', formatVersion: 4 }] }],
     ['DELETE', '/session-logs/session-fixture/4', '/session-logs/{sessionId}/{formatVersion}', 200],
     ['DELETE', '/session-logs', '/session-logs', 200, { to: Date.now() }],
+    ['GET', '/app-releases', '/app-releases', 200],
+    ['POST', '/app-releases', '/app-releases', 200, { version: '0.9.0', note: '内部先行' }],
+    ['POST', '/app-releases', '/app-releases', 400, { version: '0.9' }],
+    ['POST', '/app-releases', '/app-releases', 409, { version: '0.9.0' }],
+    ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 200, { status: 'rolling', percent: 10, early: [7], hold: [9] }],
+    ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 400, {}],
+    ['PATCH', '/app-releases/1.0.0', '/app-releases/{version}', 404, { percent: 1 }],
+    ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 409, { status: 'draft' }],
+    ['GET', '/app-releases', '/app-releases', 200],
+    ['GET', '/app-releases/available', '/app-releases/available', 200],
+    ['GET', '/app-releases', '/app-releases', 403, undefined, tenant],
+    ['DELETE', '/app-releases/0.9.0', '/app-releases/{version}', 409],
+    ['DELETE', '/app-releases/0.8.0', '/app-releases/{version}', 200],
+    ['DELETE', '/app-releases/0.8.0', '/app-releases/{version}', 404],
     ['GET', '/audit', '/audit', 200],
     // An organization administrator's session is how 403 is reached at all.
     ['GET', '/plugins', '/plugins', 403, undefined, tenant],
