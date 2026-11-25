@@ -3708,18 +3708,102 @@
         }
       }
     },
+    "/app-releases/info": {
+      "get": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "各版本的发布信息（一行）",
+        "description": "从 GitHub 发布列表读出的稳定格式版本：是否预发布、发布时间、一句话摘要（发布说明标题下第一段的纯文本）。新的在前，最多 100 个。服务端缓存 5 分钟；读不到 `503`，后台照常显示版本，只是不显示这些信息。",
+        "responses": {
+          "200": {
+            "description": "版本信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AppReleaseBrief"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/app-releases/{version}": {
       "parameters": [
         {
           "$ref": "#/components/parameters/version"
         }
       ],
+      "get": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "一个版本",
+        "description": "与列表中的一项相同，另附 `installations`（各版本安装数，用于估算比例对应的台数）。",
+        "responses": {
+          "200": {
+            "description": "版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/AppRelease"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "installations"
+                      ],
+                      "properties": {
+                        "installations": {
+                          "$ref": "#/components/schemas/AppReleaseInstallations"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
       "patch": {
         "tags": [
           "版本发布"
         ],
-        "summary": "改状态、比例、备注或组织名单",
-        "description": "只改给出的字段；`early` / `hold` 各自整体替换，同一组织不能同时在两份名单里，组织须已登记。`status: full` 时比例固定为 100；已开始发布的版本不能改回 `draft`（`409`）。",
+        "summary": "改状态、比例、备注或先发 / 暂缓名单",
+        "description": "只改给出的字段；`early` / `hold`（组织号）与 `earlyUsers` / `holdUsers`（TokensAPI 用户号）各自整体替换。同一组织、同一用户不能同时在先发和暂缓名单里；组织须已登记；新加入名单的用户须在「用户」名录里或 TokensAPI 能查到（查不到 `400`，TokensAPI 暂时不可用 `503`）。`status: full` 时比例固定为 100；已开始发布的版本不能改回 `draft`（`409`）。",
         "requestBody": {
           "required": true,
           "content": {
@@ -3748,6 +3832,20 @@
                     "items": {
                       "type": "integer"
                     }
+                  },
+                  "earlyUsers": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "先发用户号：用户的设置优先于其所属组织。"
+                  },
+                  "holdUsers": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "暂缓用户号：不提供，手动检查也不提供。"
                   }
                 }
               },
@@ -3759,7 +3857,11 @@
                     "early": [
                       101
                     ],
-                    "hold": []
+                    "hold": [],
+                    "earlyUsers": [
+                      6002
+                    ],
+                    "holdUsers": []
                   }
                 }
               }
@@ -3791,6 +3893,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         }
       },
@@ -3822,6 +3927,47 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/app-releases/{version}/info": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/version"
+        }
+      ],
+      "get": {
+        "tags": [
+          "版本发布"
+        ],
+        "summary": "一个版本的发布信息",
+        "description": "从 GitHub 发布列表解析出的这一版信息，只取纯文本、不渲染 Markdown：摘要、「本次更新」各小节与条目（按原顺序）、内置组件与插件版本表、各平台安装包文件名与大小、GitHub 页面地址。服务端缓存 5 分钟。GitHub 上没有这一版（未发布或是草稿）`404`；版本号格式不对 `400`；读不到 `503`。",
+        "responses": {
+          "200": {
+            "description": "发布信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppReleaseInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
           }
         }
       }
@@ -5366,6 +5512,8 @@
           "note",
           "early",
           "hold",
+          "earlyUsers",
+          "holdUsers",
           "offered",
           "upgraded",
           "createdAt",
@@ -5403,6 +5551,20 @@
             },
             "description": "暂缓组织号：不提供，手动检查也不提供。"
           },
+          "earlyUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppReleaseUser"
+            },
+            "description": "先发用户：不看比例直接提供；用户的设置优先于其所属组织的设置。"
+          },
+          "holdUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppReleaseUser"
+            },
+            "description": "暂缓用户：不提供，手动检查也不提供；优先于其所属组织的先发。"
+          },
           "offered": {
             "type": "integer",
             "description": "已提供：最近 7 天检查过更新、正在运行这个版本或最近一次检查得到这个版本的安装数。"
@@ -5416,6 +5578,50 @@
           },
           "updatedAt": {
             "type": "integer"
+          }
+        }
+      },
+      "AppReleaseUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "description": "名单上的一个用户。名称按「用户」名录、再按 TokensAPI 查得（缓存 5 分钟），查不到为 `null`；`organization` 是 TokensAPI 当前给出的所属组织（`null` 为不属于任何组织，查不到时省略）。",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organization": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         }
       },
@@ -5434,41 +5640,176 @@
             "description": "按版本号从高到低。"
           },
           "installations": {
+            "$ref": "#/components/schemas/AppReleaseInstallations"
+          }
+        }
+      },
+      "AppReleaseInstallations": {
+        "type": "object",
+        "required": [
+          "days",
+          "total",
+          "versions"
+        ],
+        "description": "各版本安装数：最近 `days` 天检查过更新的安装，按当前版本分组。",
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "version",
+                "count"
+              ],
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AppReleaseBrief": {
+        "type": "object",
+        "required": [
+          "version",
+          "prerelease",
+          "publishedAt",
+          "summary"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "examples": [
+              "0.8.0"
+            ]
+          },
+          "prerelease": {
+            "type": "boolean",
+            "description": "GitHub 上是否为预发布。灰度期间新版本保持预发布，老客户端看不到它。"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "GitHub 发布时间（ISO 8601）。"
+          },
+          "summary": {
+            "type": "string",
+            "description": "发布说明标题下第一段的纯文本；没有为空字符串。"
+          }
+        }
+      },
+      "AppReleaseInfo": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AppReleaseBrief"
+          },
+          {
             "type": "object",
             "required": [
-              "days",
-              "total",
-              "versions"
+              "name",
+              "url",
+              "highlights",
+              "components",
+              "installers"
             ],
-            "description": "各版本安装数：最近 `days` 天检查过更新的安装，按当前版本分组。",
             "properties": {
-              "days": {
-                "type": "integer"
+              "name": {
+                "type": "string",
+                "description": "GitHub 发布标题。"
               },
-              "total": {
-                "type": "integer"
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "GitHub 发布页面。"
               },
-              "versions": {
+              "highlights": {
                 "type": "array",
+                "description": "发布说明中文部分「## 本次更新」下的小节（`### …`）与条目（`- …`），按原顺序；小节之前的条目归入标题为空的一节。",
                 "items": {
                   "type": "object",
                   "required": [
-                    "version",
-                    "count"
+                    "title",
+                    "items"
                   ],
                   "properties": {
-                    "version": {
+                    "title": {
                       "type": "string"
                     },
-                    "count": {
-                      "type": "integer"
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "components": {
+                "type": "array",
+                "description": "「内置组件与插件」表。",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "version"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "installers": {
+                "type": "array",
+                "description": "附件中的安装包（不含校验和与清单）。",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "size",
+                    "url"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   }
                 }
               }
             }
           }
-        }
+        ]
       }
     }
   }

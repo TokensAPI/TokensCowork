@@ -60,6 +60,11 @@ const ACTIONS = {
     percent: Number.isSafeInteger(d.percent) ? d.percent : null,
     earlyCount: Number.isSafeInteger(d.earlyCount) ? d.earlyCount : 0,
     holdCount: Number.isSafeInteger(d.holdCount) ? d.holdCount : 0,
+    // The user lists (T0112), once a version has or had any; organizations stay earlyCount / holdCount.
+    ...(Number.isSafeInteger(d.earlyUserCount) || Number.isSafeInteger(d.holdUserCount) ? {
+      earlyUserCount: Number.isSafeInteger(d.earlyUserCount) ? d.earlyUserCount : 0,
+      holdUserCount: Number.isSafeInteger(d.holdUserCount) ? d.holdUserCount : 0,
+    } : {}),
   })],
   'app-release.deleted': [APP_VERSION, () => ({})],
 }

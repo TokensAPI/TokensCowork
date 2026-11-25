@@ -153,7 +153,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 39)
+  assert.equal(paths.length, 41)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
@@ -167,7 +167,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 53)
+  assert.equal(checked, 56)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -298,11 +298,19 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['POST', '/app-releases', '/app-releases', 400, { version: '0.9' }],
     ['POST', '/app-releases', '/app-releases', 409, { version: '0.9.0' }],
     ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 200, { status: 'rolling', percent: 10, early: [7], hold: [9] }],
+    ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 200, { earlyUsers: [102], holdUsers: [] }],
+    ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 400, { holdUsers: [102] }],
     ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 400, {}],
     ['PATCH', '/app-releases/1.0.0', '/app-releases/{version}', 404, { percent: 1 }],
     ['PATCH', '/app-releases/0.9.0', '/app-releases/{version}', 409, { status: 'draft' }],
     ['GET', '/app-releases', '/app-releases', 200],
     ['GET', '/app-releases/available', '/app-releases/available', 200],
+    ['GET', '/app-releases/0.9.0', '/app-releases/{version}', 200],
+    ['GET', '/app-releases/1.0.0', '/app-releases/{version}', 404],
+    ['GET', '/app-releases/info', '/app-releases/info', 200],
+    ['GET', '/app-releases/0.8.0/info', '/app-releases/{version}/info', 200],
+    ['GET', '/app-releases/0.9.0/info', '/app-releases/{version}/info', 404],
+    ['GET', '/app-releases/latest/info', '/app-releases/{version}/info', 400],
     ['GET', '/app-releases', '/app-releases', 403, undefined, tenant],
     ['DELETE', '/app-releases/0.9.0', '/app-releases/{version}', 409],
     ['DELETE', '/app-releases/0.8.0', '/app-releases/{version}', 200],

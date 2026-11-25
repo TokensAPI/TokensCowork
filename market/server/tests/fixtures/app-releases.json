@@ -1,0 +1,125 @@
+[
+  {
+    "tag_name": "v0.7.20",
+    "name": "TokensCowork v0.7.20",
+    "html_url": "https://github.com/TokensAPI/TokensCowork/releases/tag/v0.7.20",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-11-25T07:21:24Z",
+    "body": "# TokensCowork v0.7.20\n\n在 v0.7.19 基础上，更新提醒不再每次启动都弹窗：只有大版本弹一次，其余版本只在左下角显示可更新；新版本改为分批推送（TokensCowork 更新插件 0.2.0）。同时修复联网搜索的几个工具每次报错，以及模型一次写很长的文件时越来越慢的问题。\n\n[中文](#user-content-release-notes-zh) | [English](#user-content-release-notes-en)\n\n<a name=\"release-notes-zh\"></a>\n\n## 本次更新\n\n### ✨ 新功能与优化\n\n- 更新提醒不再打扰：发现新版本时，只有大版本（版本号前两位变化，例如 0.7 到 0.8）会弹一次对话框，点「稍后」后同一版本不再弹；其余版本不弹窗、不通知，只在左下角显示下载按钮，托盘菜单同步显示可更新。自己点「检查更新」时照常显示结果。\n- 新版本分批推送：应用检查更新时先向 TokensCowork 插件市场服务询问本机可以更新到哪个版本，新版本会先提供给一部分用户，确认稳定后再提供给所有人。自己点「检查更新」不受分批比例限制。市场服务暂时连不上时，仍按原来的方式提供最新稳定版。\n\n### 🐛 问题修复\n\n- 联网搜索的「高级搜索」「平台搜索」和「搜索引擎自检」三个工具每次调用都返回 `content.some is not a function`，现已修复；普通的联网搜索不受影响（联网搜索插件 0.2.5）。\n- 打开网页抓取后，`web_fetch` 每次都报「注册了多个可用的网页抓取方式」，现已修复，固定走普通 HTTP 抓取（联网搜索插件 0.2.5）。\n- 模型在一次工具调用里写出很长的内容（例如一份很大的 HTML 或报告）时，应用越写越慢、甚至像卡住。原因是每收到一小段就把已收到的全部内容重新解析一遍；现在改为只在这次调用结束时解析一次。本机用 100 KB 的内容测试，这部分耗时从约 21 秒降到约 0.2 秒。\n- 插件市场检查插件更新失败时，现在会把原因记入应用日志，便于排查；界面与重试方式不变。\n\n### ⚠️ 其他变更\n\n- 检查更新时，应用会向 TokensCowork 插件市场服务发送：本机安装时随机生成的安装标识（与硬件无关）、当前版本、系统与处理器类型；已登录时附带 API Key，用于识别所属组织。不发送对话内容与文件。\n- 从 v0.7.19 及更早版本升级到本版本时，仍会按旧方式弹出更新对话框；装上本版本后，后续版本才按新的提醒方式。\n- 产品版本使用 v0.7.20，发布时设置 GitHub Pre-release 标记；升级与降级说明与 v0.7.0 相同，仍不支持回退到 0.5.x。\n\n### 内置组件与插件\n\n| 组件 | 版本 |\n|---|---|\n| Desktop | 2.0.18 |\n| DSH | 0.2.1-rc.2 |\n| TokensCowork 更新 | 0.2.0 |\n| Tokens Cowork UI | 0.2.31 |\n| TokensAPI 账户 | 0.1.14 |\n| TokensAPI 模型 | 0.2.31 |\n| 联网搜索 | 0.2.5 |\n| 循环护栏 | 0.1.1 |\n| 会话日志上传 | 0.1.4 |\n\n## 下载说明\n\n| 系统 | 架构 | 安装包 |\n|---|---|---|\n| Windows | amd64 | [TokensCowork-0.7.20-windows-amd64-installer.exe](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-windows-amd64-installer.exe) |\n| macOS | arm64 | [TokensCowork-0.7.20-macos-arm64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-arm64-installer.dmg) |\n| macOS | amd64 | [TokensCowork-0.7.20-macos-amd64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-amd64-installer.dmg) |\n\n[SHA-256](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-SHA256SUMS.txt) · [plugins.json](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-plugins.json)\n\n## 安装说明\n\n### Windows\n\n完全退出 TokensCowork，再运行 amd64 安装器。安装器未签名，核对仓库及 SHA-256 后安装。\n\n### macOS\n\n按处理器选择 arm64 或 amd64 DMG，将应用拖入\"应用程序\"。应用由发布流程签名并经 Apple 公证。\n\n## 验证结果\n\n- TokensCowork 更新插件 0.2.0：插件 CI 在 Node 22、24、26 上测试全部通过（106 项）；真实宿主契约 24 项通过，其中包含安装标识经真实宿主传给插件、按服务端指定的预发布版本下载并校验。\n- 插件市场服务的分批推送接口已上线，规则与管理接口的测试全部通过。\n- 联网搜索插件 0.2.5：两个问题修复前都在当前宿主上复现；修复后真实宿主契约在 Node 22 与 24 上通过，21 项变异检查全部命中。\n- 流式工具参数解析：用安装包里的实际代码对比修复前后，最终参数完全一致，解析次数由每段一次降为每次调用一次。\n- 覆盖登记检查无漂移，构建代码回归通过。\n- 尚未在真实设备上执行 v0.7.20 安装包的安装与界面验收。\n\n## 已知限制\n\n- 与 v0.7.19 相同：降级回 0.5.x 会丢失迁移后的设置与会话显示；会话日志在每次模型请求前上传，每一轮最后的回答要等这个会话下一次请求时才上传；通过 TokensAPI 使用 GPT 与 Codex 系列模型暂不可用，模型列表默认隐藏这些模型。\n\n## 完整变更\n\n[TokensCowork v0.7.19…v0.7.20](https://github.com/TokensAPI/TokensCowork/compare/v0.7.19...v0.7.20)\n\n<a name=\"release-notes-en\"></a>\n\n## What's New\n\n### ✨ Features and Improvements\n\n- Quieter update reminders: when a new version is found, only a big version (the first two numbers change, for example 0.7 to 0.8) opens a dialog, once; after \"Later\" the same version does not prompt again. Other versions open no dialog and send no notification; the download button at the bottom left and the tray menu show that an update is available. Clicking \"Check Updates\" yourself shows the result as before.\n- Staged delivery of new versions: when checking for updates, the app first asks the TokensCowork plugin market service which version this installation may update to. A new version is offered to some users first and to everyone once it is confirmed stable. Clicking \"Check Updates\" yourself is not limited by the staged percentage. If the market service cannot be reached, the latest stable version is offered as before.\n\n### 🐛 Bug Fixes\n\n- The web search tools \"advanced search\", \"platform search\" and the search-engine self-check returned `content.some is not a function` on every call; fixed. Ordinary web search was not affected (Web Search plugin 0.2.5).\n- With web fetching turned on, `web_fetch` failed every time with \"multiple usable web providers are registered\"; fixed, it now always uses plain HTTP fetching (Web Search plugin 0.2.5).\n- When the model wrote very long content in a single tool call (for example a large HTML file or report), the app became slower and slower and could appear frozen. Each small chunk caused everything received so far to be parsed again; it is now parsed once when the call ends. With 100 KB of content on a local test, this part dropped from about 21 seconds to about 0.2 seconds.\n- When the plugin market fails to check a plugin for updates, the reason is now written to the application log to help diagnosis; the interface and retry behavior are unchanged.\n\n### ⚠️ Other Changes\n\n- When checking for updates, the app sends the TokensCowork plugin market service: an installation ID generated at random on install (unrelated to hardware), the current version, and the operating system and processor type; when signed in, the API Key is attached to identify the organization. No conversation content or files are sent.\n- Upgrading to this version from v0.7.19 or earlier still shows the old update dialog; the new reminder behavior applies to versions after this one is installed.\n- The product version is v0.7.20 and is marked as a GitHub Pre-release; upgrade and downgrade notes are unchanged from v0.7.0, and downgrading to 0.5.x is still unsupported.\n\n### Bundled Components and Plugins\n\n| Component | Version |\n|---|---|\n| Desktop | 2.0.18 |\n| DSH | 0.2.1-rc.2 |\n| TokensCowork 更新 | 0.2.0 |\n| Tokens Cowork UI | 0.2.31 |\n| TokensAPI 账户 | 0.1.14 |\n| TokensAPI 模型 | 0.2.31 |\n| 联网搜索 | 0.2.5 |\n| 循环护栏 | 0.1.1 |\n| 会话日志上传 | 0.1.4 |\n\n## Downloads\n\n| Platform | Architecture | Installer |\n|---|---|---|\n| Windows | amd64 | [TokensCowork-0.7.20-windows-amd64-installer.exe](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-windows-amd64-installer.exe) |\n| macOS | arm64 | [TokensCowork-0.7.20-macos-arm64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-arm64-installer.dmg) |\n| macOS | amd64 | [TokensCowork-0.7.20-macos-amd64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-amd64-installer.dmg) |\n\n[SHA-256](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-SHA256SUMS.txt) · [plugins.json](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-plugins.json)\n\n## Installation\n\n### Windows Installation\n\nExit TokensCowork before running the amd64 installer. It is unsigned; verify the repository and SHA-256.\n\n### macOS Installation\n\nChoose the DMG matching your processor and drag the app into Applications. The app is signed by the release pipeline and notarized by Apple.\n\n## Verification\n\nTokensCowork Updates plugin 0.2.0: plugin CI passed on Node 22, 24 and 26 (106 cases); 24 real-host contract tests passed, including the installation ID reaching the plugin through the real host and a pre-release named by the service being downloaded and verified. The staged-delivery endpoint of the plugin market service is live, and its rule and management tests passed. Web Search plugin 0.2.5: both problems were reproduced on the current host before the fix; afterwards the real-host contract passed on Node 22 and 24 and all 21 mutation checks hit. Streamed tool arguments: comparing the shipped code before and after the fix, the final arguments are identical and parsing dropped from once per chunk to once per call. The overlay registry check found no drift and build-code regression passed. Installation and interface acceptance of the v0.7.20 installers on real devices have not been performed yet.\n\n## Known Limitations\n\nSame as v0.7.19: downgrading to 0.5.x loses the display of migrated settings and sessions; session logs are uploaded before each model request, so a turn's last reply is uploaded only with that session's next request; GPT and Codex models are not usable through TokensAPI for now and are hidden from the model list by default.\n\n## Full Changelog\n\n[TokensCowork v0.7.19…v0.7.20](https://github.com/TokensAPI/TokensCowork/compare/v0.7.19...v0.7.20)\n\n<!-- tokenscowork:distribution=bundled -->\n",
+    "assets": [
+      {
+        "name": "TokensCowork-0.7.20-macos-amd64-installer.dmg",
+        "size": 410711737,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-amd64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.7.20-macos-arm64-installer.dmg",
+        "size": 396663728,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-macos-arm64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.7.20-plugins.json",
+        "size": 2564,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-plugins.json",
+        "content_type": "application/json"
+      },
+      {
+        "name": "TokensCowork-0.7.20-SHA256SUMS.txt",
+        "size": 338,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-SHA256SUMS.txt",
+        "content_type": "text/plain; charset=utf-8"
+      },
+      {
+        "name": "TokensCowork-0.7.20-windows-amd64-installer.exe",
+        "size": 269606992,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.20/TokensCowork-0.7.20-windows-amd64-installer.exe",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.7.19",
+    "name": "TokensCowork v0.7.19",
+    "html_url": "https://github.com/TokensAPI/TokensCowork/releases/tag/v0.7.19",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-11-21T15:52:12Z",
+    "body": "# TokensCowork v0.7.19\n\n在 v0.7.16 基础上，修复四个问题：长会话中「已达到输出 token 上限」反复截断、插件市场更新插件卡住、图片识别偶发失败、登录后左下角不显示用户名。本说明汇总 v0.7.17 至 v0.7.19 的全部改动。\n\n[中文](#user-content-release-notes-zh) | [English](#user-content-release-notes-en)\n\n<a name=\"release-notes-zh\"></a>\n\n## 本次更新\n\n### 🐛 问题修复\n\n- 修复长会话中模型只输出几百个甚至 1 个 token 就提示「已达到输出 token 上限」，发送「继续」后仍立即截断、无法恢复的问题。原因是通过 TokensAPI 调用模型时，应用会按估算的对话长度压低单次输出上限，而估算把以前所有的思考内容都算了进去，思考较多的长会话里估算值远大于实际长度，输出上限被压到接近 0。现在拿不到服务端统计的实际用量时，直接使用模型配置的输出上限，上下文接近上限时仍由自动压缩处理。\n- 修复在插件市场更新或卸载插件时，界面可能停在「正在更新…」约 10 分钟、什么都点不了，结束后提示失败，重新打开应用后插件变成「可安装」的问题。原因是应用内置的 pnpm 11.8.0 有一个已知缺陷：完成安装或卸载后，进程偶尔不会退出。现在内置的 pnpm 升级到 11.28.5，Windows 和 macOS 都已修复。\n- 主模型通过视觉模型读图时，如果识别失败（例如网络抖动或上游临时出错），现在会自动重试 2 次，不再一次失败就整轮提示「图片识别失败」；失败结果也不再保留 60 秒，重新发送会立刻重新识别（TokensAPI 模型 0.2.31）。\n- 修复在启动登录页登录后，左下角仍显示「更多」、不显示用户名，需要打开设置或重启才更新的问题（TokensAPI 账户 0.1.14）。\n\n### ⚠️ 其他变更\n\n- 内置 pnpm 升级后第一次安装插件时，会重新下载一次插件的元数据缓存，速度可能比平时稍慢。\n- 产品版本使用 v0.7.19；升级与降级说明与 v0.7.0 相同，仍不支持回退到 0.5.x。\n\n### 内置组件与插件\n\n| 组件 | 版本 |\n|---|---|\n| Desktop | 2.0.18 |\n| DSH | 0.2.1-rc.2 |\n| TokensCowork 更新 | 0.1.7 |\n| Tokens Cowork UI | 0.2.31 |\n| TokensAPI 账户 | 0.1.14 |\n| TokensAPI 模型 | 0.2.31 |\n| 联网搜索 | 0.2.4 |\n| 循环护栏 | 0.1.1 |\n| 会话日志上传 | 0.1.4 |\n\n## 下载说明\n\n| 系统 | 架构 | 安装包 |\n|---|---|---|\n| Windows | amd64 | [TokensCowork-0.7.19-windows-amd64-installer.exe](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-windows-amd64-installer.exe) |\n| macOS | arm64 | [TokensCowork-0.7.19-macos-arm64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-arm64-installer.dmg) |\n| macOS | amd64 | [TokensCowork-0.7.19-macos-amd64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-amd64-installer.dmg) |\n\n[SHA-256](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-SHA256SUMS.txt) · [plugins.json](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-plugins.json)\n\n## 安装说明\n\n### Windows\n\n完全退出 TokensCowork，再运行 amd64 安装器。安装器未签名，核对仓库及 SHA-256 后安装。\n\n### macOS\n\n按处理器选择 arm64 或 amd64 DMG，将应用拖入\"应用程序\"。应用由发布流程签名并经 Apple 公证。\n\n## 验证结果\n\n- 输出上限：用用户导出的会话（338 条消息、37 张图）还原出问题出现时的请求，通过应用实际使用的模型接入代码发到 TokensAPI。修复前请求的输出上限为 1，模型输出 1 个 token 后以长度用完结束，与用户日志一致；修复后输出上限为 32768，模型正常回答。新增 5 项构建代码回归用例。\n- TokensAPI 账户 0.1.14：插件 CI 在 Node 22/24 上通过；插件回归 85 项通过，真实宿主契约 16 项通过；新增用例覆盖浏览器登录与手动填写 API Key 两种放行方式。\n- 插件更新：按插件市场「更新」的真实流程反复更新连接中心，pnpm 11.8.0 在 40 次操作中有 2 次完成后不退出，重现了卡住的问题；pnpm 11.28.5 在 40 次操作中全部正常完成。\n- TokensAPI 模型 0.2.31：插件 CI 在 Windows、macOS、Linux 上通过；真实宿主契约 34 项通过；用户反馈的截图实际识别成功，模拟网络不可达时自动重试 2 次后给出原提示。\n- 覆盖登记检查无漂移，构建代码回归 239 项通过。\n- 发布的安装包：Windows 安装包的 SHA-256 与校验文件一致；解包检查，四项修复对应的文件均在包内（pnpm 11.28.5、TokensAPI 模型 0.2.31、TokensAPI 账户 0.1.14、输出上限修正），并用包内代码复算上述会话得到输出上限 32768。发布流程的 Windows 质量门禁通过，macOS 安装包完成签名与公证。\n- 未在真实设备上做安装后的界面验收。\n\n## 已知限制\n\n- 与 v0.7.16 相同：降级回 0.5.x 会丢失迁移后的设置与会话显示；会话日志在每次模型请求前上传，每一轮最后的回答要等这个会话下一次请求时才上传；通过 TokensAPI 使用 GPT 与 Codex 系列模型暂不可用，模型列表默认隐藏这些模型。\n\n## 完整变更\n\n[TokensCowork v0.7.16…v0.7.19](https://github.com/TokensAPI/TokensCowork/compare/v0.7.16...v0.7.19)\n\n<a name=\"release-notes-en\"></a>\n\n## What's New\n\n### 🐛 Bug Fixes\n\n- Fixed long conversations in which the model stopped after a few hundred tokens, or even one, with \"Output token limit reached\", and sending \"continue\" was cut off again every time. When calling models through TokensAPI, the app lowers each request's output limit by an estimate of the conversation length, and that estimate counted every earlier reasoning block. In long conversations with a lot of reasoning the estimate far exceeded the real length and pushed the output limit close to zero. When the server-reported usage is not available, the app now sends the model's configured output limit; a nearly full context is still handled by automatic compaction.\n- Fixed plugin-market updates and uninstalls that could freeze the window on \"Updating…\" for about 10 minutes, then report a failure and leave the plugin showing \"Install\" after a restart. The bundled pnpm 11.8.0 has a known defect: after finishing an install or removal its process sometimes never exits. The bundled pnpm is now 11.28.5, fixed on both Windows and macOS.\n- When the main model reads an image through the vision model and recognition fails (for example a network blip or a temporary upstream error), it is now retried automatically twice instead of failing the whole turn with \"Image recognition failed\"; a failed result is no longer held for 60 seconds, so sending again recognizes the image right away (TokensAPI Models 0.2.31).\n- Fixed the bottom-left account entry still showing \"More\" instead of the user name after signing in on the startup sign-in page, until Settings was opened or the app restarted (TokensAPI Account 0.1.14).\n\n### ⚠️ Other Changes\n\n- The first plugin installation after the pnpm upgrade downloads package metadata again, so it may take a little longer than usual.\n- The product version is v0.7.19; upgrade and downgrade notes are unchanged from v0.7.0, and downgrading to 0.5.x is still unsupported.\n\n### Bundled Components and Plugins\n\n| Component | Version |\n|---|---|\n| Desktop | 2.0.18 |\n| DSH | 0.2.1-rc.2 |\n| TokensCowork 更新 | 0.1.7 |\n| Tokens Cowork UI | 0.2.31 |\n| TokensAPI 账户 | 0.1.14 |\n| TokensAPI 模型 | 0.2.31 |\n| 联网搜索 | 0.2.4 |\n| 循环护栏 | 0.1.1 |\n| 会话日志上传 | 0.1.4 |\n\n## Downloads\n\n| Platform | Architecture | Installer |\n|---|---|---|\n| Windows | amd64 | [TokensCowork-0.7.19-windows-amd64-installer.exe](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-windows-amd64-installer.exe) |\n| macOS | arm64 | [TokensCowork-0.7.19-macos-arm64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-arm64-installer.dmg) |\n| macOS | amd64 | [TokensCowork-0.7.19-macos-amd64-installer.dmg](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-amd64-installer.dmg) |\n\n[SHA-256](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-SHA256SUMS.txt) · [plugins.json](https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-plugins.json)\n\n## Installation\n\n### Windows Installation\n\nExit TokensCowork before running the amd64 installer. It is unsigned; verify the repository and SHA-256.\n\n### macOS Installation\n\nChoose the DMG matching your processor and drag the app into Applications. The app is signed by the release pipeline and notarized by Apple.\n\n## Verification\n\nOutput limit: the request at the point of failure was rebuilt from a user's exported conversation (338 messages, 37 images) and sent to TokensAPI through the model integration code the app uses. Before the fix the request carried an output limit of 1 and the model stopped on length after one token, matching the user's log; after the fix the limit was 32768 and the model answered normally. Five build-code regression tests were added. TokensAPI Account 0.1.14: plugin CI passed on Node 22 and 24; 85 plugin regression cases and 16 real-host contract tests passed; new cases cover both browser sign-in and a manually entered API key. Plugin updates: following the market's real update flow on Connect, pnpm 11.8.0 failed to exit after finishing in 2 of 40 operations, reproducing the freeze, while pnpm 11.28.5 completed all 40. TokensAPI Models 0.2.31: plugin CI passed on Windows, macOS and Linux; 34 real-host contract tests passed; the screenshot from the user report was recognized, and with the network unreachable the read was retried twice before the original message appeared. The overlay registry check found no drift and build-code regression passed 239 tests. Released installers: the Windows installer matches its published SHA-256; unpacked, it contains the files for all four fixes (pnpm 11.28.5, TokensAPI Models 0.2.31, TokensAPI Account 0.1.14, the output-limit correction), and the packaged code yields an output limit of 32768 for the conversation above. The release pipeline's Windows quality gate passed and the macOS installers were signed and notarized. Interface acceptance after installation on real devices has not been performed.\n\n## Known Limitations\n\nSame as v0.7.16: downgrading to 0.5.x loses the display of migrated settings and sessions; session logs are uploaded before each model request, so a turn's last reply is uploaded only with that session's next request; GPT and Codex models are not usable through TokensAPI for now and are hidden from the model list by default.\n\n## Full Changelog\n\n[TokensCowork v0.7.16…v0.7.19](https://github.com/TokensAPI/TokensCowork/compare/v0.7.16...v0.7.19)\n\n<!-- tokenscowork:distribution=bundled -->\n",
+    "assets": [
+      {
+        "name": "TokensCowork-0.7.19-macos-amd64-installer.dmg",
+        "size": 410686274,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-amd64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.7.19-macos-arm64-installer.dmg",
+        "size": 396674562,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-macos-arm64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.7.19-plugins.json",
+        "size": 2564,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-plugins.json",
+        "content_type": "application/json"
+      },
+      {
+        "name": "TokensCowork-0.7.19-SHA256SUMS.txt",
+        "size": 338,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-SHA256SUMS.txt",
+        "content_type": "text/plain; charset=utf-8"
+      },
+      {
+        "name": "TokensCowork-0.7.19-windows-amd64-installer.exe",
+        "size": 269606214,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.7.19/TokensCowork-0.7.19-windows-amd64-installer.exe",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.5.13",
+    "name": "TokensCowork v0.5.13",
+    "html_url": "https://github.com/TokensAPI/TokensCowork/releases/tag/v0.5.13",
+    "draft": false,
+    "prerelease": true,
+    "published_at": "2026-09-23T04:38:25Z",
+    "body": "# TokensCowork v0.5.13\n\n内置 TokensAPI 账户插件，支持通过系统浏览器登录账户，并为模型插件配置账户所属的 API Key。\n\n## 本次更新\n\n- 默认启用 tokens-login 0.1.5，固定源码提交 a0019053b223951a622aba11544e149f0dc73341。\n- 登录后按账户归属复用或配置 API Key，避免继续使用其他账户遗留的 Key。\n- 同步内置组件清单及产品依赖锁文件；沿用 v0.5.12 的外部浏览器桥。\n\n## 下载说明\n\n以 pre-release 发布，三个平台构建成功后提供附件。\n\n- Windows amd64：`TokensCowork-0.5.13-windows-amd64-installer.exe`\n- macOS Apple Silicon：`TokensCowork-0.5.13-macos-arm64-installer.dmg`\n- macOS Intel：`TokensCowork-0.5.13-macos-amd64-installer.dmg`\n\n## 安装说明\n\n完全退出应用后覆盖安装，无需删除用户配置或会话。\n\n## 验证结果\n\n- 外层构建回归 70 项通过。\n- 登录插件在固定提交的 LF 临时副本中 50 项测试通过，包含账户 Key 归属、浏览器回调及包内容校验。\n- Windows CRLF 工作区存在一项发布工作流文本断言失败；原始 LF 源码复测通过，未修改插件源代码。\n\n## 已知限制\n\n- 浏览器登录依赖站点提供 `/desktop-auth` 页面和对应交握能力。\n- 本次未重新执行真实站点登录和跨平台安装验收；安装包以 GitHub Actions 构建结果为准。\n\n## 完整变更\n\n[v0.5.12...v0.5.13](https://github.com/TokensAPI/TokensCowork/compare/v0.5.12...v0.5.13)\n\n<!-- tokenscowork:distribution=bundled -->\n",
+    "assets": [
+      {
+        "name": "TokensCowork-0.5.13-macos-amd64-installer.dmg",
+        "size": 195388031,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.5.13/TokensCowork-0.5.13-macos-amd64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.5.13-macos-arm64-installer.dmg",
+        "size": 191694066,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.5.13/TokensCowork-0.5.13-macos-arm64-installer.dmg",
+        "content_type": "application/x-apple-diskimage"
+      },
+      {
+        "name": "TokensCowork-0.5.13-plugins.json",
+        "size": 2159,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.5.13/TokensCowork-0.5.13-plugins.json",
+        "content_type": "application/json"
+      },
+      {
+        "name": "TokensCowork-0.5.13-SHA256SUMS.txt",
+        "size": 338,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.5.13/TokensCowork-0.5.13-SHA256SUMS.txt",
+        "content_type": "text/plain; charset=utf-8"
+      },
+      {
+        "name": "TokensCowork-0.5.13-windows-amd64-installer.exe",
+        "size": 134432638,
+        "browser_download_url": "https://github.com/TokensAPI/TokensCowork/releases/download/v0.5.13/TokensCowork-0.5.13-windows-amd64-installer.exe",
+        "content_type": "application/octet-stream"
+      }
+    ]
+  }
+]

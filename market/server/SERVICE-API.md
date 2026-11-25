@@ -98,7 +98,9 @@
 | GET | `/session-logs/:sessionId/:formatVersion/raw?format=` | ✗ |
 | GET / POST | `/app-releases` | ✗ |
 | GET | `/app-releases/available` | ✗ |
-| PATCH / DELETE | `/app-releases/:version` | ✗ |
+| GET | `/app-releases/info` | ✗ |
+| GET / PATCH / DELETE | `/app-releases/:version` | ✗ |
+| GET | `/app-releases/:version/info` | ✗ |
 | GET | `/audit` | ✗ |
 | GET | `/npm-package?name=&registry=&version=` | ✗ |
 
@@ -369,28 +371,37 @@ PUT /api/v1/users/102/grants
 - 请求头 `X-Installation-Id`：应用安装时随机生成的 UUID，必填，缺失或格式不对 `400`。`Authorization: Bearer <Key>` 可选。
 - `version` 必填（`x.y.z`，可带预发布后缀，如 `0.8.0-rc.1`，它低于 `0.8.0`）；`platform`、`arch` 可选（小写字母、数字、下划线，最多 16 位）；参数超过 64 字符 `400`。`manual=1` 表示用户手动点了「检查更新」。
 - 响应 `200 { "version": "0.8.0" }` 或 `{ "version": null }`，`Cache-Control: no-store`。只给严格高于 `version` 的版本，从不降级；几个版本都成立时给最高的。
-- 判断（每个「发布中」或「全量」的版本，按顺序）：
-  1. 调用者的组织在该版本的**暂缓名单** → 不给（手动检查也不给）；
-  2. 在**先发名单** → 给；
-  3. 其余所有人（无组织、TokensAPI 查不到、没带 Key 都算这里）：`manual=1` 直接给；否则按 `SHA-256(安装标识 + ":" + 版本号)` 前 4 字节取模 100 得到固定分组，小于该版本比例（全量为 100）就给。分组里有版本号，所以每个版本先拿到的不是同一批人。
+- 判断（每个「发布中」或「全量」的版本，按顺序；**用户的设置优先于其所属组织的设置**）：
+  1. 调用者的账号在该版本的**用户暂缓名单** → 不给（手动检查也不给）；
+  2. 账号在**用户先发名单** → 给；
+  3. 调用者的组织在该版本的**组织暂缓名单** → 不给（手动检查也不给）；
+  4. 组织在**组织先发名单** → 给；
+  5. 其余所有人（无组织、TokensAPI 查不到、没带 Key 都算这里；没带 Key 的请求既没有账号也没有组织，直接到这一条）：`manual=1` 直接给；否则按 `SHA-256(安装标识 + ":" + 版本号)` 前 4 字节取模 100 得到固定分组，小于该版本比例（全量为 100）就给。分组里有版本号，所以每个版本先拿到的不是同一批人。
   - **草稿、已暂停**的版本对谁都不给，先发名单和手动检查也不例外。
-- 组织由 Key → 账号 → 组织解析，与插件权限同一套（`resolveIdentity`，每把 Key 缓存 1 分钟）。TokensAPI 未配置、报错或 3 秒内没答复，按「没有组织」继续，更新检查不会因此失败。
+- 账号和组织由 Key → 账号 → 组织解析，与插件权限同一套（`resolveIdentity`，每把 Key 缓存 1 分钟）。TokensAPI 未配置、报错或 3 秒内没答复，按「没有账号、没有组织」继续，更新检查不会因此失败。
 - 每次调用记录这台安装：安装标识、当前版本、平台、架构、Key 所属账号号（解析得到时；解析不到保留上次的）、这次给出的版本、首次与最近检查时间。不含硬件信息、Key 和对话内容。写入失败不影响回答。90 天没出现的记录由服务每小时清理。
 
 **管理接口**（平台管理员；组织管理员 `403`）：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/app-releases` | `{ items, installations }`。`items` 按版本号从高到低：`{ version, status, percent, note, early, hold, offered, upgraded, createdAt, updatedAt }`，`early` / `hold` 是组织号。`installations` 为 `{ days: 7, total, versions: [{ version, count }] }`：最近 7 天检查过更新的安装按当前版本计数 |
+| GET | `/app-releases` | `{ items, installations }`。`items` 按版本号从高到低：`{ version, status, percent, note, early, hold, earlyUsers, holdUsers, offered, upgraded, createdAt, updatedAt }`，`early` / `hold` 是组织号；`earlyUsers` / `holdUsers` 是用户 `{ id, name, organization? }`（名称先按「用户」名录、再按 TokensAPI 查得，查不到为 `null`；`organization` 为 TokensAPI 当前给出的所属组织，`null` = 不属于组织，查不到时省略）。`installations` 为 `{ days: 7, total, versions: [{ version, count }] }`：最近 7 天检查过更新的安装按当前版本计数 |
 | POST | `/app-releases` | `{ version, note? }` 新建草稿（比例 0）。版本号须为稳定版 `x.y.z`（前缀 `v` 会去掉），重复 `409` |
-| GET | `/app-releases/available` | `{ items: [{ version, prerelease, publishedAt }] }`：GitHub 发布列表 `https://tokensapi.github.io/TokensCowork/releases.json` 里稳定格式的版本，新的在前，最多 50 个；读不到 `503`，后台改为手填 |
-| PATCH | `/app-releases/:version` | 任意组合 `{ status?, percent?, note?, early?, hold? }`：`status` 为 `draft` / `rolling` / `paused` / `full`；`percent` 0-100 整数；`early` / `hold` 各自整体替换，组织须已登记，同一组织不能同时在两份名单。改为 `full` 时比例固定为 100（同时给出别的比例 `400`）；已开始发布的版本不能改回 `draft`（`409`），暂停即可；从暂停改回发布中保留原比例 |
+| GET | `/app-releases/available` | `{ items: [{ version, prerelease, publishedAt }] }`：GitHub 发布列表 `https://tokensapi.github.io/TokensCowork/releases.json` 里稳定格式的版本，新的在前，最多 50 个；每次都重新读取；读不到 `503`，后台改为手填 |
+| GET | `/app-releases/info` | `{ items: [{ version, prerelease, publishedAt, summary }] }`：同一份发布列表里各版本的一行信息，`summary` 是发布说明标题下第一段的纯文本（没有为 `""`）。新的在前，最多 100 个；读不到 `503` |
+| GET | `/app-releases/:version` | 列表里的一项，另附 `installations`；没有这个版本 `404` |
+| GET | `/app-releases/:version/info` | 这一版的发布信息：`{ version, prerelease, publishedAt, summary, name, url, highlights: [{ title, items }], components: [{ name, version }], installers: [{ name, size, url }] }`。`highlights` 取发布说明中文部分「## 本次更新」下的 `###` 小节与 `-` 条目，按原顺序（小节之前的条目归入 `title` 为空的一节）；`components` 取「内置组件与插件」表；`installers` 是附件里的安装包（不含校验和与清单）。全部只取纯文本，不渲染 Markdown。GitHub 上没有这一版 `404`，版本号格式不对 `400`，读不到 `503` |
+| PATCH | `/app-releases/:version` | 任意组合 `{ status?, percent?, note?, early?, hold?, earlyUsers?, holdUsers? }`：`status` 为 `draft` / `rolling` / `paused` / `full`；`percent` 0-100 整数；四份名单各自整体替换，组织须已登记，同一组织、同一用户不能同时在先发和暂缓。新加入名单的用户须在「用户」名录里或 TokensAPI 查得到：查不到 `400`（「TokensAPI 中没有用户 #…」；未配置 TokensAPI 用户搜索时只认名录里的用户），TokensAPI 暂时不可用 `503`；已在名单上的用户不再核对。改为 `full` 时比例固定为 100（同时给出别的比例 `400`）；已开始发布的版本不能改回 `draft`（`409`），暂停即可；从暂停改回发布中保留原比例 |
 | DELETE | `/app-releases/:version` | 只能删草稿，其他状态 `409` |
 
 **计数口径**（都只算最近 7 天检查过更新的安装）：「已升级」= 当前正运行这个版本的安装；「已提供」= 已升级的，加上最近一次检查得到了这个版本、但还没装上的。
 已经通过别的途径（例如直接下载预发布）装上这个版本的安装也算已升级。
 
-每次新建、修改、删除写一条操作记录：`app-release.created`、`app-release.updated`（记修改后的状态、比例、先发与暂缓组织数）、`app-release.deleted`。
+每次新建、修改、删除写一条操作记录：`app-release.created`、`app-release.updated`（记修改后的状态、比例、先发与暂缓组织数 `earlyCount` / `holdCount`；版本有过用户名单时另记先发与暂缓用户数 `earlyUserCount` / `holdUserCount`）、`app-release.deleted`。
+
+发布信息（`/info`）的发布列表每个服务进程缓存 5 分钟，读取失败不缓存；版本列表与修改都不依赖它，GitHub 读不到时后台只是不显示版本信息。
+
+用户名单存于 `app_release_rollout_users`（迁移 014，版本 + 用户号 + 先发 / 暂缓），与组织名单 `app_release_rollout_orgs`（迁移 013）分开。
 
 与发版流程的衔接：灰度期间新版本在 GitHub 上保持**预发布**，老客户端（只认稳定版）看不到它；全量后仍按原流程转为稳定版（需要用户点头）。
 

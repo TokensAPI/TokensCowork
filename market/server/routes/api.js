@@ -16,7 +16,7 @@ import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
 import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon, iconVersions, iconPath } from '../services/icons.js'
 import { MAX_DOC_IMAGE_BYTES, listDocImages, uploadDocImage, deleteDocImage } from '../services/doc-images.js'
-import { listAppReleases, createAppRelease, changeAppRelease, deleteAppRelease, availableAppReleases } from '../services/app-releases.js'
+import { listAppReleases, getAppRelease, createAppRelease, changeAppRelease, deleteAppRelease, availableAppReleases, appReleaseInfos, appReleaseInfo } from '../services/app-releases.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
 // routes: a Bearer admin token is the platform administrator; a console session cookie is the
@@ -300,11 +300,21 @@ async function dispatch(request, env, url, principal) {
     }
     if (second === 'available' && !third) {
       methods(method, ['GET'])
-      return availableAppReleases()
+      return availableAppReleases(env)
+    }
+    // What GitHub says about the versions (read-only, cached a few minutes): one line each, or one in full.
+    if (second === 'info' && !third) {
+      methods(method, ['GET'])
+      return appReleaseInfos(env)
     }
     if (!third) {
-      methods(method, ['PATCH', 'DELETE'])
+      methods(method, ['GET', 'PATCH', 'DELETE'])
+      if (method === 'GET') return getAppRelease(env, second)
       return method === 'PATCH' ? changeAppRelease(env, second, await payload(request), actor) : deleteAppRelease(env, second, actor)
+    }
+    if (third === 'info' && !fourth) {
+      methods(method, ['GET'])
+      return appReleaseInfo(env, second)
     }
   }
 
