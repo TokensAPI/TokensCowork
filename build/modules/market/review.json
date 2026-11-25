@@ -279,5 +279,11 @@
     "2026-10-12：UI 0.2.24 已移除全局 dialog position 覆盖，弹窗定位由主题插件自身保持；删除 market.dialog-position 覆盖及其测试。",
     "2026-10-20（T0018）：旧覆盖里「绝不改写 Profile 的 pnpm 配置」这条自我约束按新事实改写为「不**持久化**改写」——临时 .npmrc 只在一次操作期间存在。Windows 上 0o600 不生效，代码注释与本记录都按「靠时间窗不靠权限位」表述，不要写成已限制权限。",
     "2026-10-20（T0018）：两处仍是上游自己的能力、产品没有兜底，升级时要盯——(1) 官方管理器安装时只接受 registry 选项，没有鉴权入口，私有包的 token 只能经临时 .npmrc 传入；(2) 插件页 store 的 installFrom（按 spec 安装，经 plugins.add.actions 插槽暴露）本产品没有注册该插槽，因此未覆盖，若将来有插件注册它，安装会绕过私有 Registry 与版本校验。"
+    ,{
+      "overlays": [
+        "market.updates"
+      ],
+      "verified": "2026-11-25（T0111）：2026-11-24 用户重启后连接中心详情显示「检查失败，请重试」，宿主日志没有任何记录：注入的 checkUpdates 单个插件版本核对失败与清单路由整体失败的 catch 都把错误吞了。两处改为失败时写一行日志，界面与重试逻辑不变：版本核对走 install service 已有的 logFailure（index.ts 接到 ctx.logger.error，即 Desktop 持久日志），整体失败走路由已有的 ctx.logger.error，并区分 catalog scan / version check 两个阶段。内容只有包名（整体失败为已安装数量）、阶段、错误 name 与 message；message 合并成一行、截到 300 字符，去掉 URL 的账号与查询串 / 片段，Bearer / Basic 值、token / api_key / authorization / password 赋值和 sk- 形状的值替换成 ****；日志函数抛错时吞掉，不改变返回。用例用 stripTypeScriptTypes 执行装配出的 checkUpdates 与路由代码：失败时各一行（样例 `dsh-community-market: update check failed for @tokensapi/a (version check): FetchError: request to https://market.example/registry/%40tokensapi%2Fa failed, reason: Bearer ****`、`... for 1 installed plugins (catalog scan): TimeoutError: The operation was aborted due to timeout`），成功与目录未列出时无日志，角标结果与原来相同；经 market.registry 组合后仍保留。test:build market 通过；overlay-doctor --doctor 0 失效；体检 staging 里 dsh-community-market 的 tsc（src、tests）与 tests/market-update.spec.ts 14 项通过。"
+    }
   ]
 }

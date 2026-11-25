@@ -14,9 +14,33 @@ function replace(source, anchor, value) {
   return source.replace(anchor, value)
 }
 
+// 更新检查失败时写进宿主日志的一行（T0111）：只留错误的 name 与 message，去掉 URL 里的
+// 账号、查询串和像 Key / token 的值。String.raw 保留正则里的反斜杠，所以这段源码不用模板插值。
+const UPDATE_CHECK_FAILURE = String.raw`/**
+ * Product overlay: one log line for a failed update check. Only the error's
+ * name and message are kept, without URL credentials, query strings or
+ * token-shaped values, so no API Key or signed URL reaches the log.
+ */
+export function describeUpdateCheckFailure(subject: string, phase: 'catalog scan' | 'version check', cause: unknown): string {
+  const name = cause instanceof Error ? cause.name : typeof cause
+  const message = (cause instanceof Error ? cause.message : String(cause))
+    .replace(/\s+/g, ' ')
+    .replace(/\b([a-z][a-z\d+.-]*:\/\/)[^\s/@]*@/gi, '$1')
+    .replace(/(\b[a-z][a-z\d+.-]*:\/\/[^\s?#]*)[?#]\S*/gi, '$1')
+    .replace(/\b(bearer|basic)\s+\S+/gi, '$1 ****')
+    .replace(/(auth_?token|token|api[_-]?key|authorization|password)(\s*[=:]\s*)\S+/gi, '$1$2****')
+    .replace(/\bsk-[\w-]{8,}/g, 'sk-****')
+  const bounded = message.length > 300 ? message.slice(0, 300) + '…' : message
+  return 'dsh-community-market: update check failed for ' + subject + ' (' + phase + '): ' + name + ': ' + bounded
+}
+
+`
+
 /** 更新检查与更新动作的主机侧实现。 */
 function addUpdatesToHost(service) {
   service = replace(service, "import { prerelease, valid } from 'semver'", "import { gt, prerelease, valid } from 'semver'")
+  service = replace(service, 'function stableExactVersion(value: unknown): value is string {',
+    UPDATE_CHECK_FAILURE + 'function stableExactVersion(value: unknown): value is string {')
   service = replace(service, 'type MarketIntent = InstallIntent | UninstallIntent', `interface UpdateIntent {
   readonly kind: 'update'
   readonly packageName: string
@@ -83,7 +107,11 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
           if (!stableExactVersion(latest.version)) throw new Error('invalid latest')
           return { ...item, updateVersion: latest.version,
             updateStatus: gt(latest.version, current.version) ? 'available' as const : 'current' as const }
-        } catch { return { ...item, updateStatus: 'failed' as const } }
+        } catch (cause) {
+          // The badge degrades to "check failed"; the reason goes to the Desktop log.
+          try { this.logFailure?.(describeUpdateCheckFailure(item.packageName, 'version check', cause)) } catch {}
+          return { ...item, updateStatus: 'failed' as const }
+        }
       })))
     }
     operationSignal.throwIfAborted()
@@ -156,7 +184,10 @@ type MarketIntent = InstallIntent | UninstallIntent | UpdateIntent`)
 
 /** 更新检查与更新预览的路由。 */
 function addUpdatesToRoutes(routes) {
-  routes = replace(routes, "  | { readonly action: 'uninstall'; readonly packageName: string }",
+  // 单独一行导入：上游这行导入由 market.registry 再改写，保持原样。
+  const installImport = "import { MarketInstallError, type MarketInstallService } from '../install/service.js'"
+  routes = replace(routes, installImport, `${installImport}\nimport { describeUpdateCheckFailure } from '../install/service.js'`)
+  routes = replace(routes,"  | { readonly action: 'uninstall'; readonly packageName: string }",
     "  | { readonly action: 'uninstall'; readonly packageName: string }\n  | { readonly action: 'update'; readonly packageName: string }")
   routes = replace(routes, `    request.action === 'uninstall'
     && exactKeys(request, ['action', 'packageName'])
@@ -182,9 +213,13 @@ function addUpdatesToRoutes(routes) {
           if (new URL(req.url ?? '/', 'http://localhost').searchParams.get('updates') === '1') {
             // One bounded scan: a slow catalog degrades the badges, never the list.
             const scanSignal = AbortSignal.any([signal, AbortSignal.timeout(15000)])
+            let phase: 'catalog scan' | 'version check' = 'catalog scan'
             try {
-              installations = await install.checkUpdates(installations, await updatePackages(scanSignal), scanSignal)
-            } catch {
+              const allowed = await updatePackages(scanSignal)
+              phase = 'version check'
+              installations = await install.checkUpdates(installations, allowed, scanSignal)
+            } catch (cause) {
+              try { ctx.logger.error(describeUpdateCheckFailure(installations.length + ' installed plugins', phase, cause)) } catch {}
               installations = installations.map(item => ({ ...item, updateStatus: 'failed' as const }))
             }
           }
