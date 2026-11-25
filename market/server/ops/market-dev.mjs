@@ -27,6 +27,7 @@ import { createSessionLogBindings } from '../runtime/session-log-storage.mjs'
 import { SESSION_LOG_BODY_LIMIT } from '../services/session-logs.js'
 import { demoSessionBatches, DEMO_PARENT } from './session-log-demo.mjs'
 import { migrate } from '../database/migrate.mjs'
+import { APP_RELEASES_URL } from '../services/app-releases.js'
 
 const root = resolve(import.meta.dirname, '..')
 const HOST = '127.0.0.1'
@@ -199,6 +200,13 @@ async function fixtureEnvironment() {
       if(doc)return Response.json({...doc,name:doc.package,description:doc.summary})
       return item ? Response.json({ latest: item.version }) : new Response('Fixture package not found', { status: 404 })
     }
+    // The app's GitHub release list (版本发布 → 新建版本), as fictional entries in its shape.
+    if (url.href === APP_RELEASES_URL) return Response.json([
+      { tag_name: 'v0.8.2', prerelease: true, draft: false, published_at: '2026-11-25T08:00:00Z' },
+      { tag_name: 'v0.8.1', prerelease: true, draft: false, published_at: '2026-11-24T08:00:00Z' },
+      { tag_name: 'v0.8.0', prerelease: true, draft: false, published_at: '2026-11-22T08:00:00Z' },
+      { tag_name: 'v0.7.19', prerelease: false, draft: false, published_at: '2026-11-21T08:00:00Z' },
+    ])
     throw new Error('External network is disabled in local market QA')
   }
   // Sign in with a real TokensAPI account: the two login lookups go to the live site, with the

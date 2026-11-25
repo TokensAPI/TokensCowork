@@ -73,6 +73,32 @@ tr[aria-busy="true"] {
   overflow-y: auto;
 }
 
+/* 版本发布: one row per version in the install counts, and the small controls of its dialog. */
+.install-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.install-row + .install-row {
+  margin-top: 0.5rem;
+}
+.install-version {
+  flex: 0 0 5.5rem;
+}
+.install-count {
+  flex: 0 0 auto;
+  min-width: 7.5rem;
+  text-align: right;
+  color: var(--tblr-secondary);
+}
+.percent-input {
+  width: 5rem;
+}
+.placement-select {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 /* The app's mount point takes no box of its own, so Tabler's full-height .page sits under <body> as
    it does at /admin/ (and the footer stays at the bottom of a short page). */
 #app {

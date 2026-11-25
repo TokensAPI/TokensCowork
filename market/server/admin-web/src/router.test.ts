@@ -57,7 +57,7 @@ describe('who sees which page', () => {
   it('the platform administrator sees every page and lands on the first one drawn here', async () => {
     const router = start('')
     await signIn(PLATFORM)
-    expect(allowedViews.value).toEqual(['plugins', 'organizations', 'users', 'keys', 'docs', 'session-logs', 'activity'])
+    expect(allowedViews.value).toEqual(['plugins', 'organizations', 'users', 'keys', 'docs', 'session-logs', 'app-releases', 'activity'])
     await router.isReady()
     expect(router.currentRoute.value.name).toBe('plugins')
     expect(location.hash).toBe('#plugins')
@@ -91,6 +91,7 @@ describe('who sees which page', () => {
       ['Key—', '#keys', true],
       ['插件文档', '#docs', false],
       ['会话日志', '#session-logs', false],
+      ['版本发布', '#app-releases', false],
       ['操作记录', '#activity', false],
     ])
     sidebar.unmount()

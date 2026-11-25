@@ -9,13 +9,14 @@ import KeysPage from './pages/KeysPage.vue'
 import DocsPage from './pages/DocsPage.vue'
 import SessionLogsPage from './pages/SessionLogsPage.vue'
 import ActivityPage from './pages/ActivityPage.vue'
+import AppReleasesPage from './pages/AppReleasesPage.vue'
 
 /**
  * One route per page, at the addresses the console has always had (#plugins, #keys, …), so old
  * links and bookmarks keep working.
  */
 const pages: Record<string, unknown> = {
-  plugins: PluginsPage, organizations: OrganizationsPage, users: UsersPage, keys: KeysPage, docs: DocsPage, 'session-logs': SessionLogsPage, activity: ActivityPage,
+  plugins: PluginsPage, organizations: OrganizationsPage, users: UsersPage, keys: KeysPage, docs: DocsPage, 'session-logs': SessionLogsPage, 'app-releases': AppReleasesPage, activity: ActivityPage,
 }
 // A page's own route after its name: one session's detail is #session-logs/<session>/<format version>.
 // One record, so the list and an opened session are the same page and the list keeps its state.

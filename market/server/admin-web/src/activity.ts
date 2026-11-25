@@ -50,6 +50,9 @@ export const ACTIONS: Record<string, string> = {
   'plugin.doc.deleted': '删除插件文档',
   'plugin.doc.image.uploaded': '上传文档图片',
   'plugin.doc.image.deleted': '删除文档图片',
+  'app-release.created': '新建灰度版本',
+  'app-release.updated': '修改灰度版本',
+  'app-release.deleted': '删除灰度草稿',
 }
 
 export function actorText(actor: AuditEvent['actor']) {
@@ -71,6 +74,7 @@ export function targetText(event: AuditEvent, names: Names) {
     return kind === 'org' ? names.organization(Number(subject)) : kind === 'key' ? names.key(subject) : names.user(subject)
   }
   if (event.action.startsWith('plugin.doc.')) return `${names.plugin(event.target.split(':')[0] ?? '')} · 文档 #${event.target.split(':')[1]}`
+  if (event.action.startsWith('app-release.')) return `版本 ${event.target}`
   if (event.action.startsWith('key.')) return names.key(event.target)
   if (event.action.startsWith('user.')) return names.user(event.target)
   if (event.action === 'organization.updated') return names.organization(Number(event.target))
@@ -97,6 +101,12 @@ export function factsText(event: AuditEvent) {
   if (event.action === 'plugin.icon.updated' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
   if (event.action === 'plugin.doc.saved') facts.push(d.created ? '新增' : '替换')
   if (event.action === 'plugin.doc.image.uploaded' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
+  if (event.action === 'app-release.updated') {
+    const status = ({ draft: '草稿', rolling: '发布中', paused: '已暂停', full: '全量' } as Record<string, string>)[d.status as string]
+    if (status) facts.push(status)
+    if (d.percent != null) facts.push(`比例 ${d.percent}%`)
+    facts.push(`先发 ${d.earlyCount ?? 0} 个组织`, `暂缓 ${d.holdCount ?? 0} 个组织`)
+  }
   if (d.grantCount != null) facts.push(`移除 ${d.grantCount} 项授权`)
   if (typeof d.enabled === 'boolean') facts.push(d.enabled ? '开启' : '关闭')
   if (d.memberCount != null) facts.push(d.memberCount ? `指定 ${d.memberCount} 位成员可见` : '全员可见')
