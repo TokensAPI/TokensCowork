@@ -85,3 +85,27 @@ export function installedOverlay(name, transform, missing, file = 'lib/index.js'
     },
   }
 }
+
+/**
+ * installedOverlay 的多文件版本：同一个包里的几个文件一起改，每份依赖树要么全有、要么全无。
+ * @param transform - (包内文件, 内容) → 新内容；必须可重复执行。
+ */
+export function installedFilesOverlay(name, files, transform, missing) {
+  const key = (tree, file) => `${tree}:${file}`
+  return {
+    files: Object.fromEntries(files.flatMap(file =>
+      Object.entries(installedPackage(name, file)).map(([tree, spec]) => [key(tree, file), spec]))),
+    apply: input => {
+      const output = {}
+      for (const tree of ['desktop', 'root']) {
+        const present = files.filter(file => input[key(tree, file)] !== undefined)
+        if (present.length > 0 && present.length < files.length) {
+          throw new Error(`${name} in ${tree} is missing ${files.filter(file => !present.includes(file)).join(', ')}`)
+        }
+        for (const file of present) output[key(tree, file)] = transform(file, input[key(tree, file)])
+      }
+      if (Object.keys(output).length === 0) throw new Error(missing)
+      return output
+    },
+  }
+}

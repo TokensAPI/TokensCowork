@@ -1,13 +1,13 @@
 # 运行时覆盖（runtime）
 
-负责 DSH 版本对齐、打包 pnpm 版本、首次启动、GUI stderr、外部浏览器登录桥、RPC 作用域、摘要压缩、输出上限和联网搜索插件的设置接口。
+负责 DSH 版本对齐、打包 pnpm 版本、首次启动、GUI stderr、外部浏览器登录桥、RPC 作用域、摘要压缩、输出上限、流式工具参数和联网搜索插件的设置接口。
 运行时版本以 `product.json` 的 `desktop.runtimeVersion` 为准；覆盖只写入生成的 staging，源码子模块保持只读。
 
 ## 文件职责
 
 | 文件 | 负责什么 |
 | --- | --- |
-| [overlays.mjs](overlays.mjs) | 登记表：17 条覆盖的阶段、目标文件、原因与删除条件 |
+| [overlays.mjs](overlays.mjs) | 登记表：18 条覆盖的阶段、目标文件、原因与删除条件 |
 | [runtime-version-overlay.mjs](runtime-version-overlay.mjs) | 统一 DSH resolutions、Yarn 冷却豁免与产品插件依赖；client-connection RPC 作用域；联网搜索插件的 DSH 0.2 设置适配 |
 | [pnpm-version-overlay.mjs](pnpm-version-overlay.mjs) | 打包 pnpm 11.8.0 → 11.28.5：工作区依赖、根 resolutions、THIRD_PARTY_NOTICES 与 package.spec 版本断言 |
 | [assets/pnpm@11.28.5.patch](assets/pnpm@11.28.5.patch) | 上游 Desktop 06446375 的 pnpm 补丁原样（minimumReleaseAge 为 0 或非数字时关闭年龄检查），写入 staging 的 `patches/` |
@@ -17,6 +17,7 @@
 | [mask-secrets-overlay.mjs](mask-secrets-overlay.mjs) | 宿主日志不把 `code` 当密钥：错误码可读，auth_code / authorization_code 与 URL 查询串照旧脱敏；同步上游 diagnostics.spec |
 | [compaction-overlay.mjs](compaction-overlay.mjs) | 摘要任务独立系统提示、历史作为引用数据、拒绝无效 checkpoint |
 | [output-limit-overlay.mjs](output-limit-overlay.mjs) | pi-ai 没有上报用量时不再用字符粗估压低 max_tokens，发送配置的输出上限（长会话「继续」反复截断） |
+| [streaming-args-overlay.mjs](streaming-args-overlay.mjs) | pi-ai 流式工具参数不再每来一段就整段重新解析（照搬上游 1.1.0 补丁，6 个协议文件），调用结束时仍完整解析一次 |
 | [staging-compaction-smoke.mjs](staging-compaction-smoke.mjs) | runtime-patch 末尾自动调用，用已安装包验证压缩与 replay |
 | [staging-rpc-smoke.mjs](staging-rpc-smoke.mjs) | `build.mjs` 在运行时适配后调用，用真实 Cordis 作用域验证 RPC 注册与释放 |
 | `*.test.mjs` | 外层覆盖回归，直接对照固定上游与插件输入 |
@@ -25,7 +26,7 @@
 ## 执行顺序
 
 1. `staging-prepare.mjs`：版本与依赖对齐 → 打包 pnpm 版本与补丁 → 首次向导 → stderr → CLI smoke / 测试 URL → 外部浏览器登录桥。
-2. 安装依赖后 `staging-runtime-patch.mjs`：RPC 作用域、摘要压缩、输出上限（均可重复执行），随后压缩 smoke；`build.mjs` 再跑 RPC smoke。
+2. 安装依赖后 `staging-runtime-patch.mjs`：RPC 作用域、摘要压缩、输出上限、流式工具参数（均可重复执行），随后压缩 smoke；`build.mjs` 再跑 RPC smoke。
 3. `staging-plugins-compile.mjs` 编译插件后适配联网搜索设置，避免插件构建覆盖适配结果。
 
 ## 验证命令

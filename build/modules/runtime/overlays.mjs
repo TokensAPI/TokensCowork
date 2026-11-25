@@ -1,9 +1,9 @@
 /* ====================================================================
  * runtime 覆盖登记表
  * DSH 版本、打包 pnpm 版本、首次启动、stderr、测试适配、外部浏览器登录桥、RPC 作用域、
- * 摘要压缩、输出上限、联网搜索设置。字段说明见 build/modules/README.md。
+ * 摘要压缩、输出上限、流式工具参数、联网搜索设置。字段说明见 build/modules/README.md。
  * ==================================================================== */
-import { desktopFiles as d, desktopInstalled, installedOverlay, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
+import { desktopFiles as d, desktopInstalled, installedFilesOverlay, installedOverlay, pluginEnabled, productPlugin } from '../../pipeline/stage-targets.mjs'
 import { alignCompactionSummary } from './compaction-overlay.mjs'
 import { keepRestartRequestable } from './desktop-actions-overlay.mjs'
 import {
@@ -15,6 +15,7 @@ import {
 import { alignDiagnosticsSpec, keepErrorCodesReadable } from './mask-secrets-overlay.mjs'
 import { addDesktopOpenExternal } from './open-external-overlay.mjs'
 import { keepConfiguredOutputLimit } from './output-limit-overlay.mjs'
+import { STREAMING_ARGUMENT_FILES, skipStreamingArgumentParse } from './streaming-args-overlay.mjs'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { keepDshRuntimeSeries } from './profile-package-overlay.mjs'
@@ -225,6 +226,17 @@ export default [
       'pi-ai is not installed; run yarn install first', 'dist/api/simple-options.js'),
     why: 'pi-ai 把每次请求的 max_tokens 压到「窗口 − 估算 − 4096」；DSH 交给它的历史用量恒为空，估算退化成整段对话按 3.5 字符/token 粗估并计入历史思考（回放为 reasoning 字段，TokensAPI 不计入输入），长会话里实际用量 69% 时估算已超窗口，输出上限被压到 907 再到 1，「继续」永远截断（T0095，会话 14d7fdc4）。没有上报用量时改为发送配置的输出上限：压缩阈值 = min(窗口×0.8, 窗口 − 路由声明的 maxTokens（未声明为 0）− headroom 65536)，输入至少比窗口低 65536，容得下本产品发送的 32768；单步越界时 TokensAPI 返回 maximum context length 报错，pi-ai 识别为溢出并由 DSH 压缩恢复。未声明的输出上限若超过 headroom（DSH 0.2.2 默认 128K）须重新评估。',
     retireWhen: 'DSH 的 pi-ai 适配器向 pi-ai 传入真实用量，或 pi-ai 不再用纯字符估算压低输出上限，并以同一会话数字（估算 257141 / 258116、窗口 262144）回归得到配置上限后删除。',
+  },
+  {
+    id: 'runtime.streaming-tool-arguments',
+    phase: 'installed',
+    upstream: ['dsh'],
+    kind: 'workaround',
+    ...installedFilesOverlay('@earendil-works/pi-ai', STREAMING_ARGUMENT_FILES,
+      (file, source) => skipStreamingArgumentParse(file.slice('dist/api/'.length, -'.js'.length), source),
+      'pi-ai is not installed; run yarn install first'),
+    why: 'pi-ai 1.3.0 每收到一段流式工具参数就把已收到的全部参数用 parseStreamingJson 重新解析一遍（解析失败还会再试两次），一次工具调用的总耗时随参数长度平方增长并同步占住宿主进程：用真实 1.3.0 openai-completions 流、12 字符一段，100 KB 参数补丁前 21.4 秒、补丁后 0.19 秒（T0111）。照搬上游 DeepSeek 对 pi-ai 1.1.0 的补丁（desktop/deepseek-harness/patches/@earendil-works__pi-ai@1.1.0.patch，同样 6 个文件）删除每段之后的解析；调用结束时各协议仍用 parseToolCallArguments 完整解析，DSH 适配器只转发原始 delta 和 toolcall_end 的参数，不读流式过程中的 block.arguments。',
+    retireWhen: '上游 pi-ai 自己去掉每分片解析，或固定的 Desktop 为所用 pi-ai 版本带上同样的补丁（两种情况 doctor 都会因锚点消失报失败，核对确是上游已删后删除本覆盖），或产品改走不经过 pi-ai 的线路后删除。',
   },
   {
     id: 'runtime.web-search-settings',
