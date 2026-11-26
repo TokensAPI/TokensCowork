@@ -75,12 +75,14 @@ async function placements(env, table, column, id) {
 /**
  * The version offered to one caller: the highest rolling or full version above `current` that the
  * rules give it. Per version, in order (a user's setting before their organization's):
- *   1. the caller's account on its user hold list: not offered (not even on a manual check);
+ *   1. the caller's account on its user hold list: not offered;
  *   2. the account on its user early list: offered;
- *   3. the caller's organization on its hold list: not offered (not even on a manual check);
+ *   3. the caller's organization on its hold list: not offered;
  *   4. the organization on its early list: offered;
- *   5. anyone else: offered when the installation's bucket is below the percentage, or always on a
- *      manual check.
+ *   5. anyone else: offered when the installation's bucket is below the percentage.
+ * A manual check ("检查更新") follows exactly the same rules as the background check, so what the
+ * console shows is everything the app can be given; `manual` is still accepted and recorded by
+ * callers but changes nothing. Only a download from the download page is outside this control.
  * A call without a Key has neither account nor organization and goes straight to 5. Drafts and
  * paused versions reach nobody.
  */
@@ -95,7 +97,7 @@ export async function offeredVersion(env, { current, installationId, organizatio
   for (const row of candidates) {
     const kind = users.get(row.version) ?? orgs.get(row.version)
     if (kind === 'hold') continue
-    if (kind === 'early' || manual) return row.version
+    if (kind === 'early') return row.version
     const percent = row.status === 'full' ? 100 : row.percent
     if (percent > 0 && await rolloutBucket(installationId, row.version) < percent) return row.version
   }

@@ -61,9 +61,9 @@ export const loadReleaseInfo = (version: string) => request<ReleaseInfo>(`/api/v
 
 /** Each status: its name, its badge colour, and what it means in one sentence. */
 export const STATUS: Record<ReleaseStatus, { name: string; color: string; hint: string; meaning: string }> = {
-  draft: { name: '草稿', color: 'secondary', hint: '谁都看不到', meaning: '还没有开始发布，任何人都收不到这个版本，手动检查更新也收不到。可以先把下面的范围设置好。' },
-  rolling: { name: '发布中', color: 'blue', hint: '先发名单 + 按比例放量', meaning: '正在按下面的范围发布：先发名单里的一定能看到，其余的人按比例看到。任何人自己点「检查更新」都能拿到（暂缓名单除外）。' },
-  paused: { name: '已暂停', color: 'orange', hint: '谁都不再提供', meaning: '已暂停：不再提供给任何人，手动检查更新也收不到。已经装上的人不受影响。' },
+  draft: { name: '草稿', color: 'secondary', hint: '谁都看不到', meaning: '还没有开始发布，应用里任何人都收不到这个版本。可以先把下面的范围设置好。' },
+  rolling: { name: '发布中', color: 'blue', hint: '先发名单 + 按比例放量', meaning: '正在按下面的范围发布：先发名单里的一定能收到，其余的人按比例收到，暂缓名单里的收不到。应用里自动提示和自己点「检查更新」都按这个范围；只有从下载页面自己下载不受控制。' },
+  paused: { name: '已暂停', color: 'orange', hint: '谁都不再提供', meaning: '已暂停：应用里不再提供给任何人。已经装上的人不受影响。' },
   full: { name: '全量', color: 'green', hint: '除暂缓名单外所有人', meaning: '已给所有人：除暂缓名单外，所有人都会看到这个版本。' },
 }
 

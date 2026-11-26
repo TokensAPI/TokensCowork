@@ -94,7 +94,7 @@ test('the bucket is fixed per installation and version, and differs between vers
   assert.ok(a.some((n, i) => n !== b[i]))
 })
 
-test('the percentage reaches the installations below it; manual skips it; anonymous callers work', async t => {
+test('the percentage reaches the installations below it, on a manual check too; anonymous callers work', async t => {
   const { update, release } = fixture(t)
   await release('0.8.0', { status: 'rolling', percent: 10 })
   const low = await update('version=0.7.19&platform=win32&arch=x64')
@@ -102,7 +102,9 @@ test('the percentage reaches the installations below it; manual skips it; anonym
   assert.deepEqual(low.json, { version: '0.8.0' })
   assert.equal(low.headers.get('cache-control'), 'no-store')
   assert.deepEqual((await update('version=0.7.19', { id: INSTALL.high })).json, { version: null })
-  assert.deepEqual((await update('version=0.7.19&manual=1', { id: INSTALL.high })).json, { version: '0.8.0' })
+  // A manual check follows the same rules: outside the bucket it gets nothing either.
+  assert.deepEqual((await update('version=0.7.19&manual=1', { id: INSTALL.high })).json, { version: null })
+  assert.deepEqual((await update('version=0.7.19&manual=1')).json, { version: '0.8.0' })
 })
 
 test('the hold list beats the early list, the percentage and a manual check', async t => {
@@ -146,7 +148,9 @@ test('never a downgrade or the same version; of several, the highest the caller 
   assert.deepEqual((await update('version=0.9.1&manual=1')).json, { version: null })
   assert.deepEqual((await update('version=0.7.19')).json, { version: '0.8.0' })
   assert.deepEqual((await update('version=0.7.19', { key: 'sk-seven' })).json, { version: '0.9.0' })
-  assert.deepEqual((await update('version=0.7.19&manual=1')).json, { version: '0.9.0' })
+  // A manual check gets what a background check gets: 0.9.0 only on its early list.
+  assert.deepEqual((await update('version=0.7.19&manual=1')).json, { version: '0.8.0' })
+  assert.deepEqual((await update('version=0.7.19&manual=1', { key: 'sk-seven' })).json, { version: '0.9.0' })
   // A pre-release of a version is below it.
   assert.deepEqual((await update('version=0.8.0-rc.1')).json, { version: '0.8.0' })
 })
@@ -316,9 +320,9 @@ test('user lists come before organization lists: user hold, user early, organiza
   // User hold beats the organization's early list, and a manual check.
   assert.deepEqual((await update('version=0.7.19', { key: 'sk-nine' })).json, { version: null })
   assert.deepEqual((await update('version=0.7.19&manual=1', { key: 'sk-nine' })).json, { version: null })
-  // No Key: no user, no organization -- the percentage (0 %), or a manual check.
+  // No Key: no user, no organization -- the percentage (0 %), on a manual check too.
   assert.deepEqual((await update('version=0.7.19', { id: INSTALL.low })).json, { version: null })
-  assert.deepEqual((await update('version=0.7.19&manual=1', { id: INSTALL.low })).json, { version: '0.8.0' })
+  assert.deepEqual((await update('version=0.7.19&manual=1', { id: INSTALL.low })).json, { version: null })
 })
 
 test('a held user gets nothing at 100 % or on a manual check; an early user without organization gets it at 0 %', async t => {

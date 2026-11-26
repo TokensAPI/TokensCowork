@@ -3845,7 +3845,7 @@
                     "items": {
                       "type": "integer"
                     },
-                    "description": "暂缓用户号：不提供，手动检查也不提供。"
+                    "description": "暂缓用户号：不提供。"
                   }
                 }
               },
@@ -5549,7 +5549,7 @@
             "items": {
               "type": "integer"
             },
-            "description": "暂缓组织号：不提供，手动检查也不提供。"
+            "description": "暂缓组织号：不提供。"
           },
           "earlyUsers": {
             "type": "array",
@@ -5563,7 +5563,7 @@
             "items": {
               "$ref": "#/components/schemas/AppReleaseUser"
             },
-            "description": "暂缓用户：不提供，手动检查也不提供；优先于其所属组织的先发。"
+            "description": "暂缓用户：不提供；优先于其所属组织的先发。"
           },
           "offered": {
             "type": "integer",

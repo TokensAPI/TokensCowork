@@ -182,8 +182,8 @@ function dropUser(kind: Kind, id: number) {
   else draft.holdUsers = draft.holdUsers.filter((user) => user.id !== id)
 }
 const SECTION: Record<Kind, { title: string; lead: string; empty: string }> = {
-  early: { title: '先发', lead: '名单里的组织和用户一定会主动看到这个版本，不看比例。', empty: '还没有先发的组织或用户。' },
-  hold: { title: '暂缓', lead: '名单里的组织和用户不会收到这个版本，自己点「检查更新」也不会。', empty: '没有暂缓的组织或用户。' },
+  early: { title: '先发', lead: '名单里的组织和用户一定能收到这个版本，不看比例。', empty: '还没有先发的组织或用户。' },
+  hold: { title: '暂缓', lead: '名单里的组织和用户收不到这个版本。', empty: '没有暂缓的组织或用户。' },
 }
 
 // The opened version's draft follows the server copy until it is edited; a refresh never
@@ -272,10 +272,10 @@ async function save() {
 }
 type ActionName = 'start' | 'resume' | 'full' | 'pause'
 const ACTION: Record<ActionName, { title: (version: string) => string; ok: string; text: string; done: string; danger?: boolean }> = {
-  start: { title: (v) => `开始发布 ${v}？`, ok: '开始发布', text: '确认后马上生效。任何人自己点「检查更新」也能拿到这个版本（暂缓名单除外）。可以随时暂停。', done: '已开始发布' },
+  start: { title: (v) => `开始发布 ${v}？`, ok: '开始发布', text: '确认后马上生效，应用里只有下面范围内的人能收到（自动提示和自己点「检查更新」都一样）。可以随时暂停。', done: '已开始发布' },
   resume: { title: (v) => `继续发布 ${v}？`, ok: '继续发布', text: '确认后马上按下面的范围继续提供。', done: '已继续发布' },
   full: { title: (v) => `${v} 改为全量？`, ok: '改为全量', text: '除暂缓名单外，所有人都会看到这个版本。0.7.19 及更早的应用只认 GitHub 上的正式版，还需要把它转为正式版。', done: '已改为全量' },
-  pause: { title: (v) => `暂停 ${v}？`, ok: '暂停', text: '暂停后不再提供给任何人，手动检查更新也收不到；已经装上的人不受影响。可以再继续。', done: '已暂停', danger: true },
+  pause: { title: (v) => `暂停 ${v}？`, ok: '暂停', text: '暂停后应用里不再提供给任何人；已经装上的人不受影响。可以再继续。', done: '已暂停', danger: true },
 }
 async function act(name: ActionName, status: ReleaseStatus) {
   const release = current.value
@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
                   <div v-else class="col-lg-4">
                     <div class="scope-box scope-rest">
                       <h4 class="scope-title mb-1">其余的人：按比例</h4>
-                      <p class="text-secondary small mb-2">不在两份名单里的安装，约有这个比例会主动看到更新。自己点「检查更新」的人不受比例限制。</p>
+                      <p class="text-secondary small mb-2">不在两份名单里的安装，约有这个比例能收到这个版本。</p>
                       <div class="d-flex align-items-center gap-2">
                         <input v-model.number="draft.percent" class="form-range flex-fill" type="range" min="0" max="100" step="1" :disabled="busy || current.status === 'full'" aria-label="比例滑块" />
                         <input id="release-percent" :value="current.status === 'full' ? 100 : draft.percent" class="form-control percent-input" type="number" min="0" max="100" step="1" aria-label="比例（%）"
