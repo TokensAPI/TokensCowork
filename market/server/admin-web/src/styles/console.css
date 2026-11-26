@@ -473,3 +473,23 @@ tr[aria-busy="true"] {
 .scope-item + .scope-item {
   margin-top: 0.375rem;
 }
+/* The release notes dialog: a version's text from its package, read-only, beside the console's own. */
+.notes-pane {
+  min-width: 0;
+}
+.notes-auto {
+  min-height: 4.5rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.5rem 0.75rem;
+  border: var(--tblr-border-width) solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.notes-input {
+  min-height: 9rem;
+  line-height: 1.6;
+}

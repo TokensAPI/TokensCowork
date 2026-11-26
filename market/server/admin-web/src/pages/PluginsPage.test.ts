@@ -128,4 +128,46 @@ describe('the plugin page', () => {
     expect((dialog.find('#catalog-id').element as HTMLInputElement).value).toBe('my-own-id')
     expect(calls.some((call) => call.method === 'POST' || call.method === 'PATCH')).toBe(false)
   })
+
+  it("shows each version's notes from its package beside the console's own, and saves one version", async () => {
+    const note = (version: string, auto: { zh: string | null; en: string | null }, extractedAt: number | null, admin = { zh: null as string | null, en: null as string | null }) =>
+      ({ version, publishedAt: '2026-11-20T08:00:00.000Z', auto, admin, extractedAt, updatedAt: null })
+    const latest = note('0.3.1', { zh: '- 支持批量导出', en: '- Bulk export' }, 1)
+    const older = note('0.3.0', { zh: null, en: null }, null)
+    const { calls } = market((path, init) => {
+      if (path === '/api/v1/plugins/media-gen/notes') return { body: { pluginId: 'media-gen', source: 'npm', package: '@example/media-gen', versionsAvailable: true, items: [latest, older] } }
+      if (path === '/api/v1/plugins/media-gen/notes/0.3.0' && init.method === 'GET') return { body: { ...older, extractedAt: 2, auto: { zh: null, en: '- First release' } } }
+      if (path === '/api/v1/plugins/media-gen/notes/0.3.0') {
+        const sent = JSON.parse(String(init.body))
+        return { body: { ...older, extractedAt: 2, auto: { zh: null, en: '- First release' }, admin: sent, updatedAt: 3 } }
+      }
+      return undefined
+    })
+    const page = await mountPage()
+    await page.find('button[aria-label="媒体生成 更新说明"]').trigger('click')
+    await settle()
+    const dialog = page.find('dialog[aria-labelledby="notes-title"]')
+    expect((dialog.element as HTMLDialogElement).open).toBe(true)
+    expect(dialog.findAll('#notes-version option').map((option) => option.text())).toEqual(['v0.3.1 · 2026-11-20 · 最新 · 来自更新记录', 'v0.3.0 · 2026-11-20 · 未读取'])
+    expect(dialog.findAll('.notes-auto').map((box) => box.text())).toEqual(['- 支持批量导出', '- Bulk export'])
+    expect(dialog.findAll('.notes-pane .badge').map((badge) => badge.text())).toEqual(['应用显示：自动内容', '应用显示：自动内容'])
+    // Nothing typed yet: nothing to save.
+    expect(dialog.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+
+    // An older version is read from its package when it is opened.
+    await dialog.find('#notes-version').setValue('0.3.0')
+    await settle()
+    expect(calls.filter((call) => call.path === '/api/v1/plugins/media-gen/notes/0.3.0').map((call) => call.method)).toEqual(['GET'])
+    expect(dialog.findAll('.notes-auto').map((box) => box.text())).toEqual(['安装包里没有这一版的更新记录。', '- First release'])
+    await dialog.find('#notes-zh').setValue('  首个版本  ')
+    expect(dialog.findAll('.notes-pane .badge').map((badge) => badge.text())).toEqual(['应用显示：后台填写', '应用显示：自动内容'])
+    await dialog.find('form').trigger('submit')
+    await settle()
+    expect(calls.filter((call) => call.method === 'PUT')).toEqual([{ method: 'PUT', path: '/api/v1/plugins/media-gen/notes/0.3.0', body: { zh: '首个版本', en: null } }])
+    expect(toast.message).toBe('媒体生成 v0.3.0 的更新说明已保存。')
+    // The dialog stays open on the saved version, which is now listed as filled in.
+    expect((dialog.element as HTMLDialogElement).open).toBe(true)
+    expect(dialog.findAll('#notes-version option')[1]!.text()).toBe('v0.3.0 · 2026-11-20 · 后台已填写')
+    expect(dialog.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+  })
 })

@@ -16,13 +16,14 @@ import PluginAvatar from '../components/plugins/PluginAvatar.vue'
 import AccessDialog from '../components/plugins/AccessDialog.vue'
 import CatalogDialog from '../components/plugins/CatalogDialog.vue'
 import LifecycleDialog, { type Operation } from '../components/plugins/LifecycleDialog.vue'
+import NotesDialog from '../components/plugins/NotesDialog.vue'
 
 /**
  * The plugin page (#plugins): status tabs with their counts, the
  * filter bar (search, type, scope, reset), one server page shown as a table (default) or as cards,
  * and the pager. 「全部」 holds the product's built-in components (read-only) as well as the market's
  * own plugins, so 全部 = 内置 + 已上架 + 草稿 + 已下架. Editing the metadata, the access scope, the
- * icon and the state each has its dialog. Only the latest list asked for is shown.
+ * icon, the release notes of each version and the state each has its dialog. Only the latest list asked for is shown.
  */
 const VIEW_KEY = 'tokenscowork-market-plugin-view'
 const view = viewById('plugins')!
@@ -156,6 +157,7 @@ const catalog = ref<InstanceType<typeof CatalogDialog>>()
 const access = ref<InstanceType<typeof AccessDialog>>()
 const icons = ref<InstanceType<typeof IconDialog>>()
 const lifecycle = ref<InstanceType<typeof LifecycleDialog>>()
+const notes = ref<InstanceType<typeof NotesDialog>>()
 const transition = (p: MarketPlugin, operation: Operation) => () => lifecycle.value!.open(p, operation, !restricted(p))
 function primaryFor(p: MarketPlugin): RowAction {
   return p.state === 'deleted' ? { label: '恢复草稿', run: transition(p, 'restore') } : { label: '编辑资料', run: () => catalog.value!.open(p) }
@@ -165,12 +167,13 @@ function moreFor(p: MarketPlugin): (RowAction | 'divider')[] {
   const lifecycleItems = p.state === 'published'
     ? [{ label: '下架', run: transition(p, 'archive') }]
     : [{ label: '上架', run: transition(p, 'publish') }, { label: '移入回收站', run: transition(p, 'trash'), danger: true }]
-  return [{ label: '访问范围', run: () => access.value!.open(p) }, { label: '图标', run: () => icons.value!.open(p) }, 'divider', ...lifecycleItems]
+  return [{ label: '访问范围', run: () => access.value!.open(p) }, { label: '图标', run: () => icons.value!.open(p) }, { label: '更新说明', run: () => void notes.value!.open(p) },
+    'divider', ...lifecycleItems]
 }
 
 // Leaving the page with unsaved edits in a dialog asks first.
 function beforeUnload(event: BeforeUnloadEvent) {
-  if (access.value?.dirty() || catalog.value?.dirty()) {
+  if (access.value?.dirty() || catalog.value?.dirty() || notes.value?.dirty()) {
     event.preventDefault()
     event.returnValue = ''
   }
@@ -332,4 +335,5 @@ onBeforeUnmount(() => {
   <AccessDialog ref="access" :organizations="organizations" :keys="keys" :users="users" @saved="reload" />
   <IconDialog ref="icons" @saved="reload" />
   <LifecycleDialog ref="lifecycle" @saved="reload" />
+  <NotesDialog ref="notes" />
 </template>

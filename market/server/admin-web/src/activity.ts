@@ -50,6 +50,7 @@ export const ACTIONS: Record<string, string> = {
   'plugin.doc.deleted': '删除插件文档',
   'plugin.doc.image.uploaded': '上传文档图片',
   'plugin.doc.image.deleted': '删除文档图片',
+  'plugin.notes.saved': '修改更新说明',
   'app-release.created': '新建灰度版本',
   'app-release.updated': '修改灰度版本',
   'app-release.deleted': '删除灰度草稿',
@@ -73,6 +74,7 @@ export function targetText(event: AuditEvent, names: Names) {
     const [kind, subject = ''] = event.target.split(':')
     return kind === 'org' ? names.organization(Number(subject)) : kind === 'key' ? names.key(subject) : names.user(subject)
   }
+  if (event.action === 'plugin.notes.saved') return `${names.plugin(event.target.split(':')[0] ?? '')} · v${event.target.split(':')[1]}`
   if (event.action.startsWith('plugin.doc.')) return `${names.plugin(event.target.split(':')[0] ?? '')} · 文档 #${event.target.split(':')[1]}`
   if (event.action.startsWith('app-release.')) return `版本 ${event.target}`
   if (event.action.startsWith('key.')) return names.key(event.target)
@@ -100,6 +102,7 @@ export function factsText(event: AuditEvent) {
   if (event.action === 'session-log.annotated') facts.push(d.tags?.length ? `标签：${d.tags.join('、')}` : '无标签', d.note ? '有备注' : '无备注')
   if (event.action === 'plugin.icon.updated' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
   if (event.action === 'plugin.doc.saved') facts.push(d.created ? '新增' : '替换')
+  if (event.action === 'plugin.notes.saved') facts.push(`中文${d.zh ? '后台填写' : '用自动内容'}`, `英文${d.en ? '后台填写' : '用自动内容'}`)
   if (event.action === 'plugin.doc.image.uploaded' && d.bytes != null) facts.push(`${Math.max(1, Math.round(d.bytes / 1024))} KB`)
   if (event.action === 'app-release.updated') {
     const status = ({ draft: '草稿', rolling: '发布中', paused: '已暂停', full: '全量' } as Record<string, string>)[d.status as string]

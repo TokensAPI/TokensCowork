@@ -50,6 +50,46 @@ const SNAPSHOT = !LIVE_SITE ? ''
   : existsSync(resolve(root, '../.market-production-snapshot.json')) ? resolve(root, '../.market-production-snapshot.json')
   : ''
 
+/* ── Fictional package versions and archives (release notes) ── */
+// A fixture plugin's version and the two before it, oldest first; its packument names them all.
+function fixtureVersions(item) {
+  const [major, minor, patch] = String(item.version).split(/[.+-]/u).map(Number)
+  const older = patch >= 2 ? [`${major}.${minor}.${patch - 2}`, `${major}.${minor}.${patch - 1}`] : minor > 0 ? [`${major}.${minor - 1}.0`, `${major}.${minor - 1}.1`] : []
+  return [...older, item.version]
+}
+function fixturePackument(item) {
+  const versions = fixtureVersions(item), base = item.package.split('/').pop()
+  return {
+    name: item.package, 'dist-tags': { latest: item.version },
+    time: Object.fromEntries(versions.map((version, i) => [version, new Date(Date.UTC(2026, 9, 6 + i * 14)).toISOString()])),
+    versions: Object.fromEntries(versions.map(version => [version, { name: item.package, version,
+      dist: { tarball: `https://registry.npmjs.org/${item.package}/-/${base}-${version}.tgz` } }])),
+  }
+}
+// The archive of one version: a CHANGELOG.md in Chinese for every version but the oldest, and a
+// CHANGELOG.en.md for the newest only, so each state of the notes dialog has something to show.
+function fixtureArchive(item, version) {
+  const versions = fixtureVersions(item)
+  const zh = ['# 更新记录', '', '## [Unreleased]', '', '- 尚未发布的改动', '']
+  const en = ['# Changelog', '']
+  for (const v of [...versions].reverse()) {
+    if (v === versions[0]) continue
+    zh.push(`## [${v}] - 2026-11-0${versions.indexOf(v) + 1}`, '', '### 新增', '', `- ${item.displayName} 支持 **批量导出**（示例数据）`, '- 设置页新增 `超时` 选项', '', '### 修复', '', '- 修复偶尔需要重新登录的问题', '')
+    if (v === item.version) en.push(`## [${v}] - 2026-11-0${versions.indexOf(v) + 1}`, '', '- Bulk export (sample data)', '- New `timeout` setting', '- Fixed an occasional sign-out', '')
+  }
+  const files = { 'package/package.json': JSON.stringify({ name: item.package, version }), 'package/CHANGELOG.md': zh.join('\n'), 'package/CHANGELOG.en.md': en.join('\n') }
+  const blocks = []
+  for (const [name, body] of Object.entries(files)) {
+    const data = Buffer.from(body), header = Buffer.alloc(512)
+    header.write(name, 0); header.write('0000644\0', 100); header.write(data.length.toString(8).padStart(11, '0') + '\0', 124)
+    header.write('ustar\0', 257); header.write('00', 263); header[156] = 48
+    header.fill(' ', 148, 156)
+    header.write([...header].reduce((a, b) => a + b, 0).toString(8).padStart(6, '0') + '\0 ', 148)
+    blocks.push(header, data, Buffer.alloc(-data.length & 511))
+  }
+  return gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]))
+}
+
 async function fixtureEnvironment() {
   // A throwaway database unless MARKET_DEV_DATA_DIR names a real one, and either way the
   // adapter is the deployed one: migrations replayed on boot, same D1-compatible facade.
@@ -199,6 +239,12 @@ async function fixtureEnvironment() {
       const item = roster.items.find(item => item.package === (match?.[1] ?? ''))
       const doc = roster.items.find(item => url.pathname === '/'+encodeURIComponent(item.package)+'/latest')
       if(doc)return Response.json({...doc,name:doc.package,description:doc.summary})
+      // Every version of a package and its archives, for the release notes: fictional versions and changelogs.
+      const listed = roster.items.find(item => url.pathname === '/' + encodeURIComponent(item.package))
+      if (listed) return Response.json(fixturePackument(listed))
+      const archive = /^\/(.+)\/-\/[^/]+-([0-9][^/]*)\.tgz$/u.exec(decodeURIComponent(url.pathname))
+      const packed = archive && roster.items.find(item => item.package === archive[1])
+      if (packed) return new Response(fixtureArchive(packed, archive[2]))
       return item ? Response.json({ latest: item.version }) : new Response('Fixture package not found', { status: 404 })
     }
     // The app's GitHub release list (版本发布 → 新建版本), as fictional entries in its shape.

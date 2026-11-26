@@ -63,6 +63,12 @@ function pages(origin, docs) {
     { name: 'plugins-catalog', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('编辑资料') },
     { name: 'plugins-icon', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('图标') },
     { name: 'plugins-lifecycle', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('下架') },
+    { name: 'plugins-menu', url: `${admin}#plugins`, ready: rowsReady('插件'), action: clickFirst('main tbody tr button[aria-label$="更多操作"]') },
+    { name: 'plugins-notes', url: `${admin}#plugins`, ready: rowsReady('插件'), action: row('更新说明') },
+    // The same dialog on the version before the newest, which the seed gave the console's own Chinese text.
+    { name: 'plugins-notes-edit', url: `${admin}#plugins`, ready: rowsReady('插件'), action: `(async () => { ${row('更新说明')}
+      for (let i = 0; i < 40 && !document.querySelector('#notes-version'); i++) await new Promise(done => setTimeout(done, 100))
+      const select = document.querySelector('#notes-version'); select.value = select.options[1].value; select.dispatchEvent(new Event('change')) })()` },
     { name: 'organizations', url: `${admin}#organizations`, ready: rowsReady('组织') },
     { name: 'organizations-detail', url: `${admin}#organizations`, ready: rowsReady('组织'), action: row('查看插件') },
     { name: 'users', url: `${admin}#users`, ready: rowsReady('用户') },
@@ -164,6 +170,18 @@ async function seedDocs(origin) {
   const doc = await (await api(`/api/v1/plugins/${plugin.id}/docs`, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ title: '快速开始', body }) })).json()
   return { pluginId: plugin.id, docId: doc.id }
+}
+
+// The console's own Chinese text for the version before the newest of the first market plugin on
+// the plugin page, so the notes dialog shows both of its sources.
+async function seedNotes(origin) {
+  const api = (path, init = {}) => fetch(origin + '/api/v1' + path, { ...init, headers: { Authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', ...init.headers } })
+  const { items } = await (await api('/plugins?page=1&pageSize=20')).json()
+  const plugin = items.find(item => item.category !== 'builtin')
+  if (!plugin) throw new Error('no market fixture plugin for the release notes')
+  const notes = await (await api(`/plugins/${plugin.id}/notes`)).json()
+  const version = notes.items[1]?.version
+  if (version) await api(`/plugins/${plugin.id}/notes/${version}`, { method: 'PUT', body: JSON.stringify({ zh: '- 后台补写的说明（示例数据）\n- 新增 **批量导出**，旧版本也能看到' }) })
 }
 
 /* ── The browser, over the DevTools protocol ─────────── */
@@ -284,6 +302,7 @@ try {
   server = await startServer()
   const docs = await seedDocs(server.origin)
   await seedReleases(server.origin)
+  await seedNotes(server.origin)
   browser = await startBrowser()
   const tab = await openTab(browser)
   // Sign in once: the console session is a cookie this browser keeps for every page after.
