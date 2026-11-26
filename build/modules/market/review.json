@@ -272,6 +272,14 @@
         "market.auth"
       ],
       "verified": "2026-11-10：tokens-model-manager 升至 0.2.30（0a388e2）。258b5d2..0a388e2 只在 dsh/index.js 的非对话模型过滤表里加 OCR 一类（新增 segmentEnd 匹配），其余是用例、CHANGELOG 和版本号；没有增删 TOKENSAPI_API_KEY 或 credentials 调用，src/config.ts 未改，market.auth 依赖的 credentials.resolve(TOKENSAPI_API_KEY) 契约不变，无需修改。插件自身 check:host 34/34、带真实宿主 test:cases 137/137；用户在本地 staging 上用真实数据看过。本次按用户要求未在外层构建，overlay-doctor 只跑了 --check。"
+    },
+    {
+      "overlays": [
+        "market.plugin-notes",
+        "market.test-plugin-notes",
+        "market.auth"
+      ],
+      "verified": "2026-11-26（T0114）：新增 market.plugin-notes 与 market.test-plugin-notes，market.auth 的授权钩子把 /v1/plugins/<插件ID>/notes（ID 按市场同一规则 [a-z0-9][a-z0-9-]{0,79}）纳入带 Key 的路径，其余同 origin 路径与第三方仍不带。渲染层不直连市场：宿主新增本地 GET 路由 /api/community-market/plugin-notes（itemId 或 packageName，from 可选、to 必填且须为精确版本），包名经已缓存的目录扫描换成插件 ID，再用产品目录同一个受限客户端读 <市场>/v1/plugins/<id>/notes（重定向限同源、10 秒预算），只交回 version / publishedAt / zh / en，最多 20 条、每段 8000 字符；读不到回 502。详情：已装且有更新问 from=已装、to=新版，否则问 to=当前（未安装为目录 latestVersion），清单读取中不问；在介绍下方显示，超过 168px 折叠并可展开。更新确认框：版本表下列出 from=updateFrom、to=version 的每一版，区域 240px 内滚动，按钮不变。按 readLocale() 取 zh / en，缺这种语言显示另一种并注明「（仅有英文说明）」/「(Chinese only)」，都没有为「这一版没有填写更新说明」；正文只拆成段落、列表、加粗、行内代码的 React 文本节点，不经 innerHTML。读取失败、超时（15 秒）只显示「暂时读不到更新说明」，安装与更新不等待也不禁用。验证：build-verify market 66 项通过；overlay-doctor --doctor 0 失效（95 条生效，含两条新覆盖）；在 doctor 暂存里借用 .build/desktop 的依赖，dsh-community-market 三个 tsconfig tsc --noEmit exit 0，vitest 16 个文件 369 过 9 跳过（新增设置面板 6 项、宿主路由 2 项）；本地 QA 市场（T0113 market-dev --offline，虚构数据）核对接口形状与 Key：受限插件带 Key 200、不带 404，开放插件都是 200，字段为 version/publishedAt/zh/en。截图（测试渲染出的对话框 DOM + 宿主真实主题 token 与市场样式，Edge headless，浅/深色）见主检出 .build/t0114-plugin-notes/。遗留：真机与正式市场未验收（正式市场部署 T0113 前该区域会显示「暂时读不到更新说明」）。"
     }
   ],
   "notes": [

@@ -35,6 +35,7 @@ import {
   adaptDocsLinkOverlayTests, adaptDocsLinkRuntimeTests, adaptDocsLinkSettingsTests, addMarketDocsLink,
 } from './market-docs-link-overlay.mjs'
 import { tolerateSlowDownloads } from './market-network-overlay.mjs'
+import { addMarketPluginNotes, addPluginNotesRuntimeTests, addPluginNotesSettingsTests } from './market-notes-overlay.mjs'
 import {
   expectOfficialMarketHiddenInTest, hideOfficialMarketBundle, hideRemoteControlCard, pinProductMarketOnPluginPage,
 } from './market-plugin-controls-overlay.mjs'
@@ -257,6 +258,18 @@ export default [
     why: '官方插件管理器只热替换插件自己的模块：插件依赖的共享模块（真机上是 undici）已在本进程加载时，宿主 HMR 以 module-comparison 为由沿用旧代码，插件跑在「新代码 + 旧依赖」上（连接中心 2.9.6→2.9.7 更新后微信入站仍按旧版失败，重启才好）。宿主已经把它报成 ChangeResult 的 restart-required + restartReason，市场却只把它接成一条几秒就消失的 Toast 文案，既不说是哪个插件也没有重启入口。把 restartReason 透传到渲染层，面板顶部常驻横幅列出待重启的插件，并用宿主已有的 desktopActions.requestRestart() 提供「立即重启」；application 为 applied 时不提示。',
     retireWhen: '上游自己在市场界面给出待重启插件与重启入口，或官方管理器能连同共享依赖一起热替换后移除。',
   }),
+  /* ----------------------- 插件更新说明 ----------------------- */
+  sourceEntry('plugin-notes', {
+    kind: 'customization',
+    // 排在 market.updates（确认框的 updating / updateFrom）与 market.docs-link（路由数组同一处收尾）之后；
+    // market.auth 的授权钩子已把 /v1/plugins/<id>/notes 纳入带 Key 的路径。
+    files: {
+      routes: f.routes, api: f.api, types: f.apiTypes, settingsTab: f.settingsTab, styles: f.styles, locales: f.locales,
+    },
+    apply: (input, { root }) => addMarketPluginNotes(input, source(root).origin),
+    why: '用户要求更新插件时看到更新了什么（T0114，方案 release-notes-plan.md）。市场服务按版本保存中英文更新说明（T0113，GET /v1/plugins/<itemId>/notes?from=&to=）；参照应用商店的「新版本说明」，插件详情在介绍下方显示「v<已装> → v<最新> 更新了什么」（没有更新时「v<当前> 更新了什么」，未安装时最新一版），超过一定高度折叠、可展开；「确认更新插件」对话框在版本表下列出从已装到目标之间每一版，区域可滚动、按钮不变。按界面语言取 zh / en，缺这种语言显示另一种并注明，两种都没有写「这一版没有填写更新说明」。渲染层经宿主本地路由读取（同一个受限客户端、同一个 Key 钩子、重定向限同源），正文只按段落、列表、加粗、行内代码渲染成 React 文本节点，不执行 HTML；读不到只显示「暂时读不到更新说明」，安装与更新照常可点。',
+    retireWhen: '上游市场自己显示插件版本说明，或产品不再在市场里显示更新说明时移除。',
+  }),
   sourceEntry('brand-copy', {
     kind: 'customization',
     upstream: ['desktop', 'product'],
@@ -372,6 +385,16 @@ export default [
     }),
     why: '上游用例断言右上角来源链接指向来源主页、卡片来源写来源名；产品改为「教程」文档入口，相应改写这几处断言，并补上产品回归：卡片来源打开该插件文档且不打开详情、右上角打开文档总览、只打开文档中心自己的地址、换不到登录码时照样打开。',
     retireWhen: '随 market.docs-link 一起移除。',
+  }),
+  sourceEntry('test-plugin-notes', {
+    kind: 'customization',
+    // 排在 market.test-docs-link 之后：锚定它加进 api.js 替身的那一行与它改过的路由个数断言。
+    files: { settings: m('tests/market-settings-tab.spec.tsx'), runtime: m('tests/market-runtime.spec.ts') },
+    apply: ({ settings, runtime }) => ({
+      settings: addPluginNotesSettingsTests(settings), runtime: addPluginNotesRuntimeTests(runtime),
+    }),
+    why: '上游 api.js 替身逐个列出导出、运行时用例按个数断言宿主注册的路由；补上 readMarketPluginNotes 替身、路由个数加一，并追加产品回归：详情与确认框的请求参数（有更新 / 无更新 / 未安装 / 确认框按包名）、新到旧列出、语言回退与注明、空说明、读取失败不挡更新、正文不当 HTML；宿主路由的上游地址与参数、字段裁剪、参数校验与读不到时 502。',
+    retireWhen: '随 market.plugin-notes 一起移除。',
   }),
   sourceEntry('test-source-repair', {
     kind: 'customization',
