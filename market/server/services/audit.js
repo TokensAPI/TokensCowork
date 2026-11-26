@@ -22,6 +22,8 @@ const ACTIONS = {
   'plugin.doc.image.uploaded': [/^[a-z0-9][a-z0-9-]{0,79}:[a-f0-9]{32}$/u, d => ({ bytes: Number.isSafeInteger(d.bytes) ? d.bytes : null,
     contentType: ['image/png', 'image/jpeg', 'image/webp'].includes(d.contentType) ? d.contentType : null })],
   'plugin.doc.image.deleted': [/^[a-z0-9][a-z0-9-]{0,79}:[a-f0-9]{32}$/u, () => ({})],
+  // One version's notes, addressed by plugin and version together; only whether each language has text.
+  'plugin.notes.saved': [/^[a-z0-9][a-z0-9-]{0,79}:[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.+-]{0,58}$/u, d => ({ zh: d.zh === true, en: d.en === true })],
   'plugin.icon.updated': [PLUGIN, d => ({ bytes: Number.isSafeInteger(d.bytes) ? d.bytes : null })],
   'plugin.icon.deleted': [PLUGIN, () => ({})],
   'plugin.access.updated': [PLUGIN, d => ({ visibility: d.visibility === 'restricted' ? 'restricted' : 'public',

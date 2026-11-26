@@ -24,7 +24,7 @@ export function npmReference(input, version = 'latest') {
   return { name, version: selectedVersion }
 }
 
-async function registry(path) {
+async function registry(path, maxBytes = 2 * 1024 * 1024) {
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(), 6000)
   try {
@@ -48,7 +48,7 @@ async function registry(path) {
       const { done, value } = await reader.read()
       if (done) break
       size += value.length
-      if (size > 2 * 1024 * 1024) {
+      if (size > maxBytes) {
         await reader.cancel()
         throw invalid('npm 响应过大', 502)
       }
@@ -125,4 +125,44 @@ export async function npmVersionManifest(name, version) {
   const value = await registry(encodeURIComponent(name) + '/' + encodeURIComponent(version))
   if (value.name !== name || value.version !== version) throw invalid('Invalid package manifest')
   return value
+}
+// Every published version of a package with its manifest and publish time (the full packument).
+// A long-lived package's packument outgrows the 2 MB the single-version reads allow.
+export async function npmPackument(name) {
+  if (!packageOK(name)) throw invalid('npm 包名无效')
+  const value = await registry(encodeURIComponent(name), 16 * 1024 * 1024)
+  if (value?.name !== name || !value.versions || typeof value.versions !== 'object') throw invalid('npm 未返回有效的包信息', 502)
+  return value
+}
+// One package archive from the public npm Registry, whole and bounded, for the one caller that has to
+// look inside it (the CHANGELOG, services/plugin-notes.js). Only registry.npmjs.org archives are fetched.
+export async function npmTarball(url, maxBytes = 32 * 1024 * 1024) {
+  let parsed
+  try { parsed = new URL(url) } catch { throw invalid('npm 安装包地址无效', 502) }
+  if (parsed.protocol !== 'https:' || parsed.host !== 'registry.npmjs.org' || parsed.username || parsed.password)
+    throw invalid('npm 安装包地址无效', 502)
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 20000)
+  try {
+    const response = await fetch(parsed.toString(), { signal: controller.signal, redirect: 'manual', headers: { accept: 'application/octet-stream' } })
+    if (!response.ok || !response.body) { await response.body?.cancel(); throw invalid('npm 安装包读取失败', 502) }
+    const reader = response.body.getReader()
+    const chunks = []
+    let size = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.length
+      if (size > maxBytes) { await reader.cancel(); throw invalid('npm 安装包过大', 502) }
+      chunks.push(value)
+    }
+    const bytes = new Uint8Array(size)
+    let offset = 0
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length }
+    return bytes
+  } catch (error) {
+    if (error.status) throw error
+    throw invalid('npm 安装包读取超时或失败', 502)
+  } finally {
+    clearTimeout(timer)
+  }
 }

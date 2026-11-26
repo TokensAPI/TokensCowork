@@ -11,6 +11,7 @@ import { createDocsCode, readerDocImage, readerPluginDocs, readerPlugins, redeem
 import { body } from './http/request.js'
 import { iconPath, iconVersions, servePluginIcon } from './services/icons.js'
 import { appUpdateRoute } from './services/app-releases.js'
+import { readerPluginNotes } from './services/plugin-notes.js'
 
 // The documentation center reads with the reader's own Key (or the administrator's console session)
 // and must never be cached or shared.
@@ -58,6 +59,25 @@ const publicHeaders = {
   vary: 'Authorization, X-Dsh-Catalog-Registries',
 }
 
+/**
+ * GET /v1/plugins/{id}/notes?from=&to=: what changed in the versions after `from` up to `to`, for the
+ * app's plugin details and its update confirmation. Read with the same credential and the same access
+ * decision as /v1/plugins; a plugin the caller may not see is a 404, like one that does not exist.
+ */
+async function pluginNotesRoute(request, env, url, segment) {
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: publicHeaders })
+  if (request.method !== 'GET') return reply({ error: 'method not allowed' }, 405, publicHeaders)
+  if (!env.MARKET_DB || !env.MARKET_HMAC_SECRET) return reply({ error: '市场数据库未配置' }, 503, publicHeaders)
+  try {
+    let id
+    try { id = decodeURIComponent(segment) } catch { return reply({ error: 'not found' }, 404, publicHeaders) }
+    return reply(await readerPluginNotes(request, env, id, url), 200, publicHeaders)
+  } catch (error) {
+    if ([400, 404].includes(error?.status)) return reply({ error: error.message }, error.status, publicHeaders)
+    return reply({ error: '更新说明暂时不可用' }, 503, publicHeaders)
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
@@ -91,6 +111,8 @@ export default {
       return env.ASSETS.fetch(new Request(new URL('/admin/docs.html', url), { method: request.method, headers: request.headers }))
     }
     if (url.pathname.startsWith('/registry/')) return registryRoute(request, env)
+    const notes = /^\/v1\/plugins\/([^/]+)\/notes$/u.exec(url.pathname)
+    if (notes) return pluginNotesRoute(request, env, url, notes[1])
     if (
       ['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
     ) {

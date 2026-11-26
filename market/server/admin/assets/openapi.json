@@ -50,6 +50,10 @@
       "description": "插件的 Markdown 使用文档。平台管理员在这里增删改；用户凭自己的 TokensAPI Key 通过 `GET /v1/docs` 阅读，只看到自己有权限的插件（不在本文档内，见 SERVICE-API.md）。"
     },
     {
+      "name": "更新说明",
+      "description": "插件每个版本的更新说明，中文、英文各一份。自动内容取自该版本安装包里的 `CHANGELOG.md` / `CHANGELOG.en.md`；平台管理员在这里补写或修改，后台写的优先，清空即回到自动内容。应用用 `GET /v1/plugins/{pluginId}/notes?from=&to=` 读取（不在本文档内，见 SERVICE-API.md）。"
+    },
+    {
       "name": "版本发布",
       "description": "桌面应用新版本的灰度发布：先发 / 暂缓组织、放量比例、暂停，以及各版本安装数。平台管理员专用。应用调用的 `GET /v1/app/update`（回答「给这台安装哪个版本」）不在本文档内，见 SERVICE-API.md。"
     }
@@ -3443,6 +3447,134 @@
         }
       }
     },
+    "/plugins/{pluginId}/notes": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "更新说明"
+        ],
+        "summary": "列出版本的更新说明",
+        "description": "插件的版本，新的在前，最多 100 个（稳定版，以及已经写过说明的其他版本）。最新版本若还没读过安装包，这次会读取并保存它的 CHANGELOG；其余版本在单独打开时读取。",
+        "responses": {
+          "200": {
+            "description": "版本列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginNoteList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/plugins/{pluginId}/notes/{pluginVersion}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/pluginId"
+        },
+        {
+          "$ref": "#/components/parameters/pluginVersion"
+        }
+      ],
+      "get": {
+        "tags": [
+          "更新说明"
+        ],
+        "summary": "读取一个版本的更新说明",
+        "description": "还没读过安装包的版本会先读取并保存它的 CHANGELOG。",
+        "responses": {
+          "200": {
+            "description": "这一版的说明",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginNote"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "更新说明"
+        ],
+        "summary": "修改一个版本的更新说明",
+        "description": "写入后台的中文 / 英文说明。不传的语言保持不变；空字符串或 null 清空该语言，读者重新看到自动内容。版本必须是这个插件发布过的版本。写一条 `plugin.notes.saved` 操作记录（目标 `插件号:版本`，只记两种语言各有没有后台内容）。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginNoteInput"
+              },
+              "examples": {
+                "示例": {
+                  "value": {
+                    "zh": "- 支持批量导出\n- 修复登录失效",
+                    "en": "- Bulk export\n- Fixed expired sign-in"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "已保存",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginNote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
     "/plugins/{pluginId}/icon": {
       "parameters": [
         {
@@ -4051,6 +4183,16 @@
         "schema": {
           "type": "string",
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      },
+      "pluginVersion": {
+        "name": "pluginVersion",
+        "in": "path",
+        "required": true,
+        "description": "插件版本号（如 1.2.0）",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
         }
       }
     },
@@ -5810,6 +5952,130 @@
             }
           }
         ]
+      },
+      "PluginNoteText": {
+        "type": "object",
+        "required": [
+          "zh",
+          "en"
+        ],
+        "properties": {
+          "zh": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "中文；没有为 null"
+          },
+          "en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "英文；没有为 null"
+          }
+        }
+      },
+      "PluginNote": {
+        "type": "object",
+        "required": [
+          "version",
+          "publishedAt",
+          "auto",
+          "admin",
+          "extractedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Registry 记录的发布时间（ISO 8601）"
+          },
+          "auto": {
+            "$ref": "#/components/schemas/PluginNoteText",
+            "description": "从安装包 CHANGELOG 自动取出的内容（只读）"
+          },
+          "admin": {
+            "$ref": "#/components/schemas/PluginNoteText",
+            "description": "平台管理员写的内容，优先于自动内容"
+          },
+          "extractedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "读取安装包的时间（毫秒）；null = 还没读过或上次读取失败"
+          },
+          "updatedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "后台最后修改时间（毫秒）"
+          }
+        }
+      },
+      "PluginNoteList": {
+        "type": "object",
+        "required": [
+          "pluginId",
+          "source",
+          "package",
+          "versionsAvailable",
+          "items"
+        ],
+        "properties": {
+          "pluginId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "npm",
+              "tokenscowork",
+              "github"
+            ],
+            "description": "版本与安装包的来源"
+          },
+          "package": {
+            "type": "string"
+          },
+          "versionsAvailable": {
+            "type": "boolean",
+            "description": "false = 暂时读不到 Registry 的版本列表，只列出插件当前版本和已保存过的版本"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PluginNote"
+            }
+          }
+        }
+      },
+      "PluginNoteInput": {
+        "type": "object",
+        "properties": {
+          "zh": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "中文说明，最多 4000 字符；空字符串或 null 清空（回到自动内容）；不传则保持不变"
+          },
+          "en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "英文说明，规则同 zh"
+          }
+        }
       }
     }
   }

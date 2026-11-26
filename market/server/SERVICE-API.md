@@ -15,6 +15,7 @@
 带了口令时以口令为准。本地开发实例（`npm run dev`）会从仅它才有的 `/__dev/docs-credential` 自动预填口令。
 
 `/v1/plugins`、`/roster.json`、`/source.json`、`/registry/*` 是给桌面端的消费接口，不在本文范围内，形状保持不变。
+插件版本的更新说明 `GET /v1/plugins/:pluginId/notes` 是新增的客户端接口，见下文「插件更新说明」。
 会话日志上传 `POST /v1/session-logs` 也是客户端接口，见下文「会话日志」；应用更新检查 `GET /v1/app/update` 见下文「应用版本发布」。
 
 ## TokensAPI 接入速查
@@ -74,6 +75,8 @@
 | PUT / DELETE | `/plugins/:id/docs/:docId` | ✗ |
 | GET / POST | `/plugins/:id/docs/images` | ✗ |
 | DELETE | `/plugins/:id/docs/images/:imageId` | ✗ |
+| GET | `/plugins/:id/notes` | ✗ |
+| GET / PUT | `/plugins/:id/notes/:version` | ✗ |
 | GET | `/organizations` | ✗ |
 | POST | `/organizations/sync` | ✗ |
 | GET | `/organizations/:orgId` | ✓（限本组织） |
@@ -263,6 +266,29 @@ PUT /api/v1/users/102/grants
 - **一次性登录码**（TokensCowork 从插件市场跳转文档时用，Key 不进网址）：`POST /v1/docs/codes`（Bearer 读者 Key）→ `{ code, expiresIn: 60 }`；`POST /v1/docs/codes/redeem { code }` → `{ key }`，只能换一次，过期、用过或不存在都返回 `404`。登录码只保存在市场服务进程的内存里，重启即作废。桌面端打开 `/docs?code=…#/<插件ID>`，页面换回 Key 后立刻把登录码从地址栏去掉。
 - 管理员入口：后台「插件文档」页的「打开文档中心」打开 `/docs?admin`，用平台管理员的后台登录读取，显示全部已上架插件；组织管理员的会话不放行，带 Key 时仍按 Key 判定。
 - 后台入口：左侧导航「插件文档」，选插件后上传在别处写好的 `.md` 文件，可替换、删除；标题取文件里第一个一级标题，没有就用文件名。选文件时可以把 `.md` 和它引用的图片一起选上：正文里的相对路径（如 `images/step-1.png`）按文件名（不分大小写）换成上传后的地址；正文引用了但没选的图片会在上传前列出来确认。
+
+### 插件更新说明
+
+每个插件的每个版本一段「更新说明」，中文、英文各一份（`market_plugin_notes`，删除插件时一并删除）。每种语言两个来源：
+
+- **自动**：这一版安装包里的 `CHANGELOG.md`（以及可选的 `CHANGELOG.en.md`，只认包的根目录，不分大小写）中 `## [x.y.z]` 或 `## x.y.z` 标题下的那一段（`## [1.2.0] - 2026-11-20`、`## v1.2.0`、`## [1.2.0](链接)` 都算），到下一个 `#` / `##` 标题为止；`## [Unreleased]` 不取。含中文字符的归中文，否则归英文；两个文件给出同一种语言时 `CHANGELOG.md` 优先。只保留文字和安全子集：去掉 HTML 标签与注释、图片、链接地址（保留链接文字）、代码围栏、链接定义；`###` 小标题变成加粗的一行，`*` / `+` 列表统一成 `- `；最长 4000 字符，超出在换行处截断并以 `…` 结尾。包里没有更新记录就是空（`null`）。
+- **后台**：平台管理员写的文字，同一语言**后台写的优先**；清空后读者重新看到自动内容。
+
+**什么时候读安装包**：不预先下载历史版本。某个版本第一次被问到时才读它的安装包（从目录安装用的同一个 Registry：公开 npm 或自建 Registry），结果存进数据库，之后不再读（版本发布后不会变）。问到的时机：应用调 `GET /v1/plugins/:id/notes` 时范围内还没读过的版本；后台打开「更新说明」时的最新版本，以及在后台切换到的那个版本。读取失败不记结果，5 分钟后再问会重试；插件改指向另一个包后，旧包读出的内容不再使用，按新包重新读。版本列表在进程内缓存 1 分钟。
+
+**后台接口**（平台管理员）：
+
+- `GET /plugins/:id/notes` → `{ pluginId, source, package, versionsAvailable, items: [{ version, publishedAt, auto: { zh, en }, admin: { zh, en }, extractedAt, updatedAt }] }`：版本新的在前，最多 100 个（稳定版，以及写过说明的其他版本）。`source` 为 `npm` / `tokenscowork` / `github`；`versionsAvailable: false` 表示暂时读不到 Registry 的版本列表，只列出插件当前版本和已保存过的版本。`extractedAt` 为 `null` 表示这个版本还没读过安装包（或上次读取失败）。
+- `GET /plugins/:id/notes/:version` → 一个版本（同上一项的条目），还没读过的先读安装包。不是这个插件发布过的版本 `404`。
+- `PUT /plugins/:id/notes/:version` `{ zh?, en? }` → 同上的条目。不传的语言保持不变；空字符串或 `null` 清空。每种语言最多 4000 字符。Registry 暂时读不到、版本又不在已保存的范围内时 `503`。写一条操作记录 `plugin.notes.saved`（目标 `插件号:版本`，`details` 只记 `{ zh, en }` 两种语言各有没有后台内容，不含正文）。
+- 后台入口：「插件」页每个市场插件的「更多操作 → 更新说明」：上方选版本（新到旧，标出最新版和各版本的状态），下方中文、英文两栏，各自显示自动取出的内容（只读，注明来源）和可编辑的后台内容（「清空」回到自动内容），保存只保存当前版本。
+
+**读取接口**（不在 `/api/v1` 下，给应用用）：
+
+- `GET /v1/plugins/:pluginId/notes?from=<已装版本>&to=<目标版本>` → `{ items: [{ version, publishedAt, zh, en }] }`，版本新的在前，只含 `from` < 版本 ≤ `to`，最多 20 个（超出时取最新的 20 个）；不带 `from` 时只返回 `to` 这一版。范围内的预发布版本不列（`to` 本身是预发布时照常返回它）。`to` 不是发布过的版本时 `items` 为空。`zh` / `en` = 后台写的，否则自动取的，都没有为 `null`；`publishedAt` 为 ISO 时间或 `null`。
+- 文字是纯文本或 Markdown 的安全子集（段落、`- ` 无序列表、`**加粗**`、`` `行内代码` ``）；后台写的内容原样保存，客户端按纯文本或这个子集渲染，不执行 HTML。
+- 鉴权与可见性同 `/v1/plugins`：匿名可读公开插件；带 Bearer Key 时按 Key 的授权（同一个访问判定，见「访问判定」）。看不到的插件、未上架、内置组件和不存在的插件一律 `404`。`to` 缺失或不是版本号、`from` 不是版本号 `400`；判定所需的上游暂时不可用 `503`。响应带与 `/v1/plugins` 相同的 CORS 头，`Cache-Control: no-store`。
+- Registry 暂时读不到时，只返回已经存进数据库的版本说明。
 
 ### 组织
 

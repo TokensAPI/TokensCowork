@@ -16,6 +16,7 @@ import { selectCatalogSources } from '../services/catalog-source-service.js'
 import { DOC_BODY_LIMIT, listPluginDocs, createPluginDoc, updatePluginDoc, deletePluginDoc } from '../services/docs.js'
 import { ICON_BODY_LIMIT, setPluginIcon, deletePluginIcon, iconVersions, iconPath } from '../services/icons.js'
 import { MAX_DOC_IMAGE_BYTES, listDocImages, uploadDocImage, deleteDocImage } from '../services/doc-images.js'
+import { NOTES_BODY_LIMIT, listPluginNotes, getPluginNote, savePluginNote } from '../services/plugin-notes.js'
 import { listAppReleases, getAppRelease, createAppRelease, changeAppRelease, deleteAppRelease, availableAppReleases, appReleaseInfos, appReleaseInfo } from '../services/app-releases.js'
 
 // The market's one management API, /api/v1. The console and TokensAPI's backend call the same
@@ -169,6 +170,15 @@ async function dispatch(request, env, url, principal) {
       }
       methods(method, ['DELETE'])
       return deleteDocImage(env, second, fifth, actor)
+    }
+    // What changed in each version, in Chinese and English; the app reads it at /v1/plugins/{id}/notes.
+    if (third === 'notes') {
+      if (!fourth) {
+        methods(method, ['GET'])
+        return listPluginNotes(env, second)
+      }
+      methods(method, ['GET', 'PUT'])
+      return method === 'GET' ? getPluginNote(env, second, fourth) : savePluginNote(env, second, fourth, await payload(request, NOTES_BODY_LIMIT), actor)
     }
     // The plugin's Markdown documentation pages; readers get them through /v1/docs.
     if (third === 'docs' && !fourth) {

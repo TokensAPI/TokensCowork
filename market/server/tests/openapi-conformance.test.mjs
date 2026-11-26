@@ -153,11 +153,11 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
   const { db, call, key } = await fixture(t)
   const before = db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get()
   const paths = Object.entries(document().paths)
-  assert.equal(paths.length, 41)
+  assert.equal(paths.length, 43)
   let checked = 0
   for (const [template, item] of paths) {
     const path = '/api/v1' + template.replace('{pluginId}', 'beta').replace('{orgId}', '7').replace('{fingerprint}', key).replace('{userId}', '102')
-      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4').replace('{docId}', '1').replace('{version}', '0.8.0')
+      .replace('{sessionId}', 'session-fixture').replace('{formatVersion}', '4').replace('{docId}', '1').replace('{version}', '0.8.0').replace('{pluginVersion}', '1.0.0')
     for (const method of Object.keys(item).filter(name => name !== 'parameters')) {
       // Deleting the fixture Key or the session is a real change rather than a probe. Every plugin
       // write carries a stale revision, so the optimistic lock rejects it without changing anything.
@@ -167,7 +167,7 @@ test('every operation in the OpenAPI document reaches a real route', async t => 
       checked++
     }
   }
-  assert.equal(checked, 56)
+  assert.equal(checked, 59)
   assert.deepEqual(db.prepare("SELECT * FROM market_plugins WHERE id='beta'").get(), before)
 })
 
@@ -225,6 +225,14 @@ test('what the routes actually answer matches the schema documented for it', asy
     ['PUT', '/plugins/beta/docs/999', '/plugins/{pluginId}/docs/{docId}', 404, { title: '入门', body: '改过' }],
     ['DELETE', '/plugins/beta/docs/1', '/plugins/{pluginId}/docs/{docId}', 200],
     ['GET', '/plugins/beta/docs', '/plugins/{pluginId}/docs', 403, undefined, tenant],
+    ['GET', '/plugins/beta/notes', '/plugins/{pluginId}/notes', 200],
+    ['GET', '/plugins/nope/notes', '/plugins/{pluginId}/notes', 404],
+    ['GET', '/plugins/beta/notes', '/plugins/{pluginId}/notes', 403, undefined, tenant],
+    ['PUT', '/plugins/beta/notes/1.0.0', '/plugins/{pluginId}/notes/{pluginVersion}', 200, { zh: '首个版本', en: null }],
+    ['PUT', '/plugins/beta/notes/1.0.0', '/plugins/{pluginId}/notes/{pluginVersion}', 400, {}],
+    ['PUT', '/plugins/beta/notes/2.0.0', '/plugins/{pluginId}/notes/{pluginVersion}', 404, { zh: '没有这个版本' }],
+    ['GET', '/plugins/beta/notes/1.0.0', '/plugins/{pluginId}/notes/{pluginVersion}', 200],
+    ['GET', '/plugins/beta/notes/2.0.0', '/plugins/{pluginId}/notes/{pluginVersion}', 404],
     ['PUT', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 200, { contentType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB' }],
     ['PUT', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 400, { contentType: 'image/svg+xml', data: 'PHN2Zz4=' }],
     ['DELETE', '/plugins/beta/icon', '/plugins/{pluginId}/icon', 200],
