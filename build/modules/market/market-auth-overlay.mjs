@@ -35,10 +35,14 @@ export const restrictedHttpClient: CatalogHttpClient = createRestrictedHttpClien
   syntheticProxyHostnames: ['${url.hostname}'],
   authorization: async (url) => productMarketAuthorizationHook?.(url),
 })`)
+  // 只有目录、名册与插件更新说明（/v1/plugins/<插件ID>/notes，T0114）带 Key：说明的可见性与目录同一判定，
+  // 不带 Key 时受限插件一律 404。其他路径（含同一 origin 的后台接口）一律不带。
   http += `
 export function createProductMarketAuthorization(readKey: () => Promise<string>) {
   return async (url: URL): Promise<string | undefined> => {
-    if (url.origin !== ${JSON.stringify(origin)} || !['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)) return undefined
+    if (url.origin !== ${JSON.stringify(origin)}) return undefined
+    if (!['/v1/plugins', '/v1/plugins/', '/roster.json'].includes(url.pathname)
+      && !/^\\/v1\\/plugins\\/[a-z0-9][a-z0-9-]{0,79}\\/notes$/u.test(url.pathname)) return undefined
     const key = await readKey()
     return /^sk-\\S{1,509}$/u.test(key) ? 'Bearer ' + key : undefined
   }

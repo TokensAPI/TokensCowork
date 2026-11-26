@@ -27,6 +27,11 @@ test('only product catalog receives current Key, never third-party or unrelated 
   assert.equal(await auth(new URL(origin+'/roster.json')),'Bearer sk-second')
   for(const url of ['https://registry.npmjs.org/v1/plugins','https://github.com/v1/plugins',origin+'.evil.test/v1/plugins',origin+'/api/admin/access','http://tokenscowork-market.pages.dev/v1/plugins']) assert.equal(await auth(new URL(url)),undefined)
   assert.equal(reads,2)
+  // 插件更新说明与目录同一可见性判定，也要带 Key（T0114）；别的子路径与畸形插件 ID 不带。
+  key='sk-notes'
+  assert.equal(await auth(new URL(origin+'/v1/plugins/tokens-connect/notes?from=1.0.0&to=1.2.0')),'Bearer sk-notes')
+  for(const url of [origin+'/v1/plugins/tokens-connect',origin+'/v1/plugins/tokens-connect/notes/1.2.0',origin+'/v1/plugins/../api/notes',origin+'/v1/plugins/Bad_Id/notes',origin+'/api/v1/plugins/tokens-connect/notes','https://registry.npmjs.org/v1/plugins/tokens-connect/notes']) assert.equal(await auth(new URL(url)),undefined,url)
+  assert.equal(reads,3)
   for(const value of ['', 'sk-test\r\nInjected: yes']) {key=value;assert.equal(await auth(new URL(origin+'/v1/plugins')),undefined)}
 })
 
